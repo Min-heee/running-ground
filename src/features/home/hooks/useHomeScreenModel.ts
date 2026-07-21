@@ -87,7 +87,7 @@ export function useHomeScreenModel() {
 
       if (summaryResult.status === 'rejected') {
         setSummary(null);
-        setError('홈 정보를 불러오지 못했어.');
+        setError('홈 정보를 불러오지 못했어요.');
         hasLoadedRef.current = true;
         setLoading(false);
         return;
@@ -173,7 +173,7 @@ export function useHomeScreenModel() {
       const payload = await fetchUpcomingRunningMatches();
       setUpcomingMatches(payload.items);
     } catch (cancelError) {
-      setError(getApiErrorMessage(cancelError, '예약을 취소하지 못했어.'));
+      setError(getApiErrorMessage(cancelError, '예약을 취소하지 못했어요.'));
     } finally {
       setCancelingMatchId(null);
     }

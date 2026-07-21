@@ -31,7 +31,7 @@ export function createApiRouteHandler({
 }) {
   return async function routeRequest(request, response) {
     if (!request.url) {
-      throw new ApiError(400, '요청 주소를 읽을 수 없어.');
+      throw new ApiError(400, '요청 주소를 읽을 수 없어요.');
     }
 
     if (request.method === 'OPTIONS') {
@@ -61,6 +61,6 @@ export function createApiRouteHandler({
       }
     }
 
-    throw new ApiError(404, '요청한 API를 찾을 수 없어.');
+    throw new ApiError(404, '요청한 API를 찾을 수 없어요.');
   };
 }

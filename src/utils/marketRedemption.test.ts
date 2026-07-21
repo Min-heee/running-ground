@@ -36,7 +36,7 @@ test('market redemption rejects missing, inactive, and out-of-stock rewards', ()
   assert.deepEqual(checkMarketRedemptionEligibility(null, 100), {
     canRedeem: false,
     reason: 'missing-item',
-    message: '교환할 리워드를 찾지 못했어.',
+    message: '교환할 리워드를 찾지 못했어요.',
   });
   assert.equal(failureReason(checkMarketRedemptionEligibility(reward({ isActive: false }), 100)), 'inactive');
   assert.equal(failureReason(checkMarketRedemptionEligibility(reward({ remainingStock: 0 }), 100)), 'out-of-stock');

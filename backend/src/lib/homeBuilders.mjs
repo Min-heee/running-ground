@@ -33,7 +33,7 @@ export function buildHomeSummaryWithMetrics(store, user, metrics) {
         distanceKm: 0,
         source: 'Manual',
       },
-    friendName: closestFriend?.name ?? '친구를 추가해봐',
+    friendName: closestFriend?.name ?? '친구를 추가해보세요',
     friendGapKm: closestFriendMetrics ? Number(Math.abs(closestFriendMetrics.currentWeekDistanceKm - metrics.currentWeekDistanceKm).toFixed(1)) : 0,
     districtName: user.districtName,
     districtRank: districtBattle.homeDistrictRank,

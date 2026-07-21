@@ -21,7 +21,7 @@ export function useNotificationSettings() {
         setMatchReminders(settings.matchReminders);
       })
       .catch((loadError) => {
-        setError(getApiErrorMessage(loadError, '알림 설정을 불러오지 못했어.'));
+        setError(getApiErrorMessage(loadError, '알림 설정을 불러오지 못했어요.'));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -35,7 +35,7 @@ export function useNotificationSettings() {
         const hasPermission = await ensureMatchReminderPermissions();
 
         if (!hasPermission) {
-          throw new Error('기기 알림 권한을 허용해야 예약 매치 알림을 켤 수 있어.');
+          throw new Error('기기 알림 권한을 허용해야 예약 매치 알림을 켤 수 있어요.');
         }
       }
 
@@ -55,7 +55,7 @@ export function useNotificationSettings() {
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     } catch (saveError) {
-      setError(getApiErrorMessage(saveError, '알림 설정 저장에 실패했어.'));
+      setError(getApiErrorMessage(saveError, '알림 설정 저장에 실패했어요.'));
     } finally {
       setSaving(false);
     }

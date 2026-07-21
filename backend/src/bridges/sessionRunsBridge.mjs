@@ -124,13 +124,13 @@ function findJsonUserByToken(store, token, createError) {
   const session = store.sessions.find((entry) => entry.token === token);
 
   if (!session || isSessionExpired(session)) {
-    throw createError(401, '세션이 만료됐어. 다시 로그인해줘.');
+    throw createError(401, '세션이 만료됐어요. 다시 로그인해주세요.');
   }
 
   const user = store.users.find((entry) => entry.id === session.userId);
 
   if (!user) {
-    throw createError(401, '세션 사용자를 찾을 수 없어.');
+    throw createError(401, '세션 사용자를 찾을 수 없어요.');
   }
 
   return user;
@@ -140,7 +140,7 @@ function findJsonUserById(store, userId, createError) {
   const user = store.users.find((entry) => entry.id === userId);
 
   if (!user) {
-    throw createError(404, '사용자를 찾을 수 없어.');
+    throw createError(404, '사용자를 찾을 수 없어요.');
   }
 
   return user;
@@ -257,7 +257,7 @@ export function createSessionRunsBridge({
       }
 
       if (!fallbackToJson) {
-        throw createError(401, '세션이 만료됐어. 다시 로그인해줘.');
+        throw createError(401, '세션이 만료됐어요. 다시 로그인해주세요.');
       }
 
       return {
@@ -279,7 +279,7 @@ export function createSessionRunsBridge({
       }
 
       if (!fallbackToJson) {
-        throw createError(404, '사용자를 찾을 수 없어.');
+        throw createError(404, '사용자를 찾을 수 없어요.');
       }
 
       return {

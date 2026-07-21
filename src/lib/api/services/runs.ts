@@ -52,7 +52,7 @@ export async function fetchMyActivity(): Promise<MyActivityResponse> {
 
   return apiGet<MyActivityResponse>('/me/activity', {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '내 활동을 불러오지 못했어.',
+    fallbackMessage: '내 활동을 불러오지 못했어요.',
   });
 }
 
@@ -85,7 +85,7 @@ export async function createManualRun(input: CreateManualRunInput): Promise<Crea
     },
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '수동 러닝 기록 저장에 실패했어.',
+      fallbackMessage: '수동 러닝 기록 저장에 실패했어요.',
     },
   );
 
@@ -140,7 +140,7 @@ export async function createTrackedRun(input: CreateTrackedRunInput): Promise<Cr
     },
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '실시간 러닝 기록 저장에 실패했어.',
+      fallbackMessage: '실시간 러닝 기록 저장에 실패했어요.',
       // Full GPS route upload → allow a slow 1vCPU write to finish once instead of
       // aborting at 10s and re-sending the whole payload on retry.
       timeoutMs: TRACKED_RUN_SAVE_TIMEOUT_MS,
@@ -179,7 +179,7 @@ export async function createRunningRoutePreview(
     input,
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '추천 그림 경로를 만들지 못했어.',
+      fallbackMessage: '추천 그림 경로를 만들지 못했어요.',
     },
   );
 }
@@ -214,7 +214,7 @@ export async function updateRunningLiveShare(
     },
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '위치 공유 상태를 반영하지 못했어.',
+      fallbackMessage: '위치 공유 상태를 반영하지 못했어요.',
       // Best-effort live-share sync fired at run start and on the live-share heartbeat —
       // a tight timeout keeps a stalled request from blocking the start flow and showing
       // the scary "위치 공유 상태를 반영하지 못했어요" banner for ~10s.
@@ -260,7 +260,7 @@ export async function fetchRunDetail(input?: { runId?: string; friendId?: string
   if (input?.friendId && input?.runId) {
     const payload = await apiGet<RunDetailResponse>(`/friends/${input.friendId}/runs/${input.runId}`, {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '친구 러닝 상세를 불러오지 못했어.',
+      fallbackMessage: '친구 러닝 상세를 불러오지 못했어요.',
     });
 
     return ensureRunDetailResponse(payload, { action: 'fetch-friend-run-detail' });
@@ -269,7 +269,7 @@ export async function fetchRunDetail(input?: { runId?: string; friendId?: string
   if (input?.runId) {
     const payload = await apiGet<RunDetailResponse>(`/runs/${input.runId}`, {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '러닝 상세를 불러오지 못했어.',
+      fallbackMessage: '러닝 상세를 불러오지 못했어요.',
     });
 
     return ensureRunDetailResponse(payload, { action: 'fetch-run-detail' });
@@ -277,7 +277,7 @@ export async function fetchRunDetail(input?: { runId?: string; friendId?: string
 
   const payload = await apiGet<RunDetailResponse>('/runs/latest', {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '러닝 상세를 불러오지 못했어.',
+    fallbackMessage: '러닝 상세를 불러오지 못했어요.',
   });
 
   return ensureRunDetailResponse(payload, { action: 'fetch-latest-run' });

@@ -124,15 +124,15 @@ export function getRecommendationCopy(platform: DevicePlatform): string {
     // actually exists in this binary (build 49+); build 48 keeps the
     // HealthKit-free wording.
     return isAppleHealthModuleAvailable()
-      ? "지금 기기 기준으로는 Apple 건강을 연결하는 게 기본이야. NRC·Strava 같은 러닝 앱 기록도 Apple 건강에 모아두면 '기기에서 기록 가져오기' 한 번으로 함께 들어와."
-      : '지금 버전 iPhone에서는 자동 가져오기 연동 없이 앱 측정과 수동 기록으로 기록을 쌓는 흐름이 기본이야.';
+      ? "지금 기기 기준으로는 Apple 건강을 연결하는 게 기본이에요. NRC·Strava 같은 러닝 앱 기록도 Apple 건강에 모아두면 '기기에서 기록 가져오기' 한 번으로 함께 들어와요."
+      : '지금 버전 iPhone에서는 자동 가져오기 연동 없이 앱 측정과 수동 기록으로 기록을 쌓는 흐름이 기본이에요.';
   }
 
   if (platform === 'android') {
-    return "지금 기기 기준으로는 헬스 커넥트를 연결하는 게 기본이야. 삼성헬스·워치 기록도 헬스 커넥트에 모아두면 '기기에서 기록 가져오기' 한 번으로 함께 들어와.";
+    return "지금 기기 기준으로는 헬스 커넥트를 연결하는 게 기본이에요. 삼성헬스·워치 기록도 헬스 커넥트에 모아두면 '기기에서 기록 가져오기' 한 번으로 함께 들어와요.";
   }
 
-  return '기본 건강 허브를 먼저 연결하고, 필요할 때 수동 기록을 덧붙이는 흐름이 가장 안정적이야.';
+  return '기본 건강 허브를 먼저 연결하고, 필요할 때 수동 기록을 덧붙이는 흐름이 가장 안정적이에요.';
 }
 
 export function getRecommendedSources(sources: ConnectedSource[], platform = getCurrentDevicePlatform()): ConnectedSource[] {

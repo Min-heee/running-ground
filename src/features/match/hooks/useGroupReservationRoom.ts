@@ -54,6 +54,6 @@ export function useGroupReservationRoom(
     slotStartAt,
     isTestMatch,
     buildView,
-    cancelErrorMessage: '그룹 예약을 취소하지 못했어.',
+    cancelErrorMessage: '그룹 예약을 취소하지 못했어요.',
   });
 }

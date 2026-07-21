@@ -294,10 +294,10 @@ export function isUnsavableShortRunError(error: unknown) {
   const message = getApiErrorMessage(error, String(error ?? ''));
 
   return [
-    '저장하려면 실제로 이동한 러닝 경로가 조금 더 필요해.',
-    '페이스 계산이 아직 부족해서 저장할 수 없어.',
-    '러닝 경로는 최소 2개 이상의 위치 좌표가 필요해.',
-    '러닝 거리를 입력해줘.',
-    '페이스를 입력해줘.',
+    '저장하려면 실제로 이동한 러닝 경로가 조금 더 필요해요.',
+    '페이스 계산이 아직 부족해서 저장할 수 없어요.',
+    '러닝 경로는 최소 2개 이상의 위치 좌표가 필요해요.',
+    '러닝 거리를 입력해주세요.',
+    '페이스를 입력해주세요.',
   ].some((snippet) => message.includes(snippet));
 }

@@ -49,7 +49,7 @@ function createRepositoryHarness(initialStore = {}, metricsByUserId = {}) {
       const session = store.sessions.find((entry) => entry.token === token);
 
       if (!session) {
-        throw new TestApiError(401, '세션이 만료됐어. 다시 로그인해줘.');
+        throw new TestApiError(401, '세션이 만료됐어요. 다시 로그인해주세요.');
       }
 
       return store.users.find((entry) => entry.id === session.userId);
@@ -197,7 +197,7 @@ await runTest('rejects duplicate claims for non-repeatable items', async () => {
     token: 'token-me',
     itemId: 'market-1',
   }), (error) => {
-    assertApiError(error, 409, '이미 교환한 리워드야.');
+    assertApiError(error, 409, '이미 교환한 리워드예요.');
     return true;
   });
 });

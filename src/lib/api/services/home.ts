@@ -24,7 +24,7 @@ export async function fetchHomeSummary(): Promise<HomeSummaryResponse> {
 
   return apiGet<HomeSummaryResponse>('/home/summary', {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '홈 요약을 불러오지 못했어.',
+    fallbackMessage: '홈 요약을 불러오지 못했어요.',
   });
 }
 
@@ -36,6 +36,6 @@ export async function fetchActiveNotices(): Promise<ActiveNoticesResponse> {
   }
 
   return apiGet<ActiveNoticesResponse>('/notices/active', {
-    fallbackMessage: '공지 정보를 불러오지 못했어.',
+    fallbackMessage: '공지 정보를 불러오지 못했어요.',
   });
 }

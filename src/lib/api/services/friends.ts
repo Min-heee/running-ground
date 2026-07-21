@@ -31,7 +31,7 @@ export async function fetchFriendLeaderboard(): Promise<FriendLeaderboardRespons
 
   return apiGet<FriendLeaderboardResponse>('/friends/leaderboard', {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '친구 랭킹을 불러오지 못했어.',
+    fallbackMessage: '친구 랭킹을 불러오지 못했어요.',
   });
 }
 
@@ -51,12 +51,12 @@ export async function fetchFriendActivity(friendId?: string): Promise<FriendActi
   }
 
   if (!friendId) {
-    throw new Error('친구 정보를 찾을 수 없어.');
+    throw new Error('친구 정보를 찾을 수 없어요.');
   }
 
   return apiGet<FriendActivityResponse>(`/friends/${friendId}/activity`, {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '친구 활동을 불러오지 못했어.',
+    fallbackMessage: '친구 활동을 불러오지 못했어요.',
   });
 }
 
@@ -92,7 +92,7 @@ export async function createFriendRequest(tag: string): Promise<CreateFriendRequ
     },
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '친구 요청 전송에 실패했어.',
+      fallbackMessage: '친구 요청 전송에 실패했어요.',
     },
   );
 }
@@ -128,7 +128,7 @@ export async function acceptFriendRequest(requestId: string): Promise<FriendRequ
     {},
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '친구 요청 수락에 실패했어.',
+      fallbackMessage: '친구 요청 수락에 실패했어요.',
     },
   );
 }
@@ -149,7 +149,7 @@ export async function rejectFriendRequest(requestId: string): Promise<FriendRequ
     {},
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '친구 요청 거절에 실패했어.',
+      fallbackMessage: '친구 요청 거절에 실패했어요.',
     },
   );
 }
@@ -170,7 +170,7 @@ export async function cancelFriendRequest(requestId: string): Promise<FriendRequ
     {},
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '보낸 친구 요청 취소에 실패했어.',
+      fallbackMessage: '보낸 친구 요청 취소에 실패했어요.',
     },
   );
 }

@@ -15,18 +15,18 @@ import {
 } from './runningRoomResponseGuards';
 
 test('room API fallback does not mask a real missing invite room response', () => {
-  const error = new ApiError('request', '참여할 방을 찾지 못했어.', {
+  const error = new ApiError('request', '참여할 방을 찾지 못했어요.', {
     status: 404,
-    userMessage: '참여할 방을 찾지 못했어.',
+    userMessage: '참여할 방을 찾지 못했어요.',
   });
 
   assert.equal(shouldFallbackToLocalRunningRoomApi(error), false);
 });
 
 test('room API fallback still allows legacy missing endpoint responses', () => {
-  const error = new ApiError('request', '요청한 API를 찾을 수 없어.', {
+  const error = new ApiError('request', '요청한 API를 찾을 수 없어요.', {
     status: 404,
-    userMessage: '요청한 API를 찾을 수 없어.',
+    userMessage: '요청한 API를 찾을 수 없어요.',
   });
 
   assert.equal(shouldFallbackToLocalRunningRoomApi(error), true);

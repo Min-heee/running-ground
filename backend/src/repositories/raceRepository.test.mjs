@@ -47,7 +47,7 @@ function createRepositoryHarness(initialStore = {}) {
       const session = store.sessions.find((entry) => entry.token === token);
 
       if (!session) {
-        throw new TestApiError(401, '세션이 만료됐어. 다시 로그인해줘.');
+        throw new TestApiError(401, '세션이 만료됐어요. 다시 로그인해주세요.');
       }
 
       return store.users.find((entry) => entry.id === session.userId);
@@ -172,7 +172,7 @@ await runTest('rejects joining a full race', async () => {
     eventId: 'race-1',
     action: 'join',
   }), (error) => {
-    assertApiError(error, 409, '정원이 모두 차서 더 이상 신청할 수 없어.');
+    assertApiError(error, 409, '정원이 모두 차서 더 이상 신청할 수 없어요.');
     return true;
   });
 });

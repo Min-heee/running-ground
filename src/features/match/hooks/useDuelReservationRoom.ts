@@ -40,6 +40,6 @@ export function useDuelReservationRoom(
     isTestMatch,
     // Module-level function — referentially stable, as the core's view memo requires.
     buildView: buildDuelReservationRoomView,
-    cancelErrorMessage: '1대1 예약을 취소하지 못했어.',
+    cancelErrorMessage: '1대1 예약을 취소하지 못했어요.',
   });
 }

@@ -127,7 +127,7 @@ export function useRoomStartActions({
       syncServerClock(payload.serverNow, payload);
       commitRoom(payload.room);
     } catch (roomError) {
-      setError(getApiErrorMessage(roomError, '준비 상태를 바꾸지 못했어.'));
+      setError(getApiErrorMessage(roomError, '준비 상태를 바꾸지 못했어요.'));
     } finally {
       roomReadyInFlightRef.current = false;
       setSaving(false);
@@ -219,7 +219,7 @@ export function useRoomStartActions({
       }
     } catch (roomError) {
       endStartApiTrace({ success: false });
-      setError(getApiErrorMessage(roomError, '방을 시작하지 못했어.'));
+      setError(getApiErrorMessage(roomError, '방을 시작하지 못했어요.'));
     } finally {
       roomStartInFlightRef.current = false;
       setSaving(false);
@@ -241,8 +241,8 @@ export function useRoomStartActions({
     const exitTraceLabel = exitRoom.isHost ? 'room delete API' : 'room leave API';
     const failureTitle = exitRoom.isHost ? '방 삭제 실패' : '방 나가기 실패';
     const failureMessage = exitRoom.isHost
-      ? '방을 삭제하지 못했어.'
-      : '방에서 나가지 못했어.';
+      ? '방을 삭제하지 못했어요.'
+      : '방에서 나가지 못했어요.';
 
     rgPerfMark(exitRoom.isHost ? 'room delete button press' : 'room leave button press', {
       roomId: exitRoom.roomId,

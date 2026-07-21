@@ -50,7 +50,7 @@ export async function fetchMyProfile(): Promise<MyProfileResponse> {
 
   const profile = await apiGet<MyProfileResponse>('/me/profile', {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '내 프로필을 불러오지 못했어.',
+    fallbackMessage: '내 프로필을 불러오지 못했어요.',
   });
 
   await setCurrentUserProfile(profile);
@@ -63,6 +63,10 @@ export async function updateMyProfile(input: UpdateMyProfileInput): Promise<Upda
     const nextProfile = {
       ...currentProfile,
       name: input.name.trim() || currentProfile.name,
+      ...(input.publicTag !== undefined
+        ? { publicTag: `#${input.publicTag.trim().replace(/^#/, '').toUpperCase()}` }
+        : {}),
+      ...(input.statusMessage !== undefined ? { statusMessage: input.statusMessage.trim() } : {}),
     };
 
     await setCurrentUserProfile(nextProfile);
@@ -73,10 +77,12 @@ export async function updateMyProfile(input: UpdateMyProfileInput): Promise<Upda
     '/me/profile',
     {
       name: input.name.trim(),
+      ...(input.publicTag !== undefined ? { publicTag: input.publicTag } : {}),
+      ...(input.statusMessage !== undefined ? { statusMessage: input.statusMessage } : {}),
     },
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '프로필 저장에 실패했어.',
+      fallbackMessage: '프로필 저장에 실패했어요.',
     },
   );
 
@@ -91,7 +97,7 @@ export async function fetchNotificationSettings(): Promise<NotificationSettingsR
 
   return apiGet<NotificationSettingsResponse>('/me/notifications', {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '알림 설정을 불러오지 못했어.',
+    fallbackMessage: '알림 설정을 불러오지 못했어요.',
   });
 }
 
@@ -119,7 +125,7 @@ export async function updateNotificationSettings(
     },
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '알림 설정 저장에 실패했어.',
+      fallbackMessage: '알림 설정 저장에 실패했어요.',
     },
   );
 }
@@ -147,7 +153,7 @@ export async function updateMyRegion(input: UpdateMyRegionInput): Promise<Update
     },
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '지역 저장에 실패했어.',
+      fallbackMessage: '지역 저장에 실패했어요.',
     },
   );
 

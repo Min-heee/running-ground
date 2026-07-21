@@ -157,6 +157,20 @@ function resolveDistrictPersonalRegion(store, user, nodeId) {
         };
       }
 
+      // 광역시 trees have no city level — their 구 nodes sit directly under the
+      // province. Match province + district: the same 구 name repeats across
+      // six metros (동구/중구/서구...), so the district name alone must never
+      // be the key. Without this branch the lookup silently fell through to
+      // the REQUESTER's own region, so every metro 구 showed the same board.
+      if (targetNode.level === 'district') {
+        const regionKey = [provinceName, normalizeOptionalString(targetNode.name)].filter(Boolean).join(' > ');
+
+        return {
+          regionName: targetNode.name,
+          matchesUser: (entry) => buildUserRegionKey(entry) === regionKey,
+        };
+      }
+
       // A province-level node aggregates the whole province.
       if (targetNode.level === 'province') {
         return {
@@ -217,7 +231,7 @@ function buildRegionLeague(store, nodeId, createError) {
   const rawPath = nodeId ? findRegionPath(rootNode, nodeId) : [rootNode];
 
   if (!rawPath) {
-    throw createError(404, '선택한 지역 정보를 찾을 수 없어.');
+    throw createError(404, '선택한 지역 정보를 찾을 수 없어요.');
   }
 
   const path = capRegionPathDepth(rawPath);
@@ -240,7 +254,7 @@ function buildRegionLeague(store, nodeId, createError) {
 
 function requireTodayRankingCategory(category, createError) {
   if (!isTodayRankingCategory(category)) {
-    throw createError(400, '오늘의 랭킹 카테고리가 올바르지 않아.');
+    throw createError(400, '오늘의 랭킹 카테고리가 올바르지 않아요.');
   }
 
   return category;

@@ -68,7 +68,7 @@ function createRepositoryHarness(initialStore = {}) {
       const user = store.users.find((entry) => entry.id === userId);
 
       if (!user) {
-        throw new TestApiError(404, '사용자를 찾을 수 없어.');
+        throw new TestApiError(404, '사용자를 찾을 수 없어요.');
       }
 
       return user;
@@ -242,7 +242,7 @@ await runTest('surfaces missing notice errors', async () => {
       isActive: true,
     },
   }), (error) => {
-    assertApiError(error, 404, '수정할 공지를 찾지 못했어.');
+    assertApiError(error, 404, '수정할 공지를 찾지 못했어요.');
     return true;
   });
 });

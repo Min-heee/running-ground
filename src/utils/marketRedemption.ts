@@ -46,7 +46,7 @@ export function checkMarketRedemptionEligibility(
     return {
       canRedeem: false,
       reason: 'missing-item',
-      message: '교환할 리워드를 찾지 못했어.',
+      message: '교환할 리워드를 찾지 못했어요.',
     };
   }
 
@@ -54,7 +54,7 @@ export function checkMarketRedemptionEligibility(
     return {
       canRedeem: false,
       reason: 'invalid-points',
-      message: '포인트 정보를 확인하지 못했어.',
+      message: '포인트 정보를 확인하지 못했어요.',
     };
   }
 
@@ -62,7 +62,7 @@ export function checkMarketRedemptionEligibility(
     return {
       canRedeem: false,
       reason: 'inactive',
-      message: '현재 교환할 수 없는 리워드야.',
+      message: '현재 교환할 수 없는 리워드예요.',
     };
   }
 
@@ -70,7 +70,7 @@ export function checkMarketRedemptionEligibility(
     return {
       canRedeem: false,
       reason: 'out-of-stock',
-      message: '재고가 모두 소진됐어.',
+      message: '재고가 모두 소진됐어요.',
     };
   }
 
@@ -78,7 +78,7 @@ export function checkMarketRedemptionEligibility(
     return {
       canRedeem: false,
       reason: 'already-claimed',
-      message: '이미 교환한 리워드야.',
+      message: '이미 교환한 리워드예요.',
     };
   }
 
@@ -86,7 +86,7 @@ export function checkMarketRedemptionEligibility(
     return {
       canRedeem: false,
       reason: 'insufficient-points',
-      message: '포인트가 부족해서 아직 교환할 수 없어.',
+      message: '포인트가 부족해서 아직 교환할 수 없어요.',
     };
   }
 

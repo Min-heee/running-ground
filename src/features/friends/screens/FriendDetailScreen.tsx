@@ -51,7 +51,7 @@ export default function FriendDetailScreen() {
             title="친구 활동"
             subtitle={activity.friend.isRunningNow
               ? `${activity.friend.name} 님이 지금 달리는 중이라 최근 기록과 실시간 위치 공유 상태를 함께 볼 수 있어요.`
-              : `${activity.friend.name}가 최근에 뛴 기록과 이번 달 누적 거리를 볼 수 있어.`}
+              : `${activity.friend.name}가 최근에 뛴 기록과 이번 달 누적 거리를 볼 수 있어요.`}
             showBack
             backHref="/(tabs)/friends"
           />

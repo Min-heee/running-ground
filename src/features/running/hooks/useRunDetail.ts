@@ -40,7 +40,7 @@ export function useRunDetail({
   const loadRunDetail = useCallback(() => {
     return fetchRunDetail({ runId, friendId })
       .then((data) => setRunDetail(data))
-      .catch((loadError) => setError(getApiErrorMessage(loadError, '기록 상세 정보를 불러오지 못했어.')))
+      .catch((loadError) => setError(getApiErrorMessage(loadError, '기록 상세 정보를 불러오지 못했어요.')))
       .finally(() => setLoading(false));
   }, [friendId, runId]);
 

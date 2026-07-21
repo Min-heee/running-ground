@@ -25,7 +25,7 @@ export async function fetchMarketOverview(): Promise<MarketOverviewResponse> {
 
   return apiGet<MarketOverviewResponse>('/market/overview', {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '마켓 정보를 불러오지 못했어.',
+    fallbackMessage: '마켓 정보를 불러오지 못했어요.',
   });
 }
 
@@ -34,7 +34,7 @@ export async function claimMarketItem(itemId: string): Promise<MarketClaimRespon
     const item = mockMarketCatalog.find((entry) => entry.id === itemId);
 
     if (!item) {
-      throw new Error('교환할 리워드를 찾지 못했어.');
+      throw new Error('교환할 리워드를 찾지 못했어요.');
     }
 
     const eligibility = checkMarketRedemptionEligibility(
@@ -65,7 +65,7 @@ export async function claimMarketItem(itemId: string): Promise<MarketClaimRespon
     {},
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '리워드 교환에 실패했어.',
+      fallbackMessage: '리워드 교환에 실패했어요.',
     },
   );
 }

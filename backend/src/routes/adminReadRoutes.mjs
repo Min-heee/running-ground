@@ -13,7 +13,7 @@ async function routeAdminStatusReadRequest({
 }) {
   if (pathname === '/api/admin/status' && method === 'GET') {
     if (!ENABLE_ADMIN_STATUS) {
-      throw new ApiError(404, '관리자 상태 확인 기능이 비활성화되어 있어.');
+      throw new ApiError(404, '관리자 상태 확인 기능이 비활성화되어 있어요.');
     }
 
     requireAdmin(request);

@@ -32,7 +32,7 @@ export async function fetchIntegrationStatus(): Promise<IntegrationStatusRespons
 
   return apiGet<IntegrationStatusResponse>('/integrations/sources', {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '연동 상태를 불러오지 못했어.',
+    fallbackMessage: '연동 상태를 불러오지 못했어요.',
   });
 }
 
@@ -66,7 +66,7 @@ export async function syncIntegrationSources(): Promise<IntegrationSyncResponse>
     {},
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '연동 동기화에 실패했어.',
+      fallbackMessage: '연동 동기화에 실패했어요.',
     },
   );
 }
@@ -76,7 +76,7 @@ export async function connectIntegrationSource(sourceType: RunSourceType): Promi
     const targetSource = mockApiState.connectedSources.find((source) => source.sourceType === sourceType);
 
     if (!targetSource) {
-      throw new Error('연결할 소스를 찾지 못했어.');
+      throw new Error('연결할 소스를 찾지 못했어요.');
     }
 
     mockApiState.connectedSources = mockApiState.connectedSources.map((source) => (
@@ -101,7 +101,7 @@ export async function connectIntegrationSource(sourceType: RunSourceType): Promi
     const source = mockApiState.connectedSources.find((entry) => entry.sourceType === sourceType);
 
     if (!source) {
-      throw new Error('연결된 소스를 다시 확인하지 못했어.');
+      throw new Error('연결된 소스를 다시 확인하지 못했어요.');
     }
 
     return {
@@ -116,7 +116,7 @@ export async function connectIntegrationSource(sourceType: RunSourceType): Promi
     {},
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '소스 연결에 실패했어.',
+      fallbackMessage: '소스 연결에 실패했어요.',
     },
   );
 }
@@ -126,7 +126,7 @@ export async function disconnectIntegrationSource(sourceType: RunSourceType): Pr
     const targetSource = mockApiState.connectedSources.find((source) => source.sourceType === sourceType);
 
     if (!targetSource) {
-      throw new Error('해제할 소스를 찾지 못했어.');
+      throw new Error('해제할 소스를 찾지 못했어요.');
     }
 
     mockApiState.connectedSources = mockApiState.connectedSources.map((source) => (
@@ -143,7 +143,7 @@ export async function disconnectIntegrationSource(sourceType: RunSourceType): Pr
     const source = mockApiState.connectedSources.find((entry) => entry.sourceType === sourceType);
 
     if (!source) {
-      throw new Error('연결 해제된 소스를 다시 확인하지 못했어.');
+      throw new Error('연결 해제된 소스를 다시 확인하지 못했어요.');
     }
 
     return {
@@ -158,7 +158,7 @@ export async function disconnectIntegrationSource(sourceType: RunSourceType): Pr
     {},
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '소스 연결 해제에 실패했어.',
+      fallbackMessage: '소스 연결 해제에 실패했어요.',
     },
   );
 }
@@ -180,7 +180,7 @@ export async function queueIntegrationImports(
     const source = mockApiState.connectedSources.find((entry) => entry.sourceType === sourceType);
 
     if (!source) {
-      throw new Error('가져오기 대상 소스를 찾지 못했어.');
+      throw new Error('가져오기 대상 소스를 찾지 못했어요.');
     }
 
     return {
@@ -210,7 +210,7 @@ export async function queueIntegrationImports(
     },
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '연동 기록 가져오기 요청에 실패했어.',
+      fallbackMessage: '연동 기록 가져오기 요청에 실패했어요.',
     },
   );
 }

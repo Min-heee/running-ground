@@ -10,7 +10,7 @@ export function sortFriendPair(leftUserId, rightUserId) {
 
 export function getRunForUser(runs, runId, createError) {
   if (!runs.length) {
-    throw createError(404, '러닝 기록이 없어.');
+    throw createError(404, '러닝 기록이 없어요.');
   }
 
   if (!runId) {
@@ -20,7 +20,7 @@ export function getRunForUser(runs, runId, createError) {
   const run = runs.find((entry) => entry.id === runId);
 
   if (!run) {
-    throw createError(404, '러닝 기록을 찾을 수 없어.');
+    throw createError(404, '러닝 기록을 찾을 수 없어요.');
   }
 
   return run;

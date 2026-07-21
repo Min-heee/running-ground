@@ -82,13 +82,13 @@ export function validateBoolean(value, message) {
 }
 
 export function resolveRegionSelection(rawProvinceName, rawCityName, rawDistrictName) {
-  const provinceName = validateRequiredString(rawProvinceName, '시/도를 선택해줘.');
+  const provinceName = validateRequiredString(rawProvinceName, '시/도를 선택해주세요.');
   const cityName = normalizeOptionalString(rawCityName);
-  const districtName = validateRequiredString(rawDistrictName, '최종 지역을 선택해줘.');
+  const districtName = validateRequiredString(rawDistrictName, '최종 지역을 선택해주세요.');
   const province = addressCatalog.find((entry) => entry.name === provinceName);
 
   if (!province) {
-    throw new ApiError(400, '시/도 선택이 올바르지 않아.');
+    throw new ApiError(400, '시/도 선택이 올바르지 않아요.');
   }
 
   const secondaryOptions = province.children ?? [];
@@ -96,7 +96,7 @@ export function resolveRegionSelection(rawProvinceName, rawCityName, rawDistrict
 
   if (directDistrict) {
     if (cityName) {
-      throw new ApiError(400, '이 지역은 시/군 선택이 필요하지 않아.');
+      throw new ApiError(400, '이 지역은 시/군 선택이 필요하지 않아요.');
     }
 
     return {
@@ -109,14 +109,14 @@ export function resolveRegionSelection(rawProvinceName, rawCityName, rawDistrict
   const city = secondaryOptions.find((entry) => entry.type === 'city' && entry.name === cityName);
 
   if (!city) {
-    throw new ApiError(400, '시/군 선택이 올바르지 않아.');
+    throw new ApiError(400, '시/군 선택이 올바르지 않아요.');
   }
 
   const districtOptions = city.children ?? [];
 
   if (districtOptions.length === 0) {
     if (districtName !== city.name) {
-      throw new ApiError(400, '최종 지역 선택이 올바르지 않아.');
+      throw new ApiError(400, '최종 지역 선택이 올바르지 않아요.');
     }
 
     return {
@@ -129,7 +129,7 @@ export function resolveRegionSelection(rawProvinceName, rawCityName, rawDistrict
   const district = districtOptions.find((entry) => entry.name === districtName);
 
   if (!district) {
-    throw new ApiError(400, '최종 지역 선택이 올바르지 않아.');
+    throw new ApiError(400, '최종 지역 선택이 올바르지 않아요.');
   }
 
   return {
@@ -154,13 +154,13 @@ export function validateDateOnly(value, message, now = new Date()) {
   const date = validateRequiredString(value, message);
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    throw new ApiError(400, '날짜는 YYYY-MM-DD 형식으로 입력해줘.');
+    throw new ApiError(400, '날짜는 YYYY-MM-DD 형식으로 입력해주세요.');
   }
 
   const today = KST_DATE_ONLY_FORMAT.format(now);
 
   if (date > today) {
-    throw new ApiError(400, '미래 날짜의 기록은 아직 추가할 수 없어.');
+    throw new ApiError(400, '미래 날짜의 기록은 아직 추가할 수 없어요.');
   }
 
   return date;
@@ -174,7 +174,7 @@ export function validateDistanceKm(value, message) {
   }
 
   if (distanceKm > 200) {
-    throw new ApiError(400, '거리는 200km 이하로 입력해줘.');
+    throw new ApiError(400, '거리는 200km 이하로 입력해주세요.');
   }
 
   return Number(distanceKm.toFixed(1));
@@ -188,7 +188,7 @@ export function validateRunningMatchProgressDistanceKm(value, message) {
   }
 
   if (distanceKm > 200) {
-    throw new ApiError(400, '거리는 200km 이하로 입력해줘.');
+    throw new ApiError(400, '거리는 200km 이하로 입력해주세요.');
   }
 
   return Number(distanceKm.toFixed(3));
@@ -196,10 +196,10 @@ export function validateRunningMatchProgressDistanceKm(value, message) {
 
 export function validateDuelMatchDistanceKm(value) {
   const rawDistanceKm = typeof value === 'number' ? value : Number(value);
-  const distanceKm = validateDistanceKm(value, '매칭할 거리를 입력해줘.');
+  const distanceKm = validateDistanceKm(value, '매칭할 거리를 입력해주세요.');
 
   if (rawDistanceKm < 0.5 || rawDistanceKm > 42.195) {
-    throw new ApiError(400, '매칭 거리는 0.5km 이상 42.195km 이하로 선택해줘.');
+    throw new ApiError(400, '매칭 거리는 0.5km 이상 42.195km 이하로 선택해주세요.');
   }
 
   return Math.min(42.195, distanceKm);
@@ -207,25 +207,25 @@ export function validateDuelMatchDistanceKm(value) {
 
 export function validateMatchSlotInput(value) {
   return validateMatchSlotStartAt(
-    validateRequiredString(value, '매칭 시간대를 선택해줘.'),
+    validateRequiredString(value, '매칭 시간대를 선택해주세요.'),
   );
 }
 
 export function validateMatchMode(value) {
-  const mode = validateRequiredString(value, '매칭 모드를 선택해줘.');
+  const mode = validateRequiredString(value, '매칭 모드를 선택해주세요.');
 
   if (mode !== 'duel' && mode !== 'group') {
-    throw new ApiError(400, '매칭 모드 값이 올바르지 않아.');
+    throw new ApiError(400, '매칭 모드 값이 올바르지 않아요.');
   }
 
   return mode;
 }
 
 export function validateMatchRoomStartMode(value) {
-  const startMode = validateRequiredString(value, '방 시작 방식을 선택해줘.');
+  const startMode = validateRequiredString(value, '방 시작 방식을 선택해주세요.');
 
   if (startMode !== 'scheduled' && startMode !== 'host') {
-    throw new ApiError(400, '방 시작 방식 값이 올바르지 않아.');
+    throw new ApiError(400, '방 시작 방식 값이 올바르지 않아요.');
   }
 
   return startMode;
@@ -247,7 +247,7 @@ export function validatePace(value, message) {
   const pace = validateRequiredString(value, message);
 
   if (parsePaceToMinutes(pace) === null) {
-    throw new ApiError(400, '페이스는 00:00/km 형식으로 입력해줘.');
+    throw new ApiError(400, '페이스는 00:00/km 형식으로 입력해주세요.');
   }
 
   return pace;
@@ -294,38 +294,38 @@ export function validateOptionalMetricNumber(value, {
 
 export function validateTrackedRoute(rawRoute) {
   if (!Array.isArray(rawRoute) || rawRoute.length < 2) {
-    throw new ApiError(400, '러닝 경로는 최소 2개 이상의 위치 좌표가 필요해.');
+    throw new ApiError(400, '러닝 경로는 최소 2개 이상의 위치 좌표가 필요해요.');
   }
 
   if (rawRoute.length > 5000) {
-    throw new ApiError(400, '러닝 경로 좌표가 너무 많아. 5000개 이하로 줄여줘.');
+    throw new ApiError(400, '러닝 경로 좌표가 너무 많아요. 5000개 이하로 줄여주세요.');
   }
 
   return rawRoute.map((point, index) => {
     if (!point || typeof point !== 'object') {
-      throw new ApiError(400, `러닝 경로 ${index + 1}번째 좌표가 올바르지 않아.`);
+      throw new ApiError(400, `러닝 경로 ${index + 1}번째 좌표가 올바르지 않아요.`);
     }
 
     const latitude = typeof point.latitude === 'number' ? point.latitude : Number(point.latitude);
     const longitude = typeof point.longitude === 'number' ? point.longitude : Number(point.longitude);
 
     if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
-      throw new ApiError(400, `러닝 경로 ${index + 1}번째 위도가 올바르지 않아.`);
+      throw new ApiError(400, `러닝 경로 ${index + 1}번째 위도가 올바르지 않아요.`);
     }
 
     if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-      throw new ApiError(400, `러닝 경로 ${index + 1}번째 경도가 올바르지 않아.`);
+      throw new ApiError(400, `러닝 경로 ${index + 1}번째 경도가 올바르지 않아요.`);
     }
 
-    const timestamp = validateRequiredString(point.timestamp, `러닝 경로 ${index + 1}번째 시각이 비어 있어.`);
+    const timestamp = validateRequiredString(point.timestamp, `러닝 경로 ${index + 1}번째 시각이 비어 있어요.`);
     const parsedTimestamp = new Date(timestamp);
 
     if (Number.isNaN(parsedTimestamp.getTime())) {
-      throw new ApiError(400, `러닝 경로 ${index + 1}번째 시각 형식이 올바르지 않아.`);
+      throw new ApiError(400, `러닝 경로 ${index + 1}번째 시각 형식이 올바르지 않아요.`);
     }
 
     const altitude = validateOptionalMetricNumber(point.altitude, {
-      message: `러닝 경로 ${index + 1}번째 고도 값이 올바르지 않아.`,
+      message: `러닝 경로 ${index + 1}번째 고도 값이 올바르지 않아요.`,
       minimum: -1000,
       maximum: 10000,
       digits: 1,
@@ -346,13 +346,13 @@ export function validateRunMatchResult(rawMatchResult) {
   }
 
   if (!rawMatchResult || typeof rawMatchResult !== 'object') {
-    throw new ApiError(400, '매치 결과 형식이 올바르지 않아.');
+    throw new ApiError(400, '매치 결과 형식이 올바르지 않아요.');
   }
 
   const mode = validateMatchMode(rawMatchResult.mode);
-  const title = validateRequiredString(rawMatchResult.title, '매치 결과 제목이 비어 있어.');
-  const summary = validateRequiredString(rawMatchResult.summary, '매치 결과 요약이 비어 있어.');
-  const badgeLabel = validateRequiredString(rawMatchResult.badgeLabel, '매치 결과 배지가 비어 있어.');
+  const title = validateRequiredString(rawMatchResult.title, '매치 결과 제목이 비어 있어요.');
+  const summary = validateRequiredString(rawMatchResult.summary, '매치 결과 요약이 비어 있어요.');
+  const badgeLabel = validateRequiredString(rawMatchResult.badgeLabel, '매치 결과 배지가 비어 있어요.');
   // Persist the originating matchId so a SAVED run can re-fetch its full per-participant
   // final result later (the result-by-matchId endpoint). It is optional — older clients
   // that do not send it still save fine; only newer official/party matches carry it.
@@ -365,26 +365,26 @@ export function validateRunMatchResult(rawMatchResult) {
   const opponentName = normalizeOptionalString(rawMatchResult.opponentName);
   const resultTone = normalizeOptionalString(rawMatchResult.resultTone);
   const rank = typeof rawMatchResult.rank !== 'undefined' && rawMatchResult.rank !== null
-    ? validatePositiveInteger(rawMatchResult.rank, '매치 순위 값이 올바르지 않아.')
+    ? validatePositiveInteger(rawMatchResult.rank, '매치 순위 값이 올바르지 않아요.')
     : undefined;
   const participantCount = typeof rawMatchResult.participantCount !== 'undefined' && rawMatchResult.participantCount !== null
-    ? validatePositiveInteger(rawMatchResult.participantCount, '매치 참가 인원 값이 올바르지 않아.')
+    ? validatePositiveInteger(rawMatchResult.participantCount, '매치 참가 인원 값이 올바르지 않아요.')
     : undefined;
   const gapKm = validateOptionalMetricNumber(rawMatchResult.gapKm, {
-    message: '매치 거리 차이 값이 올바르지 않아.',
+    message: '매치 거리 차이 값이 올바르지 않아요.',
     minimum: 0,
     maximum: 200,
     digits: 2,
   });
   const comparedDistanceKm = validateOptionalMetricNumber(rawMatchResult.comparedDistanceKm, {
-    message: '비교 거리 값이 올바르지 않아.',
+    message: '비교 거리 값이 올바르지 않아요.',
     minimum: 0,
     maximum: 200,
     digits: 2,
   });
 
   if (resultTone && !['win', 'lose', 'draw'].includes(resultTone)) {
-    throw new ApiError(400, '매치 결과 상태 값이 올바르지 않아.');
+    throw new ApiError(400, '매치 결과 상태 값이 올바르지 않아요.');
   }
 
   const myPaceLabel = normalizeOptionalString(rawMatchResult.myPaceLabel);
@@ -402,8 +402,8 @@ export function validateRunMatchResult(rawMatchResult) {
 
     return seconds;
   };
-  const myDurationSeconds = validateOptionalDurationSeconds(rawMatchResult.myDurationSeconds, '내 기록 시간 값이 올바르지 않아.');
-  const opponentDurationSeconds = validateOptionalDurationSeconds(rawMatchResult.opponentDurationSeconds, '상대 기록 시간 값이 올바르지 않아.');
+  const myDurationSeconds = validateOptionalDurationSeconds(rawMatchResult.myDurationSeconds, '내 기록 시간 값이 올바르지 않아요.');
+  const opponentDurationSeconds = validateOptionalDurationSeconds(rawMatchResult.opponentDurationSeconds, '상대 기록 시간 값이 올바르지 않아요.');
 
   return {
     mode,
@@ -427,27 +427,27 @@ export function validateRunMatchResult(rawMatchResult) {
 
 export function validateRoutePreviewCoordinates(rawCoordinates) {
   if (!Array.isArray(rawCoordinates) || rawCoordinates.length < 2) {
-    throw new ApiError(400, '추천 경로 좌표는 최소 2개 이상 필요해.');
+    throw new ApiError(400, '추천 경로 좌표는 최소 2개 이상 필요해요.');
   }
 
   if (rawCoordinates.length > 40) {
-    throw new ApiError(400, '추천 경로 좌표가 너무 많아. 조금 줄여서 다시 시도해줘.');
+    throw new ApiError(400, '추천 경로 좌표가 너무 많아요. 조금 줄여서 다시 시도해주세요.');
   }
 
   return rawCoordinates.map((coordinate, index) => {
     if (!coordinate || typeof coordinate !== 'object') {
-      throw new ApiError(400, `추천 경로 ${index + 1}번째 좌표가 올바르지 않아.`);
+      throw new ApiError(400, `추천 경로 ${index + 1}번째 좌표가 올바르지 않아요.`);
     }
 
     const latitude = typeof coordinate.latitude === 'number' ? coordinate.latitude : Number(coordinate.latitude);
     const longitude = typeof coordinate.longitude === 'number' ? coordinate.longitude : Number(coordinate.longitude);
 
     if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
-      throw new ApiError(400, `추천 경로 ${index + 1}번째 위도가 올바르지 않아.`);
+      throw new ApiError(400, `추천 경로 ${index + 1}번째 위도가 올바르지 않아요.`);
     }
 
     if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-      throw new ApiError(400, `추천 경로 ${index + 1}번째 경도가 올바르지 않아.`);
+      throw new ApiError(400, `추천 경로 ${index + 1}번째 경도가 올바르지 않아요.`);
     }
 
     return {
@@ -462,7 +462,7 @@ export function validateOptionalInventoryCount(value) {
     return null;
   }
 
-  return validateNonNegativeInteger(value, '재고 수량은 0 이상의 정수로 입력해줘.');
+  return validateNonNegativeInteger(value, '재고 수량은 0 이상의 정수로 입력해주세요.');
 }
 
 export function validateDateTime(value, message) {
@@ -470,7 +470,7 @@ export function validateDateTime(value, message) {
   const date = new Date(text);
 
   if (Number.isNaN(date.getTime())) {
-    throw new ApiError(400, '일시는 올바른 날짜/시간 형식으로 입력해줘.');
+    throw new ApiError(400, '일시는 올바른 날짜/시간 형식으로 입력해주세요.');
   }
 
   return date.toISOString();
@@ -485,10 +485,10 @@ export function validateOptionalDateTime(value, message) {
 }
 
 export function validateRewardRedemptionStatus(value) {
-  const status = validateRequiredString(value, '교환 상태를 선택해줘.');
+  const status = validateRequiredString(value, '교환 상태를 선택해주세요.');
 
   if (!['requested', 'fulfilled', 'cancelled'].includes(status)) {
-    throw new ApiError(400, '교환 상태 값이 올바르지 않아.');
+    throw new ApiError(400, '교환 상태 값이 올바르지 않아요.');
   }
 
   return status;

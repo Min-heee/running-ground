@@ -72,7 +72,7 @@ export function useTrackRunRoomJoinAction({
         reason: 'missing invite token',
         source: MANUAL_INVITE_CODE_JOIN_SOURCE,
       });
-      setError('방 초대 코드를 입력해줘.');
+      setError('방 초대 코드를 입력해주세요.');
       return Promise.resolve();
     }
 
@@ -211,7 +211,7 @@ export function useTrackRunRoomJoinAction({
             source: MANUAL_INVITE_CODE_JOIN_SOURCE,
           });
         } catch (roomError) {
-          const message = getApiErrorMessage(roomError, '방에 들어가지 못했어.');
+          const message = getApiErrorMessage(roomError, '방에 들어가지 못했어요.');
           rgPerfMark('room join API error', {
             message,
             source: MANUAL_INVITE_CODE_JOIN_SOURCE,

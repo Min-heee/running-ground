@@ -44,7 +44,7 @@ export default function NotificationCenterScreen() {
 
     fetchActiveNotices()
       .then((payload) => setNotices(payload.items))
-      .catch((error) => setNoticesError(getApiErrorMessage(error, '공지사항을 불러오지 못했어.')))
+      .catch((error) => setNoticesError(getApiErrorMessage(error, '공지사항을 불러오지 못했어요.')))
       .finally(() => setNoticesLoading(false));
   }, []);
 
@@ -57,7 +57,7 @@ export default function NotificationCenterScreen() {
         setInboxItems(payload.items);
         setUnreadCount(payload.unreadCount);
       })
-      .catch((error) => setInboxError(getApiErrorMessage(error, '알림을 불러오지 못했어.')))
+      .catch((error) => setInboxError(getApiErrorMessage(error, '알림을 불러오지 못했어요.')))
       .finally(() => setInboxLoading(false));
   }, []);
 
@@ -76,7 +76,7 @@ export default function NotificationCenterScreen() {
         setInboxItems((currentItems) => currentItems.filter((current) => current.id !== item.id));
         setUnreadCount(payload.unreadCount);
       })
-      .catch((error) => setInboxError(getApiErrorMessage(error, '알림 삭제에 실패했어.')));
+      .catch((error) => setInboxError(getApiErrorMessage(error, '알림 삭제에 실패했어요.')));
   }, []);
 
   const handleDeleteAll = useCallback(() => {
@@ -91,7 +91,7 @@ export default function NotificationCenterScreen() {
               setInboxItems([]);
               setUnreadCount(payload.unreadCount);
             })
-            .catch((error) => setInboxError(getApiErrorMessage(error, '알림 삭제에 실패했어.')));
+            .catch((error) => setInboxError(getApiErrorMessage(error, '알림 삭제에 실패했어요.')));
         },
       },
     ]);
@@ -106,7 +106,7 @@ export default function NotificationCenterScreen() {
         )));
         setUnreadCount(payload.unreadCount);
       })
-      .catch((error) => setInboxError(getApiErrorMessage(error, '알림 읽음 처리에 실패했어.')));
+      .catch((error) => setInboxError(getApiErrorMessage(error, '알림 읽음 처리에 실패했어요.')));
   }, []);
 
   const handlePressNotification = useCallback((item: InboxNotification) => {
@@ -123,7 +123,7 @@ export default function NotificationCenterScreen() {
           router.push(href);
         }
       })
-      .catch((error) => setInboxError(getApiErrorMessage(error, '알림 읽음 처리에 실패했어.')));
+      .catch((error) => setInboxError(getApiErrorMessage(error, '알림 읽음 처리에 실패했어요.')));
   }, []);
 
   const headerSubtitle = useMemo(

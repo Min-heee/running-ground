@@ -332,7 +332,7 @@ function createRepositoryHarness(initialStore = {}) {
       const session = currentStore.sessions.find((entry) => entry.token === token);
 
       if (!session) {
-        throw new TestApiError(401, '세션이 만료됐어. 다시 로그인해줘.');
+        throw new TestApiError(401, '세션이 만료됐어요. 다시 로그인해주세요.');
       }
 
       return currentStore.users.find((entry) => entry.id === session.userId);

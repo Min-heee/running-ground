@@ -62,46 +62,46 @@ export function buildIntegrationJourneyModel({
   const showImportButton = importEligible ?? canImportFromDevice;
 
   const headline = !primaryConnected
-    ? `${platformLabel}에서는 ${primarySource?.displayName ?? '기본 건강 허브'}부터 연결하면 돼.`
+    ? `${platformLabel}에서는 ${primarySource?.displayName ?? '기본 건강 허브'}부터 연결하면 돼요.`
     : canImportFromDevice
-      ? `${primarySource?.displayName ?? '기본 건강 허브'}는 준비됐고, 이제 기기 기록을 가져오면 돼.`
+      ? `${primarySource?.displayName ?? '기본 건강 허브'}는 준비됐고, 이제 기기 기록을 가져오면 돼요.`
       : manualConnected
-        ? '연동으로 안 들어온 기록은 수동 기록으로 바로 채울 수 있어.'
-        : '소스 연결 다음엔 수동 입력 안전망까지 열어두면 든든해.';
+        ? '연동으로 안 들어온 기록은 수동 기록으로 바로 채울 수 있어요.'
+        : '소스 연결 다음엔 수동 입력 안전망까지 열어두면 든든해요.';
 
   const body = !primaryConnected
-    ? '기본 연동 소스를 먼저 붙여두면 이후 기기 기록 가져오기, 홈 요약까지 한 흐름으로 연결돼.'
+    ? '기본 연동 소스를 먼저 붙여두면 이후 기기 기록 가져오기, 홈 요약까지 한 흐름으로 연결돼요.'
     : canImportFromDevice
-      ? "'기기에서 기록 가져오기' 버튼을 누르면 기기에 쌓인 러닝 기록을 바로 가져올 수 있어."
+      ? "'기기에서 기록 가져오기' 버튼을 누르면 기기에 쌓인 러닝 기록을 바로 가져올 수 있어요."
       : manualConnected
-        ? '가져오기로 안 들어온 날도 직접 입력만 하면 기록이 바로 반영돼.'
-        : '가져오기와 별개로 수동 입력 경로를 열어 두면 기록이 빌 일이 없어.';
+        ? '가져오기로 안 들어온 날도 직접 입력만 하면 기록이 바로 반영돼요.'
+        : '가져오기와 별개로 수동 입력 경로를 열어 두면 기록이 빌 일이 없어요.';
 
   const steps: IntegrationJourneyStep[] = [
     {
       id: 'primary',
       title: `${primarySource?.displayName ?? '기본 건강 허브'} 연결`,
       description: primaryConnected
-        ? '기본 기록 소스가 준비돼 있어.'
-        : `${platformLabel}에서 가장 먼저 연결할 기본 소스야.`,
+        ? '기본 기록 소스가 준비돼 있어요.'
+        : `${platformLabel}에서 가장 먼저 연결할 기본 소스예요.`,
       complete: primaryConnected,
     },
     {
       id: 'import',
       title: '기기 기록 가져오기',
       description: canImportFromDevice
-        ? "'기기에서 기록 가져오기' 버튼을 누르면 기기에 쌓인 러닝 기록이 들어와."
+        ? "'기기에서 기록 가져오기' 버튼을 누르면 기기에 쌓인 러닝 기록이 들어와요."
         : primaryConnected
-          ? "연동 관리에서 '기기에서 기록 가져오기' 버튼을 누르면 기록이 들어와."
-          : '기본 소스를 연결하면 그다음 단계로 넘어갈 수 있어.',
+          ? "연동 관리에서 '기기에서 기록 가져오기' 버튼을 누르면 기록이 들어와요."
+          : '기본 소스를 연결하면 그다음 단계로 넘어갈 수 있어요.',
       complete: primaryConnected && deviceImportCompleted,
     },
     {
       id: 'manual',
       title: manualConnected ? '수동 입력 준비 완료' : '수동 입력 안전망 열기',
       description: manualConnected
-        ? '가져오기가 비는 날에는 수동 기록 추가로 바로 이어갈 수 있어.'
-        : '가져오기와 별개로 수동 입력 경로를 열어 두면 기록이 빌 일이 없어.',
+        ? '가져오기가 비는 날에는 수동 기록 추가로 바로 이어갈 수 있어요.'
+        : '가져오기와 별개로 수동 입력 경로를 열어 두면 기록이 빌 일이 없어요.',
       complete: manualConnected,
     },
   ];

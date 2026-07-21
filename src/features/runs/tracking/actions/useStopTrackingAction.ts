@@ -16,7 +16,7 @@ export function useStopTrackingAction({
   ) => {
     endGpsStartTrace({ success: false });
     finishSoloStartCountdown(false);
-    setError(getApiErrorMessage(trackingError, '러닝 측정을 시작하지 못했어.'));
+    setError(getApiErrorMessage(trackingError, '러닝 측정을 시작하지 못했어요.'));
     stopForegroundTrackingHelpers();
     await resetBackgroundRunTracking();
     void syncLiveSharing({

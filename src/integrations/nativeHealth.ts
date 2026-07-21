@@ -60,13 +60,13 @@ const PLATFORM_COPY: Record<NativeHealthSourceType, {
     title: 'Apple 건강 연동',
     expectedPlatform: 'ios',
     connectStep: '연동 관리에서 Apple 건강 연결을 먼저 켜세요.',
-    configReadyDescription: "러닝 앱(NRC 등)으로 달린 기록이 Apple 건강에 들어온 걸 확인하고, '기기에서 기록 가져오기' 버튼으로 가져오면 돼.",
+    configReadyDescription: "러닝 앱(NRC 등)으로 달린 기록이 Apple 건강에 들어온 걸 확인하고, '기기에서 기록 가져오기' 버튼으로 가져오면 돼요.",
   },
   health_connect: {
     title: '헬스 커넥트 연동',
     expectedPlatform: 'android',
     connectStep: '연동 관리에서 헬스 커넥트 연결을 먼저 켜세요.',
-    configReadyDescription: "권한 준비는 끝났어. '기기에서 기록 가져오기' 버튼을 누르면 헬스 커넥트에 쌓인 러닝 기록을 읽어와.",
+    configReadyDescription: "권한 준비는 끝났어요. '기기에서 기록 가져오기' 버튼을 누르면 헬스 커넥트에 쌓인 러닝 기록을 읽어와요.",
   },
 };
 
@@ -228,7 +228,7 @@ export function getNativeHealthImportEligibility(): NativeHealthImportEligibilit
     return {
       sourceType: preferredSource,
       canImport: false,
-      blockedReason: '지금 실행 중인 미리보기 환경에서는 기기 건강 데이터를 읽을 수 없어. 정식 설치된 앱에서 가져와줘.',
+      blockedReason: '지금 실행 중인 미리보기 환경에서는 기기 건강 데이터를 읽을 수 없어요. 정식 설치된 앱에서 가져와주세요.',
     };
   }
 
@@ -261,7 +261,7 @@ function toDateOnly(value: string) {
   const parsedDate = new Date(value);
 
   if (Number.isNaN(parsedDate.getTime())) {
-    throw new Error('기기 기록 날짜 형식이 올바르지 않아.');
+    throw new Error('기기 기록 날짜 형식이 올바르지 않아요.');
   }
 
   return parsedDate.toISOString().slice(0, 10);
@@ -279,7 +279,7 @@ function normalizeIsoDateTime(value: string, label: string, index: number) {
   const parsedTime = new Date(value);
 
   if (Number.isNaN(parsedTime.getTime())) {
-    throw new Error(`기기 기록 ${index + 1}번의 ${label} 형식이 올바르지 않아.`);
+    throw new Error(`기기 기록 ${index + 1}번의 ${label} 형식이 올바르지 않아요.`);
   }
 
   return parsedTime.toISOString();
@@ -293,7 +293,7 @@ function normalizeBridgeRun(run: NativeHealthBridgeRun, index: number): Normaliz
       : '';
 
   if (!dateValue) {
-    throw new Error(`기기 기록 ${index + 1}번에 날짜가 없어.`);
+    throw new Error(`기기 기록 ${index + 1}번에 날짜가 없어요.`);
   }
 
   const distanceKm = typeof run.distanceKm === 'number'
@@ -303,7 +303,7 @@ function normalizeBridgeRun(run: NativeHealthBridgeRun, index: number): Normaliz
       : NaN;
 
   if (!Number.isFinite(distanceKm) || distanceKm <= 0) {
-    throw new Error(`기기 기록 ${index + 1}번의 거리가 올바르지 않아.`);
+    throw new Error(`기기 기록 ${index + 1}번의 거리가 올바르지 않아요.`);
   }
 
   const pace = typeof run.pace === 'string' && run.pace.trim()
@@ -317,7 +317,7 @@ function normalizeBridgeRun(run: NativeHealthBridgeRun, index: number): Normaliz
           : '';
 
   if (!pace) {
-    throw new Error(`기기 기록 ${index + 1}번의 페이스를 계산할 수 없어.`);
+    throw new Error(`기기 기록 ${index + 1}번의 페이스를 계산할 수 없어요.`);
   }
 
   const startedAt = typeof run.startedAt === 'string' && run.startedAt.trim()
@@ -352,14 +352,14 @@ export async function readRunsFromNativeHealthSource(
   const module = resolveNativeHealthBridgeModule(sourceType);
 
   if (!module?.readRuns) {
-    throw new Error(`이 앱 버전에서는 ${getSourceLabel(sourceType)} 기록 읽기를 지원하지 않아. 앱을 최신 버전으로 업데이트해줘.`);
+    throw new Error(`이 앱 버전에서는 ${getSourceLabel(sourceType)} 기록 읽기를 지원하지 않아요. 앱을 최신 버전으로 업데이트해주세요.`);
   }
 
   if (module.isAvailable) {
     const available = await module.isAvailable();
 
     if (!available) {
-      throw new Error(`${getSourceLabel(sourceType)}를 지금 기기에서 사용할 수 없어. 권한 또는 기기 환경을 먼저 확인해줘.`);
+      throw new Error(`${getSourceLabel(sourceType)}를 지금 기기에서 사용할 수 없어요. 권한 또는 기기 환경을 먼저 확인해주세요.`);
     }
   }
 
@@ -369,7 +369,7 @@ export async function readRunsFromNativeHealthSource(
   });
 
   if (!Array.isArray(runs)) {
-    throw new Error(`${getSourceLabel(sourceType)} reader 응답 형식이 올바르지 않아.`);
+    throw new Error(`${getSourceLabel(sourceType)} reader 응답 형식이 올바르지 않아요.`);
   }
 
   return runs.map((run, index) => normalizeBridgeRun(run, index));
@@ -384,7 +384,7 @@ export async function importRunsFromNativeHealthSource(
   const eligibility = getNativeHealthImportEligibility();
 
   if (!eligibility?.canImport) {
-    throw new Error(eligibility?.blockedReason ?? '이 기기에서는 건강 기록 가져오기를 실행할 수 없어.');
+    throw new Error(eligibility?.blockedReason ?? '이 기기에서는 건강 기록 가져오기를 실행할 수 없어요.');
   }
 
   const runs = await readRunsFromNativeHealthSource(sourceType);
@@ -437,7 +437,7 @@ export async function importRunsFromRecommendedNativeHealthSource(): Promise<Nat
   const preferredSource = getPreferredNativeHealthSource();
 
   if (!preferredSource) {
-    throw new Error('이 기기에서는 건강 기록 가져오기를 실행할 수 없어.');
+    throw new Error('이 기기에서는 건강 기록 가져오기를 실행할 수 없어요.');
   }
 
   return importRunsFromNativeHealthSource(preferredSource);

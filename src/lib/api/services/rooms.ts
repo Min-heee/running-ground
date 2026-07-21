@@ -60,7 +60,7 @@ export async function fetchRunningMatchRoom(options: FetchRunningMatchRoomOption
       '/running/rooms/my',
       {
         accessToken: await requireAccessToken(),
-        fallbackMessage: '내 방 상태를 불러오지 못했어.',
+        fallbackMessage: '내 방 상태를 불러오지 못했어요.',
         signal: options.signal,
       },
     );
@@ -91,7 +91,7 @@ export async function fetchRunningMatchRoomInviteInbox(options: FetchRunningMatc
       '/running/rooms/invite-inbox',
       {
         accessToken: await requireAccessToken(),
-        fallbackMessage: '초대함을 불러오지 못했어.',
+        fallbackMessage: '초대함을 불러오지 못했어요.',
         signal: options.signal,
       },
     );
@@ -129,7 +129,7 @@ export async function cleanupStaleRunningMatchRoomState(): Promise<RunningMatchR
       {},
       {
         accessToken: await requireAccessToken(),
-        fallbackMessage: '이전 방 상태를 정리하지 못했어.',
+        fallbackMessage: '이전 방 상태를 정리하지 못했어요.',
       },
     );
 
@@ -174,7 +174,7 @@ export async function forceResetRunningMatchState(): Promise<RunningMatchForceRe
     {},
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '매칭 상태를 강제로 초기화하지 못했어.',
+      fallbackMessage: '매칭 상태를 강제로 초기화하지 못했어요.',
     },
   );
 }
@@ -199,7 +199,7 @@ export async function createRunningMatchRoom(input: CreateRunningMatchRoomInput)
       },
       {
         accessToken: await requireAccessToken(),
-        fallbackMessage: '방을 만들지 못했어.',
+        fallbackMessage: '방을 만들지 못했어요.',
       },
     );
 
@@ -228,7 +228,7 @@ export async function joinRunningMatchRoom(input: JoinRunningMatchRoomInput): Pr
       input,
       {
         accessToken: await requireAccessToken(),
-        fallbackMessage: '방에 들어가지 못했어.',
+        fallbackMessage: '방에 들어가지 못했어요.',
       },
     );
 
@@ -262,7 +262,7 @@ export async function updateRunningMatchRoom(input: UpdateRunningMatchRoomInput)
       },
       {
         accessToken: await requireAccessToken(),
-        fallbackMessage: '방 설정을 저장하지 못했어.',
+        fallbackMessage: '방 설정을 저장하지 못했어요.',
       },
     );
 
@@ -313,7 +313,7 @@ export async function startRunningMatchRoom(input: StartRunningMatchRoomInput): 
       input,
       {
         accessToken: await requireAccessToken(),
-        fallbackMessage: '방 시작을 반영하지 못했어.',
+        fallbackMessage: '방 시작을 반영하지 못했어요.',
       },
     );
 
@@ -361,7 +361,7 @@ export async function leaveRunningMatchRoom(input: LeaveRunningMatchRoomInput): 
       input,
       {
         accessToken: await requireAccessToken(),
-        fallbackMessage: '방에서 나가지 못했어.',
+        fallbackMessage: '방에서 나가지 못했어요.',
       },
     );
 
@@ -411,7 +411,7 @@ export async function updateRunningMatchRoomReady(input: UpdateRunningMatchRoomR
       input,
       {
         accessToken: await requireAccessToken(),
-        fallbackMessage: '준비 상태를 바꾸지 못했어.',
+        fallbackMessage: '준비 상태를 바꾸지 못했어요.',
       },
     );
 
@@ -472,7 +472,7 @@ export async function acknowledgeRunningMatchRoomCountdown(
       input,
       {
         accessToken: await requireAccessToken(),
-        fallbackMessage: '카운트다운 준비 상태를 반영하지 못했어.',
+        fallbackMessage: '카운트다운 준비 상태를 반영하지 못했어요.',
       },
     );
 

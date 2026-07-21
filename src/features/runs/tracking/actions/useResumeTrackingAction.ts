@@ -69,7 +69,7 @@ export function useResumeTrackingAction({
         });
       }
     } catch (resumeError) {
-      setError(getApiErrorMessage(resumeError, '러닝 측정을 다시 시작하지 못했어.'));
+      setError(getApiErrorMessage(resumeError, '러닝 측정을 다시 시작하지 못했어요.'));
       stopForegroundTrackingHelpers();
       setStatus('paused');
     }

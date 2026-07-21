@@ -188,8 +188,8 @@ export function useRunForfeitCommand({
     } else {
       resetMatchRuntimeAfterTrackingCleared('save-reset');
       setError(options.currentUserForfeited
-        ? '기권 처리는 완료됐지만 러닝 기록 저장에 실패했어.'
-        : '대결은 종료됐지만 러닝 기록 저장에 실패했어.');
+        ? '기권 처리는 완료됐지만 러닝 기록 저장에 실패했어요.'
+        : '대결은 종료됐지만 러닝 기록 저장에 실패했어요.');
     }
   };
 
@@ -202,7 +202,7 @@ export function useRunForfeitCommand({
     try {
       await saveForfeitResultAndNavigate(source, matchId, { currentUserForfeited: true });
     } catch (saveError) {
-      setError(getApiErrorMessage(saveError, '기권 결과 저장에 실패했어. 잠시 후 결과보기를 다시 눌러줘.'));
+      setError(getApiErrorMessage(saveError, '기권 결과 저장에 실패했어요. 잠시 후 결과보기를 다시 눌러주세요.'));
     } finally {
       pendingCounterpartForfeitResultRef.current = false;
     }
@@ -236,7 +236,7 @@ export function useRunForfeitCommand({
     });
 
     if (!matchId) {
-      setError('기권 처리할 대결을 찾지 못했어.');
+      setError('기권 처리할 대결을 찾지 못했어요.');
       return;
     }
 
@@ -311,7 +311,7 @@ export function useRunForfeitCommand({
       if (!forfeitApiTraceCompleted) {
         endForfeitApiTrace({ success: false });
       }
-      setError(getApiErrorMessage(matchError, '기권 처리에 실패했어.'));
+      setError(getApiErrorMessage(matchError, '기권 처리에 실패했어요.'));
     } finally {
       if (pendingForfeitMatchRef.current === matchId) {
         pendingForfeitMatchRef.current = null;

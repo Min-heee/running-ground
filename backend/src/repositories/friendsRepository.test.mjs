@@ -49,7 +49,7 @@ function createRepositoryHarness(initialStore = {}, metricsByUserId = {}) {
       const session = store.sessions.find((entry) => entry.token === token);
 
       if (!session) {
-        throw new TestApiError(401, '세션이 만료됐어. 다시 로그인해줘.');
+        throw new TestApiError(401, '세션이 만료됐어요. 다시 로그인해주세요.');
       }
 
       return store.users.find((entry) => entry.id === session.userId);
@@ -58,7 +58,7 @@ function createRepositoryHarness(initialStore = {}, metricsByUserId = {}) {
       const user = store.users.find((entry) => entry.id === userId);
 
       if (!user) {
-        throw new TestApiError(404, '사용자를 찾을 수 없어.');
+        throw new TestApiError(404, '사용자를 찾을 수 없어요.');
       }
 
       return user;
@@ -231,7 +231,7 @@ await runTest('creates a friend request and rejects duplicates', async () => {
     token: 'token-me',
     tag: '#NEW01',
   }), (error) => {
-    assertApiError(error, 409, '이미 대기 중인 친구 요청이 있어.');
+    assertApiError(error, 409, '이미 대기 중인 친구 요청이 있어요.');
     return true;
   });
 });
@@ -327,7 +327,7 @@ await runTest('rejects access to non-friend activity', async () => {
     token: 'token-me',
     friendId: 'user-stranger',
   }), (error) => {
-    assertApiError(error, 403, '친구로 연결된 사용자 기록만 볼 수 있어.');
+    assertApiError(error, 403, '친구로 연결된 사용자 기록만 볼 수 있어요.');
     return true;
   });
 });

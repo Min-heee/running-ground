@@ -29,8 +29,8 @@ type DistrictMemberRank = DistrictPersonalResponse['ranks'][number];
 const DEFAULT_METRIC: DistrictPersonalMetric = 'rankScore';
 
 const METRIC_DESCRIPTION: Record<DistrictPersonalMetric, string> = {
-  rankScore: '해당 지역 회원들을 랭크 점수가 높은 순으로 정렬했어.',
-  monthlyDistance: '해당 지역 회원들을 이번 달 누적 거리가 많은 순으로 정렬했어.',
+  rankScore: '해당 지역 회원들을 랭크 점수가 높은 순으로 정렬했어요.',
+  monthlyDistance: '해당 지역 회원들을 이번 달 누적 거리가 많은 순으로 정렬했어요.',
 };
 
 function formatMetricValue(runner: DistrictMemberRank, metric: DistrictPersonalMetric) {

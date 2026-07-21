@@ -39,7 +39,7 @@ export async function fetchRegionCatalog(): Promise<RegionCatalogResponse> {
   }
 
   return apiGet<RegionCatalogResponse>('/catalog/regions', {
-    fallbackMessage: '지역 목록을 불러오지 못했어.',
+    fallbackMessage: '지역 목록을 불러오지 못했어요.',
   });
 }
 
@@ -52,7 +52,7 @@ export async function fetchDistrictPersonal(nodeId?: string): Promise<DistrictPe
 
   return apiGet<DistrictPersonalResponse>(`/league/district-personal${query}`, {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '구 내 개인 경쟁 정보를 불러오지 못했어.',
+    fallbackMessage: '구 내 개인 경쟁 정보를 불러오지 못했어요.',
   });
 }
 
@@ -80,7 +80,7 @@ export async function fetchRegionLeague(nodeId?: string): Promise<RegionLeagueRe
 
   return apiGet<RegionLeagueResponse>(`/league/regions${query}`, {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '지역 랭킹 정보를 불러오지 못했어.',
+    fallbackMessage: '지역 랭킹 정보를 불러오지 못했어요.',
   });
 }
 
@@ -91,7 +91,7 @@ export async function fetchTodayRanking(category: TodayRankingCategory): Promise
 
   return apiGet<TodayRankingResponse>(`/running/today-rankings?category=${encodeURIComponent(category)}`, {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '오늘의 랭킹을 불러오지 못했어.',
+    fallbackMessage: '오늘의 랭킹을 불러오지 못했어요.',
   });
 }
 
@@ -102,6 +102,6 @@ export async function fetchRankLeaderboard(): Promise<RankLeaderboard> {
 
   return apiGet<RankLeaderboard>('/leagues/rank', {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '랭크 랭킹을 불러오지 못했어.',
+    fallbackMessage: '랭크 랭킹을 불러오지 못했어요.',
   });
 }

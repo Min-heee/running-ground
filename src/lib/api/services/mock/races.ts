@@ -87,25 +87,25 @@ export function mutateMockOfflineRaceRegistration(
   const target = eventGroups.find((entry) => entry.event.id === eventId);
 
   if (!target) {
-    throw new Error('참가할 레이스를 찾지 못했어.');
+    throw new Error('참가할 레이스를 찾지 못했어요.');
   }
 
   const event = target.event;
   const currentStatus = getOfflineRaceStatus(event);
 
   if (!['registration_open', 'registration_closing'].includes(currentStatus)) {
-    throw new Error('지금은 신청 가능한 시간이 아니야.');
+    throw new Error('지금은 신청 가능한 시간이 아니에요.');
   }
 
   const isRegistered = event.registeredUserTags.includes(profile.publicTag);
 
   if (action === 'join') {
     if (isRegistered) {
-      throw new Error('이미 신청한 레이스야.');
+      throw new Error('이미 신청한 레이스예요.');
     }
 
     if (event.participantCount >= event.capacity) {
-      throw new Error('정원이 가득 차서 지금은 대기만 받을 수 있어.');
+      throw new Error('정원이 가득 차서 지금은 대기만 받을 수 있어요.');
     }
 
     event.registeredUserTags = [...event.registeredUserTags, profile.publicTag];
@@ -114,7 +114,7 @@ export function mutateMockOfflineRaceRegistration(
 
   if (action === 'cancel') {
     if (!isRegistered) {
-      throw new Error('아직 신청하지 않은 레이스야.');
+      throw new Error('아직 신청하지 않은 레이스예요.');
     }
 
     event.registeredUserTags = event.registeredUserTags.filter((tag) => tag !== profile.publicTag);

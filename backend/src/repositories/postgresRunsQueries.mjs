@@ -30,7 +30,7 @@ export async function requireUserByToken(database, token, createError) {
   );
 
   if (!result.rows[0]) {
-    throw createError(401, '세션이 만료됐어. 다시 로그인해줘.');
+    throw createError(401, '세션이 만료됐어요. 다시 로그인해주세요.');
   }
 
   return mapUserRow(result.rows[0]);
@@ -77,7 +77,7 @@ export function requireConnectedSource(user, sourceType, createError) {
   const source = user.connectedSources.find((entry) => entry.sourceType === sourceType);
 
   if (!source) {
-    throw createError(404, '선택한 연동 소스를 찾을 수 없어.');
+    throw createError(404, '선택한 연동 소스를 찾을 수 없어요.');
   }
 
   return source;
@@ -87,11 +87,11 @@ export function requireSyncableConnectedSource(user, sourceType, createError) {
   const source = requireConnectedSource(user, sourceType, createError);
 
   if (!isSyncableSourceType(sourceType)) {
-    throw createError(400, '수동 입력 소스는 외부 import 방식 대신 앱 안에서 직접 기록을 추가해줘.');
+    throw createError(400, '수동 입력 소스는 외부 import 방식 대신 앱 안에서 직접 기록을 추가해주세요.');
   }
 
   if (!source.connected) {
-    throw createError(409, '이 소스는 아직 연결되지 않았어. 먼저 연결한 뒤 기록을 가져와줘.');
+    throw createError(409, '이 소스는 아직 연결되지 않았어요. 먼저 연결한 뒤 기록을 가져와주세요.');
   }
 
   return source;
@@ -99,7 +99,7 @@ export function requireSyncableConnectedSource(user, sourceType, createError) {
 
 export function getRunForUser(runs, runId, createError) {
   if (!runs.length) {
-    throw createError(404, '러닝 기록이 없어.');
+    throw createError(404, '러닝 기록이 없어요.');
   }
 
   if (!runId) {
@@ -109,7 +109,7 @@ export function getRunForUser(runs, runId, createError) {
   const run = runs.find((entry) => entry.id === runId);
 
   if (!run) {
-    throw createError(404, '러닝 기록을 찾을 수 없어.');
+    throw createError(404, '러닝 기록을 찾을 수 없어요.');
   }
 
   return run;

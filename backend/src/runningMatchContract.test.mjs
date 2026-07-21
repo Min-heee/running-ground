@@ -1042,7 +1042,7 @@ await runTest('match status accepts sub-hour slot timestamps when matchId is pro
       slotStartAt: subHourSlotStartAt.toISOString(),
     });
     assert.equal(rejected.response.status, 400);
-    assert.equal(rejected.payload.message, '매칭 시간은 1시간 단위로만 선택할 수 있어.');
+    assert.equal(rejected.payload.message, '매칭 시간은 1시간 단위로만 선택할 수 있어요.');
   });
 });
 

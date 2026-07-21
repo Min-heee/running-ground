@@ -168,7 +168,7 @@ export function useRoomSnapshotFetcher({
         success: false,
       });
       rgPerfMark('invite inbox fetch for recipient end', {
-        message: getApiErrorMessage(roomError, '대기실을 불러오지 못했어.'),
+        message: getApiErrorMessage(roomError, '대기실을 불러오지 못했어요.'),
         routeKey,
         source: 'match-room snapshot',
         success: false,
@@ -178,7 +178,7 @@ export function useRoomSnapshotFetcher({
         return null;
       }
 
-      setError(getApiErrorMessage(roomError, '대기실을 불러오지 못했어.'));
+      setError(getApiErrorMessage(roomError, '대기실을 불러오지 못했어요.'));
       return null;
     }
   }, [

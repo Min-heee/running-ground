@@ -96,19 +96,19 @@ export function createPostgresFriendsRepository({
         const targetUser = await findUserByPublicTag(client, tag);
 
         if (!targetUser) {
-          throw createError(404, '해당 태그의 사용자를 찾지 못했어.');
+          throw createError(404, '해당 태그의 사용자를 찾지 못했어요.');
         }
 
         if (targetUser.id === currentUser.id) {
-          throw createError(400, '내 태그로는 친구 요청을 보낼 수 없어.');
+          throw createError(400, '내 태그로는 친구 요청을 보낼 수 없어요.');
         }
 
         if (await hasFriendship(client, currentUser.id, targetUser.id)) {
-          throw createError(409, '이미 친구로 연결되어 있어.');
+          throw createError(409, '이미 친구로 연결되어 있어요.');
         }
 
         if (await findPendingRequestBetween(client, currentUser.id, targetUser.id)) {
-          throw createError(409, '이미 대기 중인 친구 요청이 있어.');
+          throw createError(409, '이미 대기 중인 친구 요청이 있어요.');
         }
 
         const requestId = nextId('request');
@@ -138,15 +138,15 @@ export function createPostgresFriendsRepository({
         const friendRequest = await findFriendRequestById(client, requestId);
 
         if (!friendRequest || friendRequest.status !== 'pending') {
-          throw createError(404, '처리할 친구 요청을 찾을 수 없어.');
+          throw createError(404, '처리할 친구 요청을 찾을 수 없어요.');
         }
 
         if ((action === 'accept' || action === 'reject') && friendRequest.receiverId !== currentUser.id) {
-          throw createError(403, '받은 친구 요청만 처리할 수 있어.');
+          throw createError(403, '받은 친구 요청만 처리할 수 있어요.');
         }
 
         if (action === 'cancel' && friendRequest.requesterId !== currentUser.id) {
-          throw createError(403, '내가 보낸 요청만 취소할 수 있어.');
+          throw createError(403, '내가 보낸 요청만 취소할 수 있어요.');
         }
 
         const nextStatus = action === 'accept' ? 'accepted' : action === 'reject' ? 'rejected' : 'cancelled';

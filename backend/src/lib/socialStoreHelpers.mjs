@@ -26,7 +26,7 @@ export function requireFriendAccess(store, currentUserId, friendId) {
     return;
   }
 
-  throw new ApiError(403, '친구로 연결된 사용자 기록만 볼 수 있어.');
+  throw new ApiError(403, '친구로 연결된 사용자 기록만 볼 수 있어요.');
 }
 
 export function getActionableRequests(store, currentUserId) {

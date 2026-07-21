@@ -10,6 +10,7 @@ export type UserProfile = {
   districtName: string;
   addressDetail?: string;
   publicTag: string;
+  statusMessage?: string;
   rankState?: RankState;
   lifetimeDistanceKm?: number;
 };

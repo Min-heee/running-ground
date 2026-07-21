@@ -154,7 +154,7 @@ async function handleCreateRunningMatchRoom({
       startMode: validateMatchRoomStartMode(body.startMode),
       slotStartAt: body.slotStartAt,
       maxParticipants: body.maxParticipants,
-      invitedFriendIds: validateOptionalUserIdArray(body.invitedFriendIds, '초대할 친구 목록이 올바르지 않아.'),
+      invitedFriendIds: validateOptionalUserIdArray(body.invitedFriendIds, '초대할 친구 목록이 올바르지 않아요.'),
     });
   });
 
@@ -175,7 +175,7 @@ async function handleJoinRunningMatchRoom({
   const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return joinRunningMatchRoom(store, currentUser, {
-      inviteToken: validateRequiredString(body.inviteToken, '방 초대 코드를 입력해줘.'),
+      inviteToken: validateRequiredString(body.inviteToken, '방 초대 코드를 입력해주세요.'),
     });
   });
 
@@ -196,7 +196,7 @@ async function handleStartRunningMatchRoom({
   const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return startRunningMatchRoom(store, currentUser, {
-      roomId: validateRequiredString(body.roomId, '시작할 방 아이디가 필요해.'),
+      roomId: validateRequiredString(body.roomId, '시작할 방 아이디가 필요해요.'),
     });
   });
 
@@ -220,12 +220,12 @@ async function handleUpdateRunningMatchRoom({
   const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return updateRunningMatchRoom(store, currentUser, {
-      roomId: validateRequiredString(body.roomId, '설정할 방 아이디가 필요해.'),
+      roomId: validateRequiredString(body.roomId, '설정할 방 아이디가 필요해요.'),
       distanceKm: validateDuelMatchDistanceKm(body.distanceKm),
       startMode: validateMatchRoomStartMode(body.startMode),
       slotStartAt: body.slotStartAt,
       maxParticipants: body.maxParticipants,
-      invitedFriendIds: validateOptionalUserIdArray(body.invitedFriendIds, '초대할 친구 목록이 올바르지 않아.'),
+      invitedFriendIds: validateOptionalUserIdArray(body.invitedFriendIds, '초대할 친구 목록이 올바르지 않아요.'),
     });
   });
 
@@ -246,7 +246,7 @@ async function handleUpdateRunningMatchRoomReady({
   const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return updateRunningMatchRoomReady(store, currentUser, {
-      roomId: validateRequiredString(body.roomId, '준비 상태를 바꿀 방 아이디가 필요해.'),
+      roomId: validateRequiredString(body.roomId, '준비 상태를 바꿀 방 아이디가 필요해요.'),
       ready: body.ready === true,
     });
   });
@@ -268,7 +268,7 @@ async function handleAcknowledgeRunningMatchRoomCountdown({
   const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return acknowledgeRunningMatchRoomCountdown(store, currentUser, {
-      roomId: validateRequiredString(body.roomId, '카운트다운 준비를 반영할 방 아이디가 필요해.'),
+      roomId: validateRequiredString(body.roomId, '카운트다운 준비를 반영할 방 아이디가 필요해요.'),
     });
   });
 
@@ -289,7 +289,7 @@ async function handleLeaveRunningMatchRoom({
   const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return leaveRunningMatchRoom(store, currentUser, {
-      roomId: validateRequiredString(body.roomId, '나갈 방 아이디가 필요해.'),
+      roomId: validateRequiredString(body.roomId, '나갈 방 아이디가 필요해요.'),
     });
   });
 

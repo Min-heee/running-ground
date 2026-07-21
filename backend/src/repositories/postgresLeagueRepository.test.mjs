@@ -43,6 +43,39 @@ class FakePostgresDatabase {
       };
     }
 
+    // Exact shapes first — the region/city/province user queries share a prefix,
+    // so startsWith alone would route them all to the wrong filter.
+    if (normalizedSql === "select * from users where coalesce(province_name, '') = $1 and coalesce(city_name, '') = '' and coalesce(district_name, '') = $2") {
+      return {
+        rows: this.users
+          .filter((entry) => (
+            String(entry.province_name ?? '') === String(params[0] ?? '')
+            && String(entry.city_name ?? '') === ''
+            && String(entry.district_name ?? '') === String(params[1] ?? '')
+          ))
+          .map((row) => clone(row)),
+      };
+    }
+
+    if (normalizedSql === "select * from users where coalesce(province_name, '') = $1 and coalesce(city_name, '') = $2") {
+      return {
+        rows: this.users
+          .filter((entry) => (
+            String(entry.province_name ?? '') === String(params[0] ?? '')
+            && String(entry.city_name ?? '') === String(params[1] ?? '')
+          ))
+          .map((row) => clone(row)),
+      };
+    }
+
+    if (normalizedSql === "select * from users where coalesce(province_name, '') = $1") {
+      return {
+        rows: this.users
+          .filter((entry) => String(entry.province_name ?? '') === String(params[0] ?? ''))
+          .map((row) => clone(row)),
+      };
+    }
+
     if (normalizedSql.startsWith("select * from users where coalesce(province_name, '') = $1")) {
       return {
         rows: this.users
@@ -229,4 +262,56 @@ await runTest('returns region league from app metadata region tree', async () =>
     '1:강남구',
     '2:마포구',
   ]);
+});
+
+// ── 광역시 구 direct-under-province lookup (2026-07-21 회귀, postgres) ───────────
+await runTest('a metro 구 nodeId lists THAT 구 from postgres rows — not the requester\'s region', async () => {
+  const metroTree = {
+    id: 'region-root',
+    name: '대한민국',
+    level: 'country',
+    children: [
+      {
+        id: 'kr-dj',
+        name: '대전광역시',
+        level: 'province',
+        children: [
+          { id: 'kr-dj-01', name: '동구', level: 'district', children: [] },
+          { id: 'kr-dj-02', name: '중구', level: 'district', children: [] },
+        ],
+      },
+      {
+        id: 'kr-dg',
+        name: '대구광역시',
+        level: 'province',
+        children: [
+          { id: 'kr-dg-01', name: '동구', level: 'district', children: [] },
+        ],
+      },
+    ],
+  };
+
+  const { repository } = createRepositoryHarness({
+    users: [
+      { id: 'user-me', nickname: '동구주민', province_name: '대전광역시', city_name: '', district_name: '동구' },
+      { id: 'user-junggu', nickname: '중구주민', province_name: '대전광역시', city_name: '', district_name: '중구' },
+      { id: 'user-daegu', nickname: '대구동구주민', province_name: '대구광역시', city_name: '', district_name: '동구' },
+    ],
+    sessions: [
+      { token: 'token-me', user_id: 'user-me', expires_at: '2099-01-01T00:00:00.000Z' },
+    ],
+    runs: [
+      { id: 'run-junggu', user_id: 'user-junggu', run_date: '2026-04-23', distance_km: 5, pace: '05:40/km', source_label: 'RunningGround', source_type: 'runningground' },
+    ],
+    appMetadata: [{ key: 'region_tree', value: metroTree }],
+  });
+
+  // Browsing 대전 중구 as a 대전 동구 resident → 중구 members only.
+  const junggu = await repository.getDistrictPersonal({ token: 'token-me', nodeId: 'kr-dj-02' });
+  assert.equal(junggu.districtName, '중구');
+  assert.deepEqual(junggu.ranks.map((entry) => entry.name), ['중구주민']);
+
+  // 대전 동구 excludes the 대구 동구 runner (same 구 name, other metro).
+  const dongguDaejeon = await repository.getDistrictPersonal({ token: 'token-me', nodeId: 'kr-dj-01' });
+  assert.deepEqual(dongguDaejeon.ranks.map((entry) => entry.name), ['동구주민']);
 });

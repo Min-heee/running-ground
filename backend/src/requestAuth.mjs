@@ -11,7 +11,7 @@ export function getAccessToken(request) {
   const authorization = request.headers.authorization;
 
   if (!authorization?.startsWith('Bearer ')) {
-    throw new ApiError(401, '로그인이 필요해.');
+    throw new ApiError(401, '로그인이 필요해요.');
   }
 
   return authorization.slice('Bearer '.length).trim();
@@ -21,17 +21,17 @@ export function findUserByToken(store, token) {
   const session = store.sessions.find((entry) => entry.token === token);
 
   if (!session) {
-    throw new ApiError(401, '세션이 만료됐어. 다시 로그인해줘.');
+    throw new ApiError(401, '세션이 만료됐어요. 다시 로그인해주세요.');
   }
 
   if (isSessionExpired(session)) {
-    throw new ApiError(401, '세션이 만료됐어. 다시 로그인해줘.');
+    throw new ApiError(401, '세션이 만료됐어요. 다시 로그인해주세요.');
   }
 
   const user = store.users.find((entry) => entry.id === session.userId);
 
   if (!user) {
-    throw new ApiError(401, '세션 사용자를 찾을 수 없어.');
+    throw new ApiError(401, '세션 사용자를 찾을 수 없어요.');
   }
 
   return user;
@@ -49,6 +49,6 @@ export function requireAdmin(request) {
   const providedToken = String(request.headers['x-admin-token'] ?? '').trim();
 
   if (!providedToken || providedToken !== ADMIN_TOKEN) {
-    throw new ApiError(401, '관리자 토큰이 올바르지 않아.');
+    throw new ApiError(401, '관리자 토큰이 올바르지 않아요.');
   }
 }

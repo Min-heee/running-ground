@@ -33,10 +33,10 @@ test('validateDuelMatchDistanceKm keeps the standard marathon upper bound', () =
 });
 
 test('validateRunningMatchProgressDistanceKm preserves live progress precision', () => {
-  assert.equal(validateRunningMatchProgressDistanceKm(0.4649, '러닝 거리를 입력해줘.'), 0.465);
-  assert.equal(validateRunningMatchProgressDistanceKm('0.469', '러닝 거리를 입력해줘.'), 0.469);
+  assert.equal(validateRunningMatchProgressDistanceKm(0.4649, '러닝 거리를 입력해주세요.'), 0.465);
+  assert.equal(validateRunningMatchProgressDistanceKm('0.469', '러닝 거리를 입력해주세요.'), 0.469);
   assert.throws(
-    () => validateRunningMatchProgressDistanceKm(0, '러닝 거리를 입력해줘.'),
+    () => validateRunningMatchProgressDistanceKm(0, '러닝 거리를 입력해주세요.'),
     (error) => error instanceof ApiError,
   );
 });
@@ -79,13 +79,13 @@ test('resolveRegionSelection rejects a leaf 시 whose districtName does not equa
 
 test('validateDateOnly accepts the KST-today date during the after-midnight window', () => {
   const kstEarlyMorning = new Date('2026-07-12T18:30:00Z');
-  assert.equal(validateDateOnly('2026-07-13', '날짜를 입력해줘.', kstEarlyMorning), '2026-07-13');
+  assert.equal(validateDateOnly('2026-07-13', '날짜를 입력해주세요.', kstEarlyMorning), '2026-07-13');
 });
 
 test('validateDateOnly still rejects a genuinely future KST date', () => {
   const kstEarlyMorning = new Date('2026-07-12T18:30:00Z');
   assert.throws(
-    () => validateDateOnly('2026-07-14', '날짜를 입력해줘.', kstEarlyMorning),
+    () => validateDateOnly('2026-07-14', '날짜를 입력해주세요.', kstEarlyMorning),
     (error) => error instanceof ApiError && error.statusCode === 400,
   );
 });
@@ -93,8 +93,8 @@ test('validateDateOnly still rejects a genuinely future KST date', () => {
 test('validateDateOnly keeps rejecting tomorrow when UTC and KST agree', () => {
   const kstAfternoon = new Date('2026-07-13T06:00:00Z'); // KST 15:00 — same date both clocks
   assert.throws(
-    () => validateDateOnly('2026-07-14', '날짜를 입력해줘.', kstAfternoon),
+    () => validateDateOnly('2026-07-14', '날짜를 입력해주세요.', kstAfternoon),
     (error) => error instanceof ApiError && error.statusCode === 400,
   );
-  assert.equal(validateDateOnly('2026-07-13', '날짜를 입력해줘.', kstAfternoon), '2026-07-13');
+  assert.equal(validateDateOnly('2026-07-13', '날짜를 입력해주세요.', kstAfternoon), '2026-07-13');
 });

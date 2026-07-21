@@ -189,7 +189,7 @@ await runTest('returns postgres friend leaderboard when enabled', async () => {
 await runTest('falls back to JSON friend activity on postgres access errors', async () => {
   const { bridge, calls } = createHarness({
     friendReadsEnabled: true,
-    postgresFriendError: new TestApiError(403, '친구로 연결된 사용자 기록만 볼 수 있어.'),
+    postgresFriendError: new TestApiError(403, '친구로 연결된 사용자 기록만 볼 수 있어요.'),
   });
   const result = await bridge.getFriendActivity({
     store: {},

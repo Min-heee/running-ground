@@ -47,7 +47,7 @@ export function requireConnectedSource(user, sourceType) {
   const source = ensureUserConnectedSources(user).find((entry) => entry.sourceType === sourceType);
 
   if (!source) {
-    throw new ApiError(404, '선택한 연동 소스를 찾을 수 없어.');
+    throw new ApiError(404, '선택한 연동 소스를 찾을 수 없어요.');
   }
 
   return source;

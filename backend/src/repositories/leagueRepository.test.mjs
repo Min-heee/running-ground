@@ -43,7 +43,7 @@ function createRepositoryHarness(initialStore = {}, metricsByUserId = {}) {
       const session = store.sessions.find((entry) => entry.token === token);
 
       if (!session) {
-        throw new TestApiError(401, '세션이 만료됐어. 다시 로그인해줘.');
+        throw new TestApiError(401, '세션이 만료됐어요. 다시 로그인해주세요.');
       }
 
       return store.users.find((entry) => entry.id === session.userId);
@@ -315,4 +315,66 @@ await runTest('district ranks carry both rank score and monthly distance', async
   // rankScore = tierIndex(페이서=2) * LP_PER_TIER(200) + lp(40) = 440.
   assert.equal(me.rankScore, 440);
   assert.equal(me.monthlyDistanceKm, 42);
+});
+
+// ── 광역시 구 direct-under-province lookup (2026-07-21 회귀) ─────────────────────
+// Metro trees have no city level; their 구 nodes hang straight off the province.
+// The resolver used to fall through to the REQUESTER's own region for these
+// nodes, so every metro 구 section showed the same (my own) member board.
+
+function createMetroRegionTree() {
+  return {
+    id: 'region-root',
+    name: '대한민국',
+    level: 'country',
+    children: [
+      {
+        id: 'kr-dj',
+        name: '대전광역시',
+        level: 'province',
+        children: [
+          { id: 'kr-dj-01', name: '동구', level: 'district', children: [] },
+          { id: 'kr-dj-02', name: '중구', level: 'district', children: [] },
+        ],
+      },
+      {
+        id: 'kr-dg',
+        name: '대구광역시',
+        level: 'province',
+        children: [
+          { id: 'kr-dg-01', name: '동구', level: 'district', children: [] },
+        ],
+      },
+    ],
+  };
+}
+
+await runTest('a metro 구 node lists THAT 구 — not the requester\'s own region', async () => {
+  const { repository } = createRepositoryHarness({
+    users: [
+      { id: 'user-me', name: '동구주민', provinceName: '대전광역시', cityName: '', districtName: '동구' },
+      { id: 'user-junggu', name: '중구주민', provinceName: '대전광역시', cityName: '', districtName: '중구' },
+      { id: 'user-daegu', name: '대구동구주민', provinceName: '대구광역시', cityName: '', districtName: '동구' },
+    ],
+    sessions: [{ token: 'token-me', userId: 'user-me' }],
+    regionTree: createMetroRegionTree(),
+  }, {
+    'user-me': { currentWeekDistanceKm: 10, competitiveWeekDistanceKm: 10, currentWeekPoints: 15, currentMonthDistanceKm: 40 },
+    'user-junggu': { currentWeekDistanceKm: 5, competitiveWeekDistanceKm: 5, currentWeekPoints: 8, currentMonthDistanceKm: 20 },
+    'user-daegu': { currentWeekDistanceKm: 30, competitiveWeekDistanceKm: 30, currentWeekPoints: 50, currentMonthDistanceKm: 90 },
+  });
+
+  // Browsing 대전 중구 as a 대전 동구 resident → 중구 members only.
+  const junggu = await repository.getDistrictPersonal({ token: 'token-me', nodeId: 'kr-dj-02' });
+  assert.equal(junggu.districtName, '중구');
+  assert.deepEqual(junggu.ranks.map((entry) => entry.name), ['중구주민']);
+
+  // 대전 동구 must NOT include the 대구 동구 runner (same 구 name, other metro).
+  const dongguDaejeon = await repository.getDistrictPersonal({ token: 'token-me', nodeId: 'kr-dj-01' });
+  assert.equal(dongguDaejeon.districtName, '동구');
+  assert.deepEqual(dongguDaejeon.ranks.map((entry) => entry.name), ['동구주민']);
+
+  // 대구 동구 shows only its own runner.
+  const dongguDaegu = await repository.getDistrictPersonal({ token: 'token-me', nodeId: 'kr-dg-01' });
+  assert.deepEqual(dongguDaegu.ranks.map((entry) => entry.name), ['대구동구주민']);
 });

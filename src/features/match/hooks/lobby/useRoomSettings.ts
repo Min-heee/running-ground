@@ -77,7 +77,7 @@ export function useRoomSettings({
       commitRoom(payload.room);
       return payload.room;
     } catch (roomError) {
-      setError(getApiErrorMessage(roomError, '대기실 설정을 저장하지 못했어.'));
+      setError(getApiErrorMessage(roomError, '대기실 설정을 저장하지 못했어요.'));
       return null;
     } finally {
       setSaving(false);
@@ -91,7 +91,7 @@ export function useRoomSettings({
 
     const nextDistanceKm = Number.parseFloat(customDistanceText);
     if (!Number.isFinite(nextDistanceKm) || nextDistanceKm < 0.5) {
-      setError('거리 값을 다시 확인해줘. 0.5km 이상 숫자로 입력하면 돼.');
+      setError('거리 값을 다시 확인해주세요. 0.5km 이상 숫자로 입력하면 돼요.');
       return;
     }
 

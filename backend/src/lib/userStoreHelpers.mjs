@@ -18,7 +18,7 @@ export function findUserById(store, userId) {
   const user = store.users.find((entry) => entry.id === userId);
 
   if (!user) {
-    throw new ApiError(404, '사용자를 찾을 수 없어.');
+    throw new ApiError(404, '사용자를 찾을 수 없어요.');
   }
 
   return user;
@@ -85,6 +85,7 @@ export function buildProfileWithMetrics(user, metrics) {
     districtName: user.districtName,
     ...(typeof user.addressDetail === 'string' && user.addressDetail ? { addressDetail: user.addressDetail } : {}),
     publicTag: user.publicTag,
+    ...(typeof user.statusMessage === 'string' && user.statusMessage ? { statusMessage: user.statusMessage } : {}),
     rankState: { ...ensureUserRankState(user) },
     lifetimeDistanceKm: metrics.lifetimeDistanceKm,
   };

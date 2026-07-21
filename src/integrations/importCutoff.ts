@@ -41,11 +41,11 @@ export function didSkipAllFetchedRunsAsPreLaunch({ fetchedRuns, skippedPreLaunch
 }
 
 export function buildPreLaunchSkipNotice(skippedPreLaunchRuns: number): string {
-  return `출시(${IMPORT_MIN_RUN_DATE}) 이전 기록 ${skippedPreLaunchRuns}개는 가져오지 않았어 — 러닝그라운드는 출시 이후 기록만 반영해.`;
+  return `출시(${IMPORT_MIN_RUN_DATE}) 이전 기록 ${skippedPreLaunchRuns}개는 가져오지 않았어요 — 러닝그라운드는 출시 이후 기록만 반영해요.`;
 }
 
 export function buildAllPreLaunchImportMessage(skippedPreLaunchRuns: number): string {
-  return `기기에서 읽은 ${skippedPreLaunchRuns}개가 모두 출시(${IMPORT_MIN_RUN_DATE}) 이전 기록이라 가져오지 않았어 — 러닝그라운드는 출시 이후 기록만 반영해.`;
+  return `기기에서 읽은 ${skippedPreLaunchRuns}개가 모두 출시(${IMPORT_MIN_RUN_DATE}) 이전 기록이라 가져오지 않았어요 — 러닝그라운드는 출시 이후 기록만 반영해요.`;
 }
 
 // Tacks the honest skip one-liner onto an import result message when some (but not

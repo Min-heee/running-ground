@@ -222,7 +222,7 @@ function createResultRouteHarness(serverStore, { requesterId } = {}) {
     requireUser: (store, request) => {
       const user = store.users.find((entry) => entry.id === requesterId) ?? store.users[0];
       if (!user) {
-        throw new TestApiError(401, '로그인이 필요해.');
+        throw new TestApiError(401, '로그인이 필요해요.');
       }
       return user;
     },
@@ -324,7 +324,7 @@ test('404 for an unknown match id is identical on the fast path and the locked p
   const fastHarness = createResultRouteHarness(fastStore.store, { requesterId: fastStore.winner.id });
   await assert.rejects(
     () => fastHarness.fetchResult('does-not-exist'),
-    (error) => error.statusCode === 404 && error.message === '대결 결과를 찾을 수 없어.',
+    (error) => error.statusCode === 404 && error.message === '대결 결과를 찾을 수 없어요.',
   );
   assert.equal(fastHarness.calls.mutateStore, 0);
 
@@ -334,7 +334,7 @@ test('404 for an unknown match id is identical on the fast path and the locked p
   const lockedHarness = createResultRouteHarness(lockedStore.store, { requesterId: lockedStore.winner.id });
   await assert.rejects(
     () => lockedHarness.fetchResult('does-not-exist'),
-    (error) => error.statusCode === 404 && error.message === '대결 결과를 찾을 수 없어.',
+    (error) => error.statusCode === 404 && error.message === '대결 결과를 찾을 수 없어요.',
   );
   assert.equal(lockedHarness.calls.mutateStore, 1, 'the due heal still routed through the lock');
 });
@@ -373,7 +373,7 @@ test('auth failures propagate from the fast path without ever taking the lock', 
     },
     request: {},
     requireUser: () => {
-      throw new TestApiError(401, '세션이 만료됐어. 다시 로그인해줘.');
+      throw new TestApiError(401, '세션이 만료됐어요. 다시 로그인해주세요.');
     },
     response: createMockResponse(),
     sendJson,

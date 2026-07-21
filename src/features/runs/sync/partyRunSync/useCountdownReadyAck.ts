@@ -178,7 +178,7 @@ export function useCountdownReadyAck({
         // Surface a recoverable error instead of silently freezing. The arming overlay's
         // always-visible leave control gives the user an immediate way out; retries continue.
         callbacksRef.current.onError(
-          '대결 시작 준비가 늦어지고 있어요. 잠시 더 기다리거나 나가기를 눌러 다시 시도해줘.',
+          '대결 시작 준비가 늦어지고 있어요. 잠시 더 기다리거나 나가기를 눌러 다시 시도해주세요.',
         );
       }
 

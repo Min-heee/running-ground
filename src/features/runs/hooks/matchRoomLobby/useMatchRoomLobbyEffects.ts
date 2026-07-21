@@ -219,7 +219,7 @@ export function useMatchRoomLobbyEffects({
       })
       .catch((roomError) => {
         countdownReadyRoomAckRef.current = null;
-        setError(getApiErrorMessage(roomError, '파티런 카운트다운 준비를 맞추지 못했어.'));
+        setError(getApiErrorMessage(roomError, '파티런 카운트다운 준비를 맞추지 못했어요.'));
         // BLOCKER 3c — on ACK timeout/failure, refresh the room immediately instead of
         // waiting for the next poll. The host may already be counting down; a fresh snapshot
         // pulls the slot start / active transition so the guest isn't stranded in arming.

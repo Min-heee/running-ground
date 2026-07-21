@@ -41,7 +41,7 @@ export function useTodayRankings() {
           return;
         }
 
-        setError(getApiErrorMessage(loadError, '오늘의 랭킹을 불러오지 못했어.'));
+        setError(getApiErrorMessage(loadError, '오늘의 랭킹을 불러오지 못했어요.'));
       })
       .finally(() => {
         if (requestIdRef.current === requestId) {

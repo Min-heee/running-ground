@@ -165,12 +165,12 @@ async function main() {
     // It intentionally no longer exposes env/config/store/bridge detail; those infra fields moved
     // behind the admin surface. Assert only the trimmed public shape here.
     const health = await request('/health');
-    assert(health.status === 'ok', 'health 응답 상태가 올바르지 않아.');
-    assert(typeof health.time === 'string' && health.time.length > 0, 'health 응답에 time 필드가 없어.');
-    assert(typeof health.environment === 'undefined', 'health 공개 응답이 환경 정보를 노출하면 안 돼.');
-    assert(typeof health.config === 'undefined', 'health 공개 응답이 config 정보를 노출하면 안 돼.');
-    assert(typeof health.store === 'undefined', 'health 공개 응답이 store 진단을 노출하면 안 돼.');
-    assert(typeof health.readBridges === 'undefined', 'health 공개 응답이 read bridge 상태를 노출하면 안 돼.');
+    assert(health.status === 'ok', 'health 응답 상태가 올바르지 않아요.');
+    assert(typeof health.time === 'string' && health.time.length > 0, 'health 응답에 time 필드가 없어요.');
+    assert(typeof health.environment === 'undefined', 'health 공개 응답이 환경 정보를 노출하면 안 돼요.');
+    assert(typeof health.config === 'undefined', 'health 공개 응답이 config 정보를 노출하면 안 돼요.');
+    assert(typeof health.store === 'undefined', 'health 공개 응답이 store 진단을 노출하면 안 돼요.');
+    assert(typeof health.readBridges === 'undefined', 'health 공개 응답이 read bridge 상태를 노출하면 안 돼요.');
 
     // The rich infra/config/store diagnostics now live behind the authenticated admin surface.
     // (A later block re-checks admin status/session after users register; here we assert the
@@ -181,8 +181,8 @@ async function main() {
     assert(earlyAdminSession.publicBaseUrl === `http://127.0.0.1:${port}`, 'admin session 공개 주소가 반영되지 않았어.');
 
     const earlyAdminStatus = await request('/admin/status', { headers: earlyAdminHeaders });
-    assert(earlyAdminStatus.status === 'ok', 'admin status 응답 상태가 올바르지 않아.');
-    assert(Array.isArray(earlyAdminStatus.config.corsOrigins) && earlyAdminStatus.config.corsOrigins.length === 2, 'admin status CORS 목록이 올바르지 않아.');
+    assert(earlyAdminStatus.status === 'ok', 'admin status 응답 상태가 올바르지 않아요.');
+    assert(Array.isArray(earlyAdminStatus.config.corsOrigins) && earlyAdminStatus.config.corsOrigins.length === 2, 'admin status CORS 목록이 올바르지 않아요.');
     assert(earlyAdminStatus.config.maxBodySizeKb === 1024, 'admin status 최대 본문 크기가 예상과 달라.');
     assert(earlyAdminStatus.config.requestTimeoutMs === 30000, 'admin status 요청 타임아웃이 예상과 달라.');
     assert(earlyAdminStatus.config.headersTimeoutMs === 10000, 'admin status 헤더 타임아웃이 예상과 달라.');
@@ -203,7 +203,7 @@ async function main() {
     assert(listCorruptStoreSnapshots().length >= 1, '손상된 store 스냅샷이 보관되지 않았어.');
 
     const seededStoreContents = readFileSync(storeFile, 'utf8');
-    assert(!seededStoreContents.includes('"password":'), '초기 저장소에 평문 비밀번호가 남아 있어.');
+    assert(!seededStoreContents.includes('"password":'), '초기 저장소에 평문 비밀번호가 남아 있어요.');
     // Parse instead of sniffing raw bytes: the store is persisted compactly (no indentation),
     // so formatting-sensitive substring checks would break on a perfectly healthy store.
     const seededStore = JSON.parse(seededStoreContents);
@@ -236,7 +236,7 @@ async function main() {
         birthDate: '1999-12-31',
       }),
     });
-    assert(typeof registered.accessToken === 'string', '회원가입 토큰이 비어 있어.');
+    assert(typeof registered.accessToken === 'string', '회원가입 토큰이 비어 있어요.');
     assert(registered.user.name === '스모크러너', '회원가입 닉네임이 공개 프로필에 반영되지 않았어.');
     const storeAfterRegister = JSON.parse(readFileSync(storeFile, 'utf8'));
     const persistedSmokeUser = storeAfterRegister.users.find((entry) => entry.username === 'smoke-user');
@@ -260,7 +260,7 @@ async function main() {
       }),
     });
     const accessToken = loggedIn.accessToken;
-    assert(typeof accessToken === 'string', '로그인 토큰이 비어 있어.');
+    assert(typeof accessToken === 'string', '로그인 토큰이 비어 있어요.');
     logStep('login flow ok');
 
     const profile = await request('/me/profile', {
@@ -269,7 +269,7 @@ async function main() {
       },
     });
     assert(profile.name === '스모크러너', '프로필 닉네임이 예상과 달라.');
-    assert(profile.realName === undefined, '비공개 이름이 프로필 응답에 노출되면 안 돼.');
+    assert(profile.realName === undefined, '비공개 이름이 프로필 응답에 노출되면 안 돼요.');
     assert(profile.provinceName === '서울특별시', '프로필 시/도 정보가 예상과 달라.');
 
     const updatedProfile = await request('/me/profile', {
@@ -285,8 +285,8 @@ async function main() {
     assert(updatedProfile.name === '스모크캡틴', '프로필 닉네임 수정이 반영되지 않았어.');
 
     const regionCatalog = await request('/catalog/regions');
-    assert(Array.isArray(regionCatalog.regions) && regionCatalog.regions.length > 0, '지역 카탈로그가 비어 있어.');
-    assert(regionCatalog.regions.some((region) => region.name === '서울특별시'), '서울특별시가 지역 카탈로그에 없어.');
+    assert(Array.isArray(regionCatalog.regions) && regionCatalog.regions.length > 0, '지역 카탈로그가 비어 있어요.');
+    assert(regionCatalog.regions.some((region) => region.name === '서울특별시'), '서울특별시가 지역 카탈로그에 없어요.');
 
     const updatedRegion = await request('/me/region', {
       method: 'PATCH',
@@ -301,7 +301,7 @@ async function main() {
       }),
     });
     assert(updatedRegion.provinceName === '서울특별시', '지역 수정 후 시/도 정보가 반영되지 않았어.');
-    assert(updatedRegion.cityName === undefined, '서울특별시는 cityName 없이 저장되어야 해.');
+    assert(updatedRegion.cityName === undefined, '서울특별시는 cityName 없이 저장되어야 해요.');
     assert(updatedRegion.districtName === '중구', '지역 수정 후 최종 지역이 반영되지 않았어.');
     logStep('profile update flow ok');
 
@@ -373,11 +373,11 @@ async function main() {
         Authorization: `Bearer ${accessToken}`,
       },
     });
-    assert(homeSummary.totalDistanceKm === expectedMetrics.currentWeekDistanceKm, '홈 이번 주 거리가 포인트 계산과 맞지 않아.');
+    assert(homeSummary.totalDistanceKm === expectedMetrics.currentWeekDistanceKm, '홈 이번 주 거리가 포인트 계산과 맞지 않아요.');
     assert(homeSummary.totalRuns === expectedMetrics.currentWeekRunCount, '홈 이번 주 러닝 횟수가 예상과 달라.');
     assert(homeSummary.previousWeekDistanceKm === expectedMetrics.previousWeekDistanceKm, '홈 저번 주 거리가 예상과 달라.');
     assert(homeSummary.streakDays === expectedMetrics.currentStreakDays, '홈 연속 러닝 일수가 예상과 달라.');
-    assert(homeSummary.districtPoints === expectedMetrics.currentWeekPoints, '홈 포인트가 주간 계산과 맞지 않아.');
+    assert(homeSummary.districtPoints === expectedMetrics.currentWeekPoints, '홈 포인트가 주간 계산과 맞지 않아요.');
 
     const myActivity = await request('/me/activity', {
       headers: {
@@ -402,8 +402,8 @@ async function main() {
         Authorization: `Bearer ${accessToken}`,
       },
     });
-    assert(regionLeague.currentNode?.name, '지역 리그 현재 노드가 비어 있어.');
-    assert(Array.isArray(regionLeague.children), '지역 리그 하위 지역 목록이 비어 있어.');
+    assert(regionLeague.currentNode?.name, '지역 리그 현재 노드가 비어 있어요.');
+    assert(Array.isArray(regionLeague.children), '지역 리그 하위 지역 목록이 비어 있어요.');
 
     const districtPersonal = await request('/league/district-personal', {
       headers: {
@@ -414,8 +414,8 @@ async function main() {
     // 구 내 개인 경쟁(경쟁 리더보드)은 경쟁 주간 거리(수동/가져온 기록 제외)를 보여줘야 해.
     // 스모크의 기록은 전부 수동 기록이라 경쟁 주간 거리는 0이고, 홈 카드의 개인 전체
     // 주간 거리(currentWeekDistanceKm)와 의도적으로 달라.
-    assert(districtPersonal.weeklyDistanceKm === expectedMetrics.competitiveWeekDistanceKm, '구 내 개인 경쟁 주간 거리가 경쟁 주간 거리와 맞지 않아.');
-    assert(expectedMetrics.competitiveWeekDistanceKm === 0, '수동 기록만 있을 때 경쟁 주간 거리는 0이어야 해.');
+    assert(districtPersonal.weeklyDistanceKm === expectedMetrics.competitiveWeekDistanceKm, '구 내 개인 경쟁 주간 거리가 경쟁 주간 거리와 맞지 않아요.');
+    assert(expectedMetrics.competitiveWeekDistanceKm === 0, '수동 기록만 있을 때 경쟁 주간 거리는 0이어야 해요.');
     assert(districtPersonal.myPoints === expectedMetrics.currentWeekPoints, '구 내 개인 경쟁 포인트가 예상과 달라.');
     logStep('league flow ok');
 
@@ -424,8 +424,8 @@ async function main() {
         Authorization: `Bearer ${accessToken}`,
       },
     });
-    assert(Array.isArray(integrationSources.sources), '연동 소스 목록이 비어 있어.');
-    assert(integrationSources.sources.some((entry) => entry.sourceType === 'health_connect'), 'Health Connect 소스를 찾지 못했어.');
+    assert(Array.isArray(integrationSources.sources), '연동 소스 목록이 비어 있어요.');
+    assert(integrationSources.sources.some((entry) => entry.sourceType === 'health_connect'), 'Health Connect 소스를 찾지 못했어요.');
     assert(integrationSources.sources.some((entry) => entry.sourceType === 'manual' && entry.connected === true), '수동 기록 추가 후 Manual 소스가 연결 상태로 바뀌지 않았어.');
 
     const connectedSourceResult = await request('/integrations/sources/health_connect/connect', {
@@ -495,7 +495,7 @@ async function main() {
     assert(syncResult.syncedSources >= 1, '연동 동기화 결과가 예상보다 작아.');
     assert(syncResult.scannedRuns === 2, '연동 동기화에서 확인한 기록 수가 예상과 달라.');
     assert(syncResult.importedRuns === 2, '연동 동기화에서 새로 저장한 기록 수가 예상과 달라.');
-    assert(syncResult.duplicateRuns === 0, '첫 연동 동기화에서 중복 기록이 나오면 안 돼.');
+    assert(syncResult.duplicateRuns === 0, '첫 연동 동기화에서 중복 기록이 나오면 안 돼요.');
 
     const expectedMetricsAfterImport = buildUserRunMetrics([
       {
@@ -552,7 +552,7 @@ async function main() {
         runs: importedRunInputs,
       }),
     });
-    assert(duplicateImportResult.pendingRuns === 2, '중복 import도 일단 대기열에는 올라가야 해.');
+    assert(duplicateImportResult.pendingRuns === 2, '중복 import도 일단 대기열에는 올라가야 해요.');
 
     const duplicateSyncResult = await request('/integrations/sync', {
       method: 'POST',
@@ -560,7 +560,7 @@ async function main() {
         Authorization: `Bearer ${accessToken}`,
       },
     });
-    assert(duplicateSyncResult.importedRuns === 0, '중복 import는 새 기록으로 저장되면 안 돼.');
+    assert(duplicateSyncResult.importedRuns === 0, '중복 import는 새 기록으로 저장되면 안 돼요.');
     assert(duplicateSyncResult.duplicateRuns === 2, '중복 import 개수가 예상과 달라.');
 
     const integrationSourcesAfterSync = await request('/integrations/sources', {
@@ -570,7 +570,7 @@ async function main() {
     });
     assert(
       integrationSourcesAfterSync.sources.every((entry) => entry.pendingImportCount === undefined),
-      '동기화 후 처리된 import 대기열이 남아 있으면 안 돼.',
+      '동기화 후 처리된 import 대기열이 남아 있으면 안 돼요.',
     );
 
     const disconnectedSourceResult = await request('/integrations/sources/health_connect/disconnect', {
@@ -587,9 +587,9 @@ async function main() {
         Authorization: `Bearer ${accessToken}`,
       },
     });
-    assert(Array.isArray(marketOverview.items), '마켓 아이템 목록이 비어 있어.');
+    assert(Array.isArray(marketOverview.items), '마켓 아이템 목록이 비어 있어요.');
     assert(marketOverview.items.length === 0, '빈 마켓 상태가 반영되지 않았어.');
-    assert(marketOverview.currentPoints === expectedMetricsAfterImport.totalEarnedPoints, '마켓 현재 포인트가 적립 포인트와 맞지 않아.');
+    assert(marketOverview.currentPoints === expectedMetricsAfterImport.totalEarnedPoints, '마켓 현재 포인트가 적립 포인트와 맞지 않아요.');
 
     const missingMarketClaim = await request('/market/items/reward-coupon-coffee/claim', {
       expectedStatuses: [404],
@@ -606,8 +606,8 @@ async function main() {
         Authorization: `Bearer ${accessToken}`,
       },
     });
-    assert(offlineRaceHub.featuredEvent === null, '레이스 허브 대표 회차가 비어 있어야 해.');
-    assert(Array.isArray(offlineRaceHub.upcomingEvents) && offlineRaceHub.upcomingEvents.length === 0, '레이스 허브 일정이 비어 있지 않아.');
+    assert(offlineRaceHub.featuredEvent === null, '레이스 허브 대표 회차가 비어 있어야 해요.');
+    assert(Array.isArray(offlineRaceHub.upcomingEvents) && offlineRaceHub.upcomingEvents.length === 0, '레이스 허브 일정이 비어 있지 않아요.');
     logStep('offline race hub flow ok');
 
     const trackedRun = await request('/runs/tracked', {
@@ -634,7 +634,7 @@ async function main() {
       expectedStatuses: [201],
     });
     assert(trackedRun.run.source === 'RunningGround', '실시간 러닝 기록 소스가 RunningGround으로 저장되지 않았어.');
-    assert(trackedRun.run.sourceType === 'runningground', '실시간 러닝 기록 sourceType이 runningground이 아니야.');
+    assert(trackedRun.run.sourceType === 'runningground', '실시간 러닝 기록 sourceType이 runningground이 아니에요.');
     assert(trackedRun.run.durationSeconds === 1675, '실시간 러닝 기록 시간이 저장되지 않았어.');
     assert(Array.isArray(trackedRun.run.route) && trackedRun.run.route.length === 3, '실시간 러닝 경로가 저장되지 않았어.');
     logStep('tracked run flow ok');
@@ -690,7 +690,7 @@ async function main() {
         Authorization: `Bearer ${receiverToken}`,
       },
     });
-    assert(receiverLogout.success === true, '상대 사용자 로그아웃이 실패했어.');
+    assert(receiverLogout.success === true, '상대 사용자 로그아웃이 실패했어요.');
 
     const friendLeaderboard = await request('/friends/leaderboard', {
       headers: {
@@ -702,7 +702,7 @@ async function main() {
     const friendId = secondRegistered.user.publicTag
       ? JSON.parse(readFileSync(storeFile, 'utf8')).users.find((entry) => entry.publicTag === receiverTag)?.id
       : null;
-    assert(typeof friendId === 'string', '두 번째 사용자 ID를 찾지 못했어.');
+    assert(typeof friendId === 'string', '두 번째 사용자 ID를 찾지 못했어요.');
 
     const friendActivity = await request(`/friends/${friendId}/activity`, {
       headers: {
@@ -716,7 +716,7 @@ async function main() {
         Authorization: `Bearer ${accessToken}`,
       },
     });
-    assert(districtPersonalAfterFriend.ranks.length === 1, '동명이 다른 지역 사용자가 구 내 개인 경쟁에 섞이면 안 돼.');
+    assert(districtPersonalAfterFriend.ranks.length === 1, '동명이 다른 지역 사용자가 구 내 개인 경쟁에 섞이면 안 돼요.');
     logStep('friend flow ok');
 
     const logoutResult = await request('/auth/logout', {
@@ -725,7 +725,7 @@ async function main() {
         Authorization: `Bearer ${accessToken}`,
       },
     });
-    assert(logoutResult.success === true, '로그아웃 응답이 올바르지 않아.');
+    assert(logoutResult.success === true, '로그아웃 응답이 올바르지 않아요.');
 
     let unauthorizedCaught = false;
 
@@ -739,7 +739,7 @@ async function main() {
       unauthorizedCaught = true;
     }
 
-    assert(unauthorizedCaught, '로그아웃 후에도 보호 API에 접근할 수 있어.');
+    assert(unauthorizedCaught, '로그아웃 후에도 보호 API에 접근할 수 있어요.');
     logStep('logout invalidation ok');
 
     const adminStatus = await request('/admin/status', {
@@ -747,7 +747,7 @@ async function main() {
         'X-Admin-Token': adminToken,
       },
     });
-    assert(adminStatus.status === 'ok', '관리자 상태 응답이 정상 상태가 아니야.');
+    assert(adminStatus.status === 'ok', '관리자 상태 응답이 정상 상태가 아니에요.');
     assert(adminStatus.config.adminStatusEnabled === true, '관리자 상태 응답에 admin status 설정이 반영되지 않았어.');
     assert(adminStatus.readBridges.sessionRuns.postgresConfigured === false, '관리자 상태 응답에 session/run bridge postgres 설정이 예상과 달라.');
     assert(adminStatus.readBridges.friendsLeague.postgresFriendsConfigured === false, '관리자 상태 응답에 friends bridge postgres 설정이 예상과 달라.');
@@ -769,7 +769,7 @@ async function main() {
       },
     });
     assert(adminOverview.counts.users === 2, '관리자 개요 사용자 수가 예상과 달라.');
-    assert(adminOverview.counts.notices === 0, '초기 공지 수는 0이어야 해.');
+    assert(adminOverview.counts.notices === 0, '초기 공지 수는 0이어야 해요.');
 
     const adminUsers = await request('/admin/users', {
       headers: {
@@ -860,7 +860,7 @@ async function main() {
         Authorization: `Bearer ${renewedAccessToken}`,
       },
     });
-    assert(claimedAdminMarketItem.success === true, '관리자 생성 상품 교환이 실패했어.');
+    assert(claimedAdminMarketItem.success === true, '관리자 생성 상품 교환이 실패했어요.');
 
     const adminRewardRedemptions = await request('/admin/reward-redemptions', {
       headers: {
@@ -868,7 +868,7 @@ async function main() {
       },
     });
     assert(adminRewardRedemptions.items.length === 1, '관리자 교환 목록 개수가 예상과 달라.');
-    assert(adminRewardRedemptions.items[0].status === 'requested', '새 교환 요청 상태는 requested 여야 해.');
+    assert(adminRewardRedemptions.items[0].status === 'requested', '새 교환 요청 상태는 requested 여야 해요.');
 
     const updatedAdminRewardRedemption = await request(`/admin/reward-redemptions/${adminRewardRedemptions.items[0].id}`, {
       method: 'PATCH',
@@ -891,7 +891,7 @@ async function main() {
       },
     });
     assert(deletedMyAccount.success === true, '회원 탈퇴 응답이 성공으로 내려오지 않았어.');
-    assert(typeof deletedMyAccount.deletedUserId === 'string' && deletedMyAccount.deletedUserId.length > 0, '회원 탈퇴 응답 사용자 ID가 비어 있어.');
+    assert(typeof deletedMyAccount.deletedUserId === 'string' && deletedMyAccount.deletedUserId.length > 0, '회원 탈퇴 응답 사용자 ID가 비어 있어요.');
 
     let deletedAccountUnauthorizedCaught = false;
 
@@ -905,14 +905,14 @@ async function main() {
       deletedAccountUnauthorizedCaught = true;
     }
 
-    assert(deletedAccountUnauthorizedCaught, '회원 탈퇴 후에도 보호 API에 접근할 수 있어.');
+    assert(deletedAccountUnauthorizedCaught, '회원 탈퇴 후에도 보호 API에 접근할 수 있어요.');
 
     const adminUsersAfterSelfDelete = await request('/admin/users', {
       headers: {
         'X-Admin-Token': adminToken,
       },
     });
-    assert(adminUsersAfterSelfDelete.users.length === 1, '회원 탈퇴 후에는 관리자 회원 목록이 한 명만 남아야 해.');
+    assert(adminUsersAfterSelfDelete.users.length === 1, '회원 탈퇴 후에는 관리자 회원 목록이 한 명만 남아야 해요.');
 
     const adminRewardRedemptionsAfterSelfDelete = await request('/admin/reward-redemptions', {
       headers: {
@@ -976,7 +976,7 @@ async function main() {
       }),
     });
     assert(createdAdminRaceEvent.event.title === '스모크 레이스', '관리자 레이스 추가가 반영되지 않았어.');
-    assert(createdAdminRaceEvent.event.participantCount === 0, '새 레이스 참가자 수는 0이어야 해.');
+    assert(createdAdminRaceEvent.event.participantCount === 0, '새 레이스 참가자 수는 0이어야 해요.');
 
     const updatedAdminRaceEvent = await request(`/admin/offline-races/events/${createdAdminRaceEvent.event.id}`, {
       method: 'PATCH',
@@ -1019,7 +1019,7 @@ async function main() {
         'X-Admin-Token': adminToken,
       },
     });
-    assert(deletedAdminUser.deletedUserId === friendId, '관리자 회원 삭제 응답이 올바르지 않아.');
+    assert(deletedAdminUser.deletedUserId === friendId, '관리자 회원 삭제 응답이 올바르지 않아요.');
     assert(deletedAdminUser.users.length === 0, '관리자 회원 삭제 후 사용자 수가 예상과 달라.');
     logStep('admin crud ok');
 

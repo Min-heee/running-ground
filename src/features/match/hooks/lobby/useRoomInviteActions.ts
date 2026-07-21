@@ -111,7 +111,7 @@ export function useRoomInviteActions({
       commitRoom(payload.room);
     } catch (roomError) {
       endJoinApiTrace({ success: false });
-      const message = getApiErrorMessage(roomError, '초대를 수락하지 못했어.');
+      const message = getApiErrorMessage(roomError, '초대를 수락하지 못했어요.');
       rgPerfMark('room join API error', {
         message,
         roomId: room.roomId,
@@ -179,7 +179,7 @@ export function useRoomInviteActions({
       router.replace('/(tabs)/running');
     } catch (roomError) {
       endLeaveApiTrace({ success: false });
-      const message = getApiErrorMessage(roomError, '초대를 거절하지 못했어.');
+      const message = getApiErrorMessage(roomError, '초대를 거절하지 못했어요.');
       rgPerfMark('room leave API error', {
         message,
         roomId: room.roomId,
@@ -218,7 +218,7 @@ export function useRoomInviteActions({
         ].join('\n'),
       });
     } catch {
-      Alert.alert('공유 실패', '지금은 친구 초대를 열지 못했어.');
+      Alert.alert('공유 실패', '지금은 친구 초대를 열지 못했어요.');
     }
   };
 

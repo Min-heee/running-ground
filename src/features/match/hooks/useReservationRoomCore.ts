@@ -157,7 +157,7 @@ export function useReservationRoomCore<TView extends ReservationRoomCoreView>(
     } catch (statusError) {
       // Don't blank the room on a transient fetch failure — keep the last good status
       // and surface a soft error; the next poll retries.
-      setError(getApiErrorMessage(statusError, '예약 상태를 불러오지 못했어.'));
+      setError(getApiErrorMessage(statusError, '예약 상태를 불러오지 못했어요.'));
     } finally {
       setLoading(false);
     }
@@ -275,13 +275,13 @@ export function useReservationRoomCore<TView extends ReservationRoomCoreView>(
     const effectiveDistanceKm = status?.distanceKm ?? distanceKm;
 
     if (!effectiveSlotStartAt || typeof effectiveDistanceKm !== 'number') {
-      setError('예약 정보를 찾지 못했어.');
+      setError('예약 정보를 찾지 못했어요.');
       return false;
     }
 
     // Same rule as the inline/upcoming cancel: locked from 1 hour before the slot.
     if (status?.canCancel === false) {
-      setError('출발 1시간 전부터는 예약을 취소할 수 없어.');
+      setError('출발 1시간 전부터는 예약을 취소할 수 없어요.');
       return false;
     }
 

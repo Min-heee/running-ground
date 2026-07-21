@@ -141,7 +141,7 @@ async function handleAcceptRunningMatch({
   validateRequiredString,
 }) {
   const body = await parseJsonBody(request);
-  const matchId = validateRequiredString(body.matchId, '수락할 매치 아이디가 필요해.');
+  const matchId = validateRequiredString(body.matchId, '수락할 매치 아이디가 필요해요.');
   const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return acceptRunningMatch(store, currentUser, matchId);
@@ -195,7 +195,7 @@ async function handleLeaveRunningMatch({
   validateRequiredString,
 }) {
   const body = await parseJsonBody(request);
-  const matchId = validateRequiredString(body.matchId, '이탈할 매치 아이디가 필요해.');
+  const matchId = validateRequiredString(body.matchId, '이탈할 매치 아이디가 필요해요.');
   const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return leaveRunningMatch(store, currentUser, { matchId });

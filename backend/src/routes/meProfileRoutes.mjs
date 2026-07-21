@@ -1,3 +1,5 @@
+import { ApiError } from '../response/httpResponse.mjs';
+
 export async function routeMeProfileRequest({
   method,
   pathname,
@@ -75,6 +77,37 @@ async function handleDeleteMyAccount({
   sendJson(response, 200, payload);
 }
 
+// 태그는 '#' + 대문자 영숫자 코드. 클라는 코드만 편집하고('#' 고정 프리픽스),
+// 서버는 '#' 유무를 모두 받아 정규화한다. 3~8자 — 기존 발급 태그는 5자.
+const PUBLIC_TAG_CODE_PATTERN = /^[A-Z0-9]{3,8}$/;
+const STATUS_MESSAGE_MAX_LENGTH = 40;
+
+function resolveNextPublicTag(store, user, rawValue) {
+  const code = String(rawValue ?? '').trim().replace(/^#/, '').toUpperCase();
+
+  if (!PUBLIC_TAG_CODE_PATTERN.test(code)) {
+    throw new ApiError(400, '태그는 영문/숫자 3~8자로 입력해주세요.');
+  }
+
+  const nextTag = `#${code}`;
+
+  if (store.users.some((entry) => entry.id !== user.id && entry.publicTag === nextTag)) {
+    throw new ApiError(409, '이미 사용 중인 태그예요.');
+  }
+
+  return nextTag;
+}
+
+function validateStatusMessage(rawValue) {
+  const message = String(rawValue ?? '').trim();
+
+  if (message.length > STATUS_MESSAGE_MAX_LENGTH) {
+    throw new ApiError(400, `상태 메시지는 ${STATUS_MESSAGE_MAX_LENGTH}자 이하로 입력해주세요.`);
+  }
+
+  return message;
+}
+
 async function handlePatchMyProfile({
   buildProfile,
   mutateStore,
@@ -89,7 +122,30 @@ async function handlePatchMyProfile({
 
   const payload = await mutateStore((store) => {
     const user = requireUser(store, request);
-    user.name = validateRequiredString(body.name, '닉네임을 입력해줘.');
+    user.name = validateRequiredString(body.name, '닉네임을 입력해주세요.');
+
+    if (body.publicTag !== undefined) {
+      const nextTag = resolveNextPublicTag(store, user, body.publicTag);
+
+      if (nextTag !== user.publicTag) {
+        // Offline race registrations reference users BY TAG — carry them over
+        // so a rename doesn't orphan an existing 신청.
+        for (const event of store.offlineRaceEvents ?? []) {
+          if (Array.isArray(event?.registeredUserTags)) {
+            event.registeredUserTags = event.registeredUserTags.map((tag) => (
+              tag === user.publicTag ? nextTag : tag
+            ));
+          }
+        }
+
+        user.publicTag = nextTag;
+      }
+    }
+
+    if (body.statusMessage !== undefined) {
+      user.statusMessage = validateStatusMessage(body.statusMessage);
+    }
+
     return buildProfile(store, user);
   });
 

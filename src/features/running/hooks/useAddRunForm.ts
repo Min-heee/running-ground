@@ -47,7 +47,7 @@ export function useAddRunForm() {
         },
       });
     } catch (submitError) {
-      setError(getApiErrorMessage(submitError, '러닝 기록 저장에 실패했어.'));
+      setError(getApiErrorMessage(submitError, '러닝 기록 저장에 실패했어요.'));
     } finally {
       setSubmitting(false);
     }

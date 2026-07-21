@@ -103,8 +103,8 @@ export default function LeagueScreen() {
 
           {!loading && !error && !currentNode ? (
             <StateMessageCard
-              title="지역 랭킹 데이터가 아직 없어"
-              message="백엔드 응답이 연결되면 지역별 순위를 바로 탐색할 수 있어."
+              title="지역 랭킹 데이터가 아직 없어요"
+              message="백엔드 응답이 연결되면 지역별 순위를 바로 탐색할 수 있어요."
               actionLabel="다시 불러오기"
               onAction={handleRetryInitialLeague}
             />

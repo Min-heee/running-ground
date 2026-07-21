@@ -37,7 +37,7 @@ export async function requireUserByToken(database, token, createError) {
   );
 
   if (!result.rows[0]) {
-    throw createError(401, '세션이 만료됐어. 다시 로그인해줘.');
+    throw createError(401, '세션이 만료됐어요. 다시 로그인해주세요.');
   }
 
   return mapUserRow(result.rows[0]);
@@ -55,7 +55,7 @@ export async function findUserById(database, userId, createError) {
   );
 
   if (!result.rows[0]) {
-    throw createError(404, '사용자를 찾을 수 없어.');
+    throw createError(404, '사용자를 찾을 수 없어요.');
   }
 
   return mapUserRow(result.rows[0]);
@@ -199,7 +199,7 @@ export async function requireFriendAccess(database, currentUserId, friendId, cre
     return;
   }
 
-  throw createError(403, '친구로 연결된 사용자 기록만 볼 수 있어.');
+  throw createError(403, '친구로 연결된 사용자 기록만 볼 수 있어요.');
 }
 
 export async function findPendingRequestBetween(database, leftUserId, rightUserId) {

@@ -35,7 +35,7 @@ export function useRegionSettings() {
         setSecondaryRegionName(profile.cityName || profile.districtName);
       })
       .catch((loadError) => {
-        setError(getApiErrorMessage(loadError, '지역 정보를 불러오지 못했어.'));
+        setError(getApiErrorMessage(loadError, '지역 정보를 불러오지 못했어요.'));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -51,7 +51,7 @@ export function useRegionSettings() {
 
   const handleSave = async () => {
     if (!provinceName || !finalDistrictName) {
-      setError('시/도와 최종 지역을 먼저 선택해줘.');
+      setError('시/도와 최종 지역을 먼저 선택해주세요.');
       return;
     }
 
@@ -69,7 +69,7 @@ export function useRegionSettings() {
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     } catch (saveError) {
-      setError(getApiErrorMessage(saveError, '지역 저장에 실패했어.'));
+      setError(getApiErrorMessage(saveError, '지역 저장에 실패했어요.'));
     } finally {
       setSaving(false);
     }

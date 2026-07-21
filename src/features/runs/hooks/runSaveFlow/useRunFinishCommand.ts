@@ -149,7 +149,7 @@ export function useRunFinishCommand({
       await loadUpcomingMatches().catch(() => {});
       setMatchMode('solo');
     } catch (matchError) {
-      setError(getApiErrorMessage(matchError, options?.errorMessage ?? '매치 표시 정리에 실패했어.'));
+      setError(getApiErrorMessage(matchError, options?.errorMessage ?? '매치 표시 정리에 실패했어요.'));
     } finally {
       continueSoloInFlightRef.current.delete(source);
       setMatchLeaving(source, false);

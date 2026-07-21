@@ -28,7 +28,7 @@ export default function OpponentProfileScreen() {
   const loadProfile = useCallback((signal: { cancelled: boolean }) => {
     if (!userId) {
       setProfile(null);
-      setError('상대 정보를 찾을 수 없어.');
+      setError('상대 정보를 찾을 수 없어요.');
       setLoading(false);
       return;
     }
@@ -44,7 +44,7 @@ export default function OpponentProfileScreen() {
       })
       .catch((profileError) => {
         if (!signal.cancelled) {
-          setError(getApiErrorMessage(profileError, '상대 프로필을 불러오지 못했어.'));
+          setError(getApiErrorMessage(profileError, '상대 프로필을 불러오지 못했어요.'));
         }
       })
       .finally(() => {

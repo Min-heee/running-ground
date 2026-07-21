@@ -42,11 +42,11 @@ async function handleFetchRunningMatchResult({
   } catch {
     // A malformed id can never name a real match → same 404 a participant check would give,
     // so the endpoint never leaks whether an id format is "valid but missing".
-    throw new ApiError(404, '대결 결과를 찾을 수 없어.');
+    throw new ApiError(404, '대결 결과를 찾을 수 없어요.');
   }
 
   if (!matchId || matchId.length > 128) {
-    throw new ApiError(404, '대결 결과를 찾을 수 없어.');
+    throw new ApiError(404, '대결 결과를 찾을 수 없어요.');
   }
 
   // B-1 (finish-flow relief 2026-07-07): LOCK-FREE FAST PATH. Every /result poll used to run
@@ -141,12 +141,12 @@ async function handleUpdateRunningMatchProgress({
   validateRequiredString,
 }) {
   const body = await parseJsonBody(request);
-  const matchId = validateRequiredString(body.matchId, '진행 상태를 반영할 매치 아이디가 필요해.');
-  const distanceKm = validateRunningMatchProgressDistanceKm(body.distanceKm, '러닝 거리를 입력해줘.');
-  const elapsedSeconds = validateNonNegativeInteger(body.elapsedSeconds, '러닝 시간은 0초 이상이어야 해.');
+  const matchId = validateRequiredString(body.matchId, '진행 상태를 반영할 매치 아이디가 필요해요.');
+  const distanceKm = validateRunningMatchProgressDistanceKm(body.distanceKm, '러닝 거리를 입력해주세요.');
+  const elapsedSeconds = validateNonNegativeInteger(body.elapsedSeconds, '러닝 시간은 0초 이상이어야 해요.');
   const currentPace = String(body.currentPace ?? '').trim() === '--:--/km'
     ? '--:--/km'
-    : validatePace(body.currentPace, '현재 페이스가 올바르지 않아.');
+    : validatePace(body.currentPace, '현재 페이스가 올바르지 않아요.');
   const status = ['running', 'background', 'paused', 'finished'].includes(body.status)
     ? body.status
     : 'running';

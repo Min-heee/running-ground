@@ -8,21 +8,21 @@ export function validateMatchSlotStartAt(slotStartAt, now = new Date()) {
   const slotStart = new Date(slotStartAt);
 
   if (Number.isNaN(slotStart.getTime())) {
-    throw new ApiError(400, '매칭 시작 시간이 올바르지 않아.');
+    throw new ApiError(400, '매칭 시작 시간이 올바르지 않아요.');
   }
 
   if (slotStart.getMinutes() !== 0 || slotStart.getSeconds() !== 0 || slotStart.getMilliseconds() !== 0) {
-    throw new ApiError(400, '매칭 시간은 1시간 단위로만 선택할 수 있어.');
+    throw new ApiError(400, '매칭 시간은 1시간 단위로만 선택할 수 있어요.');
   }
 
   const maxSelectableAt = new Date(now.getTime() + MATCH_BOOKING_WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
   if (slotStart.getTime() > maxSelectableAt.getTime()) {
-    throw new ApiError(400, '매칭은 오늘부터 1주일 안의 시간대까지만 예약할 수 있어.');
+    throw new ApiError(400, '매칭은 오늘부터 1주일 안의 시간대까지만 예약할 수 있어요.');
   }
 
   if (isMatchSlotClosed(slotStartAt, now)) {
-    throw new ApiError(400, '이 시간대는 출발 30분 전이 지나서 더 이상 선택할 수 없어.');
+    throw new ApiError(400, '이 시간대는 출발 30분 전이 지나서 더 이상 선택할 수 없어요.');
   }
 
   return slotStart.toISOString();
@@ -38,16 +38,16 @@ function validateRequiredString(value, message) {
 
 export function validateMatchSlotInput(value) {
   return validateMatchSlotStartAt(
-    validateRequiredString(value, '매칭 시간대를 선택해줘.'),
+    validateRequiredString(value, '매칭 시간대를 선택해주세요.'),
   );
 }
 
 export function parseLenientMatchSlotInput(value) {
-  const slotStartAt = validateRequiredString(value, '매칭 시간대를 선택해줘.');
+  const slotStartAt = validateRequiredString(value, '매칭 시간대를 선택해주세요.');
   const slotStart = new Date(slotStartAt);
 
   if (Number.isNaN(slotStart.getTime())) {
-    throw new ApiError(400, '매칭 시작 시간이 올바르지 않아.');
+    throw new ApiError(400, '매칭 시작 시간이 올바르지 않아요.');
   }
 
   return slotStart.toISOString();

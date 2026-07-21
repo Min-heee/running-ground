@@ -62,7 +62,7 @@ export function useTrackRunRuntimeMatchRequestActions(input: UseTrackRunRuntimeM
         setDuelDemandSummary(nextSummary);
       }
     } catch (matchError) {
-      setError(getApiErrorMessage(matchError, '1대1 매칭을 찾지 못했어.'));
+      setError(getApiErrorMessage(matchError, '1대1 매칭을 찾지 못했어요.'));
     } finally {
       setIsRequestingDuelMatch(false);
     }
@@ -87,7 +87,7 @@ export function useTrackRunRuntimeMatchRequestActions(input: UseTrackRunRuntimeM
         setGroupDemandSummary(nextSummary);
       }
     } catch (matchError) {
-      setError(getApiErrorMessage(matchError, '그룹 매칭을 찾지 못했어.'));
+      setError(getApiErrorMessage(matchError, '그룹 매칭을 찾지 못했어요.'));
     } finally {
       setIsRequestingGroupMatch(false);
     }
@@ -96,7 +96,7 @@ export function useTrackRunRuntimeMatchRequestActions(input: UseTrackRunRuntimeM
   async function handleCancelDuelMatch() {
     try {
       if (duelMatchState === 'matched' && duelMatchStatus?.canCancel === false) {
-        throw new Error('출발 1시간 전부터는 예약을 취소할 수 없어.');
+        throw new Error('출발 1시간 전부터는 예약을 취소할 수 없어요.');
       }
 
       const wasTestMatch = isDuelTestFlow;
@@ -126,7 +126,7 @@ export function useTrackRunRuntimeMatchRequestActions(input: UseTrackRunRuntimeM
         setDuelMatchStatus(null);
       }
     } catch (matchError) {
-      setError(getApiErrorMessage(matchError, '1대1 매치를 취소하지 못했어.'));
+      setError(getApiErrorMessage(matchError, '1대1 매치를 취소하지 못했어요.'));
     } finally {
       setIsCancelingDuelMatch(false);
     }
@@ -135,7 +135,7 @@ export function useTrackRunRuntimeMatchRequestActions(input: UseTrackRunRuntimeM
   async function handleCancelGroupMatch() {
     try {
       if (groupMatchState === 'matched' && groupMatchStatus?.canCancel === false) {
-        throw new Error('출발 1시간 전부터는 예약을 취소할 수 없어.');
+        throw new Error('출발 1시간 전부터는 예약을 취소할 수 없어요.');
       }
 
       const wasTestMatch = isGroupTestFlow;
@@ -164,7 +164,7 @@ export function useTrackRunRuntimeMatchRequestActions(input: UseTrackRunRuntimeM
         setGroupMatchStatus(null);
       }
     } catch (matchError) {
-      setError(getApiErrorMessage(matchError, '그룹 매치를 취소하지 못했어.'));
+      setError(getApiErrorMessage(matchError, '그룹 매치를 취소하지 못했어요.'));
     } finally {
       setIsCancelingGroupMatch(false);
     }
@@ -173,7 +173,7 @@ export function useTrackRunRuntimeMatchRequestActions(input: UseTrackRunRuntimeM
   async function handleCancelUpcomingMatch(match: UpcomingRunningMatchItem) {
     try {
       if (!match.canCancel) {
-        throw new Error('출발 1시간 전부터는 예약을 취소할 수 없어.');
+        throw new Error('출발 1시간 전부터는 예약을 취소할 수 없어요.');
       }
 
       setError(null);
@@ -194,7 +194,7 @@ export function useTrackRunRuntimeMatchRequestActions(input: UseTrackRunRuntimeM
         setGroupMatchStatus(null);
       }
     } catch (cancelError) {
-      setError(getApiErrorMessage(cancelError, '예약을 취소하지 못했어.'));
+      setError(getApiErrorMessage(cancelError, '예약을 취소하지 못했어요.'));
     } finally {
       setCancelingUpcomingMatchId(null);
     }

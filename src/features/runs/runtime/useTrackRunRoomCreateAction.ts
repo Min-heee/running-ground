@@ -257,7 +257,7 @@ export function useTrackRunRoomCreateAction({
         navigateToMatchRoomWithTrace('room create', payload.room, payload.serverNow, payload);
       }
     } catch (roomError) {
-      const message = getApiErrorMessage(roomError, '방을 만들지 못했어.');
+      const message = getApiErrorMessage(roomError, '방을 만들지 못했어요.');
       rgPerfMark('room create API error', {
         message,
         mode: nextRoomMode,

@@ -9,7 +9,7 @@ export async function parseJsonBody(request) {
     totalBytes += chunk.length;
 
     if (totalBytes > MAX_BODY_SIZE_BYTES) {
-      throw new ApiError(413, `요청 본문이 너무 커. 최대 ${MAX_BODY_SIZE_KB}KB 까지만 보낼 수 있어.`);
+      throw new ApiError(413, `요청 본문이 너무 커요. 최대 ${MAX_BODY_SIZE_KB}KB 까지만 보낼 수 있어요.`);
     }
 
     chunks.push(chunk);
@@ -24,6 +24,6 @@ export async function parseJsonBody(request) {
   try {
     return JSON.parse(raw);
   } catch {
-    throw new ApiError(400, '요청 본문이 올바른 JSON 형식이 아니야.');
+    throw new ApiError(400, '요청 본문이 올바른 JSON 형식이 아니에요.');
   }
 }

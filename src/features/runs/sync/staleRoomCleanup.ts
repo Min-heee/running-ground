@@ -128,7 +128,7 @@ export async function runStaleRoomCleanupWithTimeout({
 
   endStaleCleanupTrace({ success: false });
   rgPerfMark('stale room cleanup error', {
-    message: getApiErrorMessage(outcome.error, '이전 방 상태를 정리하지 못했어.'),
+    message: getApiErrorMessage(outcome.error, '이전 방 상태를 정리하지 못했어요.'),
     source,
   });
   return outcome;

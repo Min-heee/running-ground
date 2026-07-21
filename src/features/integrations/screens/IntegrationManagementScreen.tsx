@@ -38,11 +38,11 @@ export default function IntegrationManagementScreen() {
     syncing,
     syncResult,
   } = useIntegrationActions({
-    loadErrorMessage: '연동 정보를 불러오지 못했어.',
-    connectErrorMessage: '소스 연결에 실패했어.',
-    syncErrorMessage: '연동 동기화에 실패했어.',
-    disconnectErrorMessage: '소스 연결 해제에 실패했어.',
-    deviceImportErrorMessage: '기기 기록을 아직 읽어오지 못했어.',
+    loadErrorMessage: '연동 정보를 불러오지 못했어요.',
+    connectErrorMessage: '소스 연결에 실패했어요.',
+    syncErrorMessage: '연동 동기화에 실패했어요.',
+    disconnectErrorMessage: '소스 연결 해제에 실패했어요.',
+    deviceImportErrorMessage: '기기 기록을 아직 읽어오지 못했어요.',
     formatSyncMessage: buildSyncSummary,
     formatDeviceImportMessage: integrationDeviceImportMessages.management,
   });
@@ -68,7 +68,7 @@ export default function IntegrationManagementScreen() {
       {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
       {!loading && error ? (
         <Card>
-          <Text style={styles.stateTitle}>연동 정보를 아직 못 불러왔어</Text>
+          <Text style={styles.stateTitle}>연동 정보를 아직 못 불러왔어요</Text>
           <Text style={styles.errorText}>{error}</Text>
           <PrimaryButton label="다시 불러오기" onPress={loadIntegrationStatus} />
         </Card>
@@ -82,8 +82,8 @@ export default function IntegrationManagementScreen() {
               // HealthKit-free binary (build 48)에선 iOS 자동 가져오기가 없으므로 설명 자체를
               // 숨긴다 (오너 결정). 빌드 49+는 모듈이 있어 일반 안내가 그대로 나온다.
               <Text style={styles.helperText}>
-                소스를 연결하는 건 어디서 가져올지 고르는 것뿐이야. 실제로 러닝 기록을 끌어오려면
-                아래 [기기에서 기록 가져오기]를 눌러줘.
+                소스를 연결하는 건 어디서 가져올지 고르는 것뿐이에요. 실제로 러닝 기록을 끌어오려면
+                아래 [기기에서 기록 가져오기]를 눌러주세요.
               </Text>
             )}
             {importEligibility?.canImport ? (

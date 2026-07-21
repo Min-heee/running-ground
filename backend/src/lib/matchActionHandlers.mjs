@@ -62,7 +62,7 @@ export function leaveRunningMatch(store, currentUser, { matchId }) {
   const state = hydrateMatchSessionState(session);
 
   if (!['matched', 'active'].includes(state)) {
-    throw new ApiError(400, '매칭이 잡힌 뒤에만 혼자 계속 달릴 수 있어.');
+    throw new ApiError(400, '매칭이 잡힌 뒤에만 혼자 계속 달릴 수 있어요.');
   }
 
   const forfeitedAt = new Date().toISOString();
@@ -82,7 +82,7 @@ export function acceptRunningMatch(store, currentUser, matchId) {
   const session = findMatchSessionById(store, matchId);
 
   if (!session || !session.participants.some((participant) => participant.userId === currentUser.id)) {
-    throw new ApiError(404, '수락할 매치를 찾지 못했어.');
+    throw new ApiError(404, '수락할 매치를 찾지 못했어요.');
   }
 
   return buildRunningMatchStatusResponse(store, currentUser, {
@@ -106,7 +106,7 @@ export function cancelRunningMatch(store, currentUser, { mode, distanceKm, slotS
     const state = hydrateMatchSessionState(session);
 
     if (state === 'active') {
-      throw new ApiError(400, '이미 출발한 매치는 취소할 수 없어.');
+      throw new ApiError(400, '이미 출발한 매치는 취소할 수 없어요.');
     }
 
     if (state === 'matched') {
@@ -116,8 +116,8 @@ export function cancelRunningMatch(store, currentUser, { mode, distanceKm, slotS
 
       if (Date.now() >= cancellationDeadline.getTime()) {
         throw new ApiError(400, isTestMatchSession(session)
-          ? '테스트 카운트다운이 시작된 뒤에는 취소할 수 없어.'
-          : '출발 1시간 전부터는 예약을 취소할 수 없어.');
+          ? '테스트 카운트다운이 시작된 뒤에는 취소할 수 없어요.'
+          : '출발 1시간 전부터는 예약을 취소할 수 없어요.');
       }
     }
 
@@ -158,11 +158,11 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
     // Terminal answer for a pruned/vanished match: 410 tells a stranded device to STOP
     // its ~2s retry loop (a plain 404 reads as "maybe transient" and retries forever).
     // The tombstone map is in-memory — after a restart this falls back to the 404 below.
-    throw new ApiError(410, '이미 종료돼 정리된 매치야.', { code: 'match_gone' });
+    throw new ApiError(410, '이미 종료돼 정리된 매치예요.', { code: 'match_gone' });
   }
 
   if (!session || !session.participants.some((participant) => participant.userId === currentUser.id)) {
-    throw new ApiError(404, '진행 상태를 반영할 매치를 찾지 못했어.');
+    throw new ApiError(404, '진행 상태를 반영할 매치를 찾지 못했어요.');
   }
 
   const sessionState = hydrateMatchSessionState(session);
@@ -173,11 +173,11 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
     slotStartAt: session.slotStartAt,
     testMode: isTestMatchSession(session),
   }).readyToStart) {
-    throw new ApiError(400, '예약된 시작 시간이 아직 되지 않았어.');
+    throw new ApiError(400, '예약된 시작 시간이 아직 되지 않았어요.');
   }
 
   if (!['matched', 'active'].includes(sessionState)) {
-    throw new ApiError(400, '아직 시작 전인 매치에는 진행 상태를 반영할 수 없어.');
+    throw new ApiError(400, '아직 시작 전인 매치에는 진행 상태를 반영할 수 없어요.');
   }
 
   const currentParticipant = session.participants.find((participant) => participant.userId === currentUser.id);

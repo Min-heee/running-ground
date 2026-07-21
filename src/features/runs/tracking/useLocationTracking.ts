@@ -29,7 +29,7 @@ export function useLocationTracking({
     setLocationPermissionGranted(granted);
 
     if (!granted) {
-      throw new Error('위치 권한을 허용해야 지도와 거리 측정이 가능해.');
+      throw new Error('위치 권한을 허용해야 지도와 거리 측정이 가능해요.');
     }
   }, [setLocationPermissionGranted]);
 

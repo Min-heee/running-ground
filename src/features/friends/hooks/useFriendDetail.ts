@@ -42,7 +42,7 @@ export function useFriendDetail(friendId?: string) {
       }
     } catch (loadError) {
       if (showLoading) {
-        setError(getApiErrorMessage(loadError, '친구 활동 정보를 불러오지 못했어.'));
+        setError(getApiErrorMessage(loadError, '친구 활동 정보를 불러오지 못했어요.'));
       }
     } finally {
       if (showLoading) {

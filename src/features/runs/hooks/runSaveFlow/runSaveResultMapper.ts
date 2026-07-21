@@ -197,11 +197,11 @@ export function buildRunSaveResultSnapshot({
     : allowShortDistanceSave ? finalDistanceKm > 0 : finalDistanceKm >= 0.1;
 
   if (!hasSavableRoute || !hasSavableDistance) {
-    throw new Error('저장하려면 실제로 이동한 러닝 경로가 조금 더 필요해.');
+    throw new Error('저장하려면 실제로 이동한 러닝 경로가 조금 더 필요해요.');
   }
 
   if (averagePaceLabel === '--:--/km') {
-    throw new Error('페이스 계산이 아직 부족해서 저장할 수 없어. 조금 더 측정한 뒤 다시 시도해줘.');
+    throw new Error('페이스 계산이 아직 부족해서 저장할 수 없어요. 조금 더 측정한 뒤 다시 시도해주세요.');
   }
 
   // C4: single pace source — the run's bottom metric pace reuses the duel matchResult's

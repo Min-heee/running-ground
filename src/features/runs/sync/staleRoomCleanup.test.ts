@@ -65,9 +65,9 @@ test('running match blocker extracts match ids from blocker details', () => {
 });
 
 test('non-blocker API errors do not trigger stale cleanup retry', () => {
-  const error = new ApiError('request', '참여할 방을 찾지 못했어.', {
+  const error = new ApiError('request', '참여할 방을 찾지 못했어요.', {
     details: {
-      message: '참여할 방을 찾지 못했어.',
+      message: '참여할 방을 찾지 못했어요.',
     },
   });
 
@@ -82,7 +82,7 @@ test('blocking stale cleanup is only selected for blocker errors', () => {
       code: 'already_joined',
     },
   });
-  const validationError = new ApiError('request', '초대 코드를 확인해줘.', {
+  const validationError = new ApiError('request', '초대 코드를 확인해주세요.', {
     details: {
       code: 'invalid_invite_token',
     },

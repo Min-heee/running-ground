@@ -86,6 +86,11 @@ export type NotificationSettingsResponse = {
 
 export type UpdateMyProfileInput = {
   name: string;
+  // Tag code with or without '#' — the server normalizes to '#CODE' (uppercase
+  // alphanumerics, 3~8 chars) and rejects duplicates with a 409.
+  publicTag?: string;
+  // Trimmed server-side; max 40 chars; empty string clears it.
+  statusMessage?: string;
 };
 
 export type UpdateMyProfileResponse = MyProfileResponse;

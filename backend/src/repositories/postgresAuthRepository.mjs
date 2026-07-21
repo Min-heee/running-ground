@@ -564,7 +564,7 @@ export function createPostgresAuthRepository({
         const existingPhoneUser = await findUserByPhone(client, phone);
 
         if (existingPhoneUser) {
-          throw createError(409, '이 번호로 이미 가입한 계정이 있어요. 로그인하거나 비밀번호 찾기를 이용해줘.');
+          throw createError(409, '이 번호로 이미 가입한 계정이 있어요. 로그인하거나 비밀번호 찾기를 이용해주세요.');
         }
 
         const createdAt = new Date().toISOString();

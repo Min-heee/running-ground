@@ -34,7 +34,7 @@ export async function fetchInbox(): Promise<InboxResponse> {
 
   return apiGet<InboxResponse>('/me/inbox', {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '알림을 불러오지 못했어.',
+    fallbackMessage: '알림을 불러오지 못했어요.',
   });
 }
 
@@ -66,7 +66,7 @@ export async function markInboxRead(ids?: string[]): Promise<MarkInboxReadRespon
     ids ? { ids } : {},
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '알림 읽음 처리에 실패했어.',
+      fallbackMessage: '알림 읽음 처리에 실패했어요.',
     },
   );
 }
@@ -93,7 +93,7 @@ export async function deleteInbox(ids?: string[]): Promise<DeleteInboxResponse> 
     ids ? { ids } : {},
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '알림 삭제에 실패했어.',
+      fallbackMessage: '알림 삭제에 실패했어요.',
     },
   );
 }

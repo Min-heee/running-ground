@@ -3,7 +3,7 @@ import { createStoreBackup, getStoreBackupDirectory, getStoreFilePath } from './
 const backupPath = createStoreBackup('manual');
 
 if (!backupPath) {
-  throw new Error('현재 저장소를 백업하지 못했어.');
+  throw new Error('현재 저장소를 백업하지 못했어요.');
 }
 
 console.log(`[backup] store: ${getStoreFilePath()}`);

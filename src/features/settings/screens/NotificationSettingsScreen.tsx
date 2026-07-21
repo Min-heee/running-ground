@@ -46,7 +46,7 @@ export default function NotificationSettingsScreen() {
     <Screen>
       <AuthHeader
         title="알림 설정"
-        subtitle="친구 경쟁, 지역 경쟁, 마켓 관련 알림을 관리할 수 있어."
+        subtitle="친구 경쟁, 지역 경쟁, 마켓 관련 알림을 관리할 수 있어요."
         showBack
         backHref="/(tabs)/mypage"
       />
@@ -66,7 +66,7 @@ export default function NotificationSettingsScreen() {
 
           <PrimaryButton label={saving ? '저장 중...' : '알림 설정 저장'} onPress={handleSave} />
           <SecondaryButton label="마이페이지로 돌아가기" onPress={handleGoBackToMyPage} />
-          {saved ? <Text style={styles.savedText}>알림 설정이 저장됐어.</Text> : null}
+          {saved ? <Text style={styles.savedText}>알림 설정이 저장됐어요.</Text> : null}
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </>
       ) : null}

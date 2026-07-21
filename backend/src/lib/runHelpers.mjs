@@ -89,7 +89,7 @@ export function attachRouteToRunPayload(runPayload, route) {
 
 export function getRunFromList(runs, runId) {
   if (!runs.length) {
-    throw new ApiError(404, '러닝 기록이 없어.');
+    throw new ApiError(404, '러닝 기록이 없어요.');
   }
 
   if (!runId) {
@@ -99,7 +99,7 @@ export function getRunFromList(runs, runId) {
   const run = runs.find((entry) => entry.id === runId);
 
   if (!run) {
-    throw new ApiError(404, '러닝 기록을 찾을 수 없어.');
+    throw new ApiError(404, '러닝 기록을 찾을 수 없어요.');
   }
 
   return run;

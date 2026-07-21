@@ -32,7 +32,7 @@ test('manual run validation rejects invalid date values without parsing them loo
     pace: '06:20/km',
   }), {
     valid: false,
-    message: '날짜는 YYYY-MM-DD 형식으로 입력해줘.',
+    message: '날짜는 YYYY-MM-DD 형식으로 입력해주세요.',
   });
 });
 
@@ -44,7 +44,7 @@ test('manual run validation rejects zero, negative, and non-finite distances', (
       pace: '06:20/km',
     }), {
       valid: false,
-      message: '거리는 0보다 큰 숫자로 입력해줘.',
+      message: '거리는 0보다 큰 숫자로 입력해주세요.',
     });
   }
 });
@@ -56,6 +56,6 @@ test('manual run validation rejects malformed pace values', () => {
     pace: '6분20초',
   }), {
     valid: false,
-    message: '페이스는 00:00/km 형식으로 입력해줘.',
+    message: '페이스는 00:00/km 형식으로 입력해주세요.',
   });
 });

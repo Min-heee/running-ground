@@ -366,7 +366,7 @@ await runTest('creates friend requests with duplicate protection', async () => {
     token: 'token-me',
     tag: '#NEW01',
   }), (error) => {
-    assertApiError(error, 409, '이미 대기 중인 친구 요청이 있어.');
+    assertApiError(error, 409, '이미 대기 중인 친구 요청이 있어요.');
     return true;
   });
 });
@@ -461,7 +461,7 @@ await runTest('rejects non-friend activity access', async () => {
     token: 'token-me',
     friendId: 'user-stranger',
   }), (error) => {
-    assertApiError(error, 403, '친구로 연결된 사용자 기록만 볼 수 있어.');
+    assertApiError(error, 403, '친구로 연결된 사용자 기록만 볼 수 있어요.');
     return true;
   });
 });

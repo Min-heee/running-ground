@@ -81,7 +81,7 @@ export default function RunDetailScreen() {
       // reset would strand the user here with no way out.
       await forceResetRunningMatchState();
     } catch (exitError) {
-      setExitMatchResultError(getApiErrorMessage(exitError, '매칭 상태 정리에 실패했어. 그래도 나갈게.'));
+      setExitMatchResultError(getApiErrorMessage(exitError, '매칭 상태 정리에 실패했어요. 그래도 나갈게요.'));
     } finally {
       setIsExitingMatchResult(false);
       router.replace('/(tabs)/home');

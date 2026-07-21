@@ -68,7 +68,7 @@ export async function requestDuelMatch(input: RequestDuelMatchInput): Promise<Re
     },
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '1대1 매칭을 찾지 못했어.',
+      fallbackMessage: '1대1 매칭을 찾지 못했어요.',
     },
   );
 }
@@ -89,7 +89,7 @@ export async function requestGroupMatch(input: RequestGroupMatchInput): Promise<
     },
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '그룹 매칭을 찾지 못했어.',
+      fallbackMessage: '그룹 매칭을 찾지 못했어요.',
     },
   );
 }
@@ -108,7 +108,7 @@ export async function fetchMatchDemandSummary(input: FetchMatchDemandSummaryInpu
     },
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '현재 매칭 현황을 불러오지 못했어.',
+      fallbackMessage: '현재 매칭 현황을 불러오지 못했어요.',
     },
   );
 }
@@ -163,7 +163,7 @@ export async function fetchRunningMatchStatus(input: FetchRunningMatchStatusInpu
     },
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '매칭 상태를 불러오지 못했어.',
+      fallbackMessage: '매칭 상태를 불러오지 못했어요.',
     },
   );
 
@@ -235,7 +235,7 @@ export async function fetchUpcomingRunningMatches(): Promise<UpcomingRunningMatc
     '/running/matches/upcoming',
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '다가오는 매치를 불러오지 못했어.',
+      fallbackMessage: '다가오는 매치를 불러오지 못했어요.',
     },
   );
 
@@ -253,7 +253,7 @@ export async function acceptRunningMatch(input: AcceptRunningMatchInput): Promis
         : null;
 
     if (!currentSession) {
-      throw new Error('수락할 매치를 찾지 못했어.');
+      throw new Error('수락할 매치를 찾지 못했어요.');
     }
 
     return ensureRunningMatchStatusResponse(currentSession, {
@@ -268,7 +268,7 @@ export async function acceptRunningMatch(input: AcceptRunningMatchInput): Promis
     input,
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '매치 수락을 반영하지 못했어.',
+      fallbackMessage: '매치 수락을 반영하지 못했어요.',
     },
   );
 
@@ -294,7 +294,7 @@ export async function cancelRunningMatch(input: CancelRunningMatchInput): Promis
     },
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '매칭 취소를 반영하지 못했어.',
+      fallbackMessage: '매칭 취소를 반영하지 못했어요.',
     },
   );
 }
@@ -336,7 +336,7 @@ export async function leaveRunningMatch(input: LeaveRunningMatchInput): Promise<
     input,
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '매치 이탈 상태를 반영하지 못했어.',
+      fallbackMessage: '매치 이탈 상태를 반영하지 못했어요.',
     },
   );
 }
@@ -355,7 +355,7 @@ export async function updateRunningMatchProgress(
         : null;
 
     if (!currentSession) {
-      throw new Error('진행 중인 매치를 찾지 못했어.');
+      throw new Error('진행 중인 매치를 찾지 못했어요.');
     }
 
     if (currentSession.mode === 'duel' && currentSession.opponent) {
@@ -430,7 +430,7 @@ export async function updateRunningMatchProgress(
     },
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '실시간 경쟁 상태를 업데이트하지 못했어.',
+      fallbackMessage: '실시간 경쟁 상태를 업데이트하지 못했어요.',
       signal: options.signal,
       // Heartbeat fires every ~2.5s; abort a stalled push fast so the next tick retries
       // instead of freezing live progress for the full default timeout. Callers (e.g. the
@@ -500,7 +500,7 @@ export async function fetchMatchResult(matchId: string): Promise<MatchResultResp
       `/running/matches/${encodeURIComponent(trimmedMatchId)}/result`,
       {
         accessToken: await requireAccessToken(),
-        fallbackMessage: '매치 결과를 불러오지 못했어.',
+        fallbackMessage: '매치 결과를 불러오지 못했어요.',
       },
     );
   } catch (error) {

@@ -33,7 +33,7 @@ export default function RegionSettingsScreen() {
     <Screen>
       <AuthHeader
         title="지역 설정"
-        subtitle="내가 속한 지역을 선택하면 구 내 경쟁과 지역 배틀이 그 기준으로 반영돼."
+        subtitle="내가 속한 지역을 선택하면 구 내 경쟁과 지역 배틀이 그 기준으로 반영돼요."
         showBack
         backHref="/(tabs)/mypage"
       />
@@ -73,7 +73,7 @@ export default function RegionSettingsScreen() {
 
           <PrimaryButton label={saving ? '저장 중...' : '지역 저장하기'} onPress={handleSave} />
           <SecondaryButton label="마이페이지로 돌아가기" onPress={() => router.replace('/(tabs)/mypage')} />
-          {saved ? <Text style={styles.savedText}>지역이 저장됐어.</Text> : null}
+          {saved ? <Text style={styles.savedText}>지역이 저장됐어요.</Text> : null}
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </>
       ) : null}

@@ -147,12 +147,12 @@ export function useTrackRunRuntimeRoomInviteActions({
           source: 'invite card accept deferred cleanup',
         }).catch((cleanupError: unknown) => {
           rgPerfMark('stale room cleanup error', {
-            message: getApiErrorMessage(cleanupError, '이전 방 상태를 정리하지 못했어.'),
+            message: getApiErrorMessage(cleanupError, '이전 방 상태를 정리하지 못했어요.'),
             source: 'invite card accept deferred cleanup',
           });
         });
       }
-      const message = getApiErrorMessage(roomError, '초대를 수락하지 못했어.');
+      const message = getApiErrorMessage(roomError, '초대를 수락하지 못했어요.');
       rgPerfMark('room join API error', {
         message,
         roomId: visibleMatchRoom.roomId,
@@ -234,7 +234,7 @@ export function useTrackRunRuntimeRoomInviteActions({
       setSelectedRoomFriendIds([]);
     } catch (roomError) {
       endLeaveApiTrace({ success: false });
-      const message = getApiErrorMessage(roomError, '초대를 거절하지 못했어.');
+      const message = getApiErrorMessage(roomError, '초대를 거절하지 못했어요.');
       rgPerfMark('room leave API error', {
         message,
         roomId: visibleMatchRoom.roomId,

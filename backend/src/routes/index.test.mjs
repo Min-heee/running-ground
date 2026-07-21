@@ -151,7 +151,7 @@ await test('requires authentication for opponent match profile', async () => {
     () => createRouteRequest({
       loadStore: () => ({ users: [], runs: [] }),
       requireUser: () => {
-        throw new TestApiError(401, '로그인이 필요해.');
+        throw new TestApiError(401, '로그인이 필요해요.');
       },
     })(
       { method: 'GET', url: '/api/users/opponent-user/match-profile', headers: { host: 'localhost' } },
@@ -159,7 +159,7 @@ await test('requires authentication for opponent match profile', async () => {
     ),
     (error) => error instanceof TestApiError
       && error.statusCode === 401
-      && error.message === '로그인이 필요해.',
+      && error.message === '로그인이 필요해요.',
   );
 });
 
@@ -175,7 +175,7 @@ await test('returns 404 for missing opponent match profile user', async () => {
       { method: 'GET', url: '/api/users/missing-user/match-profile', headers: { host: 'localhost' } },
       createMockResponse(),
     ),
-    (error) => error.statusCode === 404 && error.message === '사용자를 찾을 수 없어.',
+    (error) => error.statusCode === 404 && error.message === '사용자를 찾을 수 없어요.',
   );
 });
 
@@ -409,6 +409,6 @@ await test('throws a typed 404 for unknown APIs', async () => {
     ),
     (error) => error instanceof TestApiError
       && error.statusCode === 404
-      && error.message === '요청한 API를 찾을 수 없어.',
+      && error.message === '요청한 API를 찾을 수 없어요.',
   );
 });

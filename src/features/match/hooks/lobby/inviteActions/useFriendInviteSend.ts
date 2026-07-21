@@ -105,7 +105,7 @@ export function useFriendInviteSend({
         success: true,
       });
     } catch (inviteError) {
-      const message = getApiErrorMessage(inviteError, '친구 초대를 보내지 못했어.');
+      const message = getApiErrorMessage(inviteError, '친구 초대를 보내지 못했어요.');
       endInviteApiTrace({
         message,
         success: false,

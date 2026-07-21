@@ -62,7 +62,7 @@ export function createJsonAdminRepository({
         const notice = store.notices.find((entry) => entry.id === noticeId);
 
         if (!notice) {
-          throw createError(404, '수정할 공지를 찾지 못했어.');
+          throw createError(404, '수정할 공지를 찾지 못했어요.');
         }
 
         Object.assign(notice, input, {
@@ -83,7 +83,7 @@ export function createJsonAdminRepository({
         const nextItems = store.notices.filter((entry) => entry.id !== noticeId);
 
         if (nextItems.length === store.notices.length) {
-          throw createError(404, '삭제할 공지를 찾지 못했어.');
+          throw createError(404, '삭제할 공지를 찾지 못했어요.');
         }
 
         store.notices = nextItems;

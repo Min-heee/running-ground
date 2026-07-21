@@ -34,11 +34,11 @@ export async function routeUserRequest({
     try {
       userId = decodeURIComponent(matchProfileMatch[1]).trim();
     } catch {
-      throw new ApiError(400, '사용자 정보가 올바르지 않아.');
+      throw new ApiError(400, '사용자 정보가 올바르지 않아요.');
     }
 
     if (!userId || userId.length > 128) {
-      throw new ApiError(400, '사용자 정보가 올바르지 않아.');
+      throw new ApiError(400, '사용자 정보가 올바르지 않아요.');
     }
 
     const store = await loadStore();

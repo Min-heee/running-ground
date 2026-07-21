@@ -55,7 +55,7 @@ export function useTrackRunForceResetAction({
     } catch (resetError) {
       Alert.alert(
         '초기화 실패',
-        getApiErrorMessage(resetError, '매칭 상태를 강제로 초기화하지 못했어.'),
+        getApiErrorMessage(resetError, '매칭 상태를 강제로 초기화하지 못했어요.'),
       );
     } finally {
       setIsForceResettingRunningMatch(false);

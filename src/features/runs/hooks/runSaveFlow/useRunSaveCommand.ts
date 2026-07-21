@@ -377,7 +377,7 @@ export function useRunSaveCommand({
       setStatus('paused');
       // C-2 — the paused shell right below this error carries the retry: point at it so the
       // failure is a recoverable pause, not a dead end.
-      setError(`${getApiErrorMessage(saveError, '러닝 기록 저장에 실패했어.')} 아래 '이 기록 저장하기'를 누르면 같은 기록으로 다시 저장을 시도해요.`);
+      setError(`${getApiErrorMessage(saveError, '러닝 기록 저장에 실패했어요.')} 아래 '이 기록 저장하기'를 누르면 같은 기록으로 다시 저장을 시도해요.`);
       return false;
     } finally {
       // FIX-D1 — always release the overlay flag this command raised, on every exit branch

@@ -724,7 +724,7 @@ export function buildMatchResultByMatchId(store, currentUser, matchId, now = new
   const normalizedMatchId = typeof matchId === 'string' ? matchId.trim() : '';
 
   if (!normalizedMatchId) {
-    throw new ApiError(404, '대결 결과를 찾을 수 없어.');
+    throw new ApiError(404, '대결 결과를 찾을 수 없어요.');
   }
 
   const session = findRawMatchSessionById(store, normalizedMatchId);
@@ -734,7 +734,7 @@ export function buildMatchResultByMatchId(store, currentUser, matchId, now = new
 
     if (!isParticipant) {
       // Do not leak the existence of a match the requester is not part of.
-      throw new ApiError(404, '대결 결과를 찾을 수 없어.');
+      throw new ApiError(404, '대결 결과를 찾을 수 없어요.');
     }
 
     const standings = buildOfficialSessionStandings(store, session, now);
@@ -747,7 +747,7 @@ export function buildMatchResultByMatchId(store, currentUser, matchId, now = new
     ));
 
     if (!isResolved) {
-      throw new ApiError(404, '아직 대결 결과가 확정되지 않았어.');
+      throw new ApiError(404, '아직 대결 결과가 확정되지 않았어요.');
     }
 
     return buildResultFromSession(store, session, currentUser.id, now);
@@ -760,7 +760,7 @@ export function buildMatchResultByMatchId(store, currentUser, matchId, now = new
   if (!reconstructed) {
     // No live session AND the requester owns no saved run for this match → indistinguishable
     // from "not a participant" / "never existed", so a single 404 is returned.
-    throw new ApiError(404, '대결 결과를 찾을 수 없어.');
+    throw new ApiError(404, '대결 결과를 찾을 수 없어요.');
   }
 
   return reconstructed;

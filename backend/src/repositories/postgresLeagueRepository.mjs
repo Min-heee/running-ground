@@ -119,7 +119,7 @@ async function requireUserByToken(database, token, createError) {
   );
 
   if (!result.rows[0]) {
-    throw createError(401, '세션이 만료됐어. 다시 로그인해줘.');
+    throw createError(401, '세션이 만료됐어요. 다시 로그인해주세요.');
   }
 
   return mapUserRow(result.rows[0]);
@@ -137,7 +137,7 @@ async function findUserById(database, userId, createError) {
   );
 
   if (!result.rows[0]) {
-    throw createError(404, '사용자를 찾을 수 없어.');
+    throw createError(404, '사용자를 찾을 수 없어요.');
   }
 
   return mapUserRow(result.rows[0]);
@@ -168,6 +168,37 @@ async function loadUsersByCity(database, provinceName, cityName) {
         and coalesce(city_name, '') = $2
     `,
     [provinceName ?? '', cityName ?? ''],
+  );
+
+  return result.rows.map(mapUserRow);
+}
+
+// 광역시 구 (district directly under a province — no city level). The city=''
+// clause mirrors how those users are stored, and province+district together
+// disambiguate the 구 names that repeat across metros (동구/중구/서구...).
+async function loadUsersByProvinceAndDistrict(database, provinceName, districtName) {
+  const result = await database.query(
+    `
+      select *
+      from users
+      where coalesce(province_name, '') = $1
+        and coalesce(city_name, '') = ''
+        and coalesce(district_name, '') = $2
+    `,
+    [provinceName ?? '', districtName ?? ''],
+  );
+
+  return result.rows.map(mapUserRow);
+}
+
+async function loadUsersByProvince(database, provinceName) {
+  const result = await database.query(
+    `
+      select *
+      from users
+      where coalesce(province_name, '') = $1
+    `,
+    [provinceName ?? ''],
   );
 
   return result.rows.map(mapUserRow);
@@ -360,7 +391,7 @@ function buildRegionLeague(regionTree, nodeId, createError) {
   const rawPath = nodeId ? findRegionPath(regionTree, nodeId) : [regionTree];
 
   if (!rawPath) {
-    throw createError(404, '선택한 지역 정보를 찾을 수 없어.');
+    throw createError(404, '선택한 지역 정보를 찾을 수 없어요.');
   }
 
   const path = capRegionPathDepth(rawPath);
@@ -389,6 +420,7 @@ async function resolveDistrictPersonalUsers(database, currentUser, nodeId, defau
     const path = findRegionPath(regionTree, nodeId);
 
     if (path) {
+      const targetNode = path[path.length - 1] ?? null;
       const provinceNode = path.find((entry) => entry.level === 'province') ?? null;
       const cityNode = path.find((entry) => entry.level === 'city') ?? null;
 
@@ -396,6 +428,23 @@ async function resolveDistrictPersonalUsers(database, currentUser, nodeId, defau
         return {
           regionName: cityNode.name,
           users: await loadUsersByCity(database, provinceNode.name, cityNode.name),
+        };
+      }
+
+      // 광역시 구: no city level in the path. Without this branch the lookup
+      // silently fell back to the REQUESTER's own region, so every metro 구
+      // showed the same member board (mirrors leagueRepository.mjs).
+      if (provinceNode && targetNode?.level === 'district') {
+        return {
+          regionName: targetNode.name,
+          users: await loadUsersByProvinceAndDistrict(database, provinceNode.name, targetNode.name),
+        };
+      }
+
+      if (targetNode?.level === 'province') {
+        return {
+          regionName: targetNode.name,
+          users: await loadUsersByProvince(database, targetNode.name),
         };
       }
     }
@@ -409,7 +458,7 @@ async function resolveDistrictPersonalUsers(database, currentUser, nodeId, defau
 
 function requireTodayRankingCategory(category, createError) {
   if (!isTodayRankingCategory(category)) {
-    throw createError(400, '오늘의 랭킹 카테고리가 올바르지 않아.');
+    throw createError(400, '오늘의 랭킹 카테고리가 올바르지 않아요.');
   }
 
   return category;

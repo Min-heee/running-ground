@@ -262,7 +262,7 @@ export function useMatchEntryEffects({
         rgPerfMark('room join API error', {
           source: 'room invite token effect',
         });
-        onError(getApiErrorMessage(roomError, '초대 링크로 방에 들어가지 못했어.'));
+        onError(getApiErrorMessage(roomError, '초대 링크로 방에 들어가지 못했어요.'));
       }
     })();
   }, [

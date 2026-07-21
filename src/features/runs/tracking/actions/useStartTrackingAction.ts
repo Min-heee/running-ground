@@ -53,7 +53,7 @@ export function useStartTrackingAction({
 
   const handleStartTrackingInternal = useCallback(async (options?: StartTrackingOptions) => {
     if (Platform.OS === 'web') {
-      setError('실시간 러닝 측정은 iPhone이나 Android 앱에서 사용할 수 있어.');
+      setError('실시간 러닝 측정은 iPhone이나 Android 앱에서 사용할 수 있어요.');
       return;
     }
 

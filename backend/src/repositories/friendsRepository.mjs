@@ -122,7 +122,7 @@ function requireFriendAccess(store, currentUserId, friendId, createError) {
     return;
   }
 
-  throw createError(403, '친구로 연결된 사용자 기록만 볼 수 있어.');
+  throw createError(403, '친구로 연결된 사용자 기록만 볼 수 있어요.');
 }
 
 function getActionableRequests(store, currentUserId, findUserById) {
@@ -162,7 +162,7 @@ function buildFriendLeaderboard(store, user, {
 
 function getRunForUser(runs, runId, createError) {
   if (!runs.length) {
-    throw createError(404, '러닝 기록이 없어.');
+    throw createError(404, '러닝 기록이 없어요.');
   }
 
   if (!runId) {
@@ -172,7 +172,7 @@ function getRunForUser(runs, runId, createError) {
   const run = runs.find((entry) => entry.id === runId);
 
   if (!run) {
-    throw createError(404, '러닝 기록을 찾을 수 없어.');
+    throw createError(404, '러닝 기록을 찾을 수 없어요.');
   }
 
   return run;
@@ -250,15 +250,15 @@ export function createJsonFriendsRepository({
         const targetUser = store.users.find((entry) => entry.publicTag === tag);
 
         if (!targetUser) {
-          throw createError(404, '해당 태그의 사용자를 찾지 못했어.');
+          throw createError(404, '해당 태그의 사용자를 찾지 못했어요.');
         }
 
         if (targetUser.id === currentUser.id) {
-          throw createError(400, '내 태그로는 친구 요청을 보낼 수 없어.');
+          throw createError(400, '내 태그로는 친구 요청을 보낼 수 없어요.');
         }
 
         if (areFriends(store, currentUser.id, targetUser.id)) {
-          throw createError(409, '이미 친구로 연결되어 있어.');
+          throw createError(409, '이미 친구로 연결되어 있어요.');
         }
 
         const existingRequest = (store.friendRequests ?? []).find((entry) => (
@@ -270,7 +270,7 @@ export function createJsonFriendsRepository({
         ));
 
         if (existingRequest) {
-          throw createError(409, '이미 대기 중인 친구 요청이 있어.');
+          throw createError(409, '이미 대기 중인 친구 요청이 있어요.');
         }
 
         const requestId = nextId('request');
@@ -316,15 +316,15 @@ export function createJsonFriendsRepository({
         const friendRequest = (store.friendRequests ?? []).find((entry) => entry.id === requestId);
 
         if (!friendRequest || friendRequest.status !== 'pending') {
-          throw createError(404, '처리할 친구 요청을 찾을 수 없어.');
+          throw createError(404, '처리할 친구 요청을 찾을 수 없어요.');
         }
 
         if ((action === 'accept' || action === 'reject') && friendRequest.receiverId !== currentUser.id) {
-          throw createError(403, '받은 친구 요청만 처리할 수 있어.');
+          throw createError(403, '받은 친구 요청만 처리할 수 있어요.');
         }
 
         if (action === 'cancel' && friendRequest.requesterId !== currentUser.id) {
-          throw createError(403, '내가 보낸 요청만 취소할 수 있어.');
+          throw createError(403, '내가 보낸 요청만 취소할 수 있어요.');
         }
 
         if (action === 'accept') {

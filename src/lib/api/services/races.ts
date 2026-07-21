@@ -23,7 +23,7 @@ export async function fetchOfflineRaceHub(): Promise<OfflineRaceHubResponse> {
 
   return apiGet<OfflineRaceHubResponse>('/offline-races/hub', {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '오프라인 마라톤 정보를 불러오지 못했어.',
+    fallbackMessage: '오프라인 마라톤 정보를 불러오지 못했어요.',
   });
 }
 
@@ -37,7 +37,7 @@ export async function joinOfflineRace(eventId: string): Promise<OfflineRaceEntry
     {},
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '레이스 신청에 실패했어.',
+      fallbackMessage: '레이스 신청에 실패했어요.',
     },
   );
 }
@@ -52,7 +52,7 @@ export async function cancelOfflineRace(eventId: string): Promise<OfflineRaceEnt
     {},
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '레이스 신청 취소에 실패했어.',
+      fallbackMessage: '레이스 신청 취소에 실패했어요.',
     },
   );
 }

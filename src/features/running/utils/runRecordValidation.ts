@@ -31,21 +31,21 @@ export function validateManualRunInput(input: ManualRunValidationInput): ManualR
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return {
       valid: false,
-      message: '날짜는 YYYY-MM-DD 형식으로 입력해줘.',
+      message: '날짜는 YYYY-MM-DD 형식으로 입력해주세요.',
     };
   }
 
   if (!Number.isFinite(parsedDistanceKm) || parsedDistanceKm <= 0) {
     return {
       valid: false,
-      message: '거리는 0보다 큰 숫자로 입력해줘.',
+      message: '거리는 0보다 큰 숫자로 입력해주세요.',
     };
   }
 
   if (!/^\d{1,2}:\d{2}\/km$/i.test(pace)) {
     return {
       valid: false,
-      message: '페이스는 00:00/km 형식으로 입력해줘.',
+      message: '페이스는 00:00/km 형식으로 입력해주세요.',
     };
   }
 

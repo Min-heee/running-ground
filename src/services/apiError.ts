@@ -32,7 +32,7 @@ export function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError;
 }
 
-export function getApiErrorMessage(error: unknown, fallbackMessage = '요청 처리에 실패했어.') {
+export function getApiErrorMessage(error: unknown, fallbackMessage = '요청 처리에 실패했어요.') {
   if (error instanceof ApiError) {
     return error.userMessage;
   }

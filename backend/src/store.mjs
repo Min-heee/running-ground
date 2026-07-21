@@ -477,7 +477,7 @@ export function mutateStore(mutator) {
 
   if (result && typeof result.then === 'function') {
     throw new Error(
-      'mutateStore의 mutator는 동기 함수여야 해. 비동기 mutator는 변경이 끝나기 전에 저장이 실행돼 저장소가 조용히 손상될 수 있어.',
+      'mutateStore의 mutator는 동기 함수여야 해요. 비동기 mutator는 변경이 끝나기 전에 저장이 실행돼 저장소가 조용히 손상될 수 있어요.',
     );
   }
 

@@ -51,7 +51,7 @@ export function useAdminDashboard() {
     try {
       await task();
     } catch (taskError) {
-      setError(getApiErrorMessage(taskError, '관리자 작업 중 문제가 생겼어.'));
+      setError(getApiErrorMessage(taskError, '관리자 작업 중 문제가 생겼어요.'));
     } finally {
       setSubmitting(false);
     }
@@ -97,7 +97,7 @@ export function useAdminDashboard() {
     const trimmedToken = nextToken.trim();
 
     if (!trimmedToken) {
-      setError('관리자 토큰을 입력해줘.');
+      setError('관리자 토큰을 입력해주세요.');
       return;
     }
 
@@ -111,7 +111,7 @@ export function useAdminDashboard() {
       await loadDashboardData(trimmedToken);
       writeStoredAdminToken(trimmedToken);
     } catch (loadError) {
-      setError(getApiErrorMessage(loadError, '관리자 정보를 불러오지 못했어.'));
+      setError(getApiErrorMessage(loadError, '관리자 정보를 불러오지 못했어요.'));
     } finally {
       setLoading(false);
     }
@@ -121,7 +121,7 @@ export function useAdminDashboard() {
     const trimmedToken = nextToken.trim();
 
     if (!trimmedToken) {
-      setError('관리자 토큰을 입력해줘.');
+      setError('관리자 토큰을 입력해주세요.');
       setAuthReady(true);
       return;
     }
@@ -142,7 +142,7 @@ export function useAdminDashboard() {
       resetAdminDashboard();
       setAdminToken('');
       setAdminSession(null);
-      setError(getApiErrorMessage(loginError, '관리자 로그인에 실패했어.'));
+      setError(getApiErrorMessage(loginError, '관리자 로그인에 실패했어요.'));
     } finally {
       setLoading(false);
       setAuthReady(true);

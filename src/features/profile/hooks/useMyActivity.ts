@@ -19,7 +19,7 @@ export function useMyActivity() {
 
     fetchMyActivity()
       .then((data) => setActivity(data))
-      .catch((loadError) => setError(getApiErrorMessage(loadError, '내 활동 정보를 불러오지 못했어.')))
+      .catch((loadError) => setError(getApiErrorMessage(loadError, '내 활동 정보를 불러오지 못했어요.')))
       .finally(() => {
         hasLoadedRef.current = true;
         setLoading(false);

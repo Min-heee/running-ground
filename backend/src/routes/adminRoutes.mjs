@@ -30,7 +30,7 @@ export async function routeAdminRequest(routeContext) {
 
   if (pathname === '/api/admin/reset' && method === 'POST') {
     if (!ENABLE_RESET_ENDPOINT) {
-      throw new ApiError(404, '관리자 리셋 기능이 비활성화되어 있어.');
+      throw new ApiError(404, '관리자 리셋 기능이 비활성화되어 있어요.');
     }
 
     requireAdmin(request);

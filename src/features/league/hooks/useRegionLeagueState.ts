@@ -38,7 +38,7 @@ export function useRegionLeagueState() {
       .then((response) => {
         setLeague(response);
       })
-      .catch((loadError) => setError(getApiErrorMessage(loadError, '지역 랭킹 정보를 불러오지 못했어.')))
+      .catch((loadError) => setError(getApiErrorMessage(loadError, '지역 랭킹 정보를 불러오지 못했어요.')))
       .finally(() => setLoading(false));
   }, []);
 
@@ -48,7 +48,7 @@ export function useRegionLeagueState() {
 
     fetchDistrictPersonal(nodeId)
       .then((response) => setRegionMembers(response))
-      .catch((loadError) => setRegionMembersError(getApiErrorMessage(loadError, '이 지역 회원 순위를 불러오지 못했어.')))
+      .catch((loadError) => setRegionMembersError(getApiErrorMessage(loadError, '이 지역 회원 순위를 불러오지 못했어요.')))
       .finally(() => setRegionMembersLoading(false));
   }, []);
 

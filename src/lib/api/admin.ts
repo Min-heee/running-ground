@@ -26,7 +26,7 @@ type AdminRequestOptions = {
 async function adminRequest<T>(
   path: string,
   init: RequestInit,
-  { adminToken, fallbackMessage = '관리자 요청에 실패했어.' }: AdminRequestOptions,
+  { adminToken, fallbackMessage = '관리자 요청에 실패했어요.' }: AdminRequestOptions,
 ): Promise<T> {
   return apiRequest<T>(path, init, {
     fallbackMessage,
@@ -38,7 +38,7 @@ async function adminRequest<T>(
 
 function requireAdminToken(adminToken: string) {
   if (!adminToken.trim()) {
-    throw new Error('관리자 토큰을 입력해줘.');
+    throw new Error('관리자 토큰을 입력해주세요.');
   }
 
   return adminToken.trim();
@@ -47,49 +47,49 @@ function requireAdminToken(adminToken: string) {
 export async function fetchAdminOverview(adminToken: string): Promise<AdminOverviewResponse> {
   return adminRequest('/admin/overview', { method: 'GET' }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '관리자 개요를 불러오지 못했어.',
+    fallbackMessage: '관리자 개요를 불러오지 못했어요.',
   });
 }
 
 export async function fetchAdminSession(adminToken: string): Promise<AdminSessionResponse> {
   return adminRequest('/admin/session', { method: 'GET' }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '관리자 로그인 확인에 실패했어.',
+    fallbackMessage: '관리자 로그인 확인에 실패했어요.',
   });
 }
 
 export async function fetchAdminUsers(adminToken: string): Promise<AdminUsersResponse> {
   return adminRequest('/admin/users', { method: 'GET' }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '회원 목록을 불러오지 못했어.',
+    fallbackMessage: '회원 목록을 불러오지 못했어요.',
   });
 }
 
 export async function deleteAdminUser(adminToken: string, userId: string): Promise<AdminDeleteUserResponse> {
   return adminRequest(`/admin/users/${userId}`, { method: 'DELETE' }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '회원 삭제에 실패했어.',
+    fallbackMessage: '회원 삭제에 실패했어요.',
   });
 }
 
 export async function fetchAdminMarketItems(adminToken: string): Promise<AdminMarketCatalogResponse> {
   return adminRequest('/admin/market/items', { method: 'GET' }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '마켓 목록을 불러오지 못했어.',
+    fallbackMessage: '마켓 목록을 불러오지 못했어요.',
   });
 }
 
 export async function fetchAdminRewardRedemptions(adminToken: string): Promise<AdminRewardRedemptionsResponse> {
   return adminRequest('/admin/reward-redemptions', { method: 'GET' }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '리워드 교환 목록을 불러오지 못했어.',
+    fallbackMessage: '리워드 교환 목록을 불러오지 못했어요.',
   });
 }
 
 export async function fetchAdminNotices(adminToken: string): Promise<AdminNoticesResponse> {
   return adminRequest('/admin/notices', { method: 'GET' }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '공지 목록을 불러오지 못했어.',
+    fallbackMessage: '공지 목록을 불러오지 못했어요.',
   });
 }
 
@@ -102,7 +102,7 @@ export async function createAdminMarketItem(
     body: JSON.stringify(input),
   }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '마켓 상품 추가에 실패했어.',
+    fallbackMessage: '마켓 상품 추가에 실패했어요.',
   });
 }
 
@@ -116,7 +116,7 @@ export async function updateAdminMarketItem(
     body: JSON.stringify(input),
   }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '마켓 상품 수정에 실패했어.',
+    fallbackMessage: '마켓 상품 수정에 실패했어요.',
   });
 }
 
@@ -126,7 +126,7 @@ export async function deleteAdminMarketItem(
 ): Promise<AdminMarketCatalogResponse> {
   return adminRequest(`/admin/market/items/${itemId}`, { method: 'DELETE' }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '마켓 상품 삭제에 실패했어.',
+    fallbackMessage: '마켓 상품 삭제에 실패했어요.',
   });
 }
 
@@ -140,7 +140,7 @@ export async function updateAdminRewardRedemption(
     body: JSON.stringify(input),
   }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '리워드 교환 상태 수정에 실패했어.',
+    fallbackMessage: '리워드 교환 상태 수정에 실패했어요.',
   });
 }
 
@@ -153,7 +153,7 @@ export async function createAdminNotice(
     body: JSON.stringify(input),
   }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '공지 추가에 실패했어.',
+    fallbackMessage: '공지 추가에 실패했어요.',
   });
 }
 
@@ -167,7 +167,7 @@ export async function updateAdminNotice(
     body: JSON.stringify(input),
   }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '공지 수정에 실패했어.',
+    fallbackMessage: '공지 수정에 실패했어요.',
   });
 }
 
@@ -177,14 +177,14 @@ export async function deleteAdminNotice(
 ): Promise<AdminNoticesResponse> {
   return adminRequest(`/admin/notices/${noticeId}`, { method: 'DELETE' }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '공지 삭제에 실패했어.',
+    fallbackMessage: '공지 삭제에 실패했어요.',
   });
 }
 
 export async function fetchAdminOfflineRaceEvents(adminToken: string): Promise<AdminOfflineRaceEventsResponse> {
   return adminRequest('/admin/offline-races/events', { method: 'GET' }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '레이스 목록을 불러오지 못했어.',
+    fallbackMessage: '레이스 목록을 불러오지 못했어요.',
   });
 }
 
@@ -197,7 +197,7 @@ export async function createAdminOfflineRaceEvent(
     body: JSON.stringify(input),
   }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '레이스 추가에 실패했어.',
+    fallbackMessage: '레이스 추가에 실패했어요.',
   });
 }
 
@@ -211,7 +211,7 @@ export async function updateAdminOfflineRaceEvent(
     body: JSON.stringify(input),
   }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '레이스 수정에 실패했어.',
+    fallbackMessage: '레이스 수정에 실패했어요.',
   });
 }
 
@@ -221,6 +221,6 @@ export async function deleteAdminOfflineRaceEvent(
 ): Promise<AdminOfflineRaceEventsResponse> {
   return adminRequest(`/admin/offline-races/events/${eventId}`, { method: 'DELETE' }, {
     adminToken: requireAdminToken(adminToken),
-    fallbackMessage: '레이스 삭제에 실패했어.',
+    fallbackMessage: '레이스 삭제에 실패했어요.',
   });
 }

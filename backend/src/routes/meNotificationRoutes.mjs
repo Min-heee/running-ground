@@ -157,10 +157,10 @@ async function handlePatchMyNotifications({
   const payload = await mutateStore((store) => {
     const user = requireUser(store, request);
     user.notificationSettings = {
-      friendAlerts: validateBoolean(body.friendAlerts, '친구 알림 설정값이 올바르지 않아.'),
-      districtAlerts: validateBoolean(body.districtAlerts, '지역 알림 설정값이 올바르지 않아.'),
-      marketAlerts: validateBoolean(body.marketAlerts, '마켓 알림 설정값이 올바르지 않아.'),
-      matchReminders: validateBoolean(body.matchReminders, '매치 알림 설정값이 올바르지 않아.'),
+      friendAlerts: validateBoolean(body.friendAlerts, '친구 알림 설정값이 올바르지 않아요.'),
+      districtAlerts: validateBoolean(body.districtAlerts, '지역 알림 설정값이 올바르지 않아요.'),
+      marketAlerts: validateBoolean(body.marketAlerts, '마켓 알림 설정값이 올바르지 않아요.'),
+      matchReminders: validateBoolean(body.matchReminders, '매치 알림 설정값이 올바르지 않아요.'),
     };
 
     return buildNotificationSettings(user);
@@ -182,7 +182,7 @@ async function handlePatchMyLiveSharing({
 }) {
   const body = await parseJsonBody(request);
   const token = getAccessToken(request);
-  const enabled = validateBoolean(body.enabled, '위치 공유 설정값이 올바르지 않아.');
+  const enabled = validateBoolean(body.enabled, '위치 공유 설정값이 올바르지 않아요.');
   const status = ['idle', 'paused', 'running'].includes(body.status)
     ? body.status
     : 'idle';

@@ -42,11 +42,11 @@ export function createJsonMarketRepository({
         const item = (store.marketCatalog ?? []).find((entry) => entry.id === itemId);
 
         if (!item) {
-          throw createError(404, '교환할 리워드를 찾지 못했어.');
+          throw createError(404, '교환할 리워드를 찾지 못했어요.');
         }
 
         if (item.isActive === false) {
-          throw createError(409, '지금은 비활성화된 리워드라 교환할 수 없어.');
+          throw createError(409, '지금은 비활성화된 리워드라 교환할 수 없어요.');
         }
 
         const alreadyClaimed = (store.rewardRedemptions ?? []).some((entry) => (
@@ -57,15 +57,15 @@ export function createJsonMarketRepository({
         const remainingStock = getMarketItemRemainingStock(item, buildRedemptionCountByItemId(store).get(item.id) ?? 0);
 
         if (alreadyClaimed && !item.repeatable) {
-          throw createError(409, '이미 교환한 리워드야.');
+          throw createError(409, '이미 교환한 리워드예요.');
         }
 
         if (remainingStock === 0) {
-          throw createError(409, '재고가 모두 소진돼서 지금은 교환할 수 없어.');
+          throw createError(409, '재고가 모두 소진돼서 지금은 교환할 수 없어요.');
         }
 
         if (getAvailableRewardPoints(getUserMetrics(store, user.id), getRedeemedPointCost(store, user.id)) < item.costPoints) {
-          throw createError(400, '포인트가 부족해서 아직 교환할 수 없어.');
+          throw createError(400, '포인트가 부족해서 아직 교환할 수 없어요.');
         }
 
         if (!Array.isArray(store.rewardRedemptions)) {
@@ -114,7 +114,7 @@ export function createJsonMarketRepository({
         const item = store.marketCatalog.find((entry) => entry.id === itemId);
 
         if (!item) {
-          throw createError(404, '수정할 마켓 상품을 찾지 못했어.');
+          throw createError(404, '수정할 마켓 상품을 찾지 못했어요.');
         }
 
         Object.assign(item, input);
@@ -133,7 +133,7 @@ export function createJsonMarketRepository({
         const nextItems = store.marketCatalog.filter((entry) => entry.id !== itemId);
 
         if (nextItems.length === store.marketCatalog.length) {
-          throw createError(404, '삭제할 마켓 상품을 찾지 못했어.');
+          throw createError(404, '삭제할 마켓 상품을 찾지 못했어요.');
         }
 
         store.marketCatalog = nextItems;
@@ -146,7 +146,7 @@ export function createJsonMarketRepository({
         const redemption = (store.rewardRedemptions ?? []).find((entry) => entry.id === redemptionId);
 
         if (!redemption) {
-          throw createError(404, '수정할 교환 요청을 찾지 못했어.');
+          throw createError(404, '수정할 교환 요청을 찾지 못했어요.');
         }
 
         redemption.status = status;

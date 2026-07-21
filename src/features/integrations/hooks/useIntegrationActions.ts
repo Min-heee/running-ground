@@ -37,7 +37,7 @@ type UseIntegrationActionsOptions = {
 };
 
 function buildDefaultSyncMessage(result: IntegrationSyncResponse) {
-  return `총 ${result.importedRuns}개 기록을 새로 반영했고 ${result.duplicateRuns}개는 중복으로 건너뛰었어.`;
+  return `총 ${result.importedRuns}개 기록을 새로 반영했고 ${result.duplicateRuns}개는 중복으로 건너뛰었어요.`;
 }
 
 function buildDefaultDeviceImportMessage(result: NativeHealthImportResult) {
@@ -52,7 +52,7 @@ function buildDefaultDeviceImportMessage(result: NativeHealthImportResult) {
   }
 
   return appendPreLaunchSkipNotice(
-    `${result.sourceLabel}에서 ${result.fetchedRuns}개 기록을 읽었고, ${result.syncResult?.importedRuns ?? 0}개를 새로 반영했어.`,
+    `${result.sourceLabel}에서 ${result.fetchedRuns}개 기록을 읽었고, ${result.syncResult?.importedRuns ?? 0}개를 새로 반영했어요.`,
     result.skippedPreLaunchRuns,
   );
 }
@@ -67,18 +67,18 @@ function buildManagementDeviceImportMessage(result: NativeHealthImportResult) {
   }
 
   if (result.syncResult?.importedRuns === 0 && result.syncResult.duplicateRuns > 0) {
-    return appendPreLaunchSkipNotice('이미 가져온 기록만 있어서 업데이트할 게 없었어.', result.skippedPreLaunchRuns);
+    return appendPreLaunchSkipNotice('이미 가져온 기록만 있어서 업데이트할 게 없었어요.', result.skippedPreLaunchRuns);
   }
 
   if (result.syncResult) {
     return appendPreLaunchSkipNotice(
-      `${result.sourceLabel}에서 ${result.syncResult.importedRuns}개 기록을 새로 반영했어.`,
+      `${result.sourceLabel}에서 ${result.syncResult.importedRuns}개 기록을 새로 반영했어요.`,
       result.skippedPreLaunchRuns,
     );
   }
 
   return appendPreLaunchSkipNotice(
-    `${result.sourceLabel}에서 ${result.fetchedRuns}개 기록을 읽어 가져오기 대기열에 올렸어.`,
+    `${result.sourceLabel}에서 ${result.fetchedRuns}개 기록을 읽어 가져오기 대기열에 올렸어요.`,
     result.skippedPreLaunchRuns,
   );
 }
@@ -86,9 +86,9 @@ function buildManagementDeviceImportMessage(result: NativeHealthImportResult) {
 export function useIntegrationActions({
   loadErrorMessage,
   connectErrorMessage,
-  syncErrorMessage = '연동 동기화에 실패했어.',
-  disconnectErrorMessage = '소스 연결 해제에 실패했어.',
-  deviceImportErrorMessage = '기기 기록을 아직 읽어오지 못했어.',
+  syncErrorMessage = '연동 동기화에 실패했어요.',
+  disconnectErrorMessage = '소스 연결 해제에 실패했어요.',
+  deviceImportErrorMessage = '기기 기록을 아직 읽어오지 못했어요.',
   formatSyncMessage = buildDefaultSyncMessage,
   formatDeviceImportMessage = buildDefaultDeviceImportMessage,
   mirrorSyncErrorToActionError = false,
@@ -142,11 +142,11 @@ export function useIntegrationActions({
         const replacedSource = connectedExclusiveSources.find((source) => source.sourceType !== sourceType);
         setActionMessage(
           replacedSource
-            ? `${result.source.displayName}로 기록 연동을 바꿨어. ${replacedSource.displayName}는 자동으로 해제돼.`
-            : `${result.source.displayName} 연결 준비가 끝났어. 가져오기 소스는 한 번에 1개만 연결돼.`,
+            ? `${result.source.displayName}로 기록 연동을 바꿨어요. ${replacedSource.displayName}는 자동으로 해제돼요.`
+            : `${result.source.displayName} 연결 준비가 끝났어요. 가져오기 소스는 한 번에 1개만 연결돼요.`,
         );
       } else {
-        setActionMessage(`${result.source.displayName} 연결 준비가 끝났어.`);
+        setActionMessage(`${result.source.displayName} 연결 준비가 끝났어요.`);
       }
     } catch (connectError) {
       setActionError(getApiErrorMessage(connectError, connectErrorMessage));
@@ -165,7 +165,7 @@ export function useIntegrationActions({
     try {
       const result = await disconnectIntegrationSource(sourceType);
       setIntegrationStatus({ sources: result.sources });
-      setActionMessage(`${result.source.displayName} 연결을 해제했어.`);
+      setActionMessage(`${result.source.displayName} 연결을 해제했어요.`);
     } catch (disconnectError) {
       setActionError(getApiErrorMessage(disconnectError, disconnectErrorMessage));
     } finally {

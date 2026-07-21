@@ -83,7 +83,7 @@ export function createRunningMatchRoom(store, currentUser, {
 
   for (const friendId of normalizedInvitedFriendIds) {
     if (!areFriends(store, currentUser.id, friendId)) {
-      throw new ApiError(400, '친구 목록에 있는 러너만 방에 초대할 수 있어.');
+      throw new ApiError(400, '친구 목록에 있는 러너만 방에 초대할 수 있어요.');
     }
   }
 
@@ -136,7 +136,7 @@ export function joinRunningMatchRoom(store, currentUser, { inviteToken }) {
   const room = findRunningMatchRoomByInviteToken(store, inviteToken);
 
   if (!room) {
-    throw new ApiError(404, '참여할 방을 찾지 못했어. 초대 코드가 잘못됐거나 방이 삭제됐을 수 있어.', {
+    throw new ApiError(404, '참여할 방을 찾지 못했어요. 초대 코드가 잘못됐거나 방이 삭제됐을 수 있어요.', {
       code: 'room_not_found',
     });
   }
@@ -172,11 +172,11 @@ export function joinRunningMatchRoom(store, currentUser, { inviteToken }) {
   }
 
   if (room.linkedMatchId) {
-    throw new ApiError(400, '이미 시작 준비에 들어간 방이라 지금은 참여할 수 없어.');
+    throw new ApiError(400, '이미 시작 준비에 들어간 방이라 지금은 참여할 수 없어요.');
   }
 
   if (room.participants.length >= room.maxParticipants) {
-    throw new ApiError(400, '이 방은 이미 정원이 다 찼어.');
+    throw new ApiError(400, '이 방은 이미 정원이 다 찼어요.');
   }
 
   room.participants.push({
@@ -196,15 +196,15 @@ export function startRunningMatchRoom(store, currentUser, { roomId }) {
   const room = findRunningMatchRoomById(store, roomId);
 
   if (!room) {
-    throw new ApiError(404, '시작할 방을 찾지 못했어.', { code: 'room_not_found' });
+    throw new ApiError(404, '시작할 방을 찾지 못했어요.', { code: 'room_not_found' });
   }
 
   if (room.hostUserId !== currentUser.id) {
-    throw new ApiError(403, '방장만 시작할 수 있어.');
+    throw new ApiError(403, '방장만 시작할 수 있어요.');
   }
 
   if (room.startMode !== 'host') {
-    throw new ApiError(400, '예약 시작 방은 시간에 맞춰 자동으로 시작돼.');
+    throw new ApiError(400, '예약 시작 방은 시간에 맞춰 자동으로 시작돼요.');
   }
 
   if (room.linkedMatchId) {
@@ -212,11 +212,11 @@ export function startRunningMatchRoom(store, currentUser, { roomId }) {
   }
 
   if (room.participants.length < room.minParticipants) {
-    throw new ApiError(400, `최소 ${room.minParticipants}명은 모여야 시작할 수 있어.`);
+    throw new ApiError(400, `최소 ${room.minParticipants}명은 모여야 시작할 수 있어요.`);
   }
 
   if (!areAllRunningMatchRoomGuestsReady(room)) {
-    throw new ApiError(400, '모든 참가자가 준비 완료해야 시작할 수 있어.');
+    throw new ApiError(400, '모든 참가자가 준비 완료해야 시작할 수 있어요.');
   }
 
   const now = new Date();
@@ -257,21 +257,21 @@ export function updateRunningMatchRoomReady(store, currentUser, {
   const room = findRunningMatchRoomById(store, roomId);
 
   if (!room) {
-    throw new ApiError(404, '준비 상태를 바꿀 방을 찾지 못했어.', { code: 'room_not_found' });
+    throw new ApiError(404, '준비 상태를 바꿀 방을 찾지 못했어요.', { code: 'room_not_found' });
   }
 
   if (room.linkedMatchId) {
-    throw new ApiError(400, '이미 시작 준비에 들어간 방은 준비 상태를 바꿀 수 없어.');
+    throw new ApiError(400, '이미 시작 준비에 들어간 방은 준비 상태를 바꿀 수 없어요.');
   }
 
   const participant = room.participants.find((entry) => entry.userId === currentUser.id);
 
   if (!participant) {
-    throw new ApiError(404, '이 방 참가자 목록에서 사용자를 찾지 못했어.');
+    throw new ApiError(404, '이 방 참가자 목록에서 사용자를 찾지 못했어요.');
   }
 
   if (participant.isHost) {
-    throw new ApiError(400, '방장은 준비 버튼 대신 시작 버튼을 사용해줘.');
+    throw new ApiError(400, '방장은 준비 버튼 대신 시작 버튼을 사용해주세요.');
   }
 
   participant.isReady = Boolean(ready);
@@ -284,7 +284,7 @@ export function acknowledgeRunningMatchRoomCountdown(store, currentUser, { roomI
   const room = findRunningMatchRoomById(store, roomId, now);
 
   if (!room) {
-    throw new ApiError(404, '카운트다운 준비 상태를 반영할 방을 찾지 못했어.', { code: 'room_not_found' });
+    throw new ApiError(404, '카운트다운 준비 상태를 반영할 방을 찾지 못했어요.', { code: 'room_not_found' });
   }
 
   if (!room.linkedMatchId) {
@@ -294,7 +294,7 @@ export function acknowledgeRunningMatchRoomCountdown(store, currentUser, { roomI
   const participant = room.participants.find((entry) => entry.userId === currentUser.id);
 
   if (!participant) {
-    throw new ApiError(404, '이 방 참가자 목록에서 사용자를 찾지 못했어.');
+    throw new ApiError(404, '이 방 참가자 목록에서 사용자를 찾지 못했어요.');
   }
 
   participant.isCountdownReady = true;
@@ -316,15 +316,15 @@ export function updateRunningMatchRoom(store, currentUser, {
   const room = findRunningMatchRoomById(store, roomId);
 
   if (!room) {
-    throw new ApiError(404, '설정할 방을 찾지 못했어.', { code: 'room_not_found' });
+    throw new ApiError(404, '설정할 방을 찾지 못했어요.', { code: 'room_not_found' });
   }
 
   if (room.hostUserId !== currentUser.id) {
-    throw new ApiError(403, '방장만 방 설정을 바꿀 수 있어.');
+    throw new ApiError(403, '방장만 방 설정을 바꿀 수 있어요.');
   }
 
   if (room.linkedMatchId) {
-    throw new ApiError(400, '이미 시작 준비에 들어간 방은 설정을 바꿀 수 없어.');
+    throw new ApiError(400, '이미 시작 준비에 들어간 방은 설정을 바꿀 수 없어요.');
   }
 
   const normalizedInvitedFriendIds = [...new Set(invitedFriendIds
@@ -334,7 +334,7 @@ export function updateRunningMatchRoom(store, currentUser, {
 
   for (const friendId of normalizedInvitedFriendIds) {
     if (!areFriends(store, currentUser.id, friendId)) {
-      throw new ApiError(400, '친구 목록에 있는 러너만 방에 초대할 수 있어.');
+      throw new ApiError(400, '친구 목록에 있는 러너만 방에 초대할 수 있어요.');
     }
   }
 
@@ -367,7 +367,7 @@ export function leaveRunningMatchRoom(store, currentUser, { roomId }) {
   }
 
   if (room.linkedMatchId) {
-    throw new ApiError(400, '이미 대결 세션이 만들어진 방은 대결 화면에서 정리해줘.');
+    throw new ApiError(400, '이미 대결 세션이 만들어진 방은 대결 화면에서 정리해주세요.');
   }
 
   const participantIndex = room.participants.findIndex((participant) => participant.userId === currentUser.id);

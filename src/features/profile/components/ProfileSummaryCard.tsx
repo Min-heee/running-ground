@@ -47,7 +47,7 @@ export function ProfileSummaryCard({
           </Pressable>
         </Link>
         <Pressable style={styles.inlineActionButton} onPress={onShareTag}>
-          <Text style={styles.inlineActionText}>{tagShared ? '복사 준비됨' : '내 태그 공유'}</Text>
+          <Text style={styles.inlineActionText}>{tagShared ? '공유했어요' : '내 태그 공유'}</Text>
         </Pressable>
       </View>
     </Card>

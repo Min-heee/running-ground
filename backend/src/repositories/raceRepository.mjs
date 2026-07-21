@@ -27,13 +27,13 @@ export function createJsonRaceRepository({
         const event = store.offlineRaceEvents.find((entry) => entry.id === eventId);
 
         if (!event) {
-          throw createError(404, '선택한 레이스를 찾지 못했어.');
+          throw createError(404, '선택한 레이스를 찾지 못했어요.');
         }
 
         const status = getOfflineRaceStatus(event);
 
         if (!['registration_open', 'registration_closing'].includes(status)) {
-          throw createError(409, '지금은 신청을 처리할 수 없는 회차야.');
+          throw createError(409, '지금은 신청을 처리할 수 없는 회차예요.');
         }
 
         const registeredUserTags = [...new Set(event.registeredUserTags ?? [])];
@@ -41,11 +41,11 @@ export function createJsonRaceRepository({
 
         if (action === 'join') {
           if (alreadyRegistered) {
-            throw createError(409, '이미 신청한 레이스야.');
+            throw createError(409, '이미 신청한 레이스예요.');
           }
 
           if (registeredUserTags.length >= event.capacity) {
-            throw createError(409, '정원이 모두 차서 더 이상 신청할 수 없어.');
+            throw createError(409, '정원이 모두 차서 더 이상 신청할 수 없어요.');
           }
 
           event.registeredUserTags = [...registeredUserTags, user.publicTag];
@@ -53,7 +53,7 @@ export function createJsonRaceRepository({
 
         if (action === 'cancel') {
           if (!alreadyRegistered) {
-            throw createError(409, '아직 신청하지 않은 레이스야.');
+            throw createError(409, '아직 신청하지 않은 레이스예요.');
           }
 
           event.registeredUserTags = registeredUserTags.filter((tag) => tag !== user.publicTag);
@@ -91,7 +91,7 @@ export function createJsonRaceRepository({
         const event = store.offlineRaceEvents.find((entry) => entry.id === eventId);
 
         if (!event) {
-          throw createError(404, '수정할 레이스를 찾지 못했어.');
+          throw createError(404, '수정할 레이스를 찾지 못했어요.');
         }
 
         Object.assign(event, input);
@@ -110,7 +110,7 @@ export function createJsonRaceRepository({
         const nextEvents = store.offlineRaceEvents.filter((entry) => entry.id !== eventId);
 
         if (nextEvents.length === store.offlineRaceEvents.length) {
-          throw createError(404, '삭제할 레이스를 찾지 못했어.');
+          throw createError(404, '삭제할 레이스를 찾지 못했어요.');
         }
 
         store.offlineRaceEvents = nextEvents;

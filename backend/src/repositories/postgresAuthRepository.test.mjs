@@ -517,7 +517,7 @@ await runTest('rejects registration when the phone number is already in use', as
     },
     addressDetail: '서초대로 1',
   }), (error) => {
-    assertApiError(error, 409, '이 번호로 이미 가입한 계정이 있어요. 로그인하거나 비밀번호 찾기를 이용해줘.');
+    assertApiError(error, 409, '이 번호로 이미 가입한 계정이 있어요. 로그인하거나 비밀번호 찾기를 이용해주세요.');
     return true;
   });
 

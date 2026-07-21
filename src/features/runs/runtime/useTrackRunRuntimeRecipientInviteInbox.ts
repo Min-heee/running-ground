@@ -255,7 +255,7 @@ export function useTrackRunRuntimeRecipientInviteInbox({
       } catch (inviteError) {
         endRecipientInviteFetchTrace({ success: false });
         rgPerfMark('invite inbox fetch for recipient end', {
-          message: getApiErrorMessage(inviteError, '초대함을 불러오지 못했어.'),
+          message: getApiErrorMessage(inviteError, '초대함을 불러오지 못했어요.'),
           source,
           success: false,
           userId: currentUserId,

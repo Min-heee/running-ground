@@ -1,4 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
+import { Share } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
 import type { IntegrationStatusResponse, MyProfileResponse } from '@/lib/api/types';
 import { deleteAccount, signOut } from '@/lib/session';
@@ -64,8 +66,29 @@ export function useMyPageScreen() {
     [integrationStatus?.sources],
   );
 
-  const handleShareTag = () => {
-    setTagShared(true);
+  // Opens the system share sheet with the tag; falls back to a clipboard copy
+  // when sharing is unavailable. (This used to be a stub that only flipped the
+  // button label for 1.5s and shared nothing.)
+  const handleShareTag = async () => {
+    const tag = profile?.publicTag;
+    if (!tag) {
+      return;
+    }
+
+    try {
+      await Share.share({
+        message: `러닝그라운드에서 같이 달려요! 내 친구 태그: ${tag}`,
+      });
+      setTagShared(true);
+    } catch {
+      try {
+        await Clipboard.setStringAsync(tag);
+        setTagShared(true);
+      } catch {
+        // Neither share nor clipboard worked — leave the label unchanged.
+      }
+    }
+
     setTimeout(() => setTagShared(false), 1500);
   };
 

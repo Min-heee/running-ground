@@ -37,7 +37,7 @@ export async function fetchOpponentMatchProfile(userId: string): Promise<Opponen
     `/users/${encodeURIComponent(userId)}/match-profile`,
     {
       accessToken: await requireAccessToken(),
-      fallbackMessage: '상대 프로필을 불러오지 못했어.',
+      fallbackMessage: '상대 프로필을 불러오지 못했어요.',
     },
   );
 }

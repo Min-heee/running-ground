@@ -139,7 +139,7 @@ async function handleFriendRequestCreate({
 }) {
   const payload = await getFriendsRepository().createRequest({
     token: getAccessToken(request),
-    tag: normalizeTag(validateRequiredString(body.tag, '친구 태그를 입력해줘.')),
+    tag: normalizeTag(validateRequiredString(body.tag, '친구 태그를 입력해주세요.')),
   });
 
   sendJson(response, 201, payload);
@@ -246,11 +246,11 @@ async function handleQueueIntegrationImports({
   const rawRuns = Array.isArray(body.runs) ? body.runs : null;
 
   if (!rawRuns || rawRuns.length === 0) {
-    throw new ApiError(400, '가져올 연동 기록 배열이 비어 있어.');
+    throw new ApiError(400, '가져올 연동 기록 배열이 비어 있어요.');
   }
 
   if (rawRuns.length > 500) {
-    throw new ApiError(400, '한 번에 가져오는 기록은 500개 이하로 제한해줘.');
+    throw new ApiError(400, '한 번에 가져오는 기록은 500개 이하로 제한해주세요.');
   }
 
   // Launch-date cutoff (authoritative, lib/integrationImportCutoff.mjs): drop

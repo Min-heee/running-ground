@@ -182,7 +182,7 @@ async function readErrorPayload(response: Response, fallbackMessage: string) {
 export async function apiRequest<T>(
   path: string,
   init: RequestInit,
-  { accessToken, fallbackMessage = '요청 처리에 실패했어.', headers: optionHeaders, signal, timeoutMs }: ApiRequestOptions = {},
+  { accessToken, fallbackMessage = '요청 처리에 실패했어요.', headers: optionHeaders, signal, timeoutMs }: ApiRequestOptions = {},
 ): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs ?? API_CONFIG.timeoutMs);

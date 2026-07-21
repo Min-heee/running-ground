@@ -98,7 +98,7 @@ export async function verifyDeletedRoomServerMembership({
       status: 'cleanup-attempted',
     };
   } catch (error) {
-    const message = getApiErrorMessage(error, '삭제 후 방 상태 확인에 실패했어.');
+    const message = getApiErrorMessage(error, '삭제 후 방 상태 확인에 실패했어요.');
     trace('room delete verification end', {
       message,
       roomId,

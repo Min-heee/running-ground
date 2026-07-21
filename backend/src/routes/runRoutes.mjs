@@ -33,11 +33,11 @@ export async function routeRunRequest({
     const store = await loadStore();
     requireUser(store, request);
     const body = await parseJsonBody(request);
-    const keyword = validateRequiredString(body.keyword, '원하는 모양을 입력해줘.');
-    const displayTitle = validateRequiredString(body.displayTitle, '추천 경로 제목이 비어 있어.');
-    const description = validateRequiredString(body.description, '추천 경로 설명이 비어 있어.');
-    const startLabel = validateRequiredString(body.startLabel, '출발지 정보가 비어 있어.');
-    const desiredDistanceKm = validateDistanceKm(body.desiredDistanceKm, '희망 거리를 입력해줘.');
+    const keyword = validateRequiredString(body.keyword, '원하는 모양을 입력해주세요.');
+    const displayTitle = validateRequiredString(body.displayTitle, '추천 경로 제목이 비어 있어요.');
+    const description = validateRequiredString(body.description, '추천 경로 설명이 비어 있어요.');
+    const startLabel = validateRequiredString(body.startLabel, '출발지 정보가 비어 있어요.');
+    const desiredDistanceKm = validateDistanceKm(body.desiredDistanceKm, '희망 거리를 입력해주세요.');
     const roughCoordinates = validateRoutePreviewCoordinates(body.roughCoordinates);
 
     sendJson(response, 200, await buildRoadAlignedRoutePreview({
@@ -122,9 +122,9 @@ async function handleCreateManualRun({
   const payload = await getRunsRepository().createManualRun({
     token: getAccessToken(request),
     input: {
-      date: validateDateOnly(body.date, '러닝 날짜를 입력해줘.'),
-      distanceKm: validateDistanceKm(body.distanceKm, '러닝 거리를 입력해줘.'),
-      pace: validatePace(body.pace, '페이스를 입력해줘.'),
+      date: validateDateOnly(body.date, '러닝 날짜를 입력해주세요.'),
+      distanceKm: validateDistanceKm(body.distanceKm, '러닝 거리를 입력해주세요.'),
+      pace: validatePace(body.pace, '페이스를 입력해주세요.'),
     },
   });
 
@@ -149,31 +149,31 @@ async function handleCreateTrackedRun({
   validateTrackedRoute,
 }) {
   const body = await parseJsonBody(request);
-  const startedAt = validateRequiredString(body.startedAt, '러닝 시작 시각이 비어 있어.');
-  const endedAt = validateRequiredString(body.endedAt, '러닝 종료 시각이 비어 있어.');
+  const startedAt = validateRequiredString(body.startedAt, '러닝 시작 시각이 비어 있어요.');
+  const endedAt = validateRequiredString(body.endedAt, '러닝 종료 시각이 비어 있어요.');
   const startedAtMs = new Date(startedAt).getTime();
   const endedAtMs = new Date(endedAt).getTime();
 
   if (Number.isNaN(startedAtMs) || Number.isNaN(endedAtMs)) {
-    throw new ApiError(400, '러닝 시작/종료 시각 형식이 올바르지 않아.');
+    throw new ApiError(400, '러닝 시작/종료 시각 형식이 올바르지 않아요.');
   }
 
   if (startedAtMs > endedAtMs) {
-    throw new ApiError(400, '러닝 종료 시각은 시작 시각보다 빠를 수 없어.');
+    throw new ApiError(400, '러닝 종료 시각은 시작 시각보다 빠를 수 없어요.');
   }
 
   const payload = await getRunsRepository().createTrackedRun({
     token: getAccessToken(request),
     input: {
-      date: validateDateOnly(body.date, '러닝 날짜를 입력해줘.'),
-      distanceKm: validateDistanceKm(body.distanceKm, '러닝 거리를 입력해줘.'),
-      pace: validatePace(body.pace, '페이스를 입력해줘.'),
-      durationSeconds: validatePositiveInteger(body.durationSeconds, '러닝 시간은 1초 이상이어야 해.'),
+      date: validateDateOnly(body.date, '러닝 날짜를 입력해주세요.'),
+      distanceKm: validateDistanceKm(body.distanceKm, '러닝 거리를 입력해주세요.'),
+      pace: validatePace(body.pace, '페이스를 입력해주세요.'),
+      durationSeconds: validatePositiveInteger(body.durationSeconds, '러닝 시간은 1초 이상이어야 해요.'),
       ...(typeof body.cadenceSpm !== 'undefined' && body.cadenceSpm !== null
-        ? { cadenceSpm: validateNonNegativeInteger(body.cadenceSpm, '케이던스 값이 올바르지 않아.') }
+        ? { cadenceSpm: validateNonNegativeInteger(body.cadenceSpm, '케이던스 값이 올바르지 않아요.') }
         : {}),
       ...(typeof body.elevationGainM !== 'undefined' && body.elevationGainM !== null
-        ? { elevationGainM: validateNonNegativeInteger(body.elevationGainM, '고도 상승 값이 올바르지 않아.') }
+        ? { elevationGainM: validateNonNegativeInteger(body.elevationGainM, '고도 상승 값이 올바르지 않아요.') }
         : {}),
       route: validateTrackedRoute(body.route),
       startedAt,
