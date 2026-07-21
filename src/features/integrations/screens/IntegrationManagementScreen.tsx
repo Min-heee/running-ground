@@ -78,14 +78,14 @@ export default function IntegrationManagementScreen() {
         <>
           <Card style={styles.syncActionCard}>
             <Text style={styles.stateTitle}>기록 가져오기</Text>
-            <Text style={styles.helperText}>
-              {platform === 'ios' && !isAppleHealthModuleAvailable()
-                // HealthKit-free binary (build 48): no auto-import on iOS. Build
-                // 49+ has the RunnigappAppleHealth reader, so the same OTA'd JS
-                // shows the normal import copy (Apple Health included) there.
-                ? '지금 버전 iPhone에서는 자동 가져오기 연동을 지원하지 않아. 앱 측정이나 수동 기록으로 기록을 쌓을 수 있어.'
-                : '소스를 연결하는 건 어디서 가져올지 고르는 것뿐이야. 실제로 러닝 기록을 끌어오려면 아래 [기기에서 기록 가져오기]를 눌러줘.'}
-            </Text>
+            {platform === 'ios' && !isAppleHealthModuleAvailable() ? null : (
+              // HealthKit-free binary (build 48)에선 iOS 자동 가져오기가 없으므로 설명 자체를
+              // 숨긴다 (오너 결정). 빌드 49+는 모듈이 있어 일반 안내가 그대로 나온다.
+              <Text style={styles.helperText}>
+                소스를 연결하는 건 어디서 가져올지 고르는 것뿐이야. 실제로 러닝 기록을 끌어오려면
+                아래 [기기에서 기록 가져오기]를 눌러줘.
+              </Text>
+            )}
             {importEligibility?.canImport ? (
               <PrimaryButton
                 label={deviceImporting ? '기기 기록 가져오는 중...' : '기기에서 기록 가져오기'}
