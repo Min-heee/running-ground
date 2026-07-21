@@ -86,6 +86,12 @@ function buildFriendRank(store, user, rank, getUserMetrics, {
     // (imports excluded) so the displayed number agrees with the sort key.
     distanceKm: metrics.competitiveWeekDistanceKm,
     points: metrics.currentWeekPoints,
+    // Real KST-anchored 오늘/이번 달 aggregates — the client's window tabs
+    // display these verbatim (it used to fabricate them from the week values).
+    todayDistanceKm: metrics.competitiveTodayDistanceKm,
+    todayPoints: metrics.todayPoints,
+    monthDistanceKm: metrics.competitiveMonthDistanceKm,
+    monthPoints: metrics.currentMonthPoints,
     ...(liveShare.isRunningNow ? { isRunningNow: true } : {}),
     ...(liveShare.liveLocationLabel ? { liveLocationLabel: liveShare.liveLocationLabel } : {}),
   };

@@ -3,8 +3,16 @@ export type FriendRank = {
   rank: number;
   name: string;
   tag?: string;
+  // Weekly competitive aggregates — the server's rank order is based on these.
   distanceKm: number;
   points: number;
+  // Real KST-anchored 오늘/이번 달 aggregates. Optional because a client updated
+  // via OTA can briefly talk to a backend that predates them — the window tabs
+  // fall back conservatively instead of fabricating numbers.
+  todayDistanceKm?: number;
+  todayPoints?: number;
+  monthDistanceKm?: number;
+  monthPoints?: number;
   isRunningNow?: boolean;
   liveLocationLabel?: string;
 };

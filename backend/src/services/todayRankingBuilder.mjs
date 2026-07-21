@@ -1,4 +1,5 @@
 import { buildCompetitiveRunsByUserId } from '../lib/competitiveRuns.mjs';
+import { formatKstDateKey } from '../lib/kstDate.mjs';
 
 const TODAY_RANKING_LIMIT = 50;
 const VALID_TODAY_RANKING_CATEGORIES = new Set(['pace', 'distance', 'streak']);
@@ -178,7 +179,10 @@ export function buildTodayRanking({
 
   const rankedAtDate = rankedAt instanceof Date ? rankedAt : new Date(rankedAt);
   const safeRankedAt = Number.isNaN(rankedAtDate.getTime()) ? new Date() : rankedAtDate;
-  const todayKey = getDateKey(safeRankedAt);
+  // run.date strings are KST calendar days — anchor "today" on the same
+  // calendar, not the server's local (UTC) date, or the board serves
+  // yesterday's runs between 00:00 and 09:00 KST.
+  const todayKey = formatKstDateKey(safeRankedAt);
 
   // Imported runs (Apple Health / Health Connect / NRC / Strava / Garmin / MyNB
   // and manual entries) are display-only and must never feed competitive

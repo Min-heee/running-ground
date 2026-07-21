@@ -228,3 +228,48 @@ runTest('cleanupLegacyIntegrationSources strips mynb and disconnects hidden bran
   // Idempotent: second run reports no change.
   assert.equal(cleanupLegacyIntegrationSources(store), false);
 });
+
+// ── 친구 랭킹 오늘/이번 달 실측 집계 + KST 앵커 (2026-07-21) ─────────────────────
+
+runTest('per-window competitive aggregates are real sums and exclude imports', () => {
+  const runs = [
+    trackedRun('t-lastmonth', '2026-06-28', 7),
+    trackedRun('t-month', '2026-07-02', 2),
+    trackedRun('t-today', '2026-07-10', 3),
+    importedRun('i-today', '2026-07-10', 11),
+  ];
+  const metrics = buildUserRunMetrics(runs, NOW);
+
+  assert.equal(metrics.competitiveTodayDistanceKm, 3);
+  assert.equal(metrics.competitiveMonthDistanceKm, 5);
+  assert.equal(metrics.competitiveWeekDistanceKm, 3);
+  // Personal month total keeps the import (display-only surfaces).
+  assert.equal(metrics.currentMonthDistanceKm, 16);
+  // Today's run minted level(10, crossing 12km cumulative) + weekly growth(10).
+  assert.equal(metrics.todayPoints, 20);
+  assert.equal(metrics.currentMonthPoints, 20);
+});
+
+runTest('zero runs today stays zero — no fabricated floor', () => {
+  const metrics = buildUserRunMetrics([trackedRun('t-old', '2026-07-06', 10)], NOW);
+
+  assert.equal(metrics.competitiveTodayDistanceKm, 0);
+  assert.equal(metrics.todayPoints, 0);
+});
+
+runTest('KST anchor: today/week/month resolve on the Korea calendar on a UTC clock', () => {
+  // 2026-07-20 16:30 UTC = 2026-07-21 01:30 KST. A run saved "tonight" in Korea
+  // carries date 2026-07-21; server-local anchoring on the UTC droplet put the
+  // anchor a day behind and reported today=0 between 00:00 and 09:00 KST.
+  const utcNightKstEarlyMorning = new Date('2026-07-20T16:30:00Z');
+  const metrics = buildUserRunMetrics(
+    [trackedRun('t-kst', '2026-07-21', 4)],
+    utcNightKstEarlyMorning,
+  );
+
+  assert.equal(metrics.competitiveTodayDistanceKm, 4);
+  assert.equal(metrics.competitiveWeekDistanceKm, 4);
+  assert.equal(metrics.competitiveMonthDistanceKm, 4);
+  // First-ever run: weekly growth bonus (4km > 0km previous week) lands today.
+  assert.equal(metrics.todayPoints, 10);
+});

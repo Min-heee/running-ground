@@ -1,4 +1,5 @@
 import { isCompetitiveRun } from './competitiveRuns.mjs';
+import { formatKstDateKey } from './kstDate.mjs';
 
 function toFixed1(value) {
   return Number(value.toFixed(1));
@@ -134,6 +135,7 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
   // own competitive-only structures; imported runs simply have no
   // runPointsById entry (getRunPointValue → 0).
   const competitiveWeekRunsByKey = new Map();
+  const competitiveMonthDistanceByKey = new Map();
   const competitiveDistanceByDate = new Map();
   const competitiveLastRunIdByDate = new Map();
 
@@ -175,6 +177,10 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
         toFixed1((competitiveWeekDistanceByKey.get(weekKey) ?? 0) + run.distanceKm),
       );
       competitiveWeekRunsByKey.set(weekKey, [...(competitiveWeekRunsByKey.get(weekKey) ?? []), run]);
+      competitiveMonthDistanceByKey.set(
+        monthKey,
+        toFixed1((competitiveMonthDistanceByKey.get(monthKey) ?? 0) + run.distanceKm),
+      );
       competitiveDistanceByDate.set(run.date, toFixed1((competitiveDistanceByDate.get(run.date) ?? 0) + run.distanceKm));
       competitiveLastRunIdByDate.set(run.date, run.id);
     }
@@ -284,11 +290,15 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
     }
   }
 
-  const currentWeekKey = getWeekKey(currentDate);
-  const previousWeekKey = getDateKey(addDays(getWeekStart(currentDate), -7));
-  const currentMonthKey = getMonthKey(currentDate);
-  const todayKey = getDateKey(currentDate);
-  const yesterdayKey = getDateKey(addDays(currentDate, -1));
+  // "Now" anchors resolve on the KST calendar: run.date strings are written in
+  // Korea time on-device, but the droplet clock is UTC — server-local anchoring
+  // put today/week/month one day behind between 00:00 and 09:00 KST.
+  const todayKey = formatKstDateKey(currentDate);
+  const kstToday = parseRunDate(todayKey);
+  const currentWeekKey = getWeekKey(kstToday);
+  const previousWeekKey = getDateKey(addDays(getWeekStart(kstToday), -7));
+  const currentMonthKey = todayKey.slice(0, 7);
+  const yesterdayKey = getDateKey(addDays(kstToday, -1));
   const latestQualifiedDateKey = qualifiedDateKeys.at(-1) ?? null;
   const currentStreakDays = latestQualifiedDateKey && (latestQualifiedDateKey === todayKey || latestQualifiedDateKey === yesterdayKey)
     ? (streakByDate.get(latestQualifiedDateKey) ?? 0)
@@ -302,6 +312,7 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
 
   let currentWeekPoints = 0;
   let currentMonthPoints = 0;
+  let todayPoints = 0;
   let totalEarnedPoints = 0;
 
   for (const pointEntry of runPointsById.values()) {
@@ -313,6 +324,10 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
 
     if (pointEntry.monthKey === currentMonthKey) {
       currentMonthPoints += pointEntry.earnedPoint;
+    }
+
+    if (pointEntry.dateKey === todayKey) {
+      todayPoints += pointEntry.earnedPoint;
     }
   }
 
@@ -331,6 +346,11 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
     currentWeekPoints,
     currentMonthDistanceKm: toFixed1(currentMonthDistanceKm),
     currentMonthPoints,
+    // Real per-window competitive aggregates for the friend leaderboard's
+    // 오늘/이번 달 tabs (the client used to fabricate these from week values).
+    competitiveTodayDistanceKm: toFixed1(competitiveDistanceByDate.get(todayKey) ?? 0),
+    competitiveMonthDistanceKm: toFixed1(competitiveMonthDistanceByKey.get(currentMonthKey) ?? 0),
+    todayPoints,
     totalEarnedPoints,
     runPointsById,
   };
