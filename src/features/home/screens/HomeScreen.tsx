@@ -6,6 +6,7 @@ import { Screen } from '@/components/Screen';
 import { HomeHeader } from '@/features/home/components/HomeHeader';
 import { HomeNoticeCard } from '@/features/home/components/HomeNoticeCard';
 import { HomeOtaUpdateCard } from '@/features/home/components/HomeOtaUpdateCard';
+import { HomeThemeTipBubble } from '@/features/home/components/HomeThemeTipBubble';
 import { HomeUpcomingMatchesCard } from '@/features/home/components/HomeUpcomingMatchesCard';
 import { useHomeScreenModel } from '@/features/home/hooks/useHomeScreenModel';
 import { useOtaUpdatePrompt } from '@/features/home/hooks/useOtaUpdatePrompt';
@@ -47,6 +48,7 @@ export default function HomeScreen() {
       <Screen>
         <View style={styles.contentWrap}>
           <HomeHeader />
+          <HomeThemeTipBubble />
           {showUpdatePrompt ? <HomeOtaUpdateCard onApply={applyUpdate} /> : null}
           {noticeCards}
           {error ? <Text>{error}</Text> : null}
