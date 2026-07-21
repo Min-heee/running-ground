@@ -14,6 +14,7 @@ import {
 } from '@/features/integrations/hooks/useIntegrationActions';
 import { getCurrentDevicePlatform } from '@/features/integrations/sourceCatalog';
 import { buildSyncSummary } from '@/features/integrations/utils/integrationMessages';
+import { isAppleHealthModuleAvailable } from '@/integrations/appleHealthAvailability';
 import { getNativeHealthImportEligibility } from '@/integrations/nativeHealth';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
@@ -78,7 +79,10 @@ export default function IntegrationManagementScreen() {
           <Card style={styles.syncActionCard}>
             <Text style={styles.stateTitle}>기록 가져오기</Text>
             <Text style={styles.helperText}>
-              {platform === 'ios'
+              {platform === 'ios' && !isAppleHealthModuleAvailable()
+                // HealthKit-free binary (build 48): no auto-import on iOS. Build
+                // 49+ has the RunnigappAppleHealth reader, so the same OTA'd JS
+                // shows the normal import copy (Apple Health included) there.
                 ? '지금 버전 iPhone에서는 자동 가져오기 연동을 지원하지 않아. 앱 측정이나 수동 기록으로 기록을 쌓을 수 있어.'
                 : '소스를 연결하는 건 어디서 가져올지 고르는 것뿐이야. 실제로 러닝 기록을 끌어오려면 아래 [기기에서 기록 가져오기]를 눌러줘.'}
             </Text>

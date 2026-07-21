@@ -7,6 +7,7 @@ import { SourceMethodGuideModal } from '@/features/integrations/components/Sourc
 import { buildExclusiveSourceSelectorModel } from '@/features/integrations/exclusiveSourceSelectorModel';
 import { getSourceMethodGuide } from '@/features/integrations/sourceMethodGuide';
 import { type DevicePlatform } from '@/features/integrations/sourceCatalog';
+import { isAppleHealthModuleAvailable } from '@/integrations/appleHealthAvailability';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type ExclusiveSourceSelectorCardProps = {
@@ -143,10 +144,17 @@ export function ExclusiveSourceSelectorCard({
   sources,
 }: ExclusiveSourceSelectorCardProps) {
   const [methodSourceType, setMethodSourceType] = useState<RunSourceType | null>(null);
-  const model = useMemo(() => buildExclusiveSourceSelectorModel(sources, platform), [platform, sources]);
+  // Runtime module-availability gate: Apple 건강 is offered only when the
+  // RunnigappAppleHealth native reader exists in this binary (build 49+); the
+  // HealthKit-free build 48 gets the same OTA'd JS and keeps it hidden.
+  const appleHealthAvailable = isAppleHealthModuleAvailable();
+  const model = useMemo(
+    () => buildExclusiveSourceSelectorModel(sources, platform, appleHealthAvailable),
+    [appleHealthAvailable, platform, sources],
+  );
   const methodGuide = useMemo(() => (
-    methodSourceType ? getSourceMethodGuide(methodSourceType, platform) : null
-  ), [methodSourceType, platform]);
+    methodSourceType ? getSourceMethodGuide(methodSourceType, platform, appleHealthAvailable) : null
+  ), [appleHealthAvailable, methodSourceType, platform]);
   const handleCloseMethod = useCallback(() => {
     setMethodSourceType(null);
   }, []);

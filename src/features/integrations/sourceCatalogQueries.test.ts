@@ -12,10 +12,13 @@ import {
   type SourceMetadataMap,
 } from './sourceCatalogQueries';
 
-// Hub-only catalog: the selectable import source is the Android platform hub;
-// brand apps (nrc / strava / garmin) and the retired apple_health (App Store
-// 2.5.1 — iOS Apple-Health import removed) intentionally have no metadata.
-const metadata: SourceMetadataMap = {
+// Hub-only catalog, availability-gated on iOS: 'apple_health' metadata exists
+// ONLY when the RunnigappAppleHealth native reader is present in the running
+// binary (build 49+). `moduleAbsentMetadata` mirrors the HealthKit-free build
+// 48, `moduleAvailableMetadata` mirrors build 49+ — the same OTA'd JS produces
+// both maps (sourceCatalog.ts getSelectableSourceMetadata). Brand apps
+// (nrc / strava / garmin) intentionally have no metadata in either.
+const moduleAbsentMetadata: SourceMetadataMap = {
   health_connect: {
     shortDescription: 'Health Connect',
     capabilities: [],
@@ -34,6 +37,16 @@ const metadata: SourceMetadataMap = {
     setupHint: '',
     priority: 70,
   },
+};
+
+const moduleAvailableMetadata: SourceMetadataMap = {
+  apple_health: {
+    shortDescription: 'Apple Health',
+    capabilities: [],
+    setupHint: '',
+    priority: 100,
+  },
+  ...moduleAbsentMetadata,
 };
 
 function source(overrides: Partial<ConnectedSource> & Pick<ConnectedSource, 'sourceType'>): ConnectedSource {
@@ -68,18 +81,32 @@ test('source catalog queries sort sources by priority and connection boost', () 
 });
 
 test('source catalog queries drop sources without catalog metadata', () => {
-  // Legacy rows the server may still return (nrc / strava / garmin / mynb /
-  // apple_health) have no metadata in the hub-only catalog and must be
-  // filtered out everywhere instead of rendering blank entries.
+  // Legacy rows the server may still return (nrc / strava / garmin / mynb)
+  // have no metadata and must be filtered out everywhere instead of rendering
+  // blank entries. On the module-absent (build 48) map that includes
+  // apple_health rows — even connected ones.
   const sorted = sortSourcesByPriorityWithMetadata([
     source({ connected: true, sourceType: 'nrc' }),
     source({ sourceType: 'strava' }),
     source({ sourceType: 'garmin' }),
     source({ connected: true, sourceType: 'apple_health' }),
     source({ sourceType: 'health_connect' }),
-  ], metadata);
+  ], moduleAbsentMetadata);
 
   assert.deepEqual(sorted.map((item) => item.sourceType), ['health_connect']);
+});
+
+test('module present: apple_health sorts back in at hub priority', () => {
+  const sorted = sortSourcesByPriorityWithMetadata([
+    source({ sourceType: 'health_connect' }),
+    source({ sourceType: 'apple_health' }),
+    source({ connected: true, sourceType: 'nrc' }),
+  ], moduleAvailableMetadata);
+
+  assert.deepEqual(sorted.map((item) => item.sourceType), [
+    'apple_health',
+    'health_connect',
+  ]);
 });
 
 test('source catalog queries filter recommended sources by platform', () => {
@@ -90,16 +117,22 @@ test('source catalog queries filter recommended sources by platform', () => {
     source({ sourceType: 'runningground', recommendedPlatform: 'all' }),
   ];
 
-  // iOS: apple_health is retired (no metadata), so only the cross-platform
-  // manual/runningground entries remain recommended.
+  // iOS, module absent (build 48): apple_health has no metadata, so only the
+  // cross-platform manual/runningground entries remain recommended.
   assert.deepEqual(
-    getRecommendedSourcesForPlatform(sources, 'ios', metadata).map((item) => item.sourceType),
+    getRecommendedSourcesForPlatform(sources, 'ios', moduleAbsentMetadata).map((item) => item.sourceType),
     ['manual', 'runningground'],
   );
 
-  // Android keeps its hub.
+  // iOS, module present (build 49+): Apple Health leads the recommendations.
   assert.deepEqual(
-    getRecommendedSourcesForPlatform(sources, 'android', metadata).map((item) => item.sourceType),
+    getRecommendedSourcesForPlatform(sources, 'ios', moduleAvailableMetadata).map((item) => item.sourceType),
+    ['apple_health', 'manual', 'runningground'],
+  );
+
+  // Android keeps its hub either way.
+  assert.deepEqual(
+    getRecommendedSourcesForPlatform(sources, 'android', moduleAbsentMetadata).map((item) => item.sourceType),
     ['health_connect', 'manual', 'runningground'],
   );
 });
@@ -118,15 +151,24 @@ test('source catalog queries map sources by status and primary source', () => {
   });
 });
 
-test('platform-native import target resolves to Health Connect on Android only', () => {
-  // Android resolves to its platform store regardless of connected brand
-  // sources. iOS resolves to NOTHING: the Apple-Health integration was removed
-  // for the App Store 2.5.1 resolution (re-add deferred post-launch), so iOS
-  // has no primary import source at all.
+test('platform-native import target is availability-gated on iOS', () => {
+  // Default (no availability flag) is the safe HealthKit-free behavior: the
+  // OTA'd JS must treat build 48 exactly like today's build — iOS resolves to
+  // NO primary import source.
   assert.equal(getPrimarySourceTypeForPlatform('ios'), null);
-  assert.equal(getPrimarySourceTypeForPlatform('android'), 'health_connect');
-  assert.equal(getPrimarySourceTypeForPlatform('all'), null);
+  assert.equal(getPrimarySourceTypeForPlatform('ios', false), null);
 
+  // Module present (build 49+): iOS resolves to Apple Health again.
+  assert.equal(getPrimarySourceTypeForPlatform('ios', true), 'apple_health');
+
+  // Android and non-device platforms ignore the flag entirely.
+  assert.equal(getPrimarySourceTypeForPlatform('android'), 'health_connect');
+  assert.equal(getPrimarySourceTypeForPlatform('android', true), 'health_connect');
+  assert.equal(getPrimarySourceTypeForPlatform('all'), null);
+  assert.equal(getPrimarySourceTypeForPlatform('all', true), null);
+});
+
+test('primary source resolution follows the availability gate, not brand rows', () => {
   // A legacy connected NRC row on Android does not change the platform
   // resolution: the import still targets Health Connect.
   const brandOnlySources = [
@@ -138,12 +180,21 @@ test('platform-native import target resolves to Health Connect on Android only',
     'health_connect',
   );
 
-  // On iOS even a legacy apple_health row resolves to no primary source.
   const legacyIosSources = [
     source({ connected: true, sourceType: 'strava' }),
     source({ connected: true, sourceType: 'apple_health' }),
   ];
+
+  // Module absent (build 48): even a legacy connected apple_health row
+  // resolves to no primary source.
   assert.equal(getPrimarySourceForCatalogPlatform(legacyIosSources, 'ios'), null);
+
+  // Module present (build 49+): the same row resolves to Apple Health, brand
+  // rows notwithstanding.
+  assert.equal(
+    getPrimarySourceForCatalogPlatform(legacyIosSources, 'ios', true)?.sourceType,
+    'apple_health',
+  );
 });
 
 test('source catalog queries build coverage summary from recommended sources', () => {
@@ -151,7 +202,7 @@ test('source catalog queries build coverage summary from recommended sources', (
     source({ connected: true, sourceType: 'health_connect', recommendedPlatform: 'android' }),
     source({ sourceType: 'manual', recommendedPlatform: 'all' }),
     source({ sourceType: 'runningground', recommendedPlatform: 'all' }),
-  ], 'android', metadata);
+  ], 'android', moduleAbsentMetadata);
 
   assert.deepEqual(summary, {
     connectedCount: 1,

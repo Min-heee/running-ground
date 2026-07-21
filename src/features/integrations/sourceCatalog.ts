@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { ConnectedSource, RunSourceType } from '@/domain';
+import { isAppleHealthModuleAvailable } from '@/integrations/appleHealthAvailability';
 import {
   getConnectedExclusiveSourcesFromCatalog,
   getCoverageSummaryForPlatform,
@@ -20,15 +21,27 @@ export type SourceMetadata = {
   priority: number;
 };
 
-// The selectable import catalog offers ONLY the Android platform hub
-// (health_connect) plus the non-selector entries other code needs
-// (manual / runningground). Brand apps (NRC · Strava · Garmin · 삼성헬스
+// The selectable import catalog offers ONLY the two platform hubs
+// (apple_health / health_connect) plus the non-selector entries other code
+// needs (manual / runningground). Brand apps (NRC · Strava · Garmin · 삼성헬스
 // …) are intentionally absent — same mechanism as the retired 'mynb': their
 // runs flow INTO the hubs, so dropping their metadata makes every catalog and
-// priority filter skip them. 'apple_health' was retired the same way for the
-// App Store 2.5.1 resolution (re-add deferred post-launch); previously
-// imported records still display, but the source is never offered. Legacy
-// connected rows keep their RunSourceType; see LEGACY_SOURCE_METADATA.
+// priority filter skip them. Legacy connected rows keep their RunSourceType;
+// see LEGACY_SOURCE_METADATA.
+//
+// 'apple_health' is availability-gated, not static: its metadata joins the map
+// only when the RunnigappAppleHealth native reader is present in the running
+// binary (getSelectableSourceMetadata below). On the HealthKit-free build 48
+// this same OTA'd JS drops apple_health everywhere — previously imported
+// records still display, but the source is never offered — and on build 49+
+// it reappears automatically.
+const APPLE_HEALTH_SOURCE_METADATA: SourceMetadata = {
+  shortDescription: 'Apple 건강에 모인 러닝 기록',
+  capabilities: ['버튼 한 번으로 가져오기', '러닝 앱 기록 통합', 'iPhone 기본 추천'],
+  setupHint: "애플워치·NRC 등 기록이 Apple 건강에 모이게 해두면, '기기에서 기록 가져오기' 버튼으로 한 번에 가져와요.",
+  priority: 100,
+};
+
 const SOURCE_METADATA: Partial<Record<RunSourceType, SourceMetadata>> = {
   health_connect: {
     shortDescription: '헬스 커넥트에 모인 러닝 기록',
@@ -49,6 +62,12 @@ const SOURCE_METADATA: Partial<Record<RunSourceType, SourceMetadata>> = {
     priority: 70,
   },
 };
+
+function getSelectableSourceMetadata(): Partial<Record<RunSourceType, SourceMetadata>> {
+  return isAppleHealthModuleAvailable()
+    ? { apple_health: APPLE_HEALTH_SOURCE_METADATA, ...SOURCE_METADATA }
+    : SOURCE_METADATA;
+}
 
 export function getCurrentDevicePlatform(): DevicePlatform {
   if (Platform.OS === 'ios') {
@@ -73,7 +92,7 @@ const LEGACY_SOURCE_METADATA: SourceMetadata = {
 };
 
 export function getSourceMetadata(sourceType: RunSourceType): SourceMetadata {
-  return SOURCE_METADATA[sourceType] ?? LEGACY_SOURCE_METADATA;
+  return getSelectableSourceMetadata()[sourceType] ?? LEGACY_SOURCE_METADATA;
 }
 
 export function getSourceByType(sources: ConnectedSource[], sourceType: RunSourceType) {
@@ -87,21 +106,26 @@ export function getConnectedExclusiveSources(sources: ConnectedSource[]) {
 }
 
 export function getPrimarySourceType(platform = getCurrentDevicePlatform()): RunSourceType | null {
-  return getPrimarySourceTypeForPlatform(platform);
+  return getPrimarySourceTypeForPlatform(platform, isAppleHealthModuleAvailable());
 }
 
 export function getPrimarySourceForPlatform(
   sources: ConnectedSource[],
   platform = getCurrentDevicePlatform(),
 ) {
-  return getPrimarySourceForCatalogPlatform(sources, platform);
+  return getPrimarySourceForCatalogPlatform(sources, platform, isAppleHealthModuleAvailable());
 }
 
 export { getPlatformLabel } from './sourceCatalogQueries';
 
 export function getRecommendationCopy(platform: DevicePlatform): string {
   if (platform === 'ios') {
-    return '지금 버전 iPhone에서는 자동 가져오기 연동 없이 앱 측정과 수동 기록으로 기록을 쌓는 흐름이 기본이야.';
+    // Availability-gated copy: only promise Apple 건강 when the native reader
+    // actually exists in this binary (build 49+); build 48 keeps the
+    // HealthKit-free wording.
+    return isAppleHealthModuleAvailable()
+      ? "지금 기기 기준으로는 Apple 건강을 연결하는 게 기본이야. NRC·Strava 같은 러닝 앱 기록도 Apple 건강에 모아두면 '기기에서 기록 가져오기' 한 번으로 함께 들어와."
+      : '지금 버전 iPhone에서는 자동 가져오기 연동 없이 앱 측정과 수동 기록으로 기록을 쌓는 흐름이 기본이야.';
   }
 
   if (platform === 'android') {
@@ -112,11 +136,11 @@ export function getRecommendationCopy(platform: DevicePlatform): string {
 }
 
 export function getRecommendedSources(sources: ConnectedSource[], platform = getCurrentDevicePlatform()): ConnectedSource[] {
-  return getRecommendedSourcesForPlatform(sources, platform, SOURCE_METADATA);
+  return getRecommendedSourcesForPlatform(sources, platform, getSelectableSourceMetadata());
 }
 
 export function sortSourcesByPriority(sources: ConnectedSource[]): ConnectedSource[] {
-  return sortSourcesByPriorityWithMetadata(sources, SOURCE_METADATA);
+  return sortSourcesByPriorityWithMetadata(sources, getSelectableSourceMetadata());
 }
 
 export function splitSourcesByStatus(sources: ConnectedSource[]) {
@@ -124,5 +148,5 @@ export function splitSourcesByStatus(sources: ConnectedSource[]) {
 }
 
 export function getCoverageSummary(sources: ConnectedSource[], platform = getCurrentDevicePlatform()) {
-  return getCoverageSummaryForPlatform(sources, platform, SOURCE_METADATA);
+  return getCoverageSummaryForPlatform(sources, platform, getSelectableSourceMetadata());
 }

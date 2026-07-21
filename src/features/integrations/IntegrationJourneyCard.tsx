@@ -4,6 +4,7 @@ import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { ConnectedSource, RunSourceType } from '@/domain';
+import { isAppleHealthModuleAvailable } from '@/integrations/appleHealthAvailability';
 import { NativeHealthReadiness } from '@/integrations/nativeHealth';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 import { buildIntegrationJourneyModel, type IntegrationJourneyStep } from './integrationJourneyModel';
@@ -51,7 +52,13 @@ export function IntegrationJourneyCard({
     deviceImportCompleted,
     showImportButton,
   } = useMemo(
-    () => buildIntegrationJourneyModel({ sources, platform, nativeHealthReadiness, importEligible }),
+    () => buildIntegrationJourneyModel({
+      sources,
+      platform,
+      nativeHealthReadiness,
+      importEligible,
+      appleHealthAvailable: isAppleHealthModuleAvailable(),
+    }),
     [importEligible, nativeHealthReadiness, platform, sources],
   );
   const stepRows = useMemo(() => steps.map((step, index) => (

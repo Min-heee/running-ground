@@ -17,13 +17,18 @@ export type ExclusiveSourceSelectorModel = {
   selectedSourceType: RunSourceType | null;
 };
 
-// Selectable auto-import sources are the Android platform hub only. Brand apps
+// Selectable auto-import sources are the platform hubs only. Brand apps
 // (NRC / Strava / Garmin …) have no metadata here, so legacy connected rows
 // the server may still return are silently dropped from the selector — the
-// same mechanism that retired 'mynb'. 'apple_health' was retired the same way
-// for the App Store 2.5.1 resolution (re-add deferred post-launch), so iOS
-// offers only the "연동 안 함" path.
-const EXCLUSIVE_SOURCE_SELECTOR_METADATA: SourceMetadataMap = {
+// same mechanism that retired 'mynb'.
+//
+// 'apple_health' is availability-gated: it joins the selectable metadata only
+// when the caller reports the RunnigappAppleHealth native reader as present in
+// the running binary (isAppleHealthModuleAvailable()). On the HealthKit-free
+// build 48 the selector therefore offers only the "연동 안 함" path on iOS —
+// even for a legacy connected apple_health row — while build 49+ offers
+// Apple 건강 again from the same OTA'd JS.
+const BASE_EXCLUSIVE_SOURCE_SELECTOR_METADATA: SourceMetadataMap = {
   health_connect: {
     shortDescription: '',
     capabilities: [],
@@ -31,6 +36,19 @@ const EXCLUSIVE_SOURCE_SELECTOR_METADATA: SourceMetadataMap = {
     priority: 95,
   },
 };
+
+const APPLE_HEALTH_SELECTOR_METADATA: NonNullable<SourceMetadataMap['apple_health']> = {
+  shortDescription: '',
+  capabilities: [],
+  setupHint: '',
+  priority: 100,
+};
+
+function getSelectorMetadata(appleHealthAvailable: boolean): SourceMetadataMap {
+  return appleHealthAvailable
+    ? { apple_health: APPLE_HEALTH_SELECTOR_METADATA, ...BASE_EXCLUSIVE_SOURCE_SELECTOR_METADATA }
+    : BASE_EXCLUSIVE_SOURCE_SELECTOR_METADATA;
+}
 
 function isSourceVisibleOnPlatform(source: ConnectedSource, platform: ExclusiveSourceSelectorPlatform) {
   if (platform === 'all') {
@@ -47,13 +65,14 @@ function isSourceVisibleOnPlatform(source: ConnectedSource, platform: ExclusiveS
 export function buildExclusiveSourceSelectorModel(
   sources: ConnectedSource[],
   platform: ExclusiveSourceSelectorPlatform,
+  appleHealthAvailable = false,
 ): ExclusiveSourceSelectorModel {
   const rowsSources = sortSourcesByPriorityWithMetadata(
     sources.filter((source) => (
       isExclusiveIntegrationSourceType(source.sourceType)
       && isSourceVisibleOnPlatform(source, platform)
     )),
-    EXCLUSIVE_SOURCE_SELECTOR_METADATA,
+    getSelectorMetadata(appleHealthAvailable),
   );
   const selectedSourceType = rowsSources.find((source) => source.connected)?.sourceType ?? null;
 

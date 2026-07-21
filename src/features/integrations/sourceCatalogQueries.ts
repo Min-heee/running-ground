@@ -29,10 +29,21 @@ export function getPlatformLabel(platform: DevicePlatform): string {
   return '현재 기기';
 }
 
-export function getPrimarySourceTypeForPlatform(platform: DevicePlatform): RunSourceType | null {
-  // iOS has no platform import hub: the Apple-Health integration was removed
-  // for the App Store 2.5.1 resolution (re-add deferred post-launch), so iOS
-  // resolves to null and the UI offers only the "연동 안 함" path.
+export function getPrimarySourceTypeForPlatform(
+  platform: DevicePlatform,
+  appleHealthAvailable = false,
+): RunSourceType | null {
+  // iOS offers its platform hub (Apple Health) ONLY when the RunnigappAppleHealth
+  // native reader is actually linked into the running binary: build 48 shipped
+  // HealthKit-free for the App Store 2.5.1 resolution, build 49+ restores it,
+  // and this same OTA'd JS serves both. Callers pass
+  // isAppleHealthModuleAvailable() (src/integrations/appleHealthAvailability.ts);
+  // the default is the safe HealthKit-free behavior, where iOS resolves to null
+  // and the UI offers only the "연동 안 함" path.
+  if (platform === 'ios') {
+    return appleHealthAvailable ? 'apple_health' : null;
+  }
+
   if (platform === 'android') {
     return 'health_connect';
   }
@@ -43,8 +54,9 @@ export function getPrimarySourceTypeForPlatform(platform: DevicePlatform): RunSo
 export function getPrimarySourceForCatalogPlatform(
   sources: ConnectedSource[],
   platform: DevicePlatform,
+  appleHealthAvailable = false,
 ) {
-  const primarySourceType = getPrimarySourceTypeForPlatform(platform);
+  const primarySourceType = getPrimarySourceTypeForPlatform(platform, appleHealthAvailable);
 
   if (!primarySourceType) {
     return null;
