@@ -92,11 +92,11 @@ export default function MyActivityScreen() {
   }, [activityRuns, kindFilter, modeFilter, monthFilter, selectedYear, showModeFilter]);
   const noRunsAtAll = activityRuns.length === 0;
   const emptyTitle = noRunsAtAll
-    ? '아직 저장된 러닝 기록이 없어.'
-    : '해당 조건의 기록이 없어.';
+    ? '아직 저장된 러닝 기록이 없어요.'
+    : '해당 조건의 기록이 없어요.';
   const emptyText = noRunsAtAll
-    ? '첫 기록을 추가하면 홈 게이지와 친구 순위가 바로 움직이기 시작해.'
-    : '다른 연도·월이나 종류를 선택해봐.';
+    ? '첫 기록을 추가하면 홈 게이지와 친구 순위가 바로 움직이기 시작해요.'
+    : '다른 연도·월이나 종류를 선택해보세요.';
 
   return (
     <Screen>
