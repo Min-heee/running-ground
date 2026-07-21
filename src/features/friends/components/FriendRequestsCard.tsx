@@ -126,7 +126,7 @@ export function FriendRequestsCard({
         />
       ))}
       {received.length === 0 && pending.length === 0 ? (
-        <Text style={styles.emptyText}>처리할 친구 요청이 없어.</Text>
+        <Text style={styles.emptyText}>처리할 친구 요청이 없어요.</Text>
       ) : null}
     </Card>
   );

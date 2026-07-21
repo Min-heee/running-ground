@@ -108,7 +108,7 @@ export function FriendListCard({
           onOpenFriend={onOpenFriend}
         />
       ))}
-      {friends.length === 0 ? <Text style={styles.emptyText}>아직 비교할 친구 기록이 없어.</Text> : null}
+      {friends.length === 0 ? <Text style={styles.emptyText}>아직 비교할 친구 기록이 없어요.</Text> : null}
     </Card>
   );
 }

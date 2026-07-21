@@ -47,7 +47,7 @@ export function IntegrationStatus({ sources }: { sources: ConnectedSource[] }) {
         <Text style={styles.countText}>{connectedSources.length}개</Text>
       </View>
       {connectedSourceRows}
-      {connectedSources.length === 0 ? <Text style={styles.empty}>아직 연결된 기록 소스가 없어.</Text> : null}
+      {connectedSources.length === 0 ? <Text style={styles.empty}>아직 연결된 기록 소스가 없어요.</Text> : null}
     </Card>
   );
 }

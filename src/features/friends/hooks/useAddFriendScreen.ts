@@ -19,7 +19,7 @@ export function useAddFriendScreen() {
         setLeaderboard(leaderboardData);
       })
       .catch((loadError) => {
-        setError(getApiErrorMessage(loadError, '친구 추가 정보를 불러오지 못했어.'));
+        setError(getApiErrorMessage(loadError, '친구 추가 정보를 불러오지 못했어요.'));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -34,8 +34,9 @@ export function useAddFriendScreen() {
   };
 
   const handleAddFriend = async () => {
-    if (!friendTag.trim()) {
-      setError('친구 태그를 입력해줘.');
+    const tagCode = friendTag.trim();
+    if (!tagCode) {
+      setError('친구 태그를 입력해주세요.');
       return;
     }
 
@@ -43,7 +44,9 @@ export function useAddFriendScreen() {
     setSubmitting(true);
 
     try {
-      await createFriendRequest(friendTag);
+      // The input keeps only the code — the fixed '#' lives in the UI prefix, and the
+      // server matches publicTag exactly ('#AB7K2'), so re-attach it here.
+      await createFriendRequest(`#${tagCode}`);
       setAdded(true);
       setFriendTag('');
       setTimeout(() => setAdded(false), 2000);
@@ -51,7 +54,7 @@ export function useAddFriendScreen() {
       const refreshedLeaderboard = await fetchFriendLeaderboard();
       setLeaderboard(refreshedLeaderboard);
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, '친구 요청 전송에 실패했어.'));
+      setError(getApiErrorMessage(requestError, '친구 요청 전송에 실패했어요.'));
     } finally {
       setSubmitting(false);
     }
@@ -62,7 +65,9 @@ export function useAddFriendScreen() {
     receivedCount: leaderboard?.requests.filter((request) => request.status === 'received').length ?? 0,
   }), [leaderboard?.requests]);
 
-  const handleFriendTagChange = (value: string) => setFriendTag(value.toUpperCase());
+  // '#' is rendered as a fixed prefix in the input UI — strip any typed/pasted '#'
+  // so pasting a full tag ('#AB7K2') still works and submit never doubles it.
+  const handleFriendTagChange = (value: string) => setFriendTag(value.replace(/#/g, '').toUpperCase());
 
   return {
     added,

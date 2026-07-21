@@ -3,7 +3,6 @@ import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
-import { InfoCard } from '@/components/ui/InfoCard';
 import { useAddFriendScreen } from '@/features/friends/hooks/useAddFriendScreen';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
@@ -28,7 +27,7 @@ export default function AddFriendScreen() {
     <Screen>
       <AuthHeader
         title="친구 추가하기"
-        subtitle="친구 태그로 검색해서 서로의 기록과 순위를 비교할 수 있어."
+        subtitle="친구 태그로 검색해서 서로의 기록과 순위를 비교할 수 있어요."
         showBack
         backHref="/(tabs)/friends"
       />
@@ -40,7 +39,7 @@ export default function AddFriendScreen() {
           <Text style={styles.sectionTitle}>내 태그</Text>
           <View style={styles.tagBox}>
             <Text style={styles.tag}>{profile.publicTag}</Text>
-            <Text style={styles.tagHint}>친구에게 이 태그를 공유하면 바로 추가할 수 있어.</Text>
+            <Text style={styles.tagHint}>친구에게 이 태그를 공유하면 바로 추가할 수 있어요.</Text>
             <Pressable style={styles.copyButton} onPress={handleCopy}>
               <Text style={styles.copyButtonText}>{copied ? '복사됨' : '태그 복사하기'}</Text>
             </Pressable>
@@ -56,23 +55,26 @@ export default function AddFriendScreen() {
       <Card>
         <Text style={styles.sectionTitle}>친구 태그 입력</Text>
         <View style={styles.form}>
-          <TextInput
-            placeholder="예: #AB7K2"
-            placeholderTextColor={colors.textTertiary}
-            style={styles.input}
-            autoCapitalize="characters"
-            value={friendTag}
-            onChangeText={handleFriendTagChange}
-            editable={!submitting}
-          />
+          <View style={styles.inputRow}>
+            <Text style={styles.inputPrefix}>#</Text>
+            <TextInput
+              placeholder="예: AB7K2"
+              placeholderTextColor={colors.textTertiary}
+              style={styles.inputField}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              value={friendTag}
+              onChangeText={handleFriendTagChange}
+              editable={!submitting}
+            />
+          </View>
           <PrimaryButton label={submitting ? '친구 요청 보내는 중...' : '친구 요청 보내기'} onPress={handleAddFriend} />
-          {friendTag.length > 0 ? <Text style={styles.helperText}>입력된 태그: {friendTag}</Text> : null}
-          {added ? <Text style={styles.successText}>친구 요청을 보냈어. 상대가 수락하면 친구 랭킹에 함께 보여줄 수 있어.</Text> : null}
+          {friendTag.length > 0 ? <Text style={styles.helperText}>입력된 태그: #{friendTag}</Text> : null}
+          {added ? <Text style={styles.successText}>친구 요청을 보냈어요. 상대가 수락하면 친구 랭킹에 함께 보여줄 수 있어요.</Text> : null}
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </View>
       </Card>
 
-      <InfoCard title="태그 규칙">친구 태그는 짧지만 중복 가능성이 낮은 5자리 공개 코드로 운영하고, 실제 계정 식별은 내부 ID로 따로 관리하는 구조가 좋아.</InfoCard>
       <SecondaryButton label="친구 화면으로 돌아가기" onPress={() => router.replace('/(tabs)/friends')} />
     </Screen>
   );
@@ -122,12 +124,23 @@ const styles = StyleSheet.create({
     gap: spacing.s12,
     marginTop: spacing.xxl,
   },
-  input: {
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.surfaceSubtleAlt,
     borderWidth: 1,
     borderColor: colors.borderMuted,
     borderRadius: radii.md,
     paddingHorizontal: spacing.s14,
+  },
+  inputPrefix: {
+    color: colors.textPrimary,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.rank,
+    marginRight: 2,
+  },
+  inputField: {
+    flex: 1,
     paddingVertical: spacing.s14,
     color: colors.textPrimary,
   },

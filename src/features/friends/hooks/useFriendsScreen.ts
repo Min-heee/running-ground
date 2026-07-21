@@ -52,7 +52,7 @@ export function useFriendsScreen() {
     setError(null);
 
     syncFriends()
-      .catch((loadError) => setError(getApiErrorMessage(loadError, '친구 정보를 불러오지 못했어.')))
+      .catch((loadError) => setError(getApiErrorMessage(loadError, '친구 정보를 불러오지 못했어요.')))
       .finally(() => {
         hasLoadedRef.current = true;
         setLoading(false);
@@ -106,19 +106,19 @@ export function useFriendsScreen() {
   const handleAccept = useCallback((requestId: string) => runRequestAction(
     requestId,
     acceptFriendRequest,
-    '친구 요청 수락에 실패했어.',
+    '친구 요청 수락에 실패했어요.',
   ), [runRequestAction]);
 
   const handleReject = useCallback((requestId: string) => runRequestAction(
     requestId,
     rejectFriendRequest,
-    '친구 요청 거절에 실패했어.',
+    '친구 요청 거절에 실패했어요.',
   ), [runRequestAction]);
 
   const handleCancel = useCallback((requestId: string) => runRequestAction(
     requestId,
     cancelFriendRequest,
-    '보낸 친구 요청 취소에 실패했어.',
+    '보낸 친구 요청 취소에 실패했어요.',
   ), [runRequestAction]);
 
   const handleCopyTag = useCallback(async () => {
@@ -128,9 +128,9 @@ export function useFriendsScreen() {
 
     try {
       await Clipboard.setStringAsync(profile.publicTag);
-      setCopyMessage('내 태그를 복사했어.');
+      setCopyMessage('내 태그를 복사했어요.');
     } catch {
-      setCopyMessage('태그 복사에 실패했어.');
+      setCopyMessage('태그 복사에 실패했어요.');
     }
   }, [profile?.publicTag]);
 
