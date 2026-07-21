@@ -110,18 +110,23 @@ public struct RunActivityAttributes: ActivityAttributes {
   public var runnerNames: [String]
   // ISO start timestamp (TS startedAt) — the card's elapsed reference.
   public var startedAt: String
+  // '#RRGGBB' rank-tier accent for the card's metric numbers (TS rankTierColorHex). Optional +
+  // defaulted so an older JS bundle that omits it decodes fine → plain white numbers.
+  public var rankTierColorHex: String?
 
   public init(
     matchId: String? = nil,
     mode: String,
     goalDistanceKm: Double? = nil,
     runnerNames: [String],
-    startedAt: String
+    startedAt: String,
+    rankTierColorHex: String? = nil
   ) {
     self.matchId = matchId
     self.mode = mode
     self.goalDistanceKm = goalDistanceKm
     self.runnerNames = runnerNames
     self.startedAt = startedAt
+    self.rankTierColorHex = rankTierColorHex
   }
 }

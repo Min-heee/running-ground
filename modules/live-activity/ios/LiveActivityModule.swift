@@ -178,6 +178,9 @@ struct LiveActivityAttributesRecord: Record {
   @Field var goalDistanceKm: Double?
   @Field var runnerNames: [String] = []
   @Field var startedAt: String = ""
+  // '#RRGGBB' rank-tier accent for the card's metric numbers (TS rankTierColorHex). Optional so
+  // an older JS bundle that does not send it keeps plain white numbers.
+  @Field var rankTierColorHex: String?
 }
 
 // Mirrors TS LiveActivityRunner.
@@ -219,7 +222,8 @@ extension LiveActivityAttributesRecord {
       mode: mode,
       goalDistanceKm: goalDistanceKm,
       runnerNames: runnerNames,
-      startedAt: startedAt
+      startedAt: startedAt,
+      rankTierColorHex: rankTierColorHex
     )
   }
 }

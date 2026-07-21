@@ -46,6 +46,9 @@ export type BuildLiveCardStateInput = {
   goalDistanceKm?: number;
   // ISO official/run start (drives the card's elapsed rendering + the static attributes).
   startedAt: string;
+  // '#RRGGBB' rank-tier accent for the card's metric numbers (resolved by the controller from the
+  // cached profile). Omitted ⇒ the native card renders plain white numbers.
+  rankTierColorHex?: string;
 
   // ---- my live metrics (the solo data source = tracking snapshot store) ----
   distanceKm: number;
@@ -181,6 +184,7 @@ export function buildLiveCardState(input: BuildLiveCardStateInput): LiveCardStat
     goalDistanceKm: input.goalDistanceKm,
     runnerNames: board.map((runner) => runner.name),
     startedAt: input.startedAt,
+    rankTierColorHex: input.rankTierColorHex,
   };
 
   const contentState: LiveActivityContentState = {

@@ -27,6 +27,10 @@ export type LiveActivityAttributes = {
   runnerNames: string[];
   // ISO start timestamp (the official/run start), for the card's own elapsed rendering.
   startedAt: string;
+  // '#RRGGBB' accent for the card's metric numbers — the runner's RANK TIER color (lock-card
+  // bright variant, see liveCardTierColor.ts). Additive + backward-safe: omitted ⇒ the native
+  // card falls back to plain white numbers (old binaries ignore the unknown field entirely).
+  rankTierColorHex?: string;
 };
 
 // One runner row on the match rank bar. Capped to top-3 + me by buildLiveCardState.

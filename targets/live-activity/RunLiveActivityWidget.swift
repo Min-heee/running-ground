@@ -40,13 +40,25 @@ private func formatElapsed(_ totalSeconds: Int) -> String {
   return String(format: "%02d:%02d", minutes, secs)
 }
 
+// Always kilometers ("0.37 km", "3.65 km") — never meters. Owner decision 2026-07-22: the card
+// used to switch to "412 m" under 1 km, which reads inconsistently next to Nike/Strava cards.
 private func formatDistance(_ meters: Int) -> String {
-  let safeMeters = max(0, meters)
-  if safeMeters < 1000 {
-    return "\(safeMeters) m"
-  }
-  let km = Double(safeMeters) / 1000.0
+  let km = Double(max(0, meters)) / 1000.0
   return String(format: "%.2f km", km)
+}
+
+// '#RRGGBB' → Color. Anything unparseable (or nil) falls back to plain white so an old JS bundle
+// that never sends rankTierColorHex renders exactly the pre-tier-color card.
+private func colorFromHex(_ hex: String?) -> Color? {
+  guard let hex = hex else { return nil }
+  var value = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+  if value.hasPrefix("#") { value.removeFirst() }
+  guard value.count == 6, let rgb = UInt64(value, radix: 16) else { return nil }
+  return Color(
+    red: Double((rgb & 0xFF0000) >> 16) / 255.0,
+    green: Double((rgb & 0x00FF00) >> 8) / 255.0,
+    blue: Double(rgb & 0x0000FF) / 255.0
+  )
 }
 
 private func isMatch(_ attributes: RunActivityAttributes) -> Bool {
@@ -87,6 +99,11 @@ struct RunLockScreenView: View {
 
   private var state: RunActivityAttributes.ContentState { context.state }
   private var attributes: RunActivityAttributes { context.attributes }
+  // Metric numbers take the runner's RANK TIER color (owner decision 2026-07-22); a missing or
+  // unparseable hex (old JS bundle) falls back to plain white.
+  private var metricColor: Color {
+    colorFromHex(attributes.rankTierColorHex) ?? CardPalette.primaryText
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -102,8 +119,9 @@ struct RunLockScreenView: View {
     .activitySystemActionForegroundColor(CardPalette.primaryText)
   }
 
+  // Header: app name (left) · match rank + goal ring (middle-right) · app icon (top-right).
   private var header: some View {
-    HStack {
+    HStack(spacing: 10) {
       Text("러닝그라운드")
         .font(.caption2)
         .fontWeight(.semibold)
@@ -115,71 +133,97 @@ struct RunLockScreenView: View {
           .fontWeight(.bold)
           .foregroundColor(CardPalette.accent)
       }
-    }
-  }
-
-  // Solo: time / AVG pace / distance, with an optional progress ring when a goal was set.
-  private var soloBody: some View {
-    HStack(alignment: .center, spacing: 16) {
-      if let goalKm = attributes.goalDistanceKm, goalKm > 0 {
+      if !isMatch(attributes), let goalKm = attributes.goalDistanceKm, goalKm > 0 {
         ProgressRing(progress: progressTowardGoal(distanceM: state.distanceM, goalKm: goalKm))
-          .frame(width: 56, height: 56)
+          .frame(width: 30, height: 30)
       }
-      HStack(spacing: 0) {
-        timeMetric
-        Spacer(minLength: 8)
-        metric(title: "페이스", value: state.paceText.replacingOccurrences(of: "/km", with: ""))
-        Spacer(minLength: 8)
-        metric(title: "거리", value: formatDistance(state.distanceM))
-      }
+      appMark
     }
   }
 
-  // Match: rank bar (top-3 + me) + adjacent gap.
+  // The RunningGround app icon, top-right like Nike/Strava cards. Rendered from the widget
+  // bundle's AppLogo imageset; if the asset ever goes missing the Image simply renders empty —
+  // never breaks the card.
+  private var appMark: some View {
+    Image("AppLogo")
+      .resizable()
+      .scaledToFit()
+      .frame(width: 24, height: 24)
+      .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+  }
+
+  // Solo: Strava-style bottom metric row — 시간(left) / 페이스(center) / 거리(right),
+  // big tier-colored values with small labels UNDER them.
+  private var soloBody: some View {
+    metricRow(
+      centerTitle: "페이스",
+      centerValue: state.paceText.replacingOccurrences(of: "/km", with: ""),
+      trailingTitle: "거리",
+      trailingValue: formatDistance(state.distanceM)
+    )
+  }
+
+  // Match: rank bar (top-3 + me) above, the same bottom metric row with 간격 on the right.
   private var matchBody: some View {
     VStack(alignment: .leading, spacing: 10) {
-      HStack(spacing: 0) {
-        timeMetric
-        Spacer(minLength: 8)
-        metric(title: "페이스", value: state.paceText.replacingOccurrences(of: "/km", with: ""))
-        Spacer(minLength: 8)
-        metric(title: "간격", value: state.adjacentGapText ?? "--")
-      }
       if let runners = state.runners, !runners.isEmpty {
         RankBar(runners: runners)
       }
+      metricRow(
+        centerTitle: "페이스",
+        centerValue: state.paceText.replacingOccurrences(of: "/km", with: ""),
+        trailingTitle: "간격",
+        trailingValue: state.adjacentGapText ?? "--"
+      )
     }
   }
 
-  private func metric(title: String, value: String) -> some View {
-    VStack(alignment: .leading, spacing: 2) {
+  private func metricRow(
+    centerTitle: String,
+    centerValue: String,
+    trailingTitle: String,
+    trailingValue: String
+  ) -> some View {
+    HStack(alignment: .top, spacing: 8) {
+      timeMetric
+        .frame(maxWidth: .infinity, alignment: .leading)
+      metric(title: centerTitle, value: centerValue, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .center)
+      metric(title: trailingTitle, value: trailingValue, alignment: .trailing)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+  }
+
+  private static let metricValueFont = Font.system(size: 27, weight: .heavy, design: .rounded)
+
+  private func metric(title: String, value: String, alignment: HorizontalAlignment) -> some View {
+    VStack(alignment: alignment, spacing: 3) {
+      Text(value)
+        .font(Self.metricValueFont)
+        .monospacedDigit()
+        .foregroundColor(metricColor)
+        .lineLimit(1)
+        .minimumScaleFactor(0.5)
       Text(title)
         .font(.caption2)
         .foregroundColor(CardPalette.secondaryText)
-      Text(value)
-        .font(.system(.title3, design: .rounded))
-        .fontWeight(.bold)
-        .foregroundColor(CardPalette.primaryText)
-        .lineLimit(1)
-        .minimumScaleFactor(0.6)
     }
   }
 
   // The 시간 (TIME) metric — same layout as `metric` but the value is the native auto-ticking
   // clock (running) or the static last-pushed elapsed (paused/finished) instead of a plain String.
   private var timeMetric: some View {
-    VStack(alignment: .leading, spacing: 2) {
+    VStack(alignment: .leading, spacing: 3) {
+      runTimeText(
+        state: state,
+        font: Self.metricValueFont
+      )
+      .foregroundColor(metricColor)
+      .lineLimit(1)
+      .minimumScaleFactor(0.5)
       Text("시간")
         .font(.caption2)
         .foregroundColor(CardPalette.secondaryText)
-      runTimeText(
-        state: state,
-        font: .system(.title3, design: .rounded)
-      )
-      .fontWeight(.bold)
-      .foregroundColor(CardPalette.primaryText)
-      .lineLimit(1)
-      .minimumScaleFactor(0.6)
     }
   }
 }
@@ -220,18 +264,22 @@ struct RankBar: View {
 @available(iOS 16.2, *)
 struct ProgressRing: View {
   let progress: Double
+  // The 30pt header ring has no room for the % label; the label only renders at larger sizes.
+  var showsLabel: Bool = false
 
   var body: some View {
     ZStack {
-      Circle().stroke(CardPalette.trackEmpty, lineWidth: 6)
+      Circle().stroke(CardPalette.trackEmpty, lineWidth: 4)
       Circle()
         .trim(from: 0, to: clampProgress(progress))
-        .stroke(CardPalette.accent, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+        .stroke(CardPalette.accent, style: StrokeStyle(lineWidth: 4, lineCap: .round))
         .rotationEffect(.degrees(-90))
-      Text("\(Int((clampProgress(progress) * 100).rounded()))%")
-        .font(.caption2)
-        .fontWeight(.bold)
-        .foregroundColor(CardPalette.primaryText)
+      if showsLabel {
+        Text("\(Int((clampProgress(progress) * 100).rounded()))%")
+          .font(.caption2)
+          .fontWeight(.bold)
+          .foregroundColor(CardPalette.primaryText)
+      }
     }
   }
 }

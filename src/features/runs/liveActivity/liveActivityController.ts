@@ -8,10 +8,12 @@ import {
   startLiveActivity,
   updateLiveActivity,
 } from '../../../../modules/live-activity';
+import { getCurrentUserProfile } from '@/lib/session';
 import {
   buildLiveCardState,
   type LiveCardBoardRunner,
 } from './buildLiveCardState';
+import { resolveLiveCardTierColorHex } from './liveCardTierColor';
 
 // FIRE-AND-FORGET orchestration layer between the run/match runtime and the Live Activity native
 // bridge. EVERY entry point here first checks isLiveActivityAvailable() (false on every current
@@ -120,6 +122,9 @@ export function startLiveActivityForRun(
       matchId: context.matchId,
       goalDistanceKm: context.goalDistanceKm,
       startedAt: context.startedAt,
+      // Attributes are set-once, so the tier color is snapshotted at run start from the cached
+      // profile (rank can't change mid-run anyway — LP applies after the match resolves).
+      rankTierColorHex: resolveLiveCardTierColorHex(getCurrentUserProfile()?.rankState),
       distanceKm: initial.distanceKm,
       elapsedSeconds: initial.elapsedSeconds,
       board: initial.board,

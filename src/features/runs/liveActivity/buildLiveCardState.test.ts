@@ -272,3 +272,8 @@ test('match mode with an empty board degrades to solo-shaped content (no match f
   assert.equal(contentState.runners, undefined);
   assert.equal(contentState.adjacentGapText, undefined);
 });
+
+test('rankTierColorHex passes through to the attributes when provided', () => {
+  const { attributes } = buildLiveCardState(baseInput({ rankTierColorHex: '#5FBF82' }));
+  assert.equal(attributes.rankTierColorHex, '#5FBF82');
+});
