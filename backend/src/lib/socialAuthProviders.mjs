@@ -8,6 +8,7 @@ import { ApiError } from '../response/httpResponse.mjs';
 export const SOCIAL_PROVIDERS = ['google', 'kakao', 'naver'];
 
 export const SOCIAL_PROVIDER_LABEL = {
+  apple: '애플',
   google: '구글',
   kakao: '카카오',
   naver: '네이버',

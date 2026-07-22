@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 
 import * as backendConfig from '../config.mjs';
+import { verifyAppleIdentityToken } from '../lib/appleIdentityToken.mjs';
+import { ApiError } from '../response/httpResponse.mjs';
 import {
   buildSocialAuthorizeUrl,
   exchangeSocialAuthCode,
@@ -50,7 +52,45 @@ function callbackUrl(provider) {
   return `${base}/api/auth/${provider}/callback`;
 }
 
-export async function routeAuthSocialLoginRequest({ method, pathname, url, response, getAuthRepository }) {
+export async function routeAuthSocialLoginRequest({
+  method,
+  pathname,
+  url,
+  request,
+  response,
+  sendJson,
+  parseJsonBody,
+  getAuthRepository,
+}) {
+  // Sign in with Apple (App Review 4.8): the iOS native sheet returns an
+  // identityToken (RS256 JWT). The client POSTs it here, we verify it against
+  // Apple's JWKS, and the verified `sub` becomes the social identity — the same
+  // findOrCreateSocialUser path the browser providers use, but with a JSON
+  // response instead of a redirect (no browser round-trip in the native flow).
+  if (pathname === '/api/auth/apple/token' && method === 'POST') {
+    const body = await parseJsonBody(request);
+
+    let payload;
+    try {
+      payload = await verifyAppleIdentityToken(body.identityToken);
+    } catch {
+      // Never leak which validation step failed to the caller.
+      throw new ApiError(401, '애플 로그인 검증에 실패했어요. 다시 시도해주세요.');
+    }
+
+    const { accessToken, isNewUser } = await getAuthRepository().findOrCreateSocialUser({
+      provider: 'apple',
+      providerUserId: payload.sub,
+      email: typeof payload.email === 'string' ? payload.email : '',
+      // Apple surfaces the name only on the FIRST authorization, and only to
+      // the client — it rides in the request body.
+      name: typeof body.name === 'string' ? body.name.trim().slice(0, 40) : '',
+    });
+
+    sendJson(response, 200, { token: accessToken, isNewUser });
+    return true;
+  }
+
   const match = pathname.match(SOCIAL_PATH_PATTERN);
 
   if (!match || method !== 'GET') {

@@ -68,7 +68,25 @@ export async function signInWithProvider(provider: 'kakao' | 'google' | 'apple' 
   }
 
   if (provider === 'apple') {
-    throw new Error('애플 간편 로그인은 아직 준비 중이에요.');
+    // Native Apple sheet → identityToken → server-side JWKS verification. No
+    // browser round-trip; the endpoint answers the session token as JSON.
+    const { signInWithAppleNative } = await import('@/features/auth/appleSignIn');
+    const appleResult = await signInWithAppleNative();
+
+    if (!appleResult) {
+      // User dismissed the Apple sheet — stay on the screen, no error.
+      return null;
+    }
+
+    const appleResponse = await apiPost<{ token: string; isNewUser: boolean }>(
+      '/auth/apple/token',
+      { identityToken: appleResult.identityToken, name: appleResult.name },
+      { fallbackMessage: '애플 로그인에 실패했어요.' },
+    );
+
+    const appleProfile = await fetchBackendProfile(appleResponse.token);
+    const profile = await applyBackendAuthSession({ accessToken: appleResponse.token, user: appleProfile });
+    return { profile, isNewUser: appleResponse.isNewUser };
   }
 
   const startUrl = `${API_CONFIG.baseUrl}/auth/${provider}/start?app_redirect=${encodeURIComponent(SOCIAL_APP_REDIRECT)}`;

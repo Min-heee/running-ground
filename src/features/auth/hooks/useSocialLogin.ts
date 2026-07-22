@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { getApiErrorMessage } from '@/services/apiError';
 import { signInWithProvider } from '@/services/authService';
 
-export type SocialProvider = 'google' | 'kakao' | 'naver';
+export type SocialProvider = 'google' | 'kakao' | 'naver' | 'apple';
 
 // Shared state for the social-login buttons on both the login and signup screens:
 // tracks which provider is mid-flow (for the spinner) and surfaces a single error line.

@@ -13,20 +13,21 @@
     "ios": {
       "bundleIdentifier": "com.minheee.runnigapp",
       "supportsTablet": false,
+      "usesAppleSignIn": true,
       "infoPlist": {
         "UIBackgroundModes": [
           "location",
           "audio"
         ]
       },
-      "buildNumber": "49"
+      "buildNumber": "50"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/branding/adaptive-icon.png",
         "backgroundColor": "#4338CA"
       },
-      "versionCode": 38,
+      "versionCode": 39,
       "package": "com.minheee.runnigapp",
       "permissions": [
         "android.permission.ACTIVITY_RECOGNITION"
