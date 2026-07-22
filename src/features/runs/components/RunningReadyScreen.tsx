@@ -97,16 +97,18 @@ const styles = StyleSheet.create({
     paddingTop: spacing.s18,
     paddingBottom: spacing.s18,
   },
+  // Vertical metrics mirror the base Button (paddingVertical s16 + radii.lg +
+  // fontSizes.button) so these rows sit at the same height as 바로 러닝 시작.
   featureRow: {
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.07)',
     borderColor: 'rgba(255, 255, 255, 0.13)',
-    borderRadius: 14,
+    borderRadius: radii.lg,
     borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.s12,
     paddingHorizontal: spacing.s14,
-    paddingVertical: spacing.s12,
+    paddingVertical: spacing.s16,
   },
   featureRowPressed: {
     backgroundColor: 'rgba(109, 94, 247, 0.28)',
@@ -121,7 +123,7 @@ const styles = StyleSheet.create({
   featureLabel: {
     color: fixedColors.white,
     flex: 1,
-    fontSize: fontSizes.rank,
+    fontSize: fontSizes.button,
     fontWeight: fontWeights.extraBold,
   },
 });
