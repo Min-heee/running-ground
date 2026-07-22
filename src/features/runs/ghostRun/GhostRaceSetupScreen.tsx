@@ -98,7 +98,7 @@ export default function GhostRaceSetupScreen() {
   return (
     <Screen>
       <AuthHeader
-        title="나와의 대결"
+        title="자신과 대결"
         subtitle=""
         showBack
         backHref="/(tabs)/running"
@@ -200,7 +200,7 @@ export default function GhostRaceSetupScreen() {
       </Card>
 
       <PrimaryButton
-        label="나와의 대결 시작"
+        label="자신과 대결 시작"
         onPress={handleStart}
         disabled={Boolean(startBlockedReason)}
       />

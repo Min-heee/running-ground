@@ -115,7 +115,7 @@ test('finish verdict compares my elapsed to the ghost duration', () => {
 test('start announcement introduces the ghost record', () => {
   const text = buildGhostStartAnnouncement(raceConfig());
 
-  assert.ok(text.includes('나와의 대결을 시작해요.'));
+  assert.ok(text.includes('자신과의 대결을 시작해요.'));
   assert.ok(text.includes('5킬로미터'));
   assert.ok(text.includes('30분'));
   assert.ok(text.includes('2분마다'));

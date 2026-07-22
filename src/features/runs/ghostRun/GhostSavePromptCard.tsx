@@ -47,7 +47,7 @@ export function GhostSavePromptCard() {
 
     await saveGhostToSlot(slot, candidate);
     clearPendingGhostCandidate();
-    setSavedMessage('나와의 대결 기록으로 저장했어요!');
+    setSavedMessage('자신과 대결 기록으로 저장했어요!');
   }, [candidate]);
 
   const handleSave = useCallback(() => {
@@ -79,7 +79,7 @@ export function GhostSavePromptCard() {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>👻 방금 러닝을 대결 기록으로 저장할까요?</Text>
+      <Text style={styles.title}>방금 러닝을 대결 기록으로 저장할까요?</Text>
       <Text style={styles.summary}>
         {formatGhostDistance(candidate)} · {formatGhostDuration(candidate)} · {formatGhostPace(candidate)}
       </Text>

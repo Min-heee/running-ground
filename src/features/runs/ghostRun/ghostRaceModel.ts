@@ -38,7 +38,7 @@ export function buildGhostStartAnnouncement(config: GhostRaceConfig): string {
   const { ghost } = config;
   const avgPaceSecPerKm = ghost.distanceM > 0 ? ghost.durationSec / (ghost.distanceM / 1000) : 0;
   const parts = [
-    '나와의 대결을 시작해요.',
+    '자신과의 대결을 시작해요.',
     `상대는 ${formatDistanceSpoken(ghost.distanceM / 1000)}를 ${formatDurationSpoken(ghost.durationSec)}에 달린 과거의 나예요.`,
   ];
 

@@ -58,16 +58,14 @@ export function RunningReadyScreen({
             onPress={() => router.push('/solo-coach' as never)}
             accessibilityRole="button"
           >
-            <Text style={styles.coachButtonText}>🎧 페이스메이커와 달리기</Text>
-            <Text style={styles.coachButtonCaption}>목표 페이스를 정하면 달리는 동안 음성으로 잡아드려요</Text>
+            <Text style={styles.coachButtonText}>페이스메이커와 달리기</Text>
           </Pressable>
           <Pressable
             style={styles.coachButton}
             onPress={() => router.push('/ghost-run' as never)}
             accessibilityRole="button"
           >
-            <Text style={styles.coachButtonText}>👻 나와의 대결</Text>
-            <Text style={styles.coachButtonCaption}>저장해둔 과거의 나와 음성 대결로 달려요</Text>
+            <Text style={styles.coachButtonText}>자신과 대결</Text>
           </Pressable>
         </>
       ) : null}
@@ -83,22 +81,19 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.s18,
   },
   // The ready card sits on the fixed dark chrome (fixedColors), so the coach
-  // button uses fixed colors too — identical in both themes.
+  // buttons use fixed brand colors — identical in both themes. Filled wash so
+  // they read as buttons at a glance (owner feedback 2026-07-22).
   coachButton: {
     alignItems: 'center',
-    borderColor: 'rgba(255, 255, 255, 0.28)',
+    backgroundColor: 'rgba(109, 94, 247, 0.30)',
+    borderColor: fixedColors.brand,
     borderRadius: radii.md,
     borderWidth: 1,
-    gap: spacing.xs,
     paddingVertical: spacing.s12,
   },
   coachButtonText: {
     color: fixedColors.white,
     fontSize: fontSizes.rank,
     fontWeight: fontWeights.extraBold,
-  },
-  coachButtonCaption: {
-    color: 'rgba(255, 255, 255, 0.65)',
-    fontSize: fontSizes.sm,
   },
 });
