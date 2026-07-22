@@ -1,5 +1,6 @@
 import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, Text, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -53,23 +54,43 @@ export function RunningReadyScreen({
           정하고 음성 코칭과 함께 달리는 솔로 전용 흐름 — 혼자러닝 모드에서만 노출. */}
       {showSoloCoachEntry ? (
         <>
-          <Pressable
-            style={styles.coachButton}
+          <SoloFeatureRow
+            icon={<Feather name="headphones" size={16} color={fixedColors.white} />}
+            label="페이스메이커와 달리기"
             onPress={() => router.push('/solo-coach' as never)}
-            accessibilityRole="button"
-          >
-            <Text style={styles.coachButtonText}>페이스메이커와 달리기</Text>
-          </Pressable>
-          <Pressable
-            style={styles.coachButton}
+          />
+          <SoloFeatureRow
+            icon={<MaterialCommunityIcons name="flag-checkered" size={16} color={fixedColors.white} />}
+            label="자신과 대결"
             onPress={() => router.push('/ghost-run' as never)}
-            accessibilityRole="button"
-          >
-            <Text style={styles.coachButtonText}>자신과 대결</Text>
-          </Pressable>
+          />
         </>
       ) : null}
     </Card>
+  );
+}
+
+// Modern-simple solo feature row: brand icon chip · left label · chevron, on a
+// glassy translucent fill over the fixed dark ready card (owner ask 2026-07-22).
+function SoloFeatureRow({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.featureRow, pressed && styles.featureRowPressed]}
+      onPress={onPress}
+      accessibilityRole="button"
+    >
+      <View style={styles.featureIconChip}>{icon}</View>
+      <Text style={styles.featureLabel}>{label}</Text>
+      <Feather name="chevron-right" size={18} color="rgba(255, 255, 255, 0.45)" />
+    </Pressable>
   );
 }
 
@@ -80,19 +101,32 @@ const styles = StyleSheet.create({
     paddingTop: spacing.s18,
     paddingBottom: spacing.s18,
   },
-  // The ready card sits on the fixed dark chrome (fixedColors), so the coach
-  // buttons use fixed brand colors — identical in both themes. Filled wash so
-  // they read as buttons at a glance (owner feedback 2026-07-22).
-  coachButton: {
+  featureRow: {
     alignItems: 'center',
-    backgroundColor: 'rgba(109, 94, 247, 0.30)',
-    borderColor: fixedColors.brand,
-    borderRadius: radii.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.07)',
+    borderColor: 'rgba(255, 255, 255, 0.13)',
+    borderRadius: 14,
     borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.s12,
+    paddingHorizontal: spacing.s14,
     paddingVertical: spacing.s12,
   },
-  coachButtonText: {
+  featureRowPressed: {
+    backgroundColor: 'rgba(109, 94, 247, 0.28)',
+    borderColor: fixedColors.brand,
+  },
+  featureIconChip: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(109, 94, 247, 0.55)',
+    borderRadius: 10,
+    height: 32,
+    justifyContent: 'center',
+    width: 32,
+  },
+  featureLabel: {
     color: fixedColors.white,
+    flex: 1,
     fontSize: fontSizes.rank,
     fontWeight: fontWeights.extraBold,
   },
