@@ -25,7 +25,12 @@ test('strava on iOS: 3 numbered steps with the app route, permission, import', (
   ]);
   assert.ok(steps[0].title.includes('스트라바'));
   assert.ok(steps[0].title.includes('Apple 건강'));
-  assert.ok(steps[0].menuPathText?.includes('설정'));
+  // 2026-07 Strava menu (owner-verified screenshots): app/device connections
+  // live under 앱 및 기기 관리, NOT the retired '응용 프로그램, 서비스 및 기기'.
+  assert.ok(steps[0].menuPathText?.includes('앱 및 기기 관리'));
+  assert.ok(!steps[0].menuPathText?.includes('응용 프로그램'));
+  // Version-proof OS fallback: the iPhone Health write switch never moves.
+  assert.ok(steps[0].fallbackNote?.includes('iPhone 설정'));
   assert.equal(steps[0].appScheme, 'strava://');
   assert.ok(steps[1].title.includes('Apple 건강 읽기 허용'));
 });

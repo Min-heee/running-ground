@@ -16,6 +16,10 @@ type GuideInstruction = {
   summary: string;
   // Ordered menu path inside the brand app ("설정" → …). Rendered joined with ' → '.
   menuPath: string[];
+  // Version-proof OS-level fallback ("메뉴가 안 보이면 …") — brand apps rename
+  // their menus constantly (Strava dropped '응용 프로그램, 서비스 및 기기' in
+  // 2026), but the OS-side health-permission switch never moves.
+  fallbackNote?: string;
   // Custom URL scheme to jump straight into the app. Omitted when the scheme is
   // not reliably known — the store link below still opens/installs the app.
   appScheme?: string;
@@ -63,12 +67,14 @@ const GUIDED_APPS: GuidedApp[] = [
       ios: {
         summary: 'NRC가 러닝을 Apple 건강에 저장하도록 연결해주세요.',
         menuPath: ['NRC 앱', '프로필', '설정', '파트너 앱', 'Apple 건강 연결'],
+        fallbackNote: "메뉴가 안 보이면 iPhone 설정 → 개인정보 보호 및 보안 → 건강 → Nike Run Club에서 '데이터 쓰기'를 켜도 돼요.",
         appScheme: 'nikerunclub://',
         storeUrl: 'https://apps.apple.com/kr/app/id387771637',
       },
       android: {
         summary: 'NRC가 러닝을 헬스 커넥트에 저장하도록 연결해주세요.',
         menuPath: ['NRC 앱', '프로필', '설정', '파트너 앱', '헬스 커넥트 연결'],
+        fallbackNote: '메뉴가 안 보이면 헬스 커넥트 앱 → 앱 권한 → Nike Run Club에서 쓰기를 허용해도 돼요.',
         storeUrl: 'https://play.google.com/store/apps/details?id=com.nike.plusgps',
       },
     },
@@ -79,15 +85,21 @@ const GUIDED_APPS: GuidedApp[] = [
     emoji: '🏃',
     platforms: ['ios', 'android'],
     routeGuide: {
+      // Menu verified on the 2026-07 Strava iOS build (owner screenshots): the old
+      // '응용 프로그램, 서비스 및 기기' menu is gone; app/device connections now
+      // live under the ACCOUNT section. (설정의 'Health Data' 항목은 Apple 건강
+      // 연동이 아니라 스트라바 자체 심박 데이터 수집 동의 — 안내에서 제외.)
       ios: {
         summary: '스트라바가 활동을 Apple 건강으로 보내도록 연결해주세요.',
-        menuPath: ['스트라바 앱', '설정', '응용 프로그램, 서비스 및 기기', '건강(Health)', '연결'],
+        menuPath: ['스트라바 앱', '나(You) 탭', '설정', '앱 및 기기 관리(Manage apps and devices)', '건강(Health) 연결'],
+        fallbackNote: "메뉴가 안 보이면 iPhone 설정 → 개인정보 보호 및 보안 → 건강 → Strava에서 '데이터 쓰기'를 켜도 돼요.",
         appScheme: 'strava://',
         storeUrl: 'https://apps.apple.com/kr/app/id426826309',
       },
       android: {
         summary: '스트라바가 활동을 헬스 커넥트로 보내도록 연결해주세요.',
-        menuPath: ['스트라바 앱', '설정', '응용 프로그램, 서비스 및 기기', '헬스 커넥트', '연결'],
+        menuPath: ['스트라바 앱', '나(You) 탭', '설정', '앱 및 기기 관리(Manage apps and devices)', '헬스 커넥트 연결'],
+        fallbackNote: '메뉴가 안 보이면 헬스 커넥트 앱 → 앱 권한 → Strava에서 쓰기를 허용해도 돼요.',
         storeUrl: 'https://play.google.com/store/apps/details?id=com.strava',
       },
     },
@@ -101,11 +113,13 @@ const GUIDED_APPS: GuidedApp[] = [
       ios: {
         summary: '가민 커넥트가 활동을 Apple 건강과 동기화하도록 켜주세요.',
         menuPath: ['가민 커넥트 앱', '더보기', '설정', 'Apple 건강', '동기화 켜기'],
+        fallbackNote: "메뉴가 안 보이면 iPhone 설정 → 개인정보 보호 및 보안 → 건강 → Connect에서 '데이터 쓰기'를 켜도 돼요.",
         storeUrl: 'https://apps.apple.com/kr/app/id583446403',
       },
       android: {
         summary: '가민 커넥트가 활동을 헬스 커넥트와 동기화하도록 켜주세요.',
         menuPath: ['가민 커넥트 앱', '더보기', '설정', '헬스 커넥트', '동기화 켜기'],
+        fallbackNote: '메뉴가 안 보이면 헬스 커넥트 앱 → 앱 권한 → Connect에서 쓰기를 허용해도 돼요.',
         storeUrl: 'https://play.google.com/store/apps/details?id=com.garmin.android.apps.connectmobile',
       },
     },
@@ -134,6 +148,8 @@ export type GuidedStep = {
   description: string;
   // route step only — the joined menu path + open-app targets.
   menuPathText?: string;
+  // route step only — the version-proof OS-level alternative path.
+  fallbackNote?: string;
   appScheme?: string;
   storeUrl?: string;
 };
@@ -154,6 +170,7 @@ export function buildGuidedSteps(appId: GuidedAppId, platform: GuidedPlatform): 
       title: `${app.label} 기록을 ${hubLabel}로 보내기`,
       description: `${instruction.summary} 메뉴 이름은 앱 버전에 따라 조금 다를 수 있어요.`,
       menuPathText: instruction.menuPath.join(' → '),
+      fallbackNote: instruction.fallbackNote,
       appScheme: instruction.appScheme,
       storeUrl: instruction.storeUrl,
     });

@@ -118,6 +118,9 @@ export function GuidedConnectCard({
                 {step.key === 'route' && step.menuPathText ? (
                   <>
                     <Text style={styles.menuPath}>{step.menuPathText}</Text>
+                    {step.fallbackNote ? (
+                      <Text style={styles.fallbackNote}>{step.fallbackNote}</Text>
+                    ) : null}
                     <Pressable style={styles.stepButton} onPress={() => handleOpenApp(step)}>
                       <Text style={styles.stepButtonText}>앱 열기</Text>
                     </Pressable>
@@ -274,6 +277,11 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontWeight: fontWeights.extraBold,
     fontSize: fontSizes.sm,
+  },
+  fallbackNote: {
+    color: colors.textTertiary,
+    fontSize: fontSizes.sm,
+    lineHeight: 18,
   },
   stepHint: {
     color: colors.successText,
