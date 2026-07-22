@@ -73,10 +73,13 @@ const GUIDED_APPS: GuidedApp[] = [
     icon: { kind: 'image', asset: 'nike' },
     platforms: ['ios', 'android'],
     routeGuide: {
+      // 2026-07 NRC iOS (owner screenshots): 프로필은 왼쪽 상단이고, 파트너
+      // 메뉴에는 Apple 건강이 없다 (Garmin/COROS/NTC뿐) — 건강 연동은 설정의
+      // '운동 정보' 쪽. OS 폴백 경로가 항상 통하므로 그쪽을 강조.
       ios: {
-        summary: 'NRC가 러닝을 Apple 건강에 저장하도록 연결해주세요.',
-        menuPath: ['NRC 앱', '프로필', '설정', '파트너 앱', 'Apple 건강 연결'],
-        fallbackNote: "메뉴가 안 보이면 iPhone 설정 → 개인정보 보호 및 보안 → 건강 → Nike Run Club에서 '데이터 쓰기'를 켜도 돼요.",
+        summary: 'NRC가 러닝을 Apple 건강에 저장하도록 켜주세요.',
+        menuPath: ['NRC 앱', '왼쪽 상단 프로필', '설정', '운동 정보', 'Apple 건강 연동 켜기'],
+        fallbackNote: "파트너 메뉴에는 Apple 건강이 없어요. '운동 정보'에서도 안 보이면 iPhone 설정 → 개인정보 보호 및 보안 → 건강 → Nike Run Club에서 '데이터 쓰기'를 켜면 돼요.",
         appScheme: 'nikerunclub://',
         storeUrl: 'https://apps.apple.com/kr/app/id387771637',
       },
