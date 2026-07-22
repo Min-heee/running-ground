@@ -38,11 +38,12 @@ test('faster than target: warns about overpace', () => {
   assert.ok(text.includes('오버페이스'));
 });
 
-test('within ±10s tolerance counts as on-pace', () => {
-  // 6'05"/km vs 6'00" target → within tolerance.
+test('within ±10s tolerance the pace segment stays silent', () => {
+  // 6'05"/km vs 6'00" target → within tolerance → no pace callout at all.
   const text = buildSoloCoachAnnouncement(baseConfig(), { elapsedSeconds: 365, distanceKm: 1 });
 
-  assert.ok(text.includes('목표 페이스를 잘 지키고 있어요'));
+  assert.ok(!text.includes('페이스'));
+  assert.ok(text.startsWith('경과 시간'));
 });
 
 test('pace part is skipped before there is enough distance to trust the average', () => {

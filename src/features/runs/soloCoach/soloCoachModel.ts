@@ -146,12 +146,12 @@ export function buildSoloCoachAnnouncement(
     const avgPaceSecPerKm = snapshot.elapsedSeconds / snapshot.distanceKm;
     const diff = Math.round(avgPaceSecPerKm - config.targetPaceSecPerKm);
 
+    // On-pace (within tolerance) stays SILENT on the pace segment — owner call
+    // 2026-07-22: only meaningfully slow/fast deserves a pace callout.
     if (diff > PACE_TOLERANCE_SEC) {
       parts.push(`평균 페이스 ${formatPaceSpoken(avgPaceSecPerKm)}. 목표보다 ${diff}초 느려요. 조금만 속도를 올려봐요!`);
     } else if (diff < -PACE_TOLERANCE_SEC) {
       parts.push(`평균 페이스 ${formatPaceSpoken(avgPaceSecPerKm)}. 목표보다 ${Math.abs(diff)}초 빨라요. 오버페이스 조심하세요.`);
-    } else {
-      parts.push(`평균 페이스 ${formatPaceSpoken(avgPaceSecPerKm)}. 목표 페이스를 잘 지키고 있어요!`);
     }
   }
 
