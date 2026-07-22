@@ -159,6 +159,46 @@ export function getHubLabel(platform: GuidedPlatform): string {
   return platform === 'ios' ? 'Apple 건강' : '헬스 커넥트';
 }
 
+// Which hub records belong to which app. Matched (case-insensitive) against each
+// record's sourceLabel — iOS carries the WRITING app's display name ("Strava",
+// "○○의 Apple Watch", NRC normalized to 'NRC' by the reader), Android the
+// package name ("com.strava", "com.sec.android.app.shealth", …).
+// garmin: the iOS app's display name is just 'Connect', hence the exact-match
+// alternative — a bare /connect/i would swallow Android's 'Health Connect'
+// fallback label.
+const GUIDED_APP_SOURCE_PATTERNS: Record<GuidedAppId, RegExp[]> = {
+  apple_watch: [/apple\s*watch/i],
+  samsung_health: [/samsung|삼성|shealth/i],
+  nrc: [/nrc|nike/i],
+  strava: [/strava/i],
+  garmin: [/garmin/i, /^connect$/i],
+};
+
+export function matchesGuidedAppSource(appId: GuidedAppId, sourceLabel: string | undefined): boolean {
+  if (!sourceLabel) {
+    return false;
+  }
+
+  const label = sourceLabel.trim();
+  return GUIDED_APP_SOURCE_PATTERNS[appId].some((pattern) => pattern.test(label));
+}
+
+export type GuidedImportSourceFilter = {
+  label: string;
+  matches: (sourceLabel: string | undefined) => boolean;
+};
+
+// The filter handed to the device import so step 3 pulls ONLY the selected
+// app's records out of the hub (multiple apps all write into the same hub).
+export function getGuidedImportSourceFilter(appId: GuidedAppId): GuidedImportSourceFilter {
+  const app = getGuidedAppById(appId);
+
+  return {
+    label: app?.label ?? appId,
+    matches: (sourceLabel) => matchesGuidedAppSource(appId, sourceLabel),
+  };
+}
+
 export function getGuidedAppsForPlatform(platform: GuidedPlatform): GuidedApp[] {
   return GUIDED_APPS.filter((app) => app.platforms.includes(platform));
 }
@@ -226,7 +266,7 @@ export function buildGuidedSteps(appId: GuidedAppId, platform: GuidedPlatform): 
     key: 'import',
     number: 0,
     title: '기록 가져오기',
-    description: `${hubLabel}에 쌓인 최근 러닝을 읽어와 바로 반영돼요. 새로 달린 뒤에는 이 버튼만 다시 누르면 돼요.`,
+    description: `${hubLabel}에 쌓인 러닝 중 ${app?.label ?? '선택한 앱'} 기록만 골라와요. 새로 달린 뒤에는 이 버튼만 다시 누르면 돼요.`,
   });
 
   return steps.map((step, index) => ({ ...step, number: index + 1 }));

@@ -5,14 +5,19 @@ import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import { Card } from '@/components/Card';
 import {
   buildGuidedSteps,
+  getGuidedAppById,
   getGuidedAppsForPlatform,
+  getGuidedImportSourceFilter,
   getHubLabel,
   type GuidedAppIcon,
   type GuidedAppId,
   type GuidedPlatform,
   type GuidedStep,
 } from '@/features/integrations/guidedConnect/guidedConnectModel';
-import { requestNativeHealthReadPermission } from '@/integrations/nativeHealth';
+import {
+  requestNativeHealthReadPermission,
+  type NativeHealthSourceFilter,
+} from '@/integrations/nativeHealth';
 import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
 
 type PermissionPhase = 'idle' | 'requesting' | 'done' | 'error';
@@ -47,7 +52,8 @@ function BrandMark({ icon, fallbackColor }: { icon: GuidedAppIcon; fallbackColor
 type GuidedConnectCardProps = {
   platform: GuidedPlatform;
   deviceImporting: boolean;
-  onImportFromDevice: () => void;
+  // Imports ONLY the selected app's hub records (guided step 3).
+  onImportForApp: (sourceFilter: NativeHealthSourceFilter) => void;
 };
 
 // The "어떤 앱으로 달리세요?" guided wizard: pick the app you actually run with →
@@ -57,7 +63,7 @@ type GuidedConnectCardProps = {
 export function GuidedConnectCard({
   platform,
   deviceImporting,
-  onImportFromDevice,
+  onImportForApp,
 }: GuidedConnectCardProps) {
   const apps = useMemo(() => getGuidedAppsForPlatform(platform), [platform]);
   const [selectedAppId, setSelectedAppId] = useState<GuidedAppId | null>(null);
@@ -182,14 +188,16 @@ export function GuidedConnectCard({
                   </>
                 ) : null}
 
-                {step.key === 'import' ? (
+                {step.key === 'import' && selectedAppId ? (
                   <Pressable
                     style={[styles.stepButton, styles.importButton]}
-                    onPress={onImportFromDevice}
+                    onPress={() => onImportForApp(getGuidedImportSourceFilter(selectedAppId))}
                     disabled={deviceImporting}
                   >
                     <Text style={styles.importButtonText}>
-                      {deviceImporting ? '기록 가져오는 중...' : '기기에서 기록 가져오기'}
+                      {deviceImporting
+                        ? '기록 가져오는 중...'
+                        : `${getGuidedAppById(selectedAppId)?.label ?? '선택한 앱'} 기록 가져오기`}
                     </Text>
                   </Pressable>
                 ) : null}

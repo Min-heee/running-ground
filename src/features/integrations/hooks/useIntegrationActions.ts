@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
   NativeHealthImportResult,
+  NativeHealthSourceFilter,
   importRunsFromRecommendedNativeHealthSource,
 } from '@/integrations/nativeHealth';
 import { RunSourceType } from '@/domain';
@@ -40,7 +41,23 @@ function buildDefaultSyncMessage(result: IntegrationSyncResponse) {
   return `총 ${result.importedRuns}개 기록을 새로 반영했고 ${result.duplicateRuns}개는 중복으로 건너뛰었어요.`;
 }
 
+// App-filtered read that matched nothing: the honest message is about the
+// SELECTED app, not permissions — other apps' records were there and skipped.
+function buildAppFilterZeroMatchMessage(result: NativeHealthImportResult) {
+  const excluded = result.excludedBySourceFilter ?? 0;
+
+  if (excluded > 0) {
+    return `${result.sourceLabel}에서 ${result.appFilterLabel} 기록을 찾지 못했어요. 다른 앱 기록 ${excluded}개는 선택한 앱이 아니라서 제외했어요. ${result.appFilterLabel}(으)로 달린 기록이 맞는지 확인해주세요.`;
+  }
+
+  return `${result.sourceLabel}에서 ${result.appFilterLabel} 기록을 찾지 못했어요. ${result.appFilterLabel}(으)로 달린 기록이 허브에 저장됐는지 1단계 설정을 확인해주세요.`;
+}
+
 function buildDefaultDeviceImportMessage(result: NativeHealthImportResult) {
+  if (result.appFilterLabel && result.fetchedRuns === 0) {
+    return buildAppFilterZeroMatchMessage(result);
+  }
+
   if (result.fetchedRuns === 0) {
     return buildZeroImportGuidance();
   }
@@ -52,12 +69,22 @@ function buildDefaultDeviceImportMessage(result: NativeHealthImportResult) {
   }
 
   return appendPreLaunchSkipNotice(
-    `${result.sourceLabel}에서 ${result.fetchedRuns}개 기록을 읽었고, ${result.syncResult?.importedRuns ?? 0}개를 새로 반영했어요.`,
+    `${result.sourceLabel}에서 ${describeImportedBatch(result, result.fetchedRuns)}을 읽었고, ${result.syncResult?.importedRuns ?? 0}개를 새로 반영했어요.`,
     result.skippedPreLaunchRuns,
   );
 }
 
+// '기록 3개' vs '스트라바 기록 3개' — names the selected app when a guided
+// per-app filter produced this batch.
+function describeImportedBatch(result: NativeHealthImportResult, count: number) {
+  return result.appFilterLabel ? `${result.appFilterLabel} 기록 ${count}개` : `기록 ${count}개`;
+}
+
 function buildManagementDeviceImportMessage(result: NativeHealthImportResult) {
+  if (result.appFilterLabel && result.fetchedRuns === 0) {
+    return buildAppFilterZeroMatchMessage(result);
+  }
+
   if (result.fetchedRuns === 0) {
     return buildZeroImportGuidance();
   }
@@ -72,13 +99,13 @@ function buildManagementDeviceImportMessage(result: NativeHealthImportResult) {
 
   if (result.syncResult) {
     return appendPreLaunchSkipNotice(
-      `${result.sourceLabel}에서 ${result.syncResult.importedRuns}개 기록을 새로 반영했어요.`,
+      `${result.sourceLabel}에서 ${describeImportedBatch(result, result.syncResult.importedRuns)}를 새로 반영했어요.`,
       result.skippedPreLaunchRuns,
     );
   }
 
   return appendPreLaunchSkipNotice(
-    `${result.sourceLabel}에서 ${result.fetchedRuns}개 기록을 읽어 가져오기 대기열에 올렸어요.`,
+    `${result.sourceLabel}에서 ${describeImportedBatch(result, result.fetchedRuns)}를 읽어 가져오기 대기열에 올렸어요.`,
     result.skippedPreLaunchRuns,
   );
 }
@@ -198,7 +225,7 @@ export function useIntegrationActions({
     }
   }, [formatSyncMessage, mirrorSyncErrorToActionError, syncErrorMessage]);
 
-  const handleImportFromDevice = useCallback(async () => {
+  const runDeviceImport = useCallback(async (sourceFilter?: NativeHealthSourceFilter) => {
     if (deviceImporting) {
       return;
     }
@@ -210,7 +237,9 @@ export function useIntegrationActions({
     setLastImportResult(null);
 
     try {
-      const result = await importRunsFromRecommendedNativeHealthSource();
+      const result = await importRunsFromRecommendedNativeHealthSource(
+        sourceFilter ? { sourceFilter } : {},
+      );
       setLastImportResult(result);
 
       if (result.syncResult) {
@@ -227,6 +256,16 @@ export function useIntegrationActions({
     }
   }, [deviceImportErrorMessage, deviceImporting, formatDeviceImportMessage]);
 
+  // No-arg wrapper so Pressable onPress can't leak its event object in as a
+  // filter — the unfiltered import keeps its original behavior everywhere.
+  const handleImportFromDevice = useCallback(async () => runDeviceImport(), [runDeviceImport]);
+
+  // Guided-connect step 3: import ONLY the selected app's records from the hub.
+  const handleImportFromDeviceForApp = useCallback(
+    async (sourceFilter: NativeHealthSourceFilter) => runDeviceImport(sourceFilter),
+    [runDeviceImport],
+  );
+
   return {
     actionError,
     actionMessage,
@@ -236,6 +275,7 @@ export function useIntegrationActions({
     handleConnect,
     handleDisconnect,
     handleImportFromDevice,
+    handleImportFromDeviceForApp,
     handleSync,
     integrationStatus,
     lastImportResult,

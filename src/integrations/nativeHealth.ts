@@ -42,12 +42,27 @@ type NativeHealthBridgeModule = {
 export type NativeHealthImportResult = {
   sourceType: NativeHealthSourceType;
   sourceLabel: string;
+  // Post-source-filter count when an app filter was applied — "records that
+  // belong to the selected app", so every downstream message stays per-app.
   fetchedRuns: number;
   queuedRuns: number;
   // Records read off the device but dated before the launch cutoff — never queued
   // (see importCutoff.ts; the server enforces the same cutoff authoritatively).
   skippedPreLaunchRuns: number;
   syncResult: IntegrationSyncResponse | null;
+  // Present when a guided per-app filter ran: the app's display label and how
+  // many hub records were excluded for belonging to OTHER apps.
+  appFilterLabel?: string;
+  excludedBySourceFilter?: number;
+};
+
+// Per-app narrowing for the guided connect flow: multiple apps all write into
+// the one platform hub, so step 3 filters the hub read down to the app the
+// user actually picked. `matches` receives each record's sourceLabel (iOS app
+// display name / Android package name).
+export type NativeHealthSourceFilter = {
+  label: string;
+  matches: (sourceLabel: string | undefined) => boolean;
 };
 
 const PLATFORM_COPY: Record<NativeHealthSourceType, {
@@ -394,6 +409,7 @@ export async function requestNativeHealthReadPermission(): Promise<void> {
 
 export async function importRunsFromNativeHealthSource(
   sourceType: NativeHealthSourceType,
+  options: { sourceFilter?: NativeHealthSourceFilter } = {},
 ): Promise<NativeHealthImportResult> {
   // Gate on platform/runtime eligibility only — NOT on which brand source is
   // connected. Brand apps (NRC / Strava / Garmin / Samsung Health …) write their
@@ -404,7 +420,18 @@ export async function importRunsFromNativeHealthSource(
     throw new Error(eligibility?.blockedReason ?? '이 기기에서는 건강 기록 가져오기를 실행할 수 없어요.');
   }
 
-  const runs = await readRunsFromNativeHealthSource(sourceType);
+  const allRuns = await readRunsFromNativeHealthSource(sourceType);
+
+  const sourceFilter = options.sourceFilter;
+  const runs = sourceFilter
+    ? allRuns.filter((run) => sourceFilter.matches(run.sourceLabel))
+    : allRuns;
+  const appFilterFields = sourceFilter
+    ? {
+      appFilterLabel: sourceFilter.label,
+      excludedBySourceFilter: allRuns.length - runs.length,
+    }
+    : {};
 
   if (runs.length === 0) {
     return {
@@ -414,6 +441,7 @@ export async function importRunsFromNativeHealthSource(
       queuedRuns: 0,
       skippedPreLaunchRuns: 0,
       syncResult: null,
+      ...appFilterFields,
     };
   }
 
@@ -434,6 +462,7 @@ export async function importRunsFromNativeHealthSource(
       queuedRuns: 0,
       skippedPreLaunchRuns,
       syncResult: null,
+      ...appFilterFields,
     };
   }
 
@@ -447,15 +476,18 @@ export async function importRunsFromNativeHealthSource(
     queuedRuns: queueResult.queuedRuns,
     skippedPreLaunchRuns,
     syncResult,
+    ...appFilterFields,
   };
 }
 
-export async function importRunsFromRecommendedNativeHealthSource(): Promise<NativeHealthImportResult> {
+export async function importRunsFromRecommendedNativeHealthSource(
+  options: { sourceFilter?: NativeHealthSourceFilter } = {},
+): Promise<NativeHealthImportResult> {
   const preferredSource = getPreferredNativeHealthSource();
 
   if (!preferredSource) {
     throw new Error('이 기기에서는 건강 기록 가져오기를 실행할 수 없어요.');
   }
 
-  return importRunsFromNativeHealthSource(preferredSource);
+  return importRunsFromNativeHealthSource(preferredSource, options);
 }

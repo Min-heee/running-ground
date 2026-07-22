@@ -70,3 +70,38 @@ test('every route guide ships a store url and a non-empty menu path', () => {
     }
   }
 });
+
+test('source matchers pick the right app records on both platforms', () => {
+  const { matchesGuidedAppSource } = require('./guidedConnectModel') as typeof import('./guidedConnectModel');
+
+  // iOS display names
+  assert.equal(matchesGuidedAppSource('strava', 'Strava'), true);
+  assert.equal(matchesGuidedAppSource('nrc', 'NRC'), true);
+  assert.equal(matchesGuidedAppSource('nrc', 'Nike Run Club'), true);
+  assert.equal(matchesGuidedAppSource('apple_watch', '병희의 Apple Watch'), true);
+  assert.equal(matchesGuidedAppSource('garmin', 'Connect'), true);
+  assert.equal(matchesGuidedAppSource('garmin', 'Garmin Connect'), true);
+
+  // Android package names
+  assert.equal(matchesGuidedAppSource('strava', 'com.strava'), true);
+  assert.equal(matchesGuidedAppSource('nrc', 'com.nike.plusgps'), true);
+  assert.equal(matchesGuidedAppSource('samsung_health', 'com.sec.android.app.shealth'), true);
+  assert.equal(matchesGuidedAppSource('garmin', 'com.garmin.android.apps.connectmobile'), true);
+
+  // Cross-app leakage must not happen
+  assert.equal(matchesGuidedAppSource('strava', 'NRC'), false);
+  assert.equal(matchesGuidedAppSource('apple_watch', 'Strava'), false);
+  // Android's generic 'Health Connect' fallback label belongs to NO app —
+  // garmin's exact-match 'connect' pattern must not swallow it.
+  assert.equal(matchesGuidedAppSource('garmin', 'Health Connect'), false);
+  assert.equal(matchesGuidedAppSource('strava', undefined), false);
+});
+
+test('import source filter carries the app label and matcher', () => {
+  const { getGuidedImportSourceFilter } = require('./guidedConnectModel') as typeof import('./guidedConnectModel');
+  const filter = getGuidedImportSourceFilter('strava');
+
+  assert.equal(filter.label, '스트라바');
+  assert.equal(filter.matches('Strava'), true);
+  assert.equal(filter.matches('병희의 Apple Watch'), false);
+});

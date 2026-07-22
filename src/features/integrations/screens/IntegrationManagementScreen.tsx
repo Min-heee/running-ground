@@ -29,6 +29,7 @@ export default function IntegrationManagementScreen() {
     handleConnect,
     handleDisconnect,
     handleImportFromDevice,
+    handleImportFromDeviceForApp,
     handleSync,
     integrationStatus,
     lastImportResult,
@@ -84,7 +85,7 @@ export default function IntegrationManagementScreen() {
             <GuidedConnectCard
               platform={platform}
               deviceImporting={deviceImporting}
-              onImportFromDevice={handleImportFromDevice}
+              onImportForApp={handleImportFromDeviceForApp}
             />
           ) : null}
 
