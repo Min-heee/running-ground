@@ -7,8 +7,9 @@ import { interpolateGhostDistanceM, type GhostRecord } from './ghostTrackCodec';
 export type GhostRaceConfig = {
   ghost: GhostRecord;
   intervalMinutes: number;
-  // 간격 비교 (핵심), 경과 시간, 거리 진행.
+  // 간격 비교 (핵심), 페이스 비교, 경과 시간, 거리 진행.
   announceGap: boolean;
+  announcePace: boolean;
   announceElapsed: boolean;
   announceDistance: boolean;
 };
@@ -53,7 +54,15 @@ export function buildGhostStartAnnouncement(config: GhostRaceConfig): string {
 export type GhostRaceSnapshot = {
   elapsedSeconds: number;
   distanceKm: number;
+  // Start of the CURRENT feedback window (the previous announcement point) —
+  // lets the pace comparison speak the SEGMENT pace both runners actually ran
+  // during this window, not a whole-run average. Omitted → window starts at 0.
+  windowStartElapsedSec?: number;
+  windowStartDistanceKm?: number;
 };
+
+// Minimum my-progress in a window before a segment pace is trustworthy.
+const MIN_WINDOW_DISTANCE_KM = 0.05;
 
 export function buildGhostRaceAnnouncement(
   config: GhostRaceConfig,
@@ -71,6 +80,23 @@ export function buildGhostRaceAnnouncement(
       parts.push(`과거의 나보다 ${Math.abs(gapM)}미터 뒤처져 있어요. 따라잡아 봐요!`);
     } else {
       parts.push('과거의 나와 나란히 달리고 있어요.');
+    }
+  }
+
+  if (config.announcePace) {
+    const windowStartSec = snapshot.windowStartElapsedSec ?? 0;
+    const windowStartKm = snapshot.windowStartDistanceKm ?? 0;
+    const windowSec = snapshot.elapsedSeconds - windowStartSec;
+    const myWindowKm = snapshot.distanceKm - windowStartKm;
+    const ghostWindowM = interpolateGhostDistanceM(config.ghost, snapshot.elapsedSeconds)
+      - interpolateGhostDistanceM(config.ghost, windowStartSec);
+
+    // Both segment paces must be real: enough of my movement AND the ghost
+    // still moving (a finished ghost has no current pace — gap/finish cover it).
+    if (windowSec > 0 && myWindowKm >= MIN_WINDOW_DISTANCE_KM && ghostWindowM > 1) {
+      const myPace = formatPaceSpoken(windowSec / myWindowKm);
+      const ghostPace = formatPaceSpoken(windowSec / (ghostWindowM / 1000));
+      parts.push(`지금 내 페이스 ${myPace}. 과거의 나는 ${ghostPace}로 달리는 중이에요.`);
     }
   }
 

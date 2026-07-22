@@ -31,6 +31,7 @@ export default function GhostRaceSetupScreen() {
   const [intervalChoice, setIntervalChoice] = useState<number>(2);
   const [customIntervalText, setCustomIntervalText] = useState('');
   const [announceGap, setAnnounceGap] = useState(true);
+  const [announcePace, setAnnouncePace] = useState(true);
   const [announceElapsed, setAnnounceElapsed] = useState(false);
   const [announceDistance, setAnnounceDistance] = useState(true);
 
@@ -60,7 +61,7 @@ export default function GhostRaceSetupScreen() {
 
   const startBlockedReason = !selectedRecord
     ? '대결할 기록을 선택해주세요.'
-    : !announceGap && !announceElapsed && !announceDistance
+    : !announceGap && !announcePace && !announceElapsed && !announceDistance
       ? '알려드릴 항목을 하나 이상 켜주세요.'
       : effectiveIntervalMinutes === null
         ? '피드백 주기를 1분 이상 숫자로 입력해주세요.'
@@ -89,6 +90,7 @@ export default function GhostRaceSetupScreen() {
       ghost: selectedRecord,
       intervalMinutes: effectiveIntervalMinutes,
       announceGap,
+      announcePace,
       announceElapsed,
       announceDistance,
     });
@@ -184,6 +186,12 @@ export default function GhostRaceSetupScreen() {
           caption="과거의 나보다 앞서는지 뒤처지는지 알려드려요."
           value={announceGap}
           onValueChange={setAnnounceGap}
+        />
+        <ToggleRow
+          label="페이스 비교"
+          caption="지금 내 페이스와 과거의 나의 페이스를 비교해드려요."
+          value={announcePace}
+          onValueChange={setAnnouncePace}
         />
         <ToggleRow
           label="경과 시간"

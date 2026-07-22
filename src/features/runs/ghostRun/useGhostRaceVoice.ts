@@ -36,6 +36,10 @@ export function useGhostRaceVoice({
     let nextAnnounceAtSeconds = config.intervalMinutes * 60;
     let finishAnnounced = false;
     let ghostFinishedFirstAnnounced = false;
+    // Previous announcement point — the pace comparison speaks the SEGMENT pace
+    // both runners ran during the window since this point.
+    let windowStartElapsedSec = 0;
+    let windowStartDistanceKm = 0;
 
     void speakLiveGapMessage(buildGhostStartAnnouncement(config));
 
@@ -77,7 +81,11 @@ export function useGhostRaceVoice({
       const announcement = buildGhostRaceAnnouncement(config, {
         elapsedSeconds,
         distanceKm: snapshot.distanceKm,
+        windowStartElapsedSec,
+        windowStartDistanceKm,
       });
+      windowStartElapsedSec = elapsedSeconds;
+      windowStartDistanceKm = snapshot.distanceKm;
 
       if (announcement) {
         void speakLiveGapMessage(announcement);

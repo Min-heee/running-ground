@@ -85,6 +85,7 @@ function raceConfig(overrides: Partial<GhostRaceConfig> = {}): GhostRaceConfig {
     ghost: buildRecord(1800, 5000),
     intervalMinutes: 2,
     announceGap: true,
+    announcePace: false,
     announceElapsed: false,
     announceDistance: false,
     ...overrides,
@@ -105,6 +106,36 @@ test('gap announcements: ahead, behind, and neck-and-neck', () => {
     buildGhostRaceAnnouncement(raceConfig(), { elapsedSeconds: 600, distanceKm: 1.667 })
       .includes('나란히'),
   );
+});
+
+test('pace comparison speaks both SEGMENT paces over the feedback window', () => {
+  // Window 600→720s: I covered 0.4km (5'00"/km); the steady ghost ran 6'00"/km.
+  const text = buildGhostRaceAnnouncement(
+    raceConfig({ announceGap: false, announcePace: true }),
+    {
+      elapsedSeconds: 720,
+      distanceKm: 2.4,
+      windowStartElapsedSec: 600,
+      windowStartDistanceKm: 2.0,
+    },
+  );
+
+  assert.ok(text.includes('지금 내 페이스 5분.'), text);
+  assert.ok(text.includes('과거의 나는 6분'), text);
+});
+
+test('pace comparison stays silent once the ghost has finished', () => {
+  const text = buildGhostRaceAnnouncement(
+    raceConfig({ announceGap: false, announcePace: true }),
+    {
+      elapsedSeconds: 2000,
+      distanceKm: 4.8,
+      windowStartElapsedSec: 1900,
+      windowStartDistanceKm: 4.5,
+    },
+  );
+
+  assert.equal(text, '');
 });
 
 test('finish verdict compares my elapsed to the ghost duration', () => {
