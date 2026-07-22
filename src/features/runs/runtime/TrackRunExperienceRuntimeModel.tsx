@@ -115,6 +115,8 @@ import { useRuntimeMatchRoomHydration } from '@/features/runs/runtime/useRuntime
 import { useTrackRunRuntimeScreenState } from '@/features/runs/runtime/useTrackRunRuntimeScreenState';
 import { useTrackRunRuntimePropsComposer } from '@/features/runs/runtime/useTrackRunRuntimePropsComposer';
 import { useLiveActivityBridge } from '@/features/runs/liveActivity/useLiveActivityBridge';
+import { useSoloCoachAutoStart } from '@/features/runs/soloCoach/useSoloCoachAutoStart';
+import { useSoloCoachVoice } from '@/features/runs/soloCoach/useSoloCoachVoice';
 import {
   MATCH_ROOM_FAST_POLL_MS,
   MATCH_ROOM_IDLE_POLL_MS,
@@ -2089,6 +2091,22 @@ export function TrackRunExperienceRuntime({
   const {
     handleReadyAction,
   } = trackRunActionHandlers;
+
+  // 페이스메이커 (solo voice coach): the 대기방 arms a config + auto-start; the
+  // auto-start hook flips to solo and fires the same ready action the 러닝 시작
+  // button uses, and the voice hook speaks periodic pace/time/distance feedback
+  // off the tracking snapshot commits (same TTS pipeline as the match gap voice,
+  // so it works screen-off). Both no-op without an armed config.
+  useSoloCoachAutoStart({
+    isRunning,
+    matchMode,
+    setMatchMode,
+    onReadyAction: handleReadyAction,
+  });
+  useSoloCoachVoice({
+    isRunning,
+    matchMode,
+  });
 
   const liveContainerProps = useLiveMatchRuntimeModel({
     actionHandlers: trackRunActionHandlers,
