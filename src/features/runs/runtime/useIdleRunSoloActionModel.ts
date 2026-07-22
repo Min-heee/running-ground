@@ -10,6 +10,7 @@ type UseIdleRunSoloActionModelInput = Pick<
   UseIdleRunRuntimeModelInput,
   | 'bottomInset'
   | 'cancelingUpcomingMatchId'
+  | 'matchMode'
   | 'onCancelUpcomingMatch'
   | 'onOpenUpcomingMatch'
   | 'onReadyAction'
@@ -25,6 +26,7 @@ type UseIdleRunSoloActionModelInput = Pick<
 export function useIdleRunSoloActionModel({
   bottomInset,
   cancelingUpcomingMatchId,
+  matchMode,
   matchSetupProps,
   onCancelUpcomingMatch,
   onOpenUpcomingMatch,
@@ -57,8 +59,11 @@ export function useIdleRunSoloActionModel({
     readyActionLoadingLabel,
     readyActionDisabled,
     onReadyAction,
+    // 페이스메이커 is a solo-only flow — hide the entry in duel/group/party.
+    showSoloCoachEntry: matchMode === 'solo',
   }), [
     bottomInset,
+    matchMode,
     matchSetupProps,
     onReadyAction,
     readyActionDisabled,

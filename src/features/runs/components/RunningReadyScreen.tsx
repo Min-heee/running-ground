@@ -15,6 +15,8 @@ type RunningReadyScreenProps = {
   readyActionLoadingLabel?: string;
   readyActionDisabled?: boolean;
   onReadyAction: () => void;
+  // 페이스메이커 entry — solo mode only (hidden for duel/group/party).
+  showSoloCoachEntry?: boolean;
 };
 
 export function RunningReadyScreen({
@@ -25,6 +27,7 @@ export function RunningReadyScreen({
   readyActionLoadingLabel,
   readyActionDisabled = false,
   onReadyAction,
+  showSoloCoachEntry = false,
 }: RunningReadyScreenProps) {
   const readyCardStyle: ViewStyle = {
     paddingBottom: 18 + Math.max(bottomInset, 10),
@@ -44,15 +47,17 @@ export function RunningReadyScreen({
       ) : null}
 
       {/* 페이스메이커 대기방 진입 (오너 요청 2026-07-22): 목표 페이스/거리/시간을
-          정하고 음성 코칭과 함께 솔로 러닝을 시작하는 흐름. */}
-      <Pressable
-        style={styles.coachButton}
-        onPress={() => router.push('/solo-coach' as never)}
-        accessibilityRole="button"
-      >
-        <Text style={styles.coachButtonText}>🎧 페이스메이커와 달리기</Text>
-        <Text style={styles.coachButtonCaption}>목표 페이스를 정하면 달리는 동안 음성으로 잡아드려요</Text>
-      </Pressable>
+          정하고 음성 코칭과 함께 달리는 솔로 전용 흐름 — 혼자러닝 모드에서만 노출. */}
+      {showSoloCoachEntry ? (
+        <Pressable
+          style={styles.coachButton}
+          onPress={() => router.push('/solo-coach' as never)}
+          accessibilityRole="button"
+        >
+          <Text style={styles.coachButtonText}>🎧 페이스메이커와 달리기</Text>
+          <Text style={styles.coachButtonCaption}>목표 페이스를 정하면 달리는 동안 음성으로 잡아드려요</Text>
+        </Pressable>
+      ) : null}
     </Card>
   );
 }
