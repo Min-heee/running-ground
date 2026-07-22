@@ -89,10 +89,20 @@ const GUIDED_APPS: GuidedApp[] = [
       // '응용 프로그램, 서비스 및 기기' menu is gone; app/device connections now
       // live under the ACCOUNT section. (설정의 'Health Data' 항목은 Apple 건강
       // 연동이 아니라 스트라바 자체 심박 데이터 수집 동의 — 안내에서 제외.)
+      // 2026-07 Strava iOS Health Settings (owner screenshots): 'Send to Health'가
+      // 스트라바→건강 자동 저장 토글. 'Automatic uploads'는 반대 방향(건강→스트라바)
+      // 이라 우리 플로우엔 불필요 — 안내에서 제외.
       ios: {
-        summary: '스트라바가 활동을 Apple 건강으로 보내도록 연결해주세요.',
-        menuPath: ['스트라바 앱', '나(You) 탭', '설정', '앱 및 기기 관리(Manage apps and devices)', '건강(Health) 연결'],
-        fallbackNote: "메뉴가 안 보이면 iPhone 설정 → 개인정보 보호 및 보안 → 건강 → Strava에서 '데이터 쓰기'를 켜도 돼요.",
+        summary: "건강 설정에서 'Send to Health'를 켜면 스트라바 활동이 자동으로 Apple 건강에 저장돼요.",
+        menuPath: [
+          '스트라바 앱',
+          '나(You) 탭',
+          '설정',
+          '앱 및 기기 관리(Manage apps and devices)',
+          '건강(Health)',
+          "'Send to Health(건강으로 자동 전송)' 켜기",
+        ],
+        fallbackNote: "메뉴가 안 보이면 iPhone 설정 → 개인정보 보호 및 보안 → 건강 → Strava에서 '데이터 쓰기'를 켜도 돼요. 이미 켜져 있다면 그대로 두면 돼요.",
         appScheme: 'strava://',
         storeUrl: 'https://apps.apple.com/kr/app/id426826309',
       },
