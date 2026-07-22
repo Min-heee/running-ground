@@ -1,10 +1,6 @@
 import { Platform } from 'react-native';
 
-import {
-  appendPreLaunchSkipNotice,
-  buildAllPreLaunchImportMessage,
-  didSkipAllFetchedRunsAsPreLaunch,
-} from '@/integrations/importCutoff';
+import { didSkipAllFetchedRunsAsPreLaunch } from '@/integrations/importCutoff';
 import type { NativeHealthImportResult } from '@/integrations/nativeHealth';
 import type { IntegrationSyncResponse } from '@/lib/api/types';
 
@@ -38,40 +34,34 @@ export function buildSyncSummary(result: IntegrationSyncResponse) {
   return `${result.syncedSources}개 소스를 확인했지만 아직 새로 반영할 기록은 없었어요.`;
 }
 
+// NOTE: this hint renders in the 진단 card DIRECTLY BELOW the 최근 연동 결과
+// message, and that message already carries the pre-launch-cutoff notice
+// (appendPreLaunchSkipNotice in the action-message builders). The hint
+// therefore states only the mechanical status and never repeats the notice —
+// the owner flagged the duplicated sentence (2026-07-22).
 export function buildImportDiagnosisHint(result: NativeHealthImportResult) {
   if (result.fetchedRuns === 0) {
     return buildZeroImportGuidance();
   }
 
   // Every fetched record predates the launch cutoff: the honest reason is the
-  // cutoff, not permissions — never send the user to 설정 for this case.
+  // cutoff, not permissions — never send the user to 설정 for this case. Short
+  // form only; the full cutoff explanation lives in the result message above.
   if (didSkipAllFetchedRunsAsPreLaunch(result)) {
-    return buildAllPreLaunchImportMessage(result.skippedPreLaunchRuns);
+    return '읽은 기록이 모두 출시 이전 날짜라 반영 대상이 없었어요.';
   }
 
   if (!result.syncResult) {
-    return appendPreLaunchSkipNotice(
-      '기기에서 읽은 기록을 가져오기 대기열에 올려둔 상태예요. 이어서 동기화가 돌아야 실제 기록으로 보이게 돼요.',
-      result.skippedPreLaunchRuns,
-    );
+    return '기기에서 읽은 기록을 가져오기 대기열에 올려둔 상태예요. 이어서 동기화가 돌아야 실제 기록으로 보이게 돼요.';
   }
 
   if (result.syncResult.importedRuns === 0 && result.syncResult.duplicateRuns > 0) {
-    return appendPreLaunchSkipNotice(
-      '이번 기록은 이미 들어와 있어서 중복 방지 규칙에 따라 건너뛴 상태예요.',
-      result.skippedPreLaunchRuns,
-    );
+    return '이번 기록은 이미 들어와 있어서 중복 방지 규칙에 따라 건너뛴 상태예요.';
   }
 
   if (result.syncResult.importedRuns > 0) {
-    return appendPreLaunchSkipNotice(
-      '기기에서 읽은 기록이 실제 러닝 기록으로 정상 반영됐어요.',
-      result.skippedPreLaunchRuns,
-    );
+    return '기기에서 읽은 기록이 실제 러닝 기록으로 정상 반영됐어요.';
   }
 
-  return appendPreLaunchSkipNotice(
-    '기록을 확인했지만 아직 반영할 새 변화는 없었어요.',
-    result.skippedPreLaunchRuns,
-  );
+  return '기록을 확인했지만 아직 반영할 새 변화는 없었어요.';
 }
