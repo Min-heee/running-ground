@@ -155,7 +155,7 @@ export function GuidedConnectCard({
                       <Text style={styles.fallbackNote}>{step.fallbackNote}</Text>
                     ) : null}
                     <Pressable style={styles.stepButton} onPress={() => handleOpenApp(step)}>
-                      <Text style={styles.stepButtonText}>앱 열기</Text>
+                      <Text style={styles.stepButtonText}>{step.openLabel ?? '앱 열기'}</Text>
                     </Pressable>
                   </>
                 ) : null}

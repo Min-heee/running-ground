@@ -23,6 +23,10 @@ type GuideInstruction = {
   // Custom URL scheme to jump straight into the app. Omitted when the scheme is
   // not reliably known — the store link below still opens/installs the app.
   appScheme?: string;
+  // Label for the open button when it doesn't open the brand app itself
+  // (e.g. NRC's setup happens in the iOS 건강 permissions, so the button opens
+  // the 건강 앱). Defaults to '앱 열기'.
+  openLabel?: string;
   storeUrl: string;
 };
 
@@ -73,14 +77,17 @@ const GUIDED_APPS: GuidedApp[] = [
     icon: { kind: 'image', asset: 'nike' },
     platforms: ['ios', 'android'],
     routeGuide: {
-      // 2026-07 NRC iOS (owner screenshots): 프로필은 왼쪽 상단이고, 파트너
-      // 메뉴에는 Apple 건강이 없다 (Garmin/COROS/NTC뿐) — 건강 연동은 설정의
-      // '운동 정보' 쪽. OS 폴백 경로가 항상 통하므로 그쪽을 강조.
+      // 2026-07 NRC iOS (owner-verified, two screenshot rounds): the app has NO
+      // in-app Apple-Health menu anymore — 파트너 lists Garmin/COROS/NTC only,
+      // and '운동 정보' is Nike's own data-collection consent. The health link
+      // is managed ENTIRELY by the iOS permission switch, so that OS path IS
+      // the primary path and the open button targets the 건강 앱.
       ios: {
-        summary: 'NRC가 러닝을 Apple 건강에 저장하도록 켜주세요.',
-        menuPath: ['NRC 앱', '왼쪽 상단 프로필', '설정', '운동 정보', 'Apple 건강 연동 켜기'],
-        fallbackNote: "파트너 메뉴에는 Apple 건강이 없어요. '운동 정보'에서도 안 보이면 iPhone 설정 → 개인정보 보호 및 보안 → 건강 → Nike Run Club에서 '데이터 쓰기'를 켜면 돼요.",
-        appScheme: 'nikerunclub://',
+        summary: 'NRC는 앱 안에 건강 연동 메뉴가 없어요. iPhone의 건강 권한에서 켜주세요.',
+        menuPath: ['iPhone 설정', '개인정보 보호 및 보안', '건강', 'Nike Run Club', "'데이터 쓰기' 모두 켜기"],
+        fallbackNote: '목록에 Nike Run Club이 없으면 NRC로 러닝을 한 번 기록하면 나타나요. 건강 앱 → 프로필 → 앱에서도 같은 설정을 할 수 있어요.',
+        appScheme: 'x-apple-health://',
+        openLabel: '건강 앱 열기',
         storeUrl: 'https://apps.apple.com/kr/app/id387771637',
       },
       android: {
@@ -173,6 +180,8 @@ export type GuidedStep = {
   // route step only — the version-proof OS-level alternative path.
   fallbackNote?: string;
   appScheme?: string;
+  // Open-button label override (default '앱 열기').
+  openLabel?: string;
   storeUrl?: string;
 };
 
@@ -194,6 +203,7 @@ export function buildGuidedSteps(appId: GuidedAppId, platform: GuidedPlatform): 
       menuPathText: instruction.menuPath.join(' → '),
       fallbackNote: instruction.fallbackNote,
       appScheme: instruction.appScheme,
+      openLabel: instruction.openLabel,
       storeUrl: instruction.storeUrl,
     });
   } else if (app && app.id === 'apple_watch') {
