@@ -22,28 +22,27 @@ function baseConfig(overrides: Partial<SoloCoachConfig> = {}): SoloCoachConfig {
   };
 }
 
-test('slower than target: says how many seconds behind and encourages', () => {
+test('slower than target: facts only — avg pace + seconds behind', () => {
   // 10 min for 1.5km → avg 400s/km vs target 360 → 40s slow.
   const text = buildSoloCoachAnnouncement(baseConfig(), { elapsedSeconds: 600, distanceKm: 1.5 });
 
-  assert.ok(text.includes('목표보다 40초 느려요'));
-  assert.ok(text.includes('속도를 올려봐요'));
+  assert.ok(text.startsWith('평균 페이스 6분 40초. 목표보다 40초 느려요.'));
+  assert.ok(!text.includes('속도를 올려봐요'));
 });
 
-test('faster than target: warns about overpace', () => {
+test('faster than target: facts only — avg pace + seconds ahead', () => {
   // 10 min for 2km → avg 300s/km vs target 360 → 60s fast.
   const text = buildSoloCoachAnnouncement(baseConfig(), { elapsedSeconds: 600, distanceKm: 2 });
 
-  assert.ok(text.includes('목표보다 60초 빨라요'));
-  assert.ok(text.includes('오버페이스'));
+  assert.ok(text.startsWith('평균 페이스 5분. 목표보다 60초 빨라요.'));
+  assert.ok(!text.includes('오버페이스'));
 });
 
-test('within ±10s tolerance the pace segment stays silent', () => {
-  // 6'05"/km vs 6'00" target → within tolerance → no pace callout at all.
+test('tiny differences are still spoken in seconds', () => {
+  // 6'05"/km vs 6'00" target → 5s slow, spoken (no silent tolerance band).
   const text = buildSoloCoachAnnouncement(baseConfig(), { elapsedSeconds: 365, distanceKm: 1 });
 
-  assert.ok(!text.includes('페이스'));
-  assert.ok(text.startsWith('경과 시간'));
+  assert.ok(text.startsWith('평균 페이스 6분 5초. 목표보다 5초 느려요.'));
 });
 
 test('pace part is skipped before there is enough distance to trust the average', () => {

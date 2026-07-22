@@ -105,8 +105,6 @@ export function applyGoalEdit(state: GoalState, field: GoalField, rawValue: numb
 
 // Under this distance the average pace is GPS noise, not a pace — skip coaching.
 const MIN_DISTANCE_FOR_PACE_KM = 0.15;
-// Within ±10s/km of target counts as on-pace.
-const PACE_TOLERANCE_SEC = 10;
 
 export function formatPaceSpoken(secPerKm: number): string {
   const total = Math.max(0, Math.round(secPerKm));
@@ -146,12 +144,14 @@ export function buildSoloCoachAnnouncement(
     const avgPaceSecPerKm = snapshot.elapsedSeconds / snapshot.distanceKm;
     const diff = Math.round(avgPaceSecPerKm - config.targetPaceSecPerKm);
 
-    // On-pace (within tolerance) stays SILENT on the pace segment — owner call
-    // 2026-07-22: only meaningfully slow/fast deserves a pace callout.
-    if (diff > PACE_TOLERANCE_SEC) {
-      parts.push(`평균 페이스 ${formatPaceSpoken(avgPaceSecPerKm)}. 목표보다 ${diff}초 느려요. 조금만 속도를 올려봐요!`);
-    } else if (diff < -PACE_TOLERANCE_SEC) {
-      parts.push(`평균 페이스 ${formatPaceSpoken(avgPaceSecPerKm)}. 목표보다 ${Math.abs(diff)}초 빨라요. 오버페이스 조심하세요.`);
+    // Facts only (owner format 2026-07-22): 평균 페이스 + 목표 대비 초 차이.
+    // No coaching tails, and the difference is spoken even when tiny.
+    if (diff > 0) {
+      parts.push(`평균 페이스 ${formatPaceSpoken(avgPaceSecPerKm)}. 목표보다 ${diff}초 느려요.`);
+    } else if (diff < 0) {
+      parts.push(`평균 페이스 ${formatPaceSpoken(avgPaceSecPerKm)}. 목표보다 ${Math.abs(diff)}초 빨라요.`);
+    } else {
+      parts.push(`평균 페이스 ${formatPaceSpoken(avgPaceSecPerKm)}. 목표 페이스와 같아요.`);
     }
   }
 
