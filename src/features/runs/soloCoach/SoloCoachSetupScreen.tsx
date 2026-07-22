@@ -104,12 +104,24 @@ export default function SoloCoachSetupScreen() {
             value={paceMinutes}
             onDecrease={() => editGoal('pace', goal.paceSecPerKm - 60)}
             onIncrease={() => editGoal('pace', goal.paceSecPerKm + 60)}
+            onCommitText={(text) => {
+              const minutes = Number.parseInt(text, 10);
+              if (Number.isFinite(minutes)) {
+                editGoal('pace', minutes * 60 + paceSeconds);
+              }
+            }}
           />
           <Stepper
             label="초"
             value={paceSeconds}
-            onDecrease={() => editGoal('pace', goal.paceSecPerKm - 15)}
-            onIncrease={() => editGoal('pace', goal.paceSecPerKm + 15)}
+            onDecrease={() => editGoal('pace', Math.round(goal.paceSecPerKm) - 1)}
+            onIncrease={() => editGoal('pace', Math.round(goal.paceSecPerKm) + 1)}
+            onCommitText={(text) => {
+              const seconds = Number.parseInt(text, 10);
+              if (Number.isFinite(seconds)) {
+                editGoal('pace', paceMinutes * 60 + Math.min(59, Math.max(0, seconds)));
+              }
+            }}
           />
           <View style={styles.goalSummary}>
             <Text style={styles.goalSummaryValue}>
@@ -128,6 +140,13 @@ export default function SoloCoachSetupScreen() {
             value={Number((Math.round(goal.distanceKm * 10) / 10).toFixed(1))}
             onDecrease={() => editGoal('distance', goal.distanceKm - 0.5)}
             onIncrease={() => editGoal('distance', goal.distanceKm + 0.5)}
+            allowDecimal
+            onCommitText={(text) => {
+              const km = Number.parseFloat(text);
+              if (Number.isFinite(km)) {
+                editGoal('distance', km);
+              }
+            }}
           />
           <View style={styles.goalSummary}>
             <Text style={styles.goalSummaryValue}>{(Math.round(goal.distanceKm * 10) / 10).toFixed(1)}km</Text>
@@ -143,6 +162,12 @@ export default function SoloCoachSetupScreen() {
             value={timeMinutesRounded}
             onDecrease={() => editGoal('time', (timeMinutesRounded - 1) * 60)}
             onIncrease={() => editGoal('time', (timeMinutesRounded + 1) * 60)}
+            onCommitText={(text) => {
+              const minutes = Number.parseInt(text, 10);
+              if (Number.isFinite(minutes)) {
+                editGoal('time', minutes * 60);
+              }
+            }}
           />
           <View style={styles.goalSummary}>
             <Text style={styles.goalSummaryValue}>{formatTimeLabel(goal.timeSec)}</Text>
@@ -229,17 +254,34 @@ function GoalHeader({ title, derived }: { title: string; derived: boolean }) {
   );
 }
 
+// The middle number is TAPPABLE (owner request 2026-07-22): tapping switches it
+// to a numeric field so the value can be typed directly; blur/submit commits
+// through the same goal-edit path the +/- buttons use (clamped by the model).
 function Stepper({
   label,
   value,
   onDecrease,
   onIncrease,
+  onCommitText,
+  allowDecimal = false,
 }: {
   label: string;
   value: number;
   onDecrease: () => void;
   onIncrease: () => void;
+  onCommitText?: (text: string) => void;
+  allowDecimal?: boolean;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const commit = () => {
+    setEditing(false);
+    if (onCommitText && draft.trim()) {
+      onCommitText(draft.trim());
+    }
+  };
+
   return (
     <View style={styles.stepper}>
       <Text style={styles.stepperLabel}>{label}</Text>
@@ -247,7 +289,35 @@ function Stepper({
         <Pressable style={styles.stepperButton} onPress={onDecrease} accessibilityRole="button">
           <Text style={styles.stepperButtonText}>−</Text>
         </Pressable>
-        <Text style={styles.stepperValue}>{value}</Text>
+        {editing && onCommitText ? (
+          <TextInput
+            value={draft}
+            onChangeText={(text) => setDraft(
+              allowDecimal
+                ? text.replace(/[^0-9.]/g, '')
+                : text.replace(/[^0-9]/g, ''),
+            )}
+            keyboardType={allowDecimal ? 'decimal-pad' : 'number-pad'}
+            style={styles.stepperInput}
+            autoFocus
+            selectTextOnFocus
+            maxLength={5}
+            onBlur={commit}
+            onSubmitEditing={commit}
+          />
+        ) : (
+          <Pressable
+            onPress={onCommitText
+              ? () => {
+                setDraft(String(value));
+                setEditing(true);
+              }
+              : undefined}
+            accessibilityRole={onCommitText ? 'button' : undefined}
+          >
+            <Text style={styles.stepperValue}>{value}</Text>
+          </Pressable>
+        )}
         <Pressable style={styles.stepperButton} onPress={onIncrease} accessibilityRole="button">
           <Text style={styles.stepperButtonText}>＋</Text>
         </Pressable>
@@ -382,6 +452,19 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.summaryValue,
     fontWeight: fontWeights.extraBold,
     minWidth: 40,
+    textAlign: 'center',
+  },
+  stepperInput: {
+    backgroundColor: colors.surfaceSubtleAlt,
+    borderColor: colors.brand,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    color: colors.textPrimary,
+    fontSize: fontSizes.summaryValue,
+    fontWeight: fontWeights.extraBold,
+    minWidth: 64,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.xs,
     textAlign: 'center',
   },
   chipRow: {
