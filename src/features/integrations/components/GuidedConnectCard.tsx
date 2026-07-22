@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import {
   buildGuidedSteps,
   getGuidedAppsForPlatform,
   getHubLabel,
+  type GuidedAppIcon,
   type GuidedAppId,
   type GuidedPlatform,
   type GuidedStep,
@@ -14,6 +16,33 @@ import { requestNativeHealthReadPermission } from '@/integrations/nativeHealth';
 import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
 
 type PermissionPhase = 'idle' | 'requesting' | 'done' | 'error';
+
+// White-on-transparent glyph PNGs, recolored at render time via tintColor —
+// brands the bundled icon fonts don't carry (see GuidedAppIcon).
+const BRAND_IMAGE_ASSETS = {
+  nike: require('../../../../assets/branding/brand-nike.png'),
+  garmin: require('../../../../assets/branding/brand-garmin.png'),
+} as const;
+
+const BRAND_ICON_SIZE = 15;
+
+function BrandMark({ icon, fallbackColor }: { icon: GuidedAppIcon; fallbackColor: string }) {
+  if (icon.kind === 'fa5') {
+    return <FontAwesome5 name={icon.name} brand size={BRAND_ICON_SIZE} color={icon.color ?? fallbackColor} />;
+  }
+
+  if (icon.kind === 'mci') {
+    return <MaterialCommunityIcons name={icon.name as never} size={BRAND_ICON_SIZE + 1} color={icon.color ?? fallbackColor} />;
+  }
+
+  return (
+    <Image
+      source={BRAND_IMAGE_ASSETS[icon.asset]}
+      style={{ width: BRAND_ICON_SIZE, height: BRAND_ICON_SIZE, tintColor: icon.tint ?? fallbackColor }}
+      resizeMode="contain"
+    />
+  );
+}
 
 type GuidedConnectCardProps = {
   platform: GuidedPlatform;
@@ -96,8 +125,12 @@ export function GuidedConnectCard({
               accessibilityRole="button"
               accessibilityState={{ selected }}
             >
+              <BrandMark
+                icon={app.icon}
+                fallbackColor={selected ? colors.brand : colors.textPrimary}
+              />
               <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
-                {app.emoji} {app.label}
+                {app.label}
               </Text>
             </Pressable>
           );
@@ -188,10 +221,13 @@ const styles = StyleSheet.create({
     gap: spacing.xxl,
   },
   chip: {
+    alignItems: 'center',
     backgroundColor: colors.surfaceSubtleAlt,
     borderColor: colors.borderMuted,
     borderRadius: radii.pill,
     borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.lg,
     paddingHorizontal: spacing.s14,
     paddingVertical: spacing.s10,
   },

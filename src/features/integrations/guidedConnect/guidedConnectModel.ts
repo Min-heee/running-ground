@@ -26,10 +26,19 @@ type GuideInstruction = {
   storeUrl: string;
 };
 
+// Brand mark for the app chip. Icon-font glyphs where the bundled fonts have
+// them (apple/strava in FontAwesome5 Brands), tintable white-on-transparent
+// PNG assets where they don't (nike/garmin — assets/branding/brand-*.png,
+// OTA-shippable). color/tint omitted → the chip's current text color.
+export type GuidedAppIcon =
+  | { kind: 'fa5'; name: string; color?: string }
+  | { kind: 'mci'; name: string; color?: string }
+  | { kind: 'image'; asset: 'nike' | 'garmin'; tint?: string };
+
 export type GuidedApp = {
   id: GuidedAppId;
   label: string;
-  emoji: string;
+  icon: GuidedAppIcon;
   platforms: GuidedPlatform[];
   // Per-platform instructions for routing the app's workouts into the hub.
   // null → nothing to set up (the watch writes to the hub automatically).
@@ -40,7 +49,7 @@ const GUIDED_APPS: GuidedApp[] = [
   {
     id: 'apple_watch',
     label: '애플워치',
-    emoji: '⌚',
+    icon: { kind: 'fa5', name: 'apple' },
     platforms: ['ios'],
     // Watch workouts land in Apple 건강 automatically — no routing step.
     routeGuide: null,
@@ -48,7 +57,7 @@ const GUIDED_APPS: GuidedApp[] = [
   {
     id: 'samsung_health',
     label: '삼성헬스·갤럭시워치',
-    emoji: '⌚',
+    icon: { kind: 'mci', name: 'heart-pulse', color: '#F0437F' },
     platforms: ['android'],
     routeGuide: {
       android: {
@@ -61,7 +70,7 @@ const GUIDED_APPS: GuidedApp[] = [
   {
     id: 'nrc',
     label: '나이키 런 클럽',
-    emoji: '👟',
+    icon: { kind: 'image', asset: 'nike' },
     platforms: ['ios', 'android'],
     routeGuide: {
       ios: {
@@ -82,7 +91,7 @@ const GUIDED_APPS: GuidedApp[] = [
   {
     id: 'strava',
     label: '스트라바',
-    emoji: '🏃',
+    icon: { kind: 'fa5', name: 'strava', color: '#FC4C02' },
     platforms: ['ios', 'android'],
     routeGuide: {
       // Menu verified on the 2026-07 Strava iOS build (owner screenshots): the old
@@ -117,7 +126,7 @@ const GUIDED_APPS: GuidedApp[] = [
   {
     id: 'garmin',
     label: '가민',
-    emoji: '⌚',
+    icon: { kind: 'image', asset: 'garmin', tint: '#007CC3' },
     platforms: ['ios', 'android'],
     routeGuide: {
       ios: {
