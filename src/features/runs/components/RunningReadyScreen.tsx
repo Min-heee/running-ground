@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -55,12 +55,10 @@ export function RunningReadyScreen({
       {showSoloCoachEntry ? (
         <>
           <SoloFeatureRow
-            icon={<Feather name="headphones" size={16} color={fixedColors.white} />}
             label="페이스메이커와 달리기"
             onPress={() => router.push('/solo-coach' as never)}
           />
           <SoloFeatureRow
-            icon={<MaterialCommunityIcons name="flag-checkered" size={16} color={fixedColors.white} />}
             label="자신과 대결"
             onPress={() => router.push('/ghost-run' as never)}
           />
@@ -70,14 +68,12 @@ export function RunningReadyScreen({
   );
 }
 
-// Modern-simple solo feature row: brand icon chip · left label · chevron, on a
-// glassy translucent fill over the fixed dark ready card (owner ask 2026-07-22).
+// Modern-simple solo feature row: a thin brand accent bar · left label ·
+// chevron, on a glassy translucent fill over the fixed dark ready card.
 function SoloFeatureRow({
-  icon,
   label,
   onPress,
 }: {
-  icon: React.ReactNode;
   label: string;
   onPress: () => void;
 }) {
@@ -87,7 +83,7 @@ function SoloFeatureRow({
       onPress={onPress}
       accessibilityRole="button"
     >
-      <View style={styles.featureIconChip}>{icon}</View>
+      <View style={styles.featureAccentBar} />
       <Text style={styles.featureLabel}>{label}</Text>
       <Feather name="chevron-right" size={18} color="rgba(255, 255, 255, 0.45)" />
     </Pressable>
@@ -116,13 +112,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(109, 94, 247, 0.28)',
     borderColor: fixedColors.brand,
   },
-  featureIconChip: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(109, 94, 247, 0.55)',
-    borderRadius: 10,
-    height: 32,
-    justifyContent: 'center',
-    width: 32,
+  featureAccentBar: {
+    backgroundColor: fixedColors.brand,
+    borderRadius: 2,
+    height: 18,
+    width: 3,
   },
   featureLabel: {
     color: fixedColors.white,
