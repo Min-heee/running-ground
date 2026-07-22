@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
 
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
-import { consumeSoloCoachAutoStart, hasPendingSoloCoachAutoStart } from './soloCoachStore';
+import { consumeSoloRunAutoStart, hasPendingSoloRunAutoStart } from './soloAutoStartStore';
 
-// After the 대기방 arms a coach config and navigates to the 러닝 탭, this hook
-// starts the solo run automatically: flip to solo mode if needed, then fire the
-// same ready action the 러닝 시작 button uses. The pending flag is consumed
-// exactly once and expires after 30s, so it can only ever fire on the
-// navigation it was armed for.
+// After a 대기방 (페이스메이커 OR 나와의 대결) arms its config and navigates to
+// the 러닝 탭, this hook starts the solo run automatically: flip to solo mode
+// if needed, then fire the same ready action the 러닝 시작 button uses. The
+// pending flag is consumed exactly once and expires after 30s, so it can only
+// ever fire on the navigation it was armed for.
 export function useSoloCoachAutoStart({
   isRunning,
   matchMode,
@@ -20,7 +20,7 @@ export function useSoloCoachAutoStart({
   onReadyAction: () => void;
 }) {
   useEffect(() => {
-    if (isRunning || !hasPendingSoloCoachAutoStart()) {
+    if (isRunning || !hasPendingSoloRunAutoStart()) {
       return;
     }
 
@@ -31,7 +31,7 @@ export function useSoloCoachAutoStart({
       return;
     }
 
-    if (consumeSoloCoachAutoStart()) {
+    if (consumeSoloRunAutoStart()) {
       onReadyAction();
     }
   }, [isRunning, matchMode, onReadyAction, setMatchMode]);

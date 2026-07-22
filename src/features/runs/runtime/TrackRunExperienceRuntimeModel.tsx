@@ -115,6 +115,8 @@ import { useRuntimeMatchRoomHydration } from '@/features/runs/runtime/useRuntime
 import { useTrackRunRuntimeScreenState } from '@/features/runs/runtime/useTrackRunRuntimeScreenState';
 import { useTrackRunRuntimePropsComposer } from '@/features/runs/runtime/useTrackRunRuntimePropsComposer';
 import { useLiveActivityBridge } from '@/features/runs/liveActivity/useLiveActivityBridge';
+import { useGhostRaceVoice } from '@/features/runs/ghostRun/useGhostRaceVoice';
+import { useSoloGhostRecorder } from '@/features/runs/ghostRun/useSoloGhostRecorder';
 import { useSoloCoachAutoStart } from '@/features/runs/soloCoach/useSoloCoachAutoStart';
 import { useSoloCoachVoice } from '@/features/runs/soloCoach/useSoloCoachVoice';
 import {
@@ -2104,6 +2106,16 @@ export function TrackRunExperienceRuntime({
     onReadyAction: handleReadyAction,
   });
   useSoloCoachVoice({
+    isRunning,
+    matchMode,
+  });
+  // 나와의 대결: every solo run records its time→distance curve (save prompt on
+  // finish), and an armed ghost race speaks gap feedback against the past self.
+  useSoloGhostRecorder({
+    isRunning,
+    matchMode,
+  });
+  useGhostRaceVoice({
     isRunning,
     matchMode,
   });

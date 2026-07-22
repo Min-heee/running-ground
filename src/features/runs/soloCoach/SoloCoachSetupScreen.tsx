@@ -16,6 +16,7 @@ import {
   type GoalField,
   type SoloCoachConfig,
 } from './soloCoachModel';
+import { clearGhostRace } from '@/features/runs/ghostRun/ghostRaceStore';
 import { armSoloCoach } from './soloCoachStore';
 
 // 페이스메이커 대기방. 목표 페이스·거리·시간은 서로 엮여 있어서 (페이스×거리=시간)
@@ -81,6 +82,7 @@ export default function SoloCoachSetupScreen() {
       announceDistance,
     };
 
+    clearGhostRace();
     armSoloCoach(config);
     router.replace('/(tabs)/running');
   };

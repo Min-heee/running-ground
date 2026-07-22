@@ -5,6 +5,7 @@ import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { MatchSetupSection } from '@/features/runs/components/MatchSetupSection';
 import { UpcomingMatchList } from '@/features/runs/components/UpcomingMatchList';
+import { GhostSavePromptCard } from '@/features/runs/ghostRun/GhostSavePromptCard';
 import { fixedColors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
 
 type RunningReadyScreenProps = {
@@ -35,6 +36,8 @@ export function RunningReadyScreen({
 
   return (
     <Card style={[styles.readyCard, readyCardStyle]}>
+      {/* 방금 끝난 혼자러닝의 나와의 대결 저장 프롬프트 — 후보가 있을 때만 렌더. */}
+      <GhostSavePromptCard />
       <UpcomingMatchList {...upcomingMatchesProps} />
       <MatchSetupSection {...matchSetupProps} />
 
@@ -49,14 +52,24 @@ export function RunningReadyScreen({
       {/* 페이스메이커 대기방 진입 (오너 요청 2026-07-22): 목표 페이스/거리/시간을
           정하고 음성 코칭과 함께 달리는 솔로 전용 흐름 — 혼자러닝 모드에서만 노출. */}
       {showSoloCoachEntry ? (
-        <Pressable
-          style={styles.coachButton}
-          onPress={() => router.push('/solo-coach' as never)}
-          accessibilityRole="button"
-        >
-          <Text style={styles.coachButtonText}>🎧 페이스메이커와 달리기</Text>
-          <Text style={styles.coachButtonCaption}>목표 페이스를 정하면 달리는 동안 음성으로 잡아드려요</Text>
-        </Pressable>
+        <>
+          <Pressable
+            style={styles.coachButton}
+            onPress={() => router.push('/solo-coach' as never)}
+            accessibilityRole="button"
+          >
+            <Text style={styles.coachButtonText}>🎧 페이스메이커와 달리기</Text>
+            <Text style={styles.coachButtonCaption}>목표 페이스를 정하면 달리는 동안 음성으로 잡아드려요</Text>
+          </Pressable>
+          <Pressable
+            style={styles.coachButton}
+            onPress={() => router.push('/ghost-run' as never)}
+            accessibilityRole="button"
+          >
+            <Text style={styles.coachButtonText}>👻 나와의 대결</Text>
+            <Text style={styles.coachButtonCaption}>저장해둔 과거의 나와 음성 대결로 달려요</Text>
+          </Pressable>
+        </>
       ) : null}
     </Card>
   );
