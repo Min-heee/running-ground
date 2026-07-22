@@ -375,6 +375,23 @@ export async function readRunsFromNativeHealthSource(
   return runs.map((run, index) => normalizeBridgeRun(run, index));
 }
 
+// Guided-connect step 2: surface the OS read-permission prompt WITHOUT importing.
+// Both native readers request authorization inside readRuns (iOS
+// requestAuthorizationToShareTypes, Android the PermissionController contract),
+// so a probe read is the supported way to raise the sheet on demand. NOTE the
+// HealthKit caveat: iOS never reveals read-grant status — a denied permission
+// still resolves (with hidden records), so a resolved probe means "요청 완료",
+// not "허용 확인됨"; the wizard copy is written accordingly.
+export async function requestNativeHealthReadPermission(): Promise<void> {
+  const eligibility = getNativeHealthImportEligibility();
+
+  if (!eligibility?.canImport) {
+    throw new Error(eligibility?.blockedReason ?? '이 기기에서는 건강 기록 연동을 사용할 수 없어요.');
+  }
+
+  await readRunsFromNativeHealthSource(eligibility.sourceType);
+}
+
 export async function importRunsFromNativeHealthSource(
   sourceType: NativeHealthSourceType,
 ): Promise<NativeHealthImportResult> {

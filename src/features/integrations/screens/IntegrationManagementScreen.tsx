@@ -6,6 +6,7 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { ExclusiveSourceSelectorCard } from '@/features/integrations/components/ExclusiveSourceSelectorCard';
+import { GuidedConnectCard } from '@/features/integrations/components/GuidedConnectCard';
 import { IntegrationResultCard } from '@/features/integrations/components/IntegrationResultCard';
 import { NativeImportDiagnosticCard } from '@/features/integrations/components/NativeImportDiagnosticCard';
 import {
@@ -76,6 +77,17 @@ export default function IntegrationManagementScreen() {
 
       {integrationStatus ? (
         <>
+          {/* 앱 중심 가이드 플로우 (오너 요청 2026-07-22): 쓰는 러닝 앱을 고르면
+              허브 경유 설정 → 읽기 권한 → 가져오기를 순서대로 안내한다. 허브를
+              읽을 수 있는 환경(iOS 모듈 보유 빌드 / Android)에서만 노출. */}
+          {importEligibility?.canImport && (platform === 'ios' || platform === 'android') ? (
+            <GuidedConnectCard
+              platform={platform}
+              deviceImporting={deviceImporting}
+              onImportFromDevice={handleImportFromDevice}
+            />
+          ) : null}
+
           <Card style={styles.syncActionCard}>
             <Text style={styles.stateTitle}>기록 가져오기</Text>
             {platform === 'ios' && !isAppleHealthModuleAvailable() ? null : (
