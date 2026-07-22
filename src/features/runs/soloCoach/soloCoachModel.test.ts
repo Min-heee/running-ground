@@ -82,3 +82,43 @@ test('goal and start announcements read naturally', () => {
   assert.ok(start.includes('목표 거리 5킬로미터.'));
   assert.ok(start.includes('2분마다 알려드릴게요.'));
 });
+
+// ── 목표 3요소 자동 계산 ─────────────────────────────────────────────────────
+
+test('default goal state derives time from pace × distance', async () => {
+  const { createDefaultGoalState, getDerivedGoalField } = await import('./soloCoachModel');
+  const state = createDefaultGoalState();
+
+  assert.equal(getDerivedGoalField(state), 'time');
+  assert.equal(state.timeSec, 360 * 3); // 6'00" × 3km = 18분
+});
+
+test('editing a source keeps deriving the third field', async () => {
+  const { applyGoalEdit, createDefaultGoalState, getDerivedGoalField } = await import('./soloCoachModel');
+  const state = applyGoalEdit(createDefaultGoalState(), 'distance', 5);
+
+  assert.equal(getDerivedGoalField(state), 'time');
+  assert.equal(state.timeSec, 360 * 5); // 30분
+});
+
+test('editing the derived field flips the oldest source to derived', async () => {
+  const { applyGoalEdit, createDefaultGoalState, getDerivedGoalField } = await import('./soloCoachModel');
+  // sources [pace, distance] → edit TIME → sources [distance, time], pace derived.
+  const state = applyGoalEdit(createDefaultGoalState(), 'time', 30 * 60);
+
+  assert.equal(getDerivedGoalField(state), 'pace');
+  assert.equal(state.paceSecPerKm, (30 * 60) / 3); // 600s = 10'00"/km
+
+  // Then edit PACE → sources [time, pace], distance derived: 1800s / 360s = 5km.
+  const next = applyGoalEdit(state, 'pace', 360);
+  assert.equal(getDerivedGoalField(next), 'distance');
+  assert.equal(next.distanceKm, 5);
+});
+
+test('goal edits clamp to sane ranges', async () => {
+  const { applyGoalEdit, createDefaultGoalState } = await import('./soloCoachModel');
+
+  assert.equal(applyGoalEdit(createDefaultGoalState(), 'pace', 10).paceSecPerKm, 180);
+  assert.equal(applyGoalEdit(createDefaultGoalState(), 'distance', 0).distanceKm, 0.5);
+  assert.equal(applyGoalEdit(createDefaultGoalState(), 'time', 1).timeSec, 300);
+});

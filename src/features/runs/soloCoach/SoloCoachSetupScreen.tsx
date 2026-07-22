@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { Card } from '@/components/Card';
@@ -10,39 +10,72 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
 import {
   SOLO_COACH_INTERVAL_CHOICES,
-  formatPaceSpoken,
+  applyGoalEdit,
+  createDefaultGoalState,
+  getDerivedGoalField,
+  type GoalField,
   type SoloCoachConfig,
 } from './soloCoachModel';
 import { armSoloCoach } from './soloCoachStore';
 
-// 페이스메이커 대기방: 목표 페이스/거리/시간과 피드백 주기·항목을 고르고 바로
-// 솔로 러닝을 시작한다 (러닝 탭으로 이동 → useSoloCoachAutoStart가 시작을 당김).
+// 페이스메이커 대기방. 목표 페이스·거리·시간은 서로 엮여 있어서 (페이스×거리=시간)
+// 두 개를 조정하면 나머지 하나는 자동 계산된다 — 마지막에 만진 두 개가 기준.
 
-const DISTANCE_CHOICES = [1, 3, 5, 10] as const;
-const TIME_CHOICES = [15, 30, 45, 60] as const;
+const CUSTOM_INTERVAL = -1;
+
+function formatTimeLabel(timeSec: number): string {
+  const total = Math.round(timeSec);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  const minutePart = hours > 0 ? `${hours}시간 ${minutes}분` : `${minutes}분`;
+  return seconds > 0 ? `${minutePart} ${seconds}초` : minutePart;
+}
 
 export default function SoloCoachSetupScreen() {
-  const [paceMinutes, setPaceMinutes] = useState(6);
-  const [paceSeconds, setPaceSeconds] = useState(0);
-  const [goalDistanceKm, setGoalDistanceKm] = useState<number | null>(3);
-  const [goalTimeMinutes, setGoalTimeMinutes] = useState<number | null>(null);
-  const [intervalMinutes, setIntervalMinutes] = useState<number>(2);
+  const [goal, setGoal] = useState(createDefaultGoalState);
+  const [intervalChoice, setIntervalChoice] = useState<number>(2);
+  const [customIntervalText, setCustomIntervalText] = useState('');
   const [announcePace, setAnnouncePace] = useState(true);
   const [announceElapsed, setAnnounceElapsed] = useState(true);
   const [announceDistance, setAnnounceDistance] = useState(true);
 
-  const targetPaceSecPerKm = paceMinutes * 60 + paceSeconds;
-  const paceLabel = useMemo(
-    () => `${paceMinutes}'${String(paceSeconds).padStart(2, '0')}"`,
-    [paceMinutes, paceSeconds],
-  );
+  const derivedField = getDerivedGoalField(goal);
+
+  const paceMinutes = Math.floor(Math.round(goal.paceSecPerKm) / 60);
+  const paceSeconds = Math.round(goal.paceSecPerKm) % 60;
+  const timeMinutesRounded = Math.round(goal.timeSec / 60);
+
+  const editGoal = (field: GoalField, value: number) => {
+    setGoal((current) => applyGoalEdit(current, field, value));
+  };
+
+  const customIntervalMinutes = useMemo(() => {
+    const parsed = Number.parseInt(customIntervalText, 10);
+    return Number.isFinite(parsed) && parsed >= 1 ? parsed : null;
+  }, [customIntervalText]);
+
+  const effectiveIntervalMinutes = intervalChoice === CUSTOM_INTERVAL
+    ? customIntervalMinutes
+    : intervalChoice;
+
+  const nothingToAnnounce = !announcePace && !announceElapsed && !announceDistance;
+  const startBlockedReason = nothingToAnnounce
+    ? '알려드릴 항목을 하나 이상 켜주세요.'
+    : effectiveIntervalMinutes === null
+      ? '피드백 주기를 1분 이상 숫자로 입력해주세요.'
+      : null;
 
   const handleStart = () => {
+    if (startBlockedReason || effectiveIntervalMinutes === null) {
+      return;
+    }
+
     const config: SoloCoachConfig = {
-      targetPaceSecPerKm: announcePace ? targetPaceSecPerKm : null,
-      goalDistanceKm,
-      goalTimeMinutes,
-      intervalMinutes,
+      targetPaceSecPerKm: announcePace ? Math.round(goal.paceSecPerKm) : null,
+      goalDistanceKm: Math.round(goal.distanceKm * 10) / 10,
+      goalTimeMinutes: goal.timeSec / 60,
+      intervalMinutes: effectiveIntervalMinutes,
       announcePace,
       announceElapsed,
       announceDistance,
@@ -56,61 +89,63 @@ export default function SoloCoachSetupScreen() {
     <Screen>
       <AuthHeader
         title="페이스메이커"
-        subtitle="목표를 정하면 달리는 동안 음성으로 페이스를 잡아드려요. 이어폰을 끼면 화면을 꺼도 들려요."
+        subtitle=""
         showBack
         backHref="/(tabs)/running"
       />
 
       <Card style={styles.card}>
-        <Text style={styles.sectionTitle}>목표 페이스</Text>
-        <View style={styles.paceRow}>
+        <GoalHeader title="목표 페이스" derived={derivedField === 'pace'} />
+        <View style={styles.goalRow}>
           <Stepper
             label="분"
             value={paceMinutes}
-            onDecrease={() => setPaceMinutes((current) => Math.max(3, current - 1))}
-            onIncrease={() => setPaceMinutes((current) => Math.min(12, current + 1))}
+            onDecrease={() => editGoal('pace', goal.paceSecPerKm - 60)}
+            onIncrease={() => editGoal('pace', goal.paceSecPerKm + 60)}
           />
           <Stepper
             label="초"
             value={paceSeconds}
-            onDecrease={() => setPaceSeconds((current) => (current - 15 + 60) % 60)}
-            onIncrease={() => setPaceSeconds((current) => (current + 15) % 60)}
+            onDecrease={() => editGoal('pace', goal.paceSecPerKm - 15)}
+            onIncrease={() => editGoal('pace', goal.paceSecPerKm + 15)}
           />
-          <View style={styles.paceSummary}>
-            <Text style={styles.paceSummaryValue}>{paceLabel}</Text>
-            <Text style={styles.paceSummaryCaption}>{formatPaceSpoken(targetPaceSecPerKm)} / km</Text>
+          <View style={styles.goalSummary}>
+            <Text style={styles.goalSummaryValue}>
+              {paceMinutes}'{String(paceSeconds).padStart(2, '0')}"
+            </Text>
+            <Text style={styles.goalSummaryCaption}>/ km</Text>
           </View>
         </View>
       </Card>
 
       <Card style={styles.card}>
-        <Text style={styles.sectionTitle}>목표 거리</Text>
-        <View style={styles.chipRow}>
-          {DISTANCE_CHOICES.map((choice) => (
-            <ChoiceChip
-              key={choice}
-              label={`${choice}km`}
-              selected={goalDistanceKm === choice}
-              onPress={() => setGoalDistanceKm((current) => (current === choice ? null : choice))}
-            />
-          ))}
+        <GoalHeader title="목표 거리" derived={derivedField === 'distance'} />
+        <View style={styles.goalRow}>
+          <Stepper
+            label="km"
+            value={Number((Math.round(goal.distanceKm * 10) / 10).toFixed(1))}
+            onDecrease={() => editGoal('distance', goal.distanceKm - 0.5)}
+            onIncrease={() => editGoal('distance', goal.distanceKm + 0.5)}
+          />
+          <View style={styles.goalSummary}>
+            <Text style={styles.goalSummaryValue}>{(Math.round(goal.distanceKm * 10) / 10).toFixed(1)}km</Text>
+          </View>
         </View>
-        <Text style={styles.helperText}>선택하지 않으면 거리 목표 없이 달려요.</Text>
       </Card>
 
       <Card style={styles.card}>
-        <Text style={styles.sectionTitle}>목표 시간</Text>
-        <View style={styles.chipRow}>
-          {TIME_CHOICES.map((choice) => (
-            <ChoiceChip
-              key={choice}
-              label={`${choice}분`}
-              selected={goalTimeMinutes === choice}
-              onPress={() => setGoalTimeMinutes((current) => (current === choice ? null : choice))}
-            />
-          ))}
+        <GoalHeader title="목표 시간" derived={derivedField === 'time'} />
+        <View style={styles.goalRow}>
+          <Stepper
+            label="분"
+            value={timeMinutesRounded}
+            onDecrease={() => editGoal('time', (timeMinutesRounded - 1) * 60)}
+            onIncrease={() => editGoal('time', (timeMinutesRounded + 1) * 60)}
+          />
+          <View style={styles.goalSummary}>
+            <Text style={styles.goalSummaryValue}>{formatTimeLabel(goal.timeSec)}</Text>
+          </View>
         </View>
-        <Text style={styles.helperText}>선택하지 않으면 시간 목표 없이 달려요.</Text>
       </Card>
 
       <Card style={styles.card}>
@@ -119,12 +154,31 @@ export default function SoloCoachSetupScreen() {
           {SOLO_COACH_INTERVAL_CHOICES.map((choice) => (
             <ChoiceChip
               key={choice}
-              label={`${choice}분마다`}
-              selected={intervalMinutes === choice}
-              onPress={() => setIntervalMinutes(choice)}
+              label={`${choice}분`}
+              selected={intervalChoice === choice}
+              onPress={() => setIntervalChoice(choice)}
             />
           ))}
+          <ChoiceChip
+            label="직접 입력"
+            selected={intervalChoice === CUSTOM_INTERVAL}
+            onPress={() => setIntervalChoice(CUSTOM_INTERVAL)}
+          />
         </View>
+        {intervalChoice === CUSTOM_INTERVAL ? (
+          <View style={styles.customIntervalRow}>
+            <TextInput
+              value={customIntervalText}
+              onChangeText={(value) => setCustomIntervalText(value.replace(/[^0-9]/g, ''))}
+              keyboardType="number-pad"
+              placeholder="분 단위 숫자"
+              placeholderTextColor={colors.textTertiary}
+              style={styles.customIntervalInput}
+              maxLength={3}
+            />
+            <Text style={styles.customIntervalSuffix}>분마다</Text>
+          </View>
+        ) : null}
       </Card>
 
       <Card style={styles.card}>
@@ -152,13 +206,24 @@ export default function SoloCoachSetupScreen() {
       <PrimaryButton
         label="페이스메이커와 달리기 시작"
         onPress={handleStart}
-        disabled={!announcePace && !announceElapsed && !announceDistance}
+        disabled={Boolean(startBlockedReason)}
       />
-      {!announcePace && !announceElapsed && !announceDistance ? (
-        <Text style={styles.blockedText}>알려드릴 항목을 하나 이상 켜주세요.</Text>
-      ) : null}
+      {startBlockedReason ? <Text style={styles.blockedText}>{startBlockedReason}</Text> : null}
       <SecondaryButton label="러닝 탭으로 돌아가기" onPress={() => router.replace('/(tabs)/running')} />
     </Screen>
+  );
+}
+
+function GoalHeader({ title, derived }: { title: string; derived: boolean }) {
+  return (
+    <View style={styles.goalHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {derived ? (
+        <View style={styles.derivedBadge}>
+          <Text style={styles.derivedBadgeText}>자동 계산</Text>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -241,32 +306,43 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
     color: colors.textPrimary,
   },
-  helperText: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.sm,
-    lineHeight: 18,
+  goalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s10,
+  },
+  derivedBadge: {
+    backgroundColor: colors.brandWash,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.xs,
+  },
+  derivedBadgeText: {
+    color: colors.brand,
+    fontSize: fontSizes.xxs,
+    fontWeight: fontWeights.extraBold,
   },
   blockedText: {
     color: colors.danger,
     fontWeight: fontWeights.bold,
     textAlign: 'center',
   },
-  paceRow: {
+  goalRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.s14,
   },
-  paceSummary: {
+  goalSummary: {
     flex: 1,
     alignItems: 'flex-end',
     gap: spacing.xs,
   },
-  paceSummaryValue: {
+  goalSummaryValue: {
     color: colors.brand,
     fontSize: fontSizes.pageTitle,
     fontWeight: fontWeights.extraBold,
   },
-  paceSummaryCaption: {
+  goalSummaryCaption: {
     color: colors.textSecondary,
     fontSize: fontSizes.sm,
   },
@@ -303,7 +379,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: fontSizes.summaryValue,
     fontWeight: fontWeights.extraBold,
-    minWidth: 30,
+    minWidth: 40,
     textAlign: 'center',
   },
   chipRow: {
@@ -330,6 +406,25 @@ const styles = StyleSheet.create({
   },
   chipTextSelected: {
     color: colors.brand,
+  },
+  customIntervalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s10,
+  },
+  customIntervalInput: {
+    backgroundColor: colors.surfaceSubtleAlt,
+    borderWidth: 1,
+    borderColor: colors.borderMuted,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s10,
+    color: colors.textPrimary,
+    minWidth: 110,
+  },
+  customIntervalSuffix: {
+    color: colors.textSecondary,
+    fontWeight: fontWeights.bold,
   },
   toggleRow: {
     flexDirection: 'row',
