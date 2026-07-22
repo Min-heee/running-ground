@@ -96,7 +96,9 @@ export function buildGhostRaceAnnouncement(
     if (windowSec > 0 && myWindowKm >= MIN_WINDOW_DISTANCE_KM && ghostWindowM > 1) {
       const myPace = formatPaceSpoken(windowSec / myWindowKm);
       const ghostPace = formatPaceSpoken(windowSec / (ghostWindowM / 1000));
-      parts.push(`지금 내 페이스 ${myPace}. 과거의 나는 ${ghostPace}로 달리는 중이에요.`);
+      // '분'(받침 ㄴ) → 으로, '초'(받침 없음) → 로.
+      const particle = ghostPace.endsWith('초') ? '로' : '으로';
+      parts.push(`지금 내 페이스 ${myPace}. 과거의 나는 ${ghostPace}${particle} 달리는 중이에요.`);
     }
   }
 
