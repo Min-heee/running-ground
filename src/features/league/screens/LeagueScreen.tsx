@@ -11,6 +11,7 @@ import { LeagueModeSwitch } from '@/features/league/components/LeagueModeSwitch'
 import { LeagueRegionSelectorCard } from '@/features/league/components/LeagueRegionSelectorCard';
 import { RankLeaderboardCard } from '@/features/league/components/RankLeaderboardCard';
 import { TodayRankingCard } from '@/features/league/components/TodayRankingCard';
+import { useRegionBackGesture } from '@/features/league/hooks/useRegionBackGesture';
 import { useRegionLeagueState } from '@/features/league/hooks/useRegionLeagueState';
 import { colors } from '@/theme/tokens';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
@@ -75,12 +76,28 @@ export default function LeagueScreen() {
 
   const isRegionView = !isTodayView && !isRankView;
 
+  // iOS-style swipe-back for the drill-down (대한민국 → 광주 → 동구): a rightward
+  // swipe from the left edge steps to the parent breadcrumb node. Same code path
+  // on Android, where the hardware back button also steps up while drilled in.
+  const parentRegionNode = breadcrumbNodes.length >= 2
+    ? breadcrumbNodes[breadcrumbNodes.length - 2]
+    : null;
+  const handleRegionBack = useCallback(() => {
+    if (parentRegionNode) {
+      loadLeague(parentRegionNode.id);
+    }
+  }, [loadLeague, parentRegionNode]);
+  const regionBackHandlers = useRegionBackGesture({
+    enabled: isRegionView && !loading && parentRegionNode !== null,
+    onBack: handleRegionBack,
+  });
+
   if (isRegionView && loading) {
     return <BrandLoadingView />;
   }
 
   return (
-    <Screen scrollRef={scrollRef}>
+    <Screen scrollRef={scrollRef} panHandlers={regionBackHandlers}>
       <TabHeader title="랭킹" />
 
       <LeagueModeSwitch mode={leagueMode} onChange={setLeagueMode} />

@@ -1,5 +1,5 @@
 import { MutableRefObject, PropsWithChildren, useEffect, useRef } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View, type GestureResponderHandlers } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing } from '@/theme/tokens';
 
@@ -7,9 +7,13 @@ export function Screen({
   children,
   scrollToTopKey,
   scrollRef,
+  // Screen-wide responder handlers (e.g. the region drill-down edge-swipe-back).
+  // Spread on the root so the left-edge gesture works at any vertical position.
+  panHandlers,
 }: PropsWithChildren<{
   scrollToTopKey?: string;
   scrollRef?: MutableRefObject<ScrollView | null>;
+  panHandlers?: GestureResponderHandlers;
 }>) {
   const insets = useSafeAreaInsets();
   const internalScrollRef = useRef<ScrollView>(null);
@@ -30,7 +34,7 @@ export function Screen({
   return (
     // 배경색은 렌더 시점에 읽는다: 이 모듈은 RouteErrorBoundary 재수출 경로로 테마 게이트보다
     // 먼저 import되므로, StyleSheet에 구우면 라이트 모드 부팅에서도 다크 배경이 박제된다.
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.surfaceApp }]} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.surfaceApp }]} edges={['top']} {...panHandlers}>
       <ScrollView
         ref={activeScrollRef}
         contentContainerStyle={[styles.content, { paddingBottom: 120 + Math.max(insets.bottom, 16) }]}
