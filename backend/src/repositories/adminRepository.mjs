@@ -1,3 +1,5 @@
+import { buildAdminLiveActivity } from '../lib/adminLiveActivity.mjs';
+
 function createNowIso() {
   return new Date().toISOString();
 }
@@ -21,6 +23,11 @@ export function createJsonAdminRepository({
   return {
     async getOverview() {
       return buildAdminOverview(await loadStore());
+    },
+
+    // 라이브 현황 (진행 중 세션/대기방/라이브 공유). 빌더가 순수라 직접 import.
+    async getLiveActivity() {
+      return buildAdminLiveActivity(await loadStore());
     },
 
     async getUsers() {

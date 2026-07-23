@@ -46,6 +46,12 @@ async function routeAdminRepositoryReadRequest({
     return true;
   }
 
+  if (pathname === '/api/admin/live' && method === 'GET') {
+    requireAdmin(request);
+    sendJson(response, 200, await getAdminRepository().getLiveActivity());
+    return true;
+  }
+
   if (pathname === '/api/admin/users' && method === 'GET') {
     requireAdmin(request);
     sendJson(response, 200, await getAdminRepository().getUsers());
