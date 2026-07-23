@@ -20,7 +20,7 @@ export function ProfileSummaryCard({
   tagShared,
   onShareTag,
 }: ProfileSummaryCardProps) {
-  // Full hierarchy ("광주광역시 동구") — a bare 구 name is ambiguous nationwide.
+  // Full hierarchy ("전남광주통합특별시 동구") — a bare 구 name is ambiguous nationwide.
   const profileSubline = useMemo(
     () => formatRegionLabel(profile),
     [profile],

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { INITIAL_RANK, RANK_TIERS, resolveRankTier } from '../src/lib/rankSystem.mjs';
+import { migrateRegionMergeStore } from '../src/lib/regionMergeMigrations.mjs';
 
 const backendDirectory = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const defaultStoreFile = resolve(backendDirectory, 'data', 'store.json');
@@ -1055,6 +1056,10 @@ function main() {
     resolve(defaultOutputDirectory, `json-store-${timestampForFileName()}.sql`),
   );
   const store = readJsonFile(storeFile);
+  // 2026-07-01 행정통합: pre-merge 스냅샷을 그대로 흘리면 relational users 행과
+  // app_metadata.region_tree에 폐지된 광주광역시/전라남도가 다시 심어진다 —
+  // 플랜을 만들기 전에 항상 통합 마이그레이션을 통과시킨다 (멱등).
+  migrateRegionMergeStore(store);
   const plan = buildMigrationPlan(store, storeFile, {
     skipSessions: hasFlag('--skip-sessions'),
   });

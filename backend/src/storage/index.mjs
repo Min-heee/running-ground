@@ -84,6 +84,20 @@ if (STORE_DRIVER === 'postgres') {
       `[runningground-backend] legacy integration-source cleanup failed (idempotent — retries next boot): ${error?.message ?? error}`,
     );
   }
+  // 2026-07-01 행정통합 sweep (idempotent): 광주광역시/전라남도로 저장된 유저
+  // provinceName을 전남광주통합특별시로 재기록하고, postgres 어댑터가 절대 재계산하지
+  // 않는 저장된 regionTree를 새 카탈로그 기준으로 재구성한다. json 드라이버는 store.mjs
+  // 마이그레이션 목록에서 같은 함수를 돌리므로 이 sweep은 postgres 전용 경로다.
+  const { migrateRegionMergeStore } = await import('../lib/regionMergeMigrations.mjs');
+  try {
+    await activeAdapter.mutateStore((store) => {
+      migrateRegionMergeStore(store);
+    });
+  } catch (error) {
+    console.error(
+      `[runningground-backend] region-merge migration failed (idempotent — retries next boot): ${error?.message ?? error}`,
+    );
+  }
 }
 
 // ---- Async-uniform core store operations -------------------------------------------------

@@ -5,7 +5,7 @@ import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { RegionChipSection } from '@/features/location/RegionSelection';
+import { RegionChipSection, getSecondaryRegionKindLabel } from '@/features/location/RegionSelection';
 import { useRegionSettings } from '@/features/settings/hooks/useRegionSettings';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
@@ -54,7 +54,7 @@ export default function RegionSettingsScreen() {
 
               {selectedProvince ? (
                 <RegionChipSection
-                  title={selectedProvince.children?.[0]?.type === 'district' ? '2. 구 선택' : '2. 시/군 선택'}
+                  title={`2. ${getSecondaryRegionKindLabel(selectedProvince.children)} 선택`}
                   options={secondaryOptions}
                   selectedName={secondaryRegionName}
                   disabled={saving}

@@ -287,6 +287,15 @@ async function main() {
     const regionCatalog = await request('/catalog/regions');
     assert(Array.isArray(regionCatalog.regions) && regionCatalog.regions.length > 0, '지역 카탈로그가 비어 있어요.');
     assert(regionCatalog.regions.some((region) => region.name === '서울특별시'), '서울특별시가 지역 카탈로그에 없어요.');
+    // 2026-07-01 행정통합: 통합시가 있고 폐지된 두 시·도는 없어야 한다.
+    assert(
+      regionCatalog.regions.some((region) => region.name === '전남광주통합특별시'),
+      '전남광주통합특별시가 지역 카탈로그에 없어요.',
+    );
+    assert(
+      !regionCatalog.regions.some((region) => region.name === '광주광역시' || region.name === '전라남도'),
+      '폐지된 광주광역시/전라남도가 지역 카탈로그에 남아 있어요.',
+    );
 
     const updatedRegion = await request('/me/region', {
       method: 'PATCH',

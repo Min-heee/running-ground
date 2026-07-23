@@ -12,6 +12,7 @@ import {
   type OpponentMatchProfile,
 } from '@/services';
 import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { formatRegionLabel } from '@/utils/regionLabel';
 
 function formatLifetimeDistanceKm(distanceKm: number) {
   return Number(distanceKm.toFixed(1));
@@ -66,12 +67,9 @@ export default function OpponentProfileScreen() {
   }, [loadProfile, retryNonce]);
 
   const displayName = profile?.name ?? name ?? '상대';
-  const regionLabel = useMemo(() => {
-    if (!profile) {
-      return '';
-    }
-    return [profile.provinceName, profile.cityName, profile.districtName].filter(Boolean).join(' ');
-  }, [profile]);
+  // formatRegionLabel: 도/통합시 리프 시(cityName === districtName)의 중복을 접고
+  // (목포시 목포시 → 목포시) 통합 전 시·도 이름도 현행 명칭으로 정규화한다.
+  const regionLabel = useMemo(() => formatRegionLabel(profile), [profile]);
 
   return (
     <Screen>

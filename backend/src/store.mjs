@@ -12,6 +12,7 @@ import {
 } from './config.mjs';
 import { migrateAuthStore } from './auth.mjs';
 import { cleanupLegacyIntegrationSources } from './lib/integrationSourceMigrations.mjs';
+import { migrateRegionMergeStore } from './lib/regionMergeMigrations.mjs';
 
 const dataDirectory = dirname(STORE_FILE);
 const storeFilePath = STORE_FILE;
@@ -419,6 +420,7 @@ export function loadStore() {
       migratePhoneVerificationStore(cachedStore),
       migrateMatchQueueStore(cachedStore),
       migrateAdminStore(cachedStore),
+      migrateRegionMergeStore(cachedStore),
     ].some(Boolean);
 
     cachedSerializedStore = serializeStore(cachedStore);
@@ -441,6 +443,7 @@ export function saveStore(nextStore, precomputedSerializedStore = null) {
     migratePhoneVerificationStore(cachedStore),
     migrateMatchQueueStore(cachedStore),
     migrateAdminStore(cachedStore),
+    migrateRegionMergeStore(cachedStore),
   ].some(Boolean);
   const previousRegionTree = cachedStore.regionTree;
   cachedStore.regionTree = createRegionTree(cachedStore);

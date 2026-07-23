@@ -32,6 +32,20 @@ export function buildRegionSelectionState(
   };
 }
 
+// 2단계 픽커 제목용 자식 종별 라벨. 첫 자식의 type만 보면 하이브리드 시·도
+// (전남광주통합특별시: 구와 시·군이 한 목록에 공존)에서 라벨이 틀리므로 전체를 본다.
+export function getSecondaryRegionKindLabel(children: AddressRegionNode[] | null | undefined): string {
+  const options = children ?? [];
+  const hasDistrict = options.some((option) => option.type === 'district');
+  const hasCity = options.some((option) => option.type === 'city');
+
+  if (hasDistrict && hasCity) {
+    return '시/군/구';
+  }
+
+  return hasDistrict ? '구' : '시/군';
+}
+
 export function RegionChipSection({
   title,
   options,

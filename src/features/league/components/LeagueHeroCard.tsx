@@ -21,7 +21,10 @@ export function LeagueHeroCard({ node, isMyRegion }: LeagueHeroCardProps) {
           </View>
         ) : null}
       </View>
-      <Text style={styles.heroTitle}>{node.name}</Text>
+      {/* 전남광주통합특별시(9자)도 한 줄에 들어가도록 긴 이름은 폰트를 줄여 맞춘다. */}
+      <Text style={styles.heroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+        {node.name}
+      </Text>
       <View style={styles.heroMetrics}>
         <View style={styles.heroMetricColumn}>
           <Text style={styles.heroMetricLabel}>총거리</Text>

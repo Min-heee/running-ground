@@ -38,7 +38,7 @@ export function buildMatchRunnerProfile(store, user, runs = getRunsForUser(store
     name: user.name,
     tag: user.publicTag,
     districtName: user.districtName,
-    // Full hierarchy label ("광주광역시 동구") — a bare 구 name is ambiguous
+    // Full hierarchy label ("전남광주통합특별시 동구") — a bare 구 name is ambiguous
     // nationwide (동구 exists in six metros). Additive; districtName stays for
     // older clients. Consecutive duplicates collapse (도 city stores
     // districtName === cityName).

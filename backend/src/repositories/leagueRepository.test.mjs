@@ -378,3 +378,44 @@ await runTest('a metro 구 node lists THAT 구 — not the requester\'s own regi
   const dongguDaegu = await repository.getDistrictPersonal({ token: 'token-me', nodeId: 'kr-dg-01' });
   assert.deepEqual(dongguDaegu.ranks.map((entry) => entry.name), ['대구동구주민']);
 });
+
+// ── 통합시 하이브리드 (2026-07-01 행정통합): 구와 시가 한 시·도의 형제 노드 ────────
+// 전남광주통합특별시는 광주 5구(district, cityName '')와 전남 22시군(city)이 같은
+// province 아래 공존하는 유일한 하이브리드 — 두 종류의 리프 보드가 섞이면 안 된다.
+
+await runTest('hybrid merged province: 구 board and 시 board stay disjoint under ONE province', async () => {
+  const { repository } = createRepositoryHarness({
+    users: [
+      { id: 'user-donggu', name: '동구주민', provinceName: '전남광주통합특별시', cityName: '', districtName: '동구' },
+      { id: 'user-mokpo', name: '목포주민', provinceName: '전남광주통합특별시', cityName: '목포시', districtName: '목포시' },
+    ],
+    sessions: [{ token: 'token-me', userId: 'user-donggu' }],
+    regionTree: {
+      id: 'region-root',
+      name: '대한민국',
+      level: 'country',
+      children: [
+        {
+          id: 'kr-gj',
+          name: '전남광주통합특별시',
+          level: 'province',
+          children: [
+            { id: 'kr-gj-01', name: '동구', level: 'district', children: [] },
+            { id: 'kr-gj-06', name: '목포시', level: 'city', children: [] },
+          ],
+        },
+      ],
+    },
+  }, {
+    'user-donggu': { currentWeekDistanceKm: 10, competitiveWeekDistanceKm: 10, currentWeekPoints: 15, currentMonthDistanceKm: 40 },
+    'user-mokpo': { currentWeekDistanceKm: 5, competitiveWeekDistanceKm: 5, currentWeekPoints: 8, currentMonthDistanceKm: 20 },
+  });
+
+  const donggu = await repository.getDistrictPersonal({ token: 'token-me', nodeId: 'kr-gj-01' });
+  assert.equal(donggu.districtName, '동구');
+  assert.deepEqual(donggu.ranks.map((entry) => entry.name), ['동구주민']);
+
+  const mokpo = await repository.getDistrictPersonal({ token: 'token-me', nodeId: 'kr-gj-06' });
+  assert.equal(mokpo.districtName, '목포시');
+  assert.deepEqual(mokpo.ranks.map((entry) => entry.name), ['목포주민']);
+});

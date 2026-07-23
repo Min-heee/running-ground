@@ -315,3 +315,45 @@ await runTest('a metro 구 nodeId lists THAT 구 from postgres rows — not the 
   const dongguDaejeon = await repository.getDistrictPersonal({ token: 'token-me', nodeId: 'kr-dj-01' });
   assert.deepEqual(dongguDaejeon.ranks.map((entry) => entry.name), ['동구주민']);
 });
+
+// ── 통합시 하이브리드 (2026-07-01 행정통합, postgres): 구/시 보드가 섞이면 안 된다 ──
+await runTest('hybrid merged province: 구 rows and 시 rows stay disjoint under ONE province (postgres)', async () => {
+  const mergedTree = {
+    id: 'region-root',
+    name: '대한민국',
+    level: 'country',
+    children: [
+      {
+        id: 'kr-gj',
+        name: '전남광주통합특별시',
+        level: 'province',
+        children: [
+          { id: 'kr-gj-01', name: '동구', level: 'district', children: [] },
+          { id: 'kr-gj-06', name: '목포시', level: 'city', children: [] },
+        ],
+      },
+    ],
+  };
+
+  const { repository } = createRepositoryHarness({
+    users: [
+      { id: 'user-donggu', nickname: '동구주민', province_name: '전남광주통합특별시', city_name: '', district_name: '동구' },
+      { id: 'user-mokpo', nickname: '목포주민', province_name: '전남광주통합특별시', city_name: '목포시', district_name: '목포시' },
+    ],
+    sessions: [
+      { token: 'token-me', user_id: 'user-donggu', expires_at: '2099-01-01T00:00:00.000Z' },
+    ],
+    runs: [
+      { id: 'run-mokpo', user_id: 'user-mokpo', run_date: '2026-04-23', distance_km: 5, pace: '05:40/km', source_label: 'RunningGround', source_type: 'runningground' },
+    ],
+    appMetadata: [{ key: 'region_tree', value: mergedTree }],
+  });
+
+  const donggu = await repository.getDistrictPersonal({ token: 'token-me', nodeId: 'kr-gj-01' });
+  assert.equal(donggu.districtName, '동구');
+  assert.deepEqual(donggu.ranks.map((entry) => entry.name), ['동구주민']);
+
+  const mokpo = await repository.getDistrictPersonal({ token: 'token-me', nodeId: 'kr-gj-06' });
+  assert.equal(mokpo.districtName, '목포시');
+  assert.deepEqual(mokpo.ranks.map((entry) => entry.name), ['목포주민']);
+});

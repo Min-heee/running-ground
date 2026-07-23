@@ -7,6 +7,7 @@ import type {
   AdminUserSummary,
 } from '@/lib/api/types';
 import type { MarketFormState, NoticeFormState, RaceFormState } from '@/features/settings/admin/types';
+import { normalizeRegionName } from '@/utils/legacyRegionNames';
 
 const ADMIN_TOKEN_STORAGE_KEY = 'runningground-admin-token';
 const LEGACY_ADMIN_TOKEN_STORAGE_KEY = 'runnigapp-admin-token';
@@ -231,6 +232,9 @@ export function filterAdminUsers(items: AdminUserSummary[], queryValue: string) 
     user.publicTag,
     user.districtName,
     user.provinceName,
+    // 화면에는 정규화된 시·도 이름(전남광주통합특별시)이 보이므로, 서버가 아직 옛
+    // 이름을 주는 동안에도 보이는 그대로 검색되도록 정규화값도 함께 매칭한다.
+    normalizeRegionName(user.provinceName),
     user.cityName,
   ));
 }

@@ -18,7 +18,7 @@ export type DuelMatchOpponent = {
   name: string;
   tag?: string;
   districtName: string;
-  // Full hierarchy label ("광주광역시 동구") — optional until the backend ships it.
+  // Full hierarchy label ("전남광주통합특별시 동구") — optional until the backend ships it.
   regionLabel?: string;
   averagePace: string;
   levelLabel: string;

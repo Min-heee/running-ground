@@ -59,6 +59,37 @@ test('resolveRegionSelection accepts a metro 구 terminal (서울특별시 / "" 
   });
 });
 
+// 2026-07-01 행정통합으로 전남광주통합특별시는 구(district)와 시·군(city)을 동시에
+// 자식으로 갖는 유일한 하이브리드 시·도다 — 두 분기 모두 통과해야 한다.
+test('resolveRegionSelection accepts a merged-province direct 구 (전남광주통합특별시 / "" / 동구)', () => {
+  const region = resolveRegionSelection('전남광주통합특별시', '', '동구');
+  assert.deepEqual(region, {
+    provinceName: '전남광주통합특별시',
+    cityName: '',
+    districtName: '동구',
+  });
+});
+
+test('resolveRegionSelection accepts a merged-province leaf 시 (전남광주통합특별시 / 목포시 / 목포시)', () => {
+  const region = resolveRegionSelection('전남광주통합특별시', '목포시', '목포시');
+  assert.deepEqual(region, {
+    provinceName: '전남광주통합특별시',
+    cityName: '목포시',
+    districtName: '목포시',
+  });
+});
+
+test('resolveRegionSelection rejects the abolished provinces (광주광역시 / 전라남도)', () => {
+  assert.throws(
+    () => resolveRegionSelection('광주광역시', '', '동구'),
+    (error) => error instanceof ApiError,
+  );
+  assert.throws(
+    () => resolveRegionSelection('전라남도', '순천시', '순천시'),
+    (error) => error instanceof ApiError,
+  );
+});
+
 test('resolveRegionSelection rejects a now-removed 3rd-level pick (경기도/고양시/일산서구)', () => {
   assert.throws(
     () => resolveRegionSelection('경기도', '고양시', '일산서구'),

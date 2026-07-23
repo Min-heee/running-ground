@@ -67,7 +67,8 @@ export default function EditProfileScreen() {
               </Text>
             </View>
 
-            <Input label="대표 지역" value={formatRegionLabel(profile)} editable={false} />
+            {/* multiline: 전남광주통합특별시 동구처럼 긴 라벨이 한 줄 TextInput에서 잘리지 않게. */}
+            <Input label="대표 지역" value={formatRegionLabel(profile)} editable={false} multiline />
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>상태 메시지</Text>
@@ -100,11 +101,13 @@ function Input({
   label,
   value,
   editable = true,
+  multiline = false,
   onChangeText,
 }: {
   label: string;
   value: string;
   editable?: boolean;
+  multiline?: boolean;
   onChangeText?: (value: string) => void;
 }) {
   return (
@@ -113,6 +116,7 @@ function Input({
       <TextInput
         value={value}
         editable={editable}
+        multiline={multiline}
         onChangeText={onChangeText}
         style={[styles.input, !editable && styles.disabledInput]}
         placeholderTextColor={colors.textTertiary}

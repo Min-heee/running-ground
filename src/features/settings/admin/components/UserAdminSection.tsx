@@ -8,6 +8,7 @@ import {
   SearchInput,
 } from './AdminPrimitives';
 import { styles } from './adminStyles';
+import { formatRegionLabel } from '@/utils/regionLabel';
 
 type UserAdminSectionProps = {
   filteredUsers: AdminUserSummary[];
@@ -48,7 +49,7 @@ export function UserAdminSection({
               <ActionButton label="삭제" variant="danger" onPress={() => handleDeleteUser(user)} disabled={submitting} />
             </View>
             <Text style={styles.listInfo}>
-              {user.provinceName ?? ''}{user.cityName ? ` ${user.cityName}` : ''} {user.districtName}
+              {formatRegionLabel(user)}
             </Text>
             <Text style={styles.listInfo}>
               누적 {user.lifetimeDistanceKm}km · 이번 주 {user.currentWeekDistanceKm}km / {user.currentWeekPoints}P · 연동 {user.connectedSourceCount}개

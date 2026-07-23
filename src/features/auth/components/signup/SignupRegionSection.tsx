@@ -1,5 +1,5 @@
 import { Text, View } from 'react-native';
-import { RegionChipSection } from '@/features/location/RegionSelection';
+import { RegionChipSection, getSecondaryRegionKindLabel } from '@/features/location/RegionSelection';
 import { RegionPickerCard } from './SignupFormPrimitives';
 import { signupFormStyles as styles } from './signupFormStyles';
 import type { SignupFormModel } from './types';
@@ -56,14 +56,14 @@ export function SignupRegionSection({
 
       {selectedProvince ? (
         <RegionPickerCard
-          title={selectedProvince.children?.[0]?.type === 'district' ? '2. 구 선택' : '2. 시/군 선택'}
+          title={`2. ${getSecondaryRegionKindLabel(selectedProvince.children)} 선택`}
           selectedLabel={secondaryRegionName || '세부 지역을 선택해주세요'}
           active={openRegionStep === 'secondary'}
           disabled={submitting || catalogLoading}
           onPress={() => setOpenRegionStep('secondary')}
         >
           <RegionChipSection
-            title={selectedProvince.children?.[0]?.type === 'district' ? '구 목록' : '시/군 목록'}
+            title={`${getSecondaryRegionKindLabel(selectedProvince.children)} 목록`}
             options={secondaryOptions}
             selectedName={secondaryRegionName}
             disabled={submitting || catalogLoading}

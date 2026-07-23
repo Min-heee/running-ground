@@ -5,8 +5,24 @@ import { formatRegionLabel } from './regionLabel';
 
 test('metro user: province + district', () => {
   assert.equal(
+    formatRegionLabel({ provinceName: '서울특별시', cityName: '', districtName: '강남구' }),
+    '서울특별시 강남구',
+  );
+});
+
+// 2026-07-01 행정통합: 캐시/미이관 응답에 남은 옛 시·도 이름도 현행 명칭으로 표시.
+test('legacy merged-province names are normalized to 전남광주통합특별시', () => {
+  assert.equal(
     formatRegionLabel({ provinceName: '광주광역시', cityName: '', districtName: '동구' }),
-    '광주광역시 동구',
+    '전남광주통합특별시 동구',
+  );
+  assert.equal(
+    formatRegionLabel({ provinceName: '전라남도', cityName: '순천시', districtName: '순천시' }),
+    '전남광주통합특별시 순천시',
+  );
+  assert.equal(
+    formatRegionLabel({ provinceName: '전남광주통합특별시', cityName: '', districtName: '동구' }),
+    '전남광주통합특별시 동구',
   );
 });
 
