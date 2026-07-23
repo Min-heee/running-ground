@@ -246,3 +246,51 @@ await runTest('surfaces missing notice errors', async () => {
     return true;
   });
 });
+
+// ── 라이브 강제 정리 (2026-07-23) ────────────────────────────────────────────
+
+await runTest('force-deleting a live session removes it plus its linked room', async () => {
+  const { repository, storeHarness } = createRepositoryHarness({
+    users: [{ id: 'u1', name: '회원G', publicTag: '#AAAAA' }],
+    matchSessions: [
+      { id: 'duel-match-9', mode: 'duel', participants: [{ userId: 'u1' }] },
+      { id: 'group-match-2', mode: 'group', participants: [] },
+    ],
+    matchRooms: [
+      { id: 'room-9', mode: 'duel', hostUserId: 'u1', participants: [{ userId: 'u1' }], linkedMatchId: 'duel-match-9' },
+      { id: 'room-free', mode: 'group', hostUserId: 'u1', participants: [{ userId: 'u1' }], linkedMatchId: null },
+    ],
+  });
+
+  const live = await repository.deleteLiveMatchSession({ sessionId: 'duel-match-9' });
+
+  const store = storeHarness.getStore();
+  assert.deepEqual(store.matchSessions.map((entry) => entry.id), ['group-match-2']);
+  assert.deepEqual(store.matchRooms.map((entry) => entry.id), ['room-free']);
+  // 응답은 갱신된 라이브 스냅샷.
+  assert.equal(live.counts.sessions, 1);
+  assert.equal(live.rooms.length, 1);
+});
+
+await runTest('force-deleting a linked room tears down its session too', async () => {
+  const { repository, storeHarness } = createRepositoryHarness({
+    users: [{ id: 'u1', name: '회원G', publicTag: '#AAAAA' }],
+    matchSessions: [{ id: 'group-match-7', mode: 'group', participants: [] }],
+    matchRooms: [{ id: 'room-7', mode: 'group', hostUserId: 'u1', participants: [{ userId: 'u1' }], linkedMatchId: 'group-match-7' }],
+  });
+
+  await repository.deleteLiveMatchRoom({ roomId: 'room-7' });
+
+  const store = storeHarness.getStore();
+  assert.deepEqual(store.matchSessions, []);
+  assert.deepEqual(store.matchRooms, []);
+});
+
+await runTest('deleting an unknown live session surfaces a 404', async () => {
+  const { repository } = createRepositoryHarness({ users: [] });
+
+  await assert.rejects(
+    () => repository.deleteLiveMatchSession({ sessionId: 'nope' }),
+    (error) => error.statusCode === 404,
+  );
+});

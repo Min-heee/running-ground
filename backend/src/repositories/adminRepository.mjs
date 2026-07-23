@@ -1,4 +1,5 @@
 import { buildAdminLiveActivity } from '../lib/adminLiveActivity.mjs';
+import { recordVanishedMatch } from '../lib/vanishedMatchTombstones.mjs';
 
 function createNowIso() {
   return new Date().toISOString();
@@ -28,6 +29,44 @@ export function createJsonAdminRepository({
     // 라이브 현황 (진행 중 세션/대기방/라이브 공유). 빌더가 순수라 직접 import.
     async getLiveActivity() {
       return buildAdminLiveActivity(await loadStore());
+    },
+
+    // 렉걸린/좀비 대결 세션 강제 정리. 세션과 그 세션에 연결된 파티방을 함께
+    // 지우고 툼스톤을 기록해, 아직 폴링 중인 기기가 404 재시도 루프 대신 410
+    // (match_gone)으로 깔끔하게 빠져나오게 한다.
+    async deleteLiveMatchSession({ sessionId }) {
+      return mutateStore((store) => {
+        const session = (store.matchSessions ?? []).find((entry) => entry.id === sessionId);
+
+        if (!session) {
+          throw createError(404, '해당 대결 세션을 찾지 못했어요.');
+        }
+
+        store.matchSessions = store.matchSessions.filter((entry) => entry.id !== sessionId);
+        store.matchRooms = (store.matchRooms ?? []).filter((entry) => entry.linkedMatchId !== sessionId);
+        recordVanishedMatch(sessionId);
+        return buildAdminLiveActivity(store);
+      });
+    },
+
+    // 대기방 강제 정리. 이미 세션이 연결된 방이면 그 세션까지 함께 지운다.
+    async deleteLiveMatchRoom({ roomId }) {
+      return mutateStore((store) => {
+        const room = (store.matchRooms ?? []).find((entry) => entry.id === roomId);
+
+        if (!room) {
+          throw createError(404, '해당 방을 찾지 못했어요.');
+        }
+
+        store.matchRooms = store.matchRooms.filter((entry) => entry.id !== roomId);
+
+        if (room.linkedMatchId) {
+          store.matchSessions = (store.matchSessions ?? []).filter((entry) => entry.id !== room.linkedMatchId);
+          recordVanishedMatch(room.linkedMatchId);
+        }
+
+        return buildAdminLiveActivity(store);
+      });
     },
 
     async getUsers() {

@@ -232,7 +232,10 @@ async function loadLive() {
       <div class="stat" style="grid-column: 1 / -1; padding: 14px 16px;">
         <div class="row" style="justify-content: space-between; margin-bottom: 8px;">
           <b>${esc(badge)} · ${session.distanceKm ?? '?'}km</b>
-          <span class="muted">시작 ${session.slotStartAt ? esc(session.slotStartAt.slice(11, 16)) : '-'} (UTC)</span>
+          <span class="row">
+            <span class="muted">시작 ${session.slotStartAt ? esc(session.slotStartAt.slice(11, 16)) : '-'} (UTC)</span>
+            <button class="btn danger small" onclick="removeLiveSession('${esc(session.id)}')">세션 강제 종료</button>
+          </span>
         </div>
         <div class="table-scroll"><table>
           <tr><th>러너</th><th>상태</th><th>거리</th><th>페이스</th><th>경과</th><th>마지막 갱신</th></tr>
@@ -249,6 +252,7 @@ async function loadLive() {
       <td style="text-align:right;">${room.participantCount}/${room.maxParticipants ?? '?'}</td>
       <td>${esc(room.inviteToken)}</td>
       <td class="muted">${room.slotStartAt ? esc(room.slotStartAt.slice(5, 16).replace('T', ' ')) : '-'}</td>
+      <td><button class="btn danger small" onclick="removeLiveRoom('${esc(room.id)}')">삭제</button></td>
     </tr>`).join('');
 
   const liveRunRows = data.liveRuns.map((run) => `
@@ -272,7 +276,7 @@ async function loadLive() {
     ${sessionCards ? `<div class="grid">${sessionCards}</div>` : '<div class="empty">지금 진행 중인 대결이 없어요.</div>'}
     <div class="section-title">대기 중인 파티방 (시작 전)</div>
     ${roomRows ? `<div class="table-scroll"><table>
-      <tr><th>모드</th><th>거리</th><th>방장</th><th>인원</th><th>초대 코드</th><th>시작 예정</th></tr>${roomRows}
+      <tr><th>모드</th><th>거리</th><th>방장</th><th>인원</th><th>초대 코드</th><th>시작 예정</th><th></th></tr>${roomRows}
     </table></div>` : '<div class="empty">대기 중인 방이 없어요.</div>'}
     <div class="section-title">라이브 공유 중인 솔로 러너</div>
     ${liveRunRows ? `<div class="table-scroll"><table>
@@ -294,6 +298,24 @@ async function loadOverview() {
       <div class="stat"><div class="label">${label}</div><div class="value">${esc(value)}</div></div>`).join('')}
     </div>
     <p class="muted" style="margin-top:14px;">${esc(data.environment)} · ${esc(data.publicBaseUrl || '')}</p>`;
+}
+
+async function removeLiveSession(sessionId) {
+  if (!confirm('이 대결 세션을 강제 종료할까요?\n참가자 앱은 "대결이 종료됐어요"로 정리되고, 연결된 파티방도 함께 삭제돼요.')) return;
+  try {
+    await api(`/live/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+    toast('세션을 강제 종료했어요');
+    refreshCurrent();
+  } catch (error) { toast(error.message, true); }
+}
+
+async function removeLiveRoom(roomId) {
+  if (!confirm('이 파티방을 삭제할까요? 참가자들은 방에서 자동으로 나가져요.')) return;
+  try {
+    await api(`/live/rooms/${encodeURIComponent(roomId)}`, { method: 'DELETE' });
+    toast('방을 삭제했어요');
+    refreshCurrent();
+  } catch (error) { toast(error.message, true); }
 }
 
 // ── 유저 ─────────────────────────────────────────────────────────────────────

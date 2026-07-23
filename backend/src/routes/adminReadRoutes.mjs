@@ -52,6 +52,21 @@ async function routeAdminRepositoryReadRequest({
     return true;
   }
 
+  // 라이브 강제 정리 (렉걸린 세션/방). 응답은 갱신된 라이브 스냅샷.
+  const adminLiveSessionMatch = pathname.match(/^\/api\/admin\/live\/sessions\/([^/]+)$/);
+  if (adminLiveSessionMatch && method === 'DELETE') {
+    requireAdmin(request);
+    sendJson(response, 200, await getAdminRepository().deleteLiveMatchSession({ sessionId: adminLiveSessionMatch[1] }));
+    return true;
+  }
+
+  const adminLiveRoomMatch = pathname.match(/^\/api\/admin\/live\/rooms\/([^/]+)$/);
+  if (adminLiveRoomMatch && method === 'DELETE') {
+    requireAdmin(request);
+    sendJson(response, 200, await getAdminRepository().deleteLiveMatchRoom({ roomId: adminLiveRoomMatch[1] }));
+    return true;
+  }
+
   if (pathname === '/api/admin/users' && method === 'GET') {
     requireAdmin(request);
     sendJson(response, 200, await getAdminRepository().getUsers());
