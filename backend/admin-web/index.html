@@ -116,16 +116,26 @@ const TABS = [
   { id: 'races', label: '오프라인 대회' },
 ];
 
-// 라이브 탭은 10초마다 자동 새로고침 — 탭을 떠나면 멈춘다.
+// 라이브 탭 자동 새로고침 — 서버 부하를 최소로:
+//  · 기본 30초 간격 (직접 [지금 새로고침]으로 언제든 즉시 갱신 가능)
+//  · 라이브 탭을 떠나면 정지
+//  · 브라우저 탭이 백그라운드면 정지 (방치된 탭이 하루 종일 폴링하지 않게),
+//    다시 보이면 즉시 1회 갱신 후 재개
+const LIVE_REFRESH_MS = 30000;
 let liveAutoRefresh = null;
 function syncLiveAutoRefresh() {
   if (currentTab === 'live' && !liveAutoRefresh) {
-    liveAutoRefresh = setInterval(() => { if (currentTab === 'live') loadLive().catch(() => {}); }, 10000);
+    liveAutoRefresh = setInterval(() => {
+      if (currentTab === 'live' && !document.hidden) loadLive().catch(() => {});
+    }, LIVE_REFRESH_MS);
   } else if (currentTab !== 'live' && liveAutoRefresh) {
     clearInterval(liveAutoRefresh);
     liveAutoRefresh = null;
   }
 }
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && currentTab === 'live') loadLive().catch(() => {});
+});
 
 function el(id) { return document.getElementById(id); }
 function esc(value) {
@@ -270,7 +280,10 @@ async function loadLive() {
         <b>대기 중 파티방 ${data.counts.rooms}</b>
         <b>라이브 솔로 러너 ${data.counts.liveRuns}</b>
       </div>
-      <span class="muted">10초마다 자동 갱신 · ${esc(data.generatedAt.slice(11, 19))} UTC</span>
+      <span class="row">
+        <span class="muted">30초마다 자동 갱신 · ${esc(data.generatedAt.slice(11, 19))} UTC</span>
+        <button class="btn small" onclick="loadLive().catch(() => {})">지금 새로고침</button>
+      </span>
     </div>
     <div class="section-title" style="margin-top:0;">진행 중 대결 세션</div>
     ${sessionCards ? `<div class="grid">${sessionCards}</div>` : '<div class="empty">지금 진행 중인 대결이 없어요.</div>'}
