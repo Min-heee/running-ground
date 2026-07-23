@@ -53,8 +53,20 @@ export function useRegionLeagueState() {
   }, []);
 
   const isCurrentUserRegionNode = useCallback(
-    (node: LeagueRegionNodeIdentity) => isMyRegionNode(node, profile),
-    [profile],
+    (node: LeagueRegionNodeIdentity) => {
+      // Ancestry for the hierarchy-aware check: a node that appears in the
+      // breadcrumb uses the entries above it; anything else is a child of the
+      // current node, so the whole breadcrumb is its ancestry. (Levels strictly
+      // descend, so a child can never collide with a breadcrumb entry.)
+      const breadcrumbIndex = breadcrumbNodes.findIndex(
+        (entry) => entry.level === node.level && entry.name === node.name,
+      );
+      const ancestors = breadcrumbIndex >= 0
+        ? breadcrumbNodes.slice(0, breadcrumbIndex)
+        : breadcrumbNodes;
+      return isMyRegionNode(node, profile, ancestors);
+    },
+    [breadcrumbNodes, profile],
   );
 
   useAndroidDeferredEffect(() => {

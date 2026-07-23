@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { MyProfileResponse } from '@/lib/api/types';
+import { formatRegionLabel } from '@/utils/regionLabel';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type ProfileSummaryCardProps = {
@@ -19,9 +20,10 @@ export function ProfileSummaryCard({
   tagShared,
   onShareTag,
 }: ProfileSummaryCardProps) {
+  // Full hierarchy ("광주광역시 동구") — a bare 구 name is ambiguous nationwide.
   const profileSubline = useMemo(
-    () => profile.districtName || '',
-    [profile.districtName],
+    () => formatRegionLabel(profile),
+    [profile],
   );
 
   return (

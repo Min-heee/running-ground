@@ -47,3 +47,67 @@ test('league ranking helpers keep empty and tied rank inputs predictable', () =>
   assert.deepEqual(sortRegionChildrenByRank([]), []);
   assert.deepEqual(sortRegionChildrenByRank(tiedNodes).map((node) => node.id), ['first', 'second']);
 });
+
+// ── 계층 검증 (2026-07-23 회귀): 이름만 같은 남의 지역이 내 지역이 되면 안 된다 ──
+
+test('a same-named 구 in another metro is NOT my region', () => {
+  const gwangjuDonggu = { provinceName: '광주광역시', cityName: '', districtName: '동구' };
+
+  // 대전 트리 아래의 동구: 이름은 같아도 조상(대전광역시)이 다르므로 남의 지역.
+  assert.equal(
+    isMyRegionNode({ level: 'district', name: '동구' }, gwangjuDonggu, [
+      { level: 'country', name: '대한민국' },
+      { level: 'province', name: '대전광역시' },
+    ]),
+    false,
+  );
+
+  // 광주 트리 아래의 동구만 내 지역.
+  assert.equal(
+    isMyRegionNode({ level: 'district', name: '동구' }, gwangjuDonggu, [
+      { level: 'country', name: '대한민국' },
+      { level: 'province', name: '광주광역시' },
+    ]),
+    true,
+  );
+});
+
+test('city nodes also require the province ancestor to match', () => {
+  const gangwonGoseong = { provinceName: '강원특별자치도', cityName: '고성군', districtName: '고성군' };
+
+  assert.equal(
+    isMyRegionNode({ level: 'city', name: '고성군' }, gangwonGoseong, [
+      { level: 'country', name: '대한민국' },
+      { level: 'province', name: '경상남도' },
+    ]),
+    false,
+  );
+  assert.equal(
+    isMyRegionNode({ level: 'city', name: '고성군' }, gangwonGoseong, [
+      { level: 'country', name: '대한민국' },
+      { level: 'province', name: '강원특별자치도' },
+    ]),
+    true,
+  );
+});
+
+test('a 도-tree district requires the city ancestor to match my city', () => {
+  const suwonUser = { provinceName: '경기도', cityName: '수원시', districtName: '팔달구' };
+
+  assert.equal(
+    isMyRegionNode({ level: 'district', name: '팔달구' }, suwonUser, [
+      { level: 'country', name: '대한민국' },
+      { level: 'province', name: '경기도' },
+      { level: 'city', name: '수원시' },
+    ]),
+    true,
+  );
+  // 광역시(도시 조상 없음) 아래 같은 이름: 내 cityName이 비어있지 않으므로 불일치.
+  assert.equal(
+    isMyRegionNode({ level: 'district', name: '팔달구' }, suwonUser, [
+      { level: 'country', name: '대한민국' },
+      { level: 'province', name: '광주광역시' },
+    ]),
+    false,
+  );
+});

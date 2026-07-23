@@ -67,18 +67,35 @@ export function sortDistrictRanksByMetric(
     .map((runner, index) => ({ ...runner, rank: index + 1 }));
 }
 
-export function isMyRegionNode(node: LeagueRegionNodeIdentity, profile: LeagueProfileRegion | null | undefined) {
+// "내 지역" 판정은 이름 하나가 아니라 트리 조상까지 본다. 같은 구 이름이 전국에
+// 반복되므로 (동구가 6개 광역시에 존재) 이름만 비교하면 광주 동구 유저에게 인천·
+// 대전 동구까지 전부 내 지역으로 하이라이트되는 버그가 있었다 (2026-07-23).
+// `ancestors`는 노드까지의 경로에서 노드 위에 있는 항목들 — 조상을 모르는 호출부
+// (빈 배열)는 이름 비교로만 동작하는 관대한 폴백.
+export function isMyRegionNode(
+  node: LeagueRegionNodeIdentity,
+  profile: LeagueProfileRegion | null | undefined,
+  ancestors: LeagueRegionNodeIdentity[] = [],
+) {
   if (!profile) {
     return false;
   }
+
+  const provinceAncestor = ancestors.find((entry) => entry.level === 'province')?.name ?? null;
+  const cityAncestor = ancestors.find((entry) => entry.level === 'city')?.name ?? null;
 
   switch (node.level) {
     case 'province':
       return node.name === profile.provinceName;
     case 'city':
-      return node.name === profile.cityName;
+      return node.name === profile.cityName
+        && (provinceAncestor === null || provinceAncestor === profile.provinceName);
     case 'district':
-      return node.name === profile.districtName;
+      // 광역시 트리는 city 레벨이 없으므로: city 조상 부재(null→'')와 프로필의
+      // 빈 cityName('')이 일치해야 한다. 도 트리라면 city 조상까지 일치 필수.
+      return node.name === profile.districtName
+        && (provinceAncestor === null || provinceAncestor === profile.provinceName)
+        && (cityAncestor ?? '') === (profile.cityName ?? '');
     default:
       return false;
   }

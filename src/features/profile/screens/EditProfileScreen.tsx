@@ -12,6 +12,7 @@ import {
   useEditProfile,
 } from '@/features/profile/hooks/useEditProfile';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { formatRegionLabel } from '@/utils/regionLabel';
 
 export default function EditProfileScreen() {
   const {
@@ -66,7 +67,7 @@ export default function EditProfileScreen() {
               </Text>
             </View>
 
-            <Input label="대표 지역" value={profile.districtName} editable={false} />
+            <Input label="대표 지역" value={formatRegionLabel(profile)} editable={false} />
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>상태 메시지</Text>

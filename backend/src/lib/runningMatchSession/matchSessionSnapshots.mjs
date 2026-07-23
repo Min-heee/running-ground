@@ -38,6 +38,14 @@ export function buildMatchRunnerProfile(store, user, runs = getRunsForUser(store
     name: user.name,
     tag: user.publicTag,
     districtName: user.districtName,
+    // Full hierarchy label ("광주광역시 동구") — a bare 구 name is ambiguous
+    // nationwide (동구 exists in six metros). Additive; districtName stays for
+    // older clients. Consecutive duplicates collapse (도 city stores
+    // districtName === cityName).
+    regionLabel: [user.provinceName, user.cityName, user.districtName]
+      .map((part) => (typeof part === 'string' ? part.trim() : ''))
+      .filter((part, index, parts) => part && part !== parts[index - 1])
+      .join(' '),
     averagePaceMinutes,
     averagePace: formatPaceMinutesLabel(averagePaceMinutes),
     distanceLevel: metrics.competitiveDistanceLevel,

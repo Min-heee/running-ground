@@ -95,7 +95,7 @@ export function DuelMatchSetupCard({
           <Text style={styles.duelResultEyebrow}>MATCH ACTIVE</Text>
           <Text style={styles.duelResultTitle}>{opponent.name}님과 바로 시작할 수 있어요</Text>
           <Text style={styles.duelResultMeta}>
-            {opponent.averagePace} · {opponent.levelLabel} · {opponent.districtName}
+            {opponent.averagePace} · {opponent.levelLabel} · {opponent.regionLabel ?? opponent.districtName}
             {opponentStatusLabel ? ` · ${opponentStatusLabel}` : ''}
           </Text>
           {liveGapKm !== null ? (
