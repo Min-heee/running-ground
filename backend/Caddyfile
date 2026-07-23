@@ -11,5 +11,15 @@
 		X-Frame-Options "DENY"
 	}
 
-	reverse_proxy api:8081
+	# 웹 관리자 대시보드 (backend/admin-web, 컨테이너에 /srv/admin-web로 마운트).
+	# 정적 파일일 뿐이고 데이터는 전부 /api/admin/*의 x-admin-token 검증 뒤에 있다.
+	handle_path /admin* {
+		root * /srv/admin-web
+		try_files {path} /index.html
+		file_server
+	}
+
+	handle {
+		reverse_proxy api:8081
+	}
 }

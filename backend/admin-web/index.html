@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>러닝그라운드 관리자</title>
+<style>
+  :root {
+    --bg: #0D101C; --surface: #151A2C; --surface2: #1D2338; --border: #2A3150;
+    --text: #F2F4FF; --text2: #9BA3C7; --brand: #6D5EF7; --brand-soft: rgba(109,94,247,0.18);
+    --green: #3DDC84; --red: #FF6B6B; --amber: #FFC24B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, "Apple SD Gothic Neo", "Pretendard", sans-serif; min-height: 100vh; }
+  button { font-family: inherit; cursor: pointer; border: none; }
+  input, select, textarea { font-family: inherit; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 9px 12px; font-size: 14px; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--brand); }
+
+  .login-wrap { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 36px; width: 360px; display: flex; flex-direction: column; gap: 14px; }
+  .login-card h1 { font-size: 20px; }
+  .login-card p { color: var(--text2); font-size: 13px; line-height: 1.5; }
+
+  header.topbar { display: flex; align-items: center; gap: 16px; padding: 14px 24px; border-bottom: 1px solid var(--border); background: var(--surface); position: sticky; top: 0; z-index: 5; }
+  .brand-dot { width: 10px; height: 10px; border-radius: 3px; background: var(--brand); }
+  .topbar h1 { font-size: 16px; }
+  .topbar .env { color: var(--text2); font-size: 12px; }
+  .topbar .spacer { flex: 1; }
+
+  nav.tabs { display: flex; gap: 6px; padding: 12px 24px 0; flex-wrap: wrap; }
+  .tab { background: transparent; color: var(--text2); padding: 9px 16px; border-radius: 10px 10px 0 0; font-size: 14px; font-weight: 700; }
+  .tab.active { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-bottom-color: var(--surface); }
+
+  main { padding: 20px 24px 60px; max-width: 1200px; margin: 0 auto; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 0 14px 14px 14px; padding: 20px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+  .stat { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .stat .label { color: var(--text2); font-size: 12px; margin-bottom: 6px; }
+  .stat .value { font-size: 26px; font-weight: 800; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--text2); font-weight: 700; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 9px 10px; border-bottom: 1px solid rgba(42,49,80,0.5); vertical-align: top; }
+  .table-scroll { overflow-x: auto; }
+
+  .btn { border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 700; background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .btn.danger { background: transparent; border-color: var(--red); color: var(--red); }
+  .btn.good { background: transparent; border-color: var(--green); color: var(--green); }
+  .btn.small { padding: 5px 10px; font-size: 12px; }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+
+  .chip { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+  .chip.requested { background: rgba(255,194,75,0.15); color: var(--amber); }
+  .chip.fulfilled { background: rgba(61,220,132,0.15); color: var(--green); }
+  .chip.cancelled { background: rgba(255,107,107,0.15); color: var(--red); }
+  .chip.on { background: rgba(61,220,132,0.15); color: var(--green); }
+  .chip.off { background: rgba(155,163,199,0.15); color: var(--text2); }
+
+  .section-title { font-size: 15px; font-weight: 800; margin: 22px 0 10px; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; margin-bottom: 10px; }
+  .form-grid label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--text2); }
+  .form-wide { grid-column: 1 / -1; }
+  .muted { color: var(--text2); font-size: 12px; }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--surface2); border: 1px solid var(--brand); color: var(--text); padding: 12px 22px; border-radius: 12px; font-size: 14px; font-weight: 700; display: none; z-index: 20; }
+  .toast.error { border-color: var(--red); }
+  .empty { color: var(--text2); padding: 24px 0; text-align: center; }
+</style>
+</head>
+<body>
+
+<div id="login" class="login-wrap">
+  <form class="login-card" onsubmit="return doLogin(event)">
+    <h1>🏃 러닝그라운드 관리자</h1>
+    <p>드롭릿 <code>.env.production</code>의 <b>BACKEND_ADMIN_TOKEN</b> 값을 입력하세요. 이 브라우저에만 저장됩니다.</p>
+    <input id="tokenInput" type="password" placeholder="관리자 토큰" autocomplete="off">
+    <button class="btn primary" type="submit">접속하기</button>
+    <p id="loginError" style="color: var(--red); display: none;">토큰이 올바르지 않아요.</p>
+  </form>
+</div>
+
+<div id="app" style="display: none;">
+  <header class="topbar">
+    <div class="brand-dot"></div>
+    <h1>러닝그라운드 관리자</h1>
+    <span class="env" id="envLabel"></span>
+    <div class="spacer"></div>
+    <button class="btn small" onclick="refreshCurrent()">새로고침</button>
+    <button class="btn small" onclick="logout()">로그아웃</button>
+  </header>
+
+  <nav class="tabs" id="tabs"></nav>
+  <main><div class="panel" id="panel"><div class="empty">불러오는 중...</div></div></main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// 러닝그라운드 웹 관리자 — 같은 도메인(/api)의 admin API를 x-admin-token으로 호출.
+const API = '/api/admin';
+let TOKEN = localStorage.getItem('rg.adminToken') || '';
+let currentTab = 'overview';
+// PATCH 엔드포인트는 부분 업데이트가 아니라 전체 입력을 검증하므로, 토글 시
+// 마지막으로 불러온 원본 레코드를 통째로 보내기 위한 캐시.
+const cache = { notices: [], market: [] };
+
+const TABS = [
+  { id: 'overview', label: '개요' },
+  { id: 'users', label: '유저' },
+  { id: 'redemptions', label: '리워드 신청' },
+  { id: 'notices', label: '공지' },
+  { id: 'market', label: '마켓' },
+  { id: 'races', label: '오프라인 대회' },
+];
+
+function el(id) { return document.getElementById(id); }
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+function toast(message, isError) {
+  const node = el('toast');
+  node.textContent = message;
+  node.className = 'toast' + (isError ? ' error' : '');
+  node.style.display = 'block';
+  clearTimeout(node._t);
+  node._t = setTimeout(() => { node.style.display = 'none'; }, 2600);
+}
+
+async function api(path, options = {}) {
+  const response = await fetch(API + path, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-token': TOKEN,
+      ...(options.headers || {}),
+    },
+  });
+  let body = null;
+  try { body = await response.json(); } catch { /* empty body */ }
+  if (!response.ok) {
+    throw new Error(body?.message || `요청 실패 (${response.status})`);
+  }
+  return body;
+}
+
+async function doLogin(event) {
+  event.preventDefault();
+  TOKEN = el('tokenInput').value.trim();
+  try {
+    const session = await api('/session');
+    localStorage.setItem('rg.adminToken', TOKEN);
+    enterApp(session);
+  } catch {
+    el('loginError').style.display = 'block';
+  }
+  return false;
+}
+
+function logout() {
+  localStorage.removeItem('rg.adminToken');
+  location.reload();
+}
+
+function enterApp(session) {
+  el('login').style.display = 'none';
+  el('app').style.display = 'block';
+  el('envLabel').textContent = session?.environment ? `env: ${session.environment}` : '';
+  renderTabs();
+  selectTab('overview');
+}
+
+function renderTabs() {
+  el('tabs').innerHTML = TABS.map((tab) => (
+    `<button class="tab${tab.id === currentTab ? ' active' : ''}" onclick="selectTab('${tab.id}')">${tab.label}</button>`
+  )).join('');
+}
+
+function selectTab(tabId) {
+  currentTab = tabId;
+  renderTabs();
+  refreshCurrent();
+}
+
+function refreshCurrent() {
+  el('panel').innerHTML = '<div class="empty">불러오는 중...</div>';
+  ({ overview: loadOverview, users: loadUsers, redemptions: loadRedemptions, notices: loadNotices, market: loadMarket, races: loadRaces })[currentTab]()
+    .catch((error) => { el('panel').innerHTML = `<div class="empty">${esc(error.message)}</div>`; });
+}
+
+// ── 개요 ─────────────────────────────────────────────────────────────────────
+async function loadOverview() {
+  const data = await api('/overview');
+  const items = [
+    ['유저', data.counts.users], ['러닝 기록', data.counts.runs], ['세션(로그인)', data.counts.sessions],
+    ['리워드 신청', data.counts.rewardRedemptions], ['마켓 상품(활성)', `${data.counts.activeMarketItems}/${data.counts.marketItems}`],
+    ['공지(활성)', `${data.counts.activeNotices}/${data.counts.notices}`],
+    ['대회(활성)', `${data.counts.activeOfflineRaceEvents}/${data.counts.offlineRaceEvents}`],
+  ];
+  el('panel').innerHTML = `
+    <div class="grid">${items.map(([label, value]) => `
+      <div class="stat"><div class="label">${label}</div><div class="value">${esc(value)}</div></div>`).join('')}
+    </div>
+    <p class="muted" style="margin-top:14px;">${esc(data.environment)} · ${esc(data.publicBaseUrl || '')}</p>`;
+}
+
+// ── 유저 ─────────────────────────────────────────────────────────────────────
+async function loadUsers() {
+  const data = await api('/users');
+  const rows = data.users.map((user) => `
+    <tr>
+      <td><b>${esc(user.name)}</b><br><span class="muted">@${esc(user.username)} · ${esc(user.publicTag)}</span></td>
+      <td>${esc([user.provinceName, user.cityName, user.districtName].filter(Boolean).join(' '))}</td>
+      <td>${esc(user.phone || '-')}</td>
+      <td style="text-align:right;">${user.totalRuns}회 / ${user.lifetimeDistanceKm}km</td>
+      <td style="text-align:right;">주간 ${user.currentWeekDistanceKm}km · ${user.currentWeekPoints}P</td>
+      <td>${user.createdAt ? esc(user.createdAt.slice(0, 10)) : '-'}</td>
+      <td><button class="btn danger small" onclick="removeUser('${esc(user.id)}', '${esc(user.username)}')">삭제</button></td>
+    </tr>`).join('');
+  el('panel').innerHTML = `
+    <p class="muted" style="margin-bottom:10px;">총 ${data.users.length}명 · ⚠️ 심사용 계정 <b>reviewer01</b>은 심사 중 삭제 금지</p>
+    <div class="table-scroll"><table>
+      <tr><th>이름/아이디</th><th>지역</th><th>전화</th><th>누적</th><th>이번 주</th><th>가입일</th><th></th></tr>
+      ${rows || '<tr><td colspan="7" class="empty">유저가 없어요.</td></tr>'}
+    </table></div>`;
+}
+
+async function removeUser(userId, username) {
+  if (username === 'reviewer01' && !confirm('⚠️ reviewer01은 앱스토어 심사용 계정입니다. 심사 중이면 절대 지우면 안 돼요. 정말 삭제할까요?')) return;
+  if (!confirm(`유저 @${username}과 모든 데이터(기록/친구/알림)를 삭제할까요? 되돌릴 수 없어요.`)) return;
+  try {
+    await api(`/users/${encodeURIComponent(userId)}`, { method: 'DELETE' });
+    toast(`@${username} 삭제 완료`);
+    refreshCurrent();
+  } catch (error) { toast(error.message, true); }
+}
+
+// ── 리워드 신청 ───────────────────────────────────────────────────────────────
+async function loadRedemptions() {
+  const data = await api('/reward-redemptions');
+  const rows = data.items.map((item) => `
+    <tr>
+      <td><b>${esc(item.itemTitle)}</b><br><span class="muted">${item.costPoints}P</span></td>
+      <td>${esc(item.userName)}<br><span class="muted">${esc(item.userTag)}</span></td>
+      <td><span class="chip ${esc(item.status)}">${{ requested: '신청됨', fulfilled: '지급 완료', cancelled: '취소됨' }[item.status] || esc(item.status)}</span>
+        ${item.adminNote ? `<br><span class="muted">${esc(item.adminNote)}</span>` : ''}</td>
+      <td>${esc((item.claimedAt || '').slice(0, 16).replace('T', ' '))}</td>
+      <td class="row">
+        ${item.status === 'requested' ? `
+          <button class="btn good small" onclick="setRedemption('${esc(item.id)}', 'fulfilled')">지급 완료</button>
+          <button class="btn danger small" onclick="setRedemption('${esc(item.id)}', 'cancelled')">취소</button>` : `
+          <button class="btn small" onclick="setRedemption('${esc(item.id)}', 'requested')">신청 상태로 되돌리기</button>`}
+      </td>
+    </tr>`).join('');
+  el('panel').innerHTML = `
+    <div class="table-scroll"><table>
+      <tr><th>상품</th><th>신청자</th><th>상태</th><th>신청 시각</th><th>처리</th></tr>
+      ${rows || '<tr><td colspan="5" class="empty">리워드 신청이 없어요.</td></tr>'}
+    </table></div>`;
+}
+
+async function setRedemption(id, status) {
+  const adminNote = status === 'requested' ? '' : (prompt('관리 메모 (선택, 유저에게 보이지 않음)') ?? '');
+  try {
+    await api(`/reward-redemptions/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ status, adminNote }) });
+    toast('처리 완료');
+    refreshCurrent();
+  } catch (error) { toast(error.message, true); }
+}
+
+// ── 공지 ─────────────────────────────────────────────────────────────────────
+async function loadNotices() {
+  const data = await api('/notices');
+  cache.notices = data.items;
+  const rows = data.items.map((notice) => `
+    <tr>
+      <td><b>${esc(notice.title)}</b><br><span class="muted">${esc(notice.message)}</span></td>
+      <td>${notice.priority}</td>
+      <td><span class="chip ${notice.isActive ? 'on' : 'off'}">${notice.isActive ? '노출 중' : '숨김'}</span></td>
+      <td class="row">
+        <button class="btn small" onclick="toggleNotice('${esc(notice.id)}', ${notice.isActive})">${notice.isActive ? '숨기기' : '노출하기'}</button>
+        <button class="btn danger small" onclick="removeNotice('${esc(notice.id)}')">삭제</button>
+      </td>
+    </tr>`).join('');
+  el('panel').innerHTML = `
+    <div class="section-title" style="margin-top:0;">새 공지 만들기</div>
+    <form onsubmit="return createNotice(event)">
+      <div class="form-grid">
+        <label class="form-wide">제목<input id="nTitle" required maxlength="60"></label>
+        <label class="form-wide">내용<textarea id="nMessage" rows="2" required></textarea></label>
+        <label>우선순위 (높을수록 위)<input id="nPriority" type="number" value="1"></label>
+        <label>바로 노출<select id="nActive"><option value="true">예</option><option value="false">아니요</option></select></label>
+      </div>
+      <button class="btn primary" type="submit">공지 등록</button>
+    </form>
+    <div class="section-title">공지 목록</div>
+    <div class="table-scroll"><table>
+      <tr><th>공지</th><th>우선순위</th><th>상태</th><th></th></tr>
+      ${rows || '<tr><td colspan="4" class="empty">공지가 없어요.</td></tr>'}
+    </table></div>`;
+}
+
+async function createNotice(event) {
+  event.preventDefault();
+  try {
+    await api('/notices', { method: 'POST', body: JSON.stringify({
+      title: el('nTitle').value.trim(),
+      message: el('nMessage').value.trim(),
+      priority: Number(el('nPriority').value) || 1,
+      isActive: el('nActive').value === 'true',
+    }) });
+    toast('공지를 등록했어요');
+    refreshCurrent();
+  } catch (error) { toast(error.message, true); }
+  return false;
+}
+
+async function toggleNotice(id, isActive) {
+  const notice = cache.notices.find((entry) => entry.id === id);
+  if (!notice) return;
+  try {
+    // PATCH validates the FULL input — resend every field with only isActive flipped.
+    await api(`/notices/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({
+      title: notice.title,
+      message: notice.message,
+      priority: notice.priority,
+      isActive: !isActive,
+    }) });
+    toast(isActive ? '공지를 숨겼어요' : '공지를 노출했어요');
+    refreshCurrent();
+  } catch (error) { toast(error.message, true); }
+}
+
+async function removeNotice(id) {
+  if (!confirm('이 공지를 삭제할까요?')) return;
+  try {
+    await api(`/notices/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    toast('공지를 삭제했어요');
+    refreshCurrent();
+  } catch (error) { toast(error.message, true); }
+}
+
+// ── 마켓 ─────────────────────────────────────────────────────────────────────
+async function loadMarket() {
+  const data = await api('/market/items');
+  cache.market = data.items;
+  const rows = data.items.map((item) => `
+    <tr>
+      <td><b>${esc(item.title)}</b><br><span class="muted">${esc(item.category)}${item.partnerName ? ' · ' + esc(item.partnerName) : ''}</span></td>
+      <td style="text-align:right;"><b>${item.costPoints}P</b></td>
+      <td style="text-align:right;">${item.inventoryCount === null ? '무제한' : `${item.remainingStock}/${item.inventoryCount}`}</td>
+      <td style="text-align:right;">${item.redemptionCount}건</td>
+      <td><span class="chip ${item.isActive ? 'on' : 'off'}">${item.isActive ? '판매 중' : '숨김'}</span></td>
+      <td class="row">
+        <button class="btn small" onclick="toggleMarketItem('${esc(item.id)}', ${item.isActive})">${item.isActive ? '숨기기' : '판매하기'}</button>
+        <button class="btn danger small" onclick="removeMarketItem('${esc(item.id)}', '${esc(item.title)}')">삭제</button>
+      </td>
+    </tr>`).join('');
+  el('panel').innerHTML = `
+    <div class="section-title" style="margin-top:0;">새 상품 만들기</div>
+    <form onsubmit="return createMarketItem(event)">
+      <div class="form-grid">
+        <label>상품명<input id="mTitle" required maxlength="40"></label>
+        <label>카테고리<input id="mCategory" required placeholder="예: 기프티콘"></label>
+        <label>필요 포인트<input id="mCost" type="number" min="1" required></label>
+        <label>파트너명 (선택)<input id="mPartner"></label>
+        <label>재고 (비우면 무제한)<input id="mInventory" type="number" min="0"></label>
+        <label>반복 구매<select id="mRepeatable"><option value="false">불가</option><option value="true">가능</option></select></label>
+        <label class="form-wide">설명<textarea id="mDescription" rows="2" required></textarea></label>
+      </div>
+      <button class="btn primary" type="submit">상품 등록</button>
+    </form>
+    <div class="section-title">상품 목록</div>
+    <div class="table-scroll"><table>
+      <tr><th>상품</th><th>포인트</th><th>재고</th><th>신청</th><th>상태</th><th></th></tr>
+      ${rows || '<tr><td colspan="6" class="empty">상품이 없어요.</td></tr>'}
+    </table></div>`;
+}
+
+async function createMarketItem(event) {
+  event.preventDefault();
+  const inventoryRaw = el('mInventory').value.trim();
+  try {
+    await api('/market/items', { method: 'POST', body: JSON.stringify({
+      title: el('mTitle').value.trim(),
+      category: el('mCategory').value.trim(),
+      description: el('mDescription').value.trim(),
+      costPoints: Number(el('mCost').value),
+      partnerName: el('mPartner').value.trim() || undefined,
+      repeatable: el('mRepeatable').value === 'true',
+      isActive: true,
+      inventoryCount: inventoryRaw === '' ? null : Number(inventoryRaw),
+    }) });
+    toast('상품을 등록했어요');
+    refreshCurrent();
+  } catch (error) { toast(error.message, true); }
+  return false;
+}
+
+async function toggleMarketItem(id, isActive) {
+  const item = cache.market.find((entry) => entry.id === id);
+  if (!item) return;
+  try {
+    // PATCH validates the FULL input — resend every field with only isActive flipped.
+    await api(`/market/items/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({
+      title: item.title,
+      category: item.category,
+      description: item.description,
+      costPoints: item.costPoints,
+      partnerName: item.partnerName || undefined,
+      repeatable: item.repeatable,
+      isActive: !isActive,
+      inventoryCount: item.inventoryCount,
+    }) });
+    toast(isActive ? '상품을 숨겼어요' : '판매를 시작했어요');
+    refreshCurrent();
+  } catch (error) { toast(error.message, true); }
+}
+
+async function removeMarketItem(id, title) {
+  if (!confirm(`상품 "${title}"을 삭제할까요?`)) return;
+  try {
+    await api(`/market/items/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    toast('상품을 삭제했어요');
+    refreshCurrent();
+  } catch (error) { toast(error.message, true); }
+}
+
+// ── 오프라인 대회 ─────────────────────────────────────────────────────────────
+const RACE_STATUS_LABEL = {
+  registration_open: '접수 중', registration_closing: '마감 임박', registration_closed: '접수 마감',
+  live: '진행 중', finished: '종료',
+};
+
+async function loadRaces() {
+  const data = await api('/offline-races/events');
+  const rows = data.events.map((race) => `
+    <tr>
+      <td><b>${esc(race.title)}</b><br><span class="muted">${esc(race.subtitle)}</span></td>
+      <td>${race.distanceKm}km</td>
+      <td>${esc((race.startsAt || '').slice(0, 16).replace('T', ' '))}</td>
+      <td style="text-align:right;">${race.participantCount}/${race.capacity}</td>
+      <td>${esc(RACE_STATUS_LABEL[race.status] || race.status)}</td>
+      <td><button class="btn danger small" onclick="removeRace('${esc(race.id)}', '${esc(race.title)}')">삭제</button></td>
+    </tr>`).join('');
+  el('panel').innerHTML = `
+    <div class="section-title" style="margin-top:0;">새 대회 만들기</div>
+    <form onsubmit="return createRace(event)">
+      <div class="form-grid">
+        <label>대회명<input id="rTitle" required></label>
+        <label>부제<input id="rSubtitle" required placeholder="예: 한강 새벽 5K"></label>
+        <label>거리 (km)<input id="rDistance" type="number" step="0.5" min="1" required></label>
+        <label>시작 시각<input id="rStartsAt" type="datetime-local" required></label>
+        <label>접수 마감<input id="rClosesAt" type="datetime-local" required></label>
+        <label>정원<input id="rCapacity" type="number" min="1" value="50" required></label>
+        <label>참가 포인트<input id="rFee" type="number" min="0" value="0" required></label>
+        <label>러닝 제한 시간 (분)<input id="rWindow" type="number" min="10" value="120" required></label>
+        <label>주최 표기<input id="rHost" value="러닝그라운드" required></label>
+        <label>참여 방식<input id="rMode" value="자유 참여" required></label>
+        <label>기록 인증 방식<input id="rProof" value="앱 GPS 기록" required></label>
+        <label class="form-wide">운영 메모<textarea id="rNote" rows="2"></textarea></label>
+      </div>
+      <button class="btn primary" type="submit">대회 등록</button>
+    </form>
+    <div class="section-title">대회 목록</div>
+    <div class="table-scroll"><table>
+      <tr><th>대회</th><th>거리</th><th>시작</th><th>참가</th><th>상태</th><th></th></tr>
+      ${rows || '<tr><td colspan="6" class="empty">등록된 대회가 없어요.</td></tr>'}
+    </table></div>`;
+}
+
+async function createRace(event) {
+  event.preventDefault();
+  try {
+    await api('/offline-races/events', { method: 'POST', body: JSON.stringify({
+      title: el('rTitle').value.trim(),
+      subtitle: el('rSubtitle').value.trim(),
+      distanceKm: Number(el('rDistance').value),
+      startsAt: new Date(el('rStartsAt').value).toISOString(),
+      registrationClosesAt: new Date(el('rClosesAt').value).toISOString(),
+      participationMode: el('rMode').value.trim(),
+      proofMethod: el('rProof').value.trim(),
+      runWindowMinutes: Number(el('rWindow').value),
+      hostLabel: el('rHost').value.trim(),
+      capacity: Number(el('rCapacity').value),
+      entryFeePoints: Number(el('rFee').value),
+      operationNote: el('rNote').value.trim(),
+    }) });
+    toast('대회를 등록했어요');
+    refreshCurrent();
+  } catch (error) { toast(error.message, true); }
+  return false;
+}
+
+async function removeRace(id, title) {
+  if (!confirm(`대회 "${title}"을 삭제할까요?`)) return;
+  try {
+    await api(`/offline-races/events/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    toast('대회를 삭제했어요');
+    refreshCurrent();
+  } catch (error) { toast(error.message, true); }
+}
+
+// 부팅: 저장된 토큰이 있으면 자동 로그인 시도.
+(async () => {
+  if (!TOKEN) return;
+  try {
+    const session = await api('/session');
+    enterApp(session);
+  } catch {
+    localStorage.removeItem('rg.adminToken');
+  }
+})();
+</script>
+</body>
+</html>

@@ -113,6 +113,8 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # 웹 관리자 대시보드 정적 파일 (Caddyfile의 handle_path /admin*가 서빙).
+      - ./admin-web:/srv/admin-web:ro
       - caddy_data:/data
       - caddy_config:/config
     restart: unless-stopped
