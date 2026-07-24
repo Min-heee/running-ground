@@ -10,7 +10,7 @@ import {
   resolveDefaultSelectedTier,
   resolveOrderedRankTiers,
 } from '@/features/league/utils/rankLeaderboardView';
-import { RANK_TIER_COLOR } from '@/features/rank/rankDisplay';
+import { RANK_TIERS, RANK_TIER_COLOR } from '@/features/rank/rankDisplay';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 const RankLeaderboardRow = memo(function RankLeaderboardRow({
@@ -64,7 +64,12 @@ const RankTierSection = memo(function RankTierSection({
         <Text style={styles.tierCount}>{tierGroup.users.length}명</Text>
       </View>
       {tierGroup.users.length === 0 ? (
-        <Text style={styles.emptyTierText}>아직 이 랭크에 진입한 사람이 없어요.</Text>
+        <Text style={styles.emptyTierText}>
+          {tierGroup.tier === RANK_TIERS[0]
+            // 입문 0 LP는 뷰에서 걸러지므로(공개처형 방지) 빈 목록이 기본 상태다.
+            ? '랭크 대결에서 첫 LP를 얻으면 이곳에 올라와요.'
+            : '아직 이 랭크에 진입한 사람이 없어요.'}
+        </Text>
       ) : (
         <View style={styles.tierRows}>{rows}</View>
       )}
@@ -156,7 +161,9 @@ export function RankLeaderboardCard() {
       <View style={styles.header}>
         <Text style={styles.eyebrow}>랭크</Text>
         <Text style={styles.title}>랭크별 랭킹</Text>
-        <Text style={styles.description}>같은 랭크 안에서 LP가 높은 러너부터 보여줘요.</Text>
+        <Text style={styles.description}>
+          같은 랭크 안에서 LP가 높은 러너부터 보여줘요. 아직 LP가 없는 입문 러너는 첫 LP를 얻으면 올라와요.
+        </Text>
       </View>
 
       {loading && !data ? (
