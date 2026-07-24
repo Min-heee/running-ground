@@ -18,6 +18,7 @@ import { USE_MOCK_API } from '../config';
 import {
   MyProfileResponse,
   NotificationSettingsResponse,
+  TagAvailabilityResponse,
   UpdateNotificationSettingsInput,
   UpdateNotificationSettingsResponse,
   UpdateMyRegionInput,
@@ -88,6 +89,19 @@ export async function updateMyProfile(input: UpdateMyProfileInput): Promise<Upda
 
   await setCurrentUserProfile(nextProfile);
   return nextProfile;
+}
+
+// 태그 실시간 중복확인. 형식 오류도 200 + available:false로 오므로 throw는
+// 네트워크/구버전 백엔드(404)뿐 — 호출부는 실패를 '확인 불가'로 조용히 강등한다.
+export async function checkMyTagAvailability(code: string): Promise<TagAvailabilityResponse> {
+  if (USE_MOCK_API) {
+    return { available: true, reason: 'free', message: '사용할 수 있는 태그예요.' };
+  }
+
+  return apiGet<TagAvailabilityResponse>(`/me/tag-availability?code=${encodeURIComponent(code)}`, {
+    accessToken: await requireAccessToken(),
+    fallbackMessage: '태그 확인에 실패했어요.',
+  });
 }
 
 export async function fetchNotificationSettings(): Promise<NotificationSettingsResponse> {

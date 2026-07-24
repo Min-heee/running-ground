@@ -1,4 +1,5 @@
 export {
+  checkMyTagAvailability,
   fetchMyProfile,
   fetchNotificationSettings,
   updateMyProfile,

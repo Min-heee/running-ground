@@ -19,9 +19,23 @@ export async function routeMeProfileRequest({
   resolveRegionSelection,
   validateRequiredString,
   parseJsonBody,
+  loadStore,
+  url,
 }) {
   if (pathname === '/api/me/profile' && method === 'GET') {
     sendJson(response, 200, await buildProfileReadPayload(request));
+    return true;
+  }
+
+  if (pathname === '/api/me/tag-availability' && method === 'GET') {
+    await handleCheckMyTagAvailability({
+      loadStore,
+      request,
+      requireUser,
+      response,
+      sendJson,
+      url,
+    });
     return true;
   }
 
@@ -95,6 +109,57 @@ async function handleDeleteMyAccount({
 // 태그는 '#' + 대문자 영숫자 코드. 클라는 코드만 편집하고('#' 고정 프리픽스),
 // 서버는 '#' 유무를 모두 받아 정규화한다. 3~8자 — 기존 발급 태그는 5자.
 const PUBLIC_TAG_CODE_PATTERN = /^[A-Z0-9]{3,8}$/;
+
+// 태그 실시간 중복확인 — 저장(PATCH)의 409와 같은 규칙을 읽기 전용으로 미리
+// 보여준다. 형식 오류도 200 + available:false로 내려 클라가 인디케이터 하나로
+// 처리한다 (저장 시 409가 최종 권위인 건 변함없음).
+async function handleCheckMyTagAvailability({
+  loadStore,
+  request,
+  requireUser,
+  response,
+  sendJson,
+  url,
+}) {
+  const store = await loadStore();
+  const user = requireUser(store, request);
+  const code = String(url.searchParams.get('code') ?? '').trim().replace(/^#/, '').toUpperCase();
+
+  if (!PUBLIC_TAG_CODE_PATTERN.test(code)) {
+    sendJson(response, 200, {
+      available: false,
+      reason: 'format',
+      message: '태그는 영문/숫자 3~8자로 입력해주세요.',
+    });
+    return;
+  }
+
+  const nextTag = `#${code}`;
+
+  if (nextTag === user.publicTag) {
+    sendJson(response, 200, {
+      available: true,
+      reason: 'own',
+      message: '지금 쓰고 있는 태그예요.',
+    });
+    return;
+  }
+
+  if (store.users.some((entry) => entry.id !== user.id && entry.publicTag === nextTag)) {
+    sendJson(response, 200, {
+      available: false,
+      reason: 'taken',
+      message: '이미 사용 중인 태그예요.',
+    });
+    return;
+  }
+
+  sendJson(response, 200, {
+    available: true,
+    reason: 'free',
+    message: '사용할 수 있는 태그예요.',
+  });
+}
 const STATUS_MESSAGE_MAX_LENGTH = 40;
 
 function resolveNextPublicTag(store, user, rawValue) {

@@ -95,6 +95,14 @@ export type UpdateMyProfileInput = {
 
 export type UpdateMyProfileResponse = MyProfileResponse;
 
+// GET /me/tag-availability?code=… — 태그 실시간 중복확인. 형식 오류도 200 +
+// available:false로 내려온다 (저장 시 409가 최종 권위).
+export type TagAvailabilityResponse = {
+  available: boolean;
+  reason: 'format' | 'own' | 'taken' | 'free';
+  message: string;
+};
+
 export type UpdateMyRegionInput = {
   provinceName: string;
   cityName?: string;

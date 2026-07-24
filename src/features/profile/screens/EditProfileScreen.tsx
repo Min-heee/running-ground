@@ -27,6 +27,7 @@ export default function EditProfileScreen() {
     setDisplayName,
     setStatusMessage,
     statusMessage,
+    tagAvailability,
     tagCode,
   } = useEditProfile();
 
@@ -65,6 +66,20 @@ export default function EditProfileScreen() {
               <Text style={styles.helperText}>
                 영문/숫자 {PUBLIC_TAG_CODE_MIN_LENGTH}~{PUBLIC_TAG_CODE_MAX_LENGTH}자 · 친구가 나를 찾을 때 쓰는 코드예요.
               </Text>
+              {/* 실시간 중복확인 — unknown(확인 불가)일 땐 숨기고 저장 시 409에 맡긴다. */}
+              {tagAvailability.message ? (
+                <Text
+                  style={[
+                    styles.helperText,
+                    tagAvailability.status === 'taken' || tagAvailability.status === 'invalid'
+                      ? styles.tagTakenText
+                      : null,
+                    tagAvailability.status === 'free' ? styles.tagFreeText : null,
+                  ]}
+                >
+                  {tagAvailability.message}
+                </Text>
+              ) : null}
             </View>
 
             {/* multiline: 전남광주통합특별시 동구처럼 긴 라벨이 한 줄 TextInput에서 잘리지 않게. */}
@@ -166,6 +181,14 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: fontSizes.sm,
     lineHeight: 18,
+  },
+  tagTakenText: {
+    color: colors.danger,
+    fontWeight: fontWeights.bold,
+  },
+  tagFreeText: {
+    color: colors.successText,
+    fontWeight: fontWeights.bold,
   },
   disabledInput: {
     color: colors.textTertiary,

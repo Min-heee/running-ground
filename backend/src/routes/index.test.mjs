@@ -412,3 +412,44 @@ await test('throws a typed 404 for unknown APIs', async () => {
       && error.message === '요청한 API를 찾을 수 없어요.',
   );
 });
+
+// ── 태그 실시간 중복확인 (GET /api/me/tag-availability) ─────────────────────────
+
+await test('tag availability answers free / taken / own / format from one endpoint', async () => {
+  const store = {
+    sessions: [{ token: 'token', userId: 'me' }],
+    users: [
+      { id: 'me', name: '나', publicTag: '#MINE1', connectedSources: [] },
+      { id: 'other', name: '남', publicTag: '#TAKEN1', connectedSources: [] },
+    ],
+    runs: [],
+  };
+  const handler = createRouteRequest({
+    loadStore: () => store,
+    requireUser: () => store.users[0],
+  });
+  const ask = async (code) => {
+    const response = createMockResponse();
+    await handler(
+      { method: 'GET', url: `/api/me/tag-availability?code=${encodeURIComponent(code)}`, headers: { host: 'localhost' } },
+      response,
+    );
+    assert.equal(response.statusCode, 200);
+    return JSON.parse(response.body);
+  };
+
+  // 빈 태그 → 사용 가능.
+  assert.deepEqual(await ask('NEW01'), {
+    available: true, reason: 'free', message: '사용할 수 있는 태그예요.',
+  });
+  // 남이 쓰는 태그 → 거절. '#' 접두사/소문자 입력도 정규화되어야 한다.
+  assert.equal((await ask('TAKEN1')).reason, 'taken');
+  assert.equal((await ask('#taken1')).reason, 'taken');
+  // 내 현재 태그 → own (사용 가능으로 취급).
+  assert.deepEqual(await ask('MINE1'), {
+    available: true, reason: 'own', message: '지금 쓰고 있는 태그예요.',
+  });
+  // 형식 위반 (2자 / 한글) → format 거절.
+  assert.equal((await ask('AB')).reason, 'format');
+  assert.equal((await ask('태그')).reason, 'format');
+});
