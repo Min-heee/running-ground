@@ -93,6 +93,15 @@ export async function routeAuthSocialLoginRequest({
 
     sendJson(response, 200, { token: accessToken, isNewUser });
 
+    // 운영 진단: 애플 로그인은 드물어 로그 비용이 없고, 철회 토큰이 안 쌓일 때
+    // "클라가 코드를 안 보냄(구번들: 필드 없음 / 기기 이상: 길이 0)"과 "서버 미설정"을
+    // 로그 한 줄로 가른다. 코드 값 자체는 절대 찍지 않는다.
+    console.log(
+      `[runningground-backend] 애플 로그인 진단: authorizationCode ${
+        body.authorizationCode === undefined ? '필드 없음(구번들)' : `길이 ${String(body.authorizationCode).length}`
+      }, 철회설정 ${isAppleRevocationConfigured() ? '활성' : '비활성'}`,
+    );
+
     // 탈퇴 시 토큰 철회(5.1.1)용 refresh token 확보: authorizationCode를 교환해
     // 유저 레코드에 저장한다. 응답을 이미 보낸 뒤의 fire-and-forget — 애플이
     // 느리거나 죽어 있어도 로그인 지연/실패로 이어지지 않는다. 매 로그인마다
