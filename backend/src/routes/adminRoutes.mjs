@@ -1,4 +1,8 @@
 import { routeAdminReadRequest } from './adminReadRoutes.mjs';
+import {
+  isAppleRevocationConfigured,
+  revokeAppleRefreshToken,
+} from '../lib/appleTokenRevocation.mjs';
 
 export async function routeAdminRequest(routeContext) {
   if (await routeAdminReadRequest(routeContext)) {
@@ -203,11 +207,20 @@ async function handleDeleteAdminUser({
   sendJson,
   userId,
 }) {
-  const payload = await getAdminRepository().deleteUser({
+  const { appleRefreshToken, ...payload } = await getAdminRepository().deleteUser({
     userId,
   });
 
   sendJson(response, 200, payload);
+
+  // 관리자 삭제도 애플 토큰 철회(5.1.1) 대상. 응답 후 fire-and-forget — 실패는 로그만.
+  if (appleRefreshToken && isAppleRevocationConfigured()) {
+    void revokeAppleRefreshToken(appleRefreshToken).catch((error) => {
+      console.error(
+        `[runningground-backend] 관리자 삭제 애플 토큰 철회 실패 (삭제는 완료됨): ${error?.message ?? error}`,
+      );
+    });
+  }
 }
 
 async function handleCreateAdminMarketItem({

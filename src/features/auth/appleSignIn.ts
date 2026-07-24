@@ -39,6 +39,9 @@ export type AppleSignInResult = {
   identityToken: string;
   // Full name — Apple provides it ONLY on the first authorization; empty after.
   name: string;
+  // 탈퇴 시 애플 토큰 철회(5.1.1)용: 서버가 refresh token으로 교환해 보관한다.
+  // 없어도 로그인은 정상 진행 (서버가 best-effort로 처리).
+  authorizationCode: string;
 };
 
 // Present the native Apple sheet. Returns null when the user cancels.
@@ -66,7 +69,11 @@ export async function signInWithAppleNative(): Promise<AppleSignInResult | null>
       .filter(Boolean)
       .join('');
 
-    return { identityToken: credential.identityToken, name };
+    return {
+      identityToken: credential.identityToken,
+      name,
+      authorizationCode: credential.authorizationCode ?? '',
+    };
   } catch (error) {
     if ((error as { code?: string })?.code === 'ERR_REQUEST_CANCELED') {
       return null;

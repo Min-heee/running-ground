@@ -162,6 +162,11 @@ export const KAKAO_REST_API_KEY = normalizeOptionalString(process.env.BACKEND_KA
 export const KAKAO_CLIENT_SECRET = normalizeOptionalString(process.env.BACKEND_KAKAO_CLIENT_SECRET);
 export const NAVER_CLIENT_ID = normalizeOptionalString(process.env.BACKEND_NAVER_CLIENT_ID);
 export const NAVER_CLIENT_SECRET = normalizeOptionalString(process.env.BACKEND_NAVER_CLIENT_SECRET);
+// Sign in with Apple 토큰 철회용 (.p8 키 — 개발자 포털 Keys에서 발급). 셋 다 있어야
+// 활성화; PRIVATE_KEY는 base64(p8 원문) 권장 (.env 한 줄 값 제약).
+export const APPLE_SIGNIN_TEAM_ID = normalizeOptionalString(process.env.BACKEND_APPLE_SIGNIN_TEAM_ID);
+export const APPLE_SIGNIN_KEY_ID = normalizeOptionalString(process.env.BACKEND_APPLE_SIGNIN_KEY_ID);
+export const APPLE_SIGNIN_PRIVATE_KEY = normalizeOptionalString(process.env.BACKEND_APPLE_SIGNIN_PRIVATE_KEY);
 export const MAX_BODY_SIZE_KB = Math.max(16, parseNumber(process.env.BACKEND_MAX_BODY_SIZE_KB, 1024));
 export const MAX_BODY_SIZE_BYTES = MAX_BODY_SIZE_KB * 1024;
 export const REQUEST_TIMEOUT_MS = Math.max(5000, parseNumber(process.env.BACKEND_REQUEST_TIMEOUT_MS, 30000));

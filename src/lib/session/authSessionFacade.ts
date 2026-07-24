@@ -80,7 +80,12 @@ export async function signInWithProvider(provider: 'kakao' | 'google' | 'apple' 
 
     const appleResponse = await apiPost<{ token: string; isNewUser: boolean }>(
       '/auth/apple/token',
-      { identityToken: appleResult.identityToken, name: appleResult.name },
+      {
+        identityToken: appleResult.identityToken,
+        name: appleResult.name,
+        // 탈퇴 시 토큰 철회용 — 서버가 refresh token으로 교환해 보관 (best-effort).
+        authorizationCode: appleResult.authorizationCode,
+      },
       { fallbackMessage: '애플 로그인에 실패했어요.' },
     );
 

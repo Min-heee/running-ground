@@ -265,7 +265,35 @@ export function createJsonAuthRepository({
         return {
           success: true,
           deletedUserId: user.id,
+          // 탈퇴 라우트가 애플 토큰 철회(5.1.1)에 쓰고 응답에서 제거한다 —
+          // 클라이언트로 절대 내보내면 안 되는 값.
+          appleRefreshToken: (user.socialAccounts ?? [])
+            .find((account) => account.provider === 'apple')?.refreshToken ?? null,
         };
+      });
+    },
+
+    // 애플 로그인 직후 authorizationCode 교환으로 얻은 refresh token 저장 —
+    // 탈퇴 시 /auth/revoke 철회용 (5.1.1). 로그인 세션 토큰으로 본인을 식별한다.
+    async updateSocialRefreshToken({ token, provider, refreshToken }) {
+      return mutateStore((store) => {
+        const sessionUser = findUserBySessionToken(store, token);
+
+        if (!sessionUser) {
+          throw createError(401, '로그인이 필요해요.');
+        }
+
+        const account = (sessionUser.user.socialAccounts ?? [])
+          .find((entry) => entry.provider === provider);
+
+        if (!account) {
+          throw createError(404, '연결된 소셜 계정이 없어요.');
+        }
+
+        account.refreshToken = refreshToken;
+        account.refreshTokenUpdatedAt = new Date().toISOString();
+
+        return { success: true };
       });
     },
 

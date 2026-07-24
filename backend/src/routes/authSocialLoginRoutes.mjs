@@ -2,6 +2,10 @@ import crypto from 'node:crypto';
 
 import * as backendConfig from '../config.mjs';
 import { verifyAppleIdentityToken } from '../lib/appleIdentityToken.mjs';
+import {
+  exchangeAppleAuthorizationCode,
+  isAppleRevocationConfigured,
+} from '../lib/appleTokenRevocation.mjs';
 import { ApiError } from '../response/httpResponse.mjs';
 import {
   buildSocialAuthorizeUrl,
@@ -88,6 +92,32 @@ export async function routeAuthSocialLoginRequest({
     });
 
     sendJson(response, 200, { token: accessToken, isNewUser });
+
+    // 탈퇴 시 토큰 철회(5.1.1)용 refresh token 확보: authorizationCode를 교환해
+    // 유저 레코드에 저장한다. 응답을 이미 보낸 뒤의 fire-and-forget — 애플이
+    // 느리거나 죽어 있어도 로그인 지연/실패로 이어지지 않는다. 매 로그인마다
+    // 갱신되므로 키 설정 이전 가입자도 다음 로그인에 자동으로 채워진다.
+    // expectedSub로 남의 authorizationCode를 끼워 넣는 케이스를 차단.
+    const authorizationCode = typeof body.authorizationCode === 'string' ? body.authorizationCode : '';
+    if (authorizationCode && isAppleRevocationConfigured()) {
+      void (async () => {
+        try {
+          const { refreshToken } = await exchangeAppleAuthorizationCode(authorizationCode, {
+            expectedSub: payload.sub,
+          });
+          await getAuthRepository().updateSocialRefreshToken({
+            token: accessToken,
+            provider: 'apple',
+            refreshToken,
+          });
+        } catch (error) {
+          console.error(
+            `[runningground-backend] 애플 refresh token 교환 실패 (로그인은 정상 진행): ${error?.message ?? error}`,
+          );
+        }
+      })();
+    }
+
     return true;
   }
 

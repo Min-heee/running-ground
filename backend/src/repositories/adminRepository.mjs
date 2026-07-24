@@ -158,6 +158,9 @@ export function createJsonAdminRepository({
           success: true,
           deletedUserId: deletedUser.id,
           users: buildAdminUsers(store).users,
+          // 관리자 삭제도 애플 토큰 철회(5.1.1) 대상 — 라우트가 쓰고 응답에서 제거.
+          appleRefreshToken: (deletedUser.socialAccounts ?? [])
+            .find((account) => account.provider === 'apple')?.refreshToken ?? null,
         };
       });
     },

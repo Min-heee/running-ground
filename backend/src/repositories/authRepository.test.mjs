@@ -580,6 +580,8 @@ await runTest('deletes the current account and cleans related records', async ()
   assert.deepEqual(await repository.deleteAccount({ token: 'token-1' }), {
     success: true,
     deletedUserId: 'user-existing',
+    // 애플 미연결 계정 — 철회할 토큰 없음.
+    appleRefreshToken: null,
   });
 
   const store = storeHarness.getStore();
@@ -637,4 +639,66 @@ await runTest('findOrCreateSocialUser creates a passwordless user then reuses it
   assert.equal(third.isNewUser, true);
   assert.equal(storeHarness.getStore().users.length, 2);
   assert.equal(third.user.name, '네이버 러너');
+});
+
+// ── Sign in with Apple 토큰 철회 (5.1.1): refresh token 저장 + 탈퇴 payload ──────
+
+await runTest('updateSocialRefreshToken stores the token on the matching social account', async () => {
+  const { repository, storeHarness } = createRepositoryHarness();
+
+  const { accessToken } = await repository.findOrCreateSocialUser({
+    provider: 'apple',
+    providerUserId: 'apple-sub-1',
+    email: '',
+    name: '애플러너',
+  });
+
+  await repository.updateSocialRefreshToken({
+    token: accessToken,
+    provider: 'apple',
+    refreshToken: 'apple-refresh-1',
+  });
+
+  const account = storeHarness.getStore().users[0].socialAccounts[0];
+  assert.equal(account.refreshToken, 'apple-refresh-1');
+  assert.equal(typeof account.refreshTokenUpdatedAt, 'string');
+
+  // 세션이 없거나(401) 해당 provider 연결이 없으면(404) 거절한다.
+  await assert.rejects(repository.updateSocialRefreshToken({
+    token: 'missing-token',
+    provider: 'apple',
+    refreshToken: 'x',
+  }), (error) => {
+    assertApiError(error, 401, '로그인이 필요해요.');
+    return true;
+  });
+  await assert.rejects(repository.updateSocialRefreshToken({
+    token: accessToken,
+    provider: 'kakao',
+    refreshToken: 'x',
+  }), (error) => {
+    assertApiError(error, 404, '연결된 소셜 계정이 없어요.');
+    return true;
+  });
+});
+
+await runTest('deleteAccount surfaces the stored apple refresh token for revocation', async () => {
+  const { repository } = createRepositoryHarness();
+
+  const { accessToken, user } = await repository.findOrCreateSocialUser({
+    provider: 'apple',
+    providerUserId: 'apple-sub-2',
+    email: '',
+    name: '탈퇴러너',
+  });
+  await repository.updateSocialRefreshToken({
+    token: accessToken,
+    provider: 'apple',
+    refreshToken: 'apple-refresh-2',
+  });
+
+  const payload = await repository.deleteAccount({ token: accessToken });
+  assert.equal(payload.success, true);
+  assert.equal(payload.deletedUserId, user.id);
+  assert.equal(payload.appleRefreshToken, 'apple-refresh-2');
 });

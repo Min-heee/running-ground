@@ -1,4 +1,8 @@
 import { ApiError } from '../response/httpResponse.mjs';
+import {
+  isAppleRevocationConfigured,
+  revokeAppleRefreshToken,
+} from '../lib/appleTokenRevocation.mjs';
 
 export async function routeMeProfileRequest({
   method,
@@ -70,11 +74,22 @@ async function handleDeleteMyAccount({
   response,
   sendJson,
 }) {
-  const payload = await getAuthRepository().deleteAccount({
+  const { appleRefreshToken, ...payload } = await getAuthRepository().deleteAccount({
     token: getAccessToken(request),
   });
 
   sendJson(response, 200, payload);
+
+  // 애플 로그인 계정 탈퇴 시 토큰 철회 (가이드라인 5.1.1). 응답 후
+  // fire-and-forget — 애플이 느려도 탈퇴 응답이 막히지 않고, 철회 실패는
+  // 로그만 남긴다. refreshToken은 응답에 절대 싣지 않는다.
+  if (appleRefreshToken && isAppleRevocationConfigured()) {
+    void revokeAppleRefreshToken(appleRefreshToken).catch((error) => {
+      console.error(
+        `[runningground-backend] 탈퇴 애플 토큰 철회 실패 (탈퇴는 완료됨): ${error?.message ?? error}`,
+      );
+    });
+  }
 }
 
 // 태그는 '#' + 대문자 영숫자 코드. 클라는 코드만 편집하고('#' 고정 프리픽스),

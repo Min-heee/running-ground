@@ -219,6 +219,8 @@ await runTest('deletes a user and cleans related records', async () => {
     success: true,
     deletedUserId: 'user-me',
     users: [{ id: 'user-friend', name: '친구' }],
+    // 애플 미연결 계정 — 철회할 토큰 없음 (라우트가 쓰고 응답에서 제거).
+    appleRefreshToken: null,
   });
   assert.equal(store.users.length, 1);
   assert.equal(store.runs.length, 0);
