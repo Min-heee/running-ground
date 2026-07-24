@@ -9,6 +9,9 @@ import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionE
 
 const MYPAGE_INITIAL_FETCH_DEFER_MS = 120;
 
+// 러닝그라운드 앱스토어 페이지 — 태그 공유 메시지에 실린다.
+const APP_STORE_URL = 'https://apps.apple.com/kr/app/id6762328694';
+
 export function useMyPageScreen() {
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
@@ -77,7 +80,8 @@ export function useMyPageScreen() {
 
     try {
       await Share.share({
-        message: `러닝그라운드에서 같이 달려요! 내 친구 태그: ${tag}`,
+        // 안드로이드 정식 출시 후 Play 링크(또는 랜딩 페이지)로 확장 예정.
+        message: `러닝그라운드에서 같이 달려요! 내 친구 태그: ${tag}\n앱 다운로드: ${APP_STORE_URL}`,
       });
       setTagShared(true);
     } catch {
