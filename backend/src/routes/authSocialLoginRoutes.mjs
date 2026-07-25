@@ -171,6 +171,11 @@ export async function routeAuthSocialLoginRequest({
   }
 
   if (providerError || !code) {
+    // 운영 진단: 소셜 콜백 실패는 앱으로 조용히 돌려보내 클라 화면엔 안내만 뜬다 —
+    // 서버 로그가 없으면 재발 시 원인 추적이 불가능해 한 줄 남긴다 (코드/토큰 비기록).
+    console.error(
+      `[runningground-backend] 소셜 콜백 실패(${provider}): ${providerError || 'code 없음'}`,
+    );
     redirectTo(response, appReturnUrl(appRedirect, { error: providerError || 'no_code' }));
     return true;
   }
@@ -191,7 +196,11 @@ export async function routeAuthSocialLoginRequest({
       response,
       appReturnUrl(appRedirect, isNewUser ? { token: accessToken, created: '1' } : { token: accessToken }),
     );
-  } catch {
+  } catch (error) {
+    // 교환/가입 실패 — 앱으로 돌려보내되 서버엔 원인을 남긴다 (코드/토큰 비기록).
+    console.error(
+      `[runningground-backend] 소셜 로그인 교환 실패(${provider}): ${error?.message ?? error}`,
+    );
     redirectTo(response, appReturnUrl(appRedirect, { error: 'auth_failed' }));
   }
 
