@@ -159,11 +159,7 @@ export function RankLeaderboardCard() {
   return (
     <Card style={styles.card}>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>랭크</Text>
         <Text style={styles.title}>랭크별 랭킹</Text>
-        <Text style={styles.description}>
-          같은 랭크 안에서 LP가 높은 러너부터 보여줘요. 아직 LP가 없는 입문 러너는 첫 LP를 얻으면 올라와요.
-        </Text>
       </View>
 
       {loading && !data ? (
@@ -221,19 +217,10 @@ const styles = StyleSheet.create({
   header: {
     gap: spacing.sm,
   },
-  eyebrow: {
-    color: colors.brand,
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.extraBold,
-  },
   title: {
     color: colors.textPrimary,
     fontSize: fontSizes.title,
     fontWeight: fontWeights.extraBold,
-  },
-  description: {
-    color: colors.textSecondary,
-    lineHeight: 20,
   },
   stateBlock: {
     alignItems: 'center',
