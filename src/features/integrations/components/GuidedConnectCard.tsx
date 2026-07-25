@@ -116,9 +116,6 @@ export function GuidedConnectCard({
   return (
     <Card style={styles.card}>
       <Text style={styles.title}>어떤 앱으로 달리세요?</Text>
-      <Text style={styles.subtitle}>
-        쓰는 앱을 고르면 기록을 가져오는 방법을 순서대로 알려드릴게요.
-      </Text>
 
       <View style={styles.chipRow}>
         {apps.map((app) => {
@@ -218,10 +215,6 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.title,
     fontWeight: fontWeights.extraBold,
     color: colors.textPrimary,
-  },
-  subtitle: {
-    color: colors.textSecondary,
-    lineHeight: 20,
   },
   chipRow: {
     flexDirection: 'row',
