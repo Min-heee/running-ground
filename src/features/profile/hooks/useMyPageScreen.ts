@@ -1,10 +1,10 @@
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
-import type { IntegrationStatusResponse, MyProfileResponse } from '@/lib/api/types';
+import type { MyProfileResponse } from '@/lib/api/types';
 import { deleteAccount, signOut } from '@/lib/session';
-import { fetchIntegrationStatus, fetchMyProfile, getApiErrorMessage } from '@/services';
+import { fetchMyProfile, getApiErrorMessage } from '@/services';
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 
 const MYPAGE_INITIAL_FETCH_DEFER_MS = 120;
@@ -14,7 +14,6 @@ const APP_STORE_URL = 'https://apps.apple.com/kr/app/id6762328694';
 
 export function useMyPageScreen() {
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
-  const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [tagShared, setTagShared] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
@@ -32,14 +31,15 @@ export function useMyPageScreen() {
       setLoading(true);
     }
 
-    Promise.all([fetchMyProfile(), fetchIntegrationStatus()])
-      .then(([profileData, integrationData]) => {
+    // 연동 상태 fetch는 "연결된 소스" 카드 은퇴와 함께 제거 — 마이페이지는
+    // 프로필 하나만 부른다 (가져오기는 연동관리 화면에서 연결 상태와 무관하게 동작).
+    fetchMyProfile()
+      .then((profileData) => {
         if (canceled) {
           return;
         }
 
         setProfile(profileData);
-        setIntegrationStatus(integrationData);
       })
       .catch((loadError) => {
         if (!canceled) {
@@ -63,11 +63,6 @@ export function useMyPageScreen() {
     traceInitialFetch: true,
     work: 'mypage data fetch',
   });
-
-  const connectedSourceCount = useMemo(
-    () => integrationStatus?.sources.filter((source) => source.connected).length ?? 0,
-    [integrationStatus?.sources],
-  );
 
   // Opens the system share sheet with the tag; falls back to a clipboard copy
   // when sharing is unavailable. (This used to be a stub that only flipped the
@@ -137,14 +132,12 @@ export function useMyPageScreen() {
   };
 
   return {
-    connectedSourceCount,
     deleteConfirm,
     deleteSubmitting,
     error,
     handleDeleteAccount,
     handleLogout,
     handleShareTag,
-    integrationStatus,
     loading,
     logoutConfirm,
     logoutSubmitting,

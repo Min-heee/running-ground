@@ -5,7 +5,6 @@ import { Screen } from '@/components/Screen';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { ExclusiveSourceSelectorCard } from '@/features/integrations/components/ExclusiveSourceSelectorCard';
 import { GuidedConnectCard } from '@/features/integrations/components/GuidedConnectCard';
 import { IntegrationResultCard } from '@/features/integrations/components/IntegrationResultCard';
 import { NativeImportDiagnosticCard } from '@/features/integrations/components/NativeImportDiagnosticCard';
@@ -23,11 +22,8 @@ export default function IntegrationManagementScreen() {
   const {
     actionError,
     actionMessage,
-    actionSourceType,
     deviceImporting,
     error,
-    handleConnect,
-    handleDisconnect,
     handleImportFromDevice,
     handleImportFromDeviceForApp,
     handleSync,
@@ -35,7 +31,6 @@ export default function IntegrationManagementScreen() {
     lastImportResult,
     loadIntegrationStatus,
     loading,
-    sources,
     syncError,
     syncing,
     syncResult,
@@ -124,14 +119,6 @@ export default function IntegrationManagementScreen() {
           />
 
           <NativeImportDiagnosticCard result={lastImportResult} />
-
-          <ExclusiveSourceSelectorCard
-            sources={sources}
-            platform={platform}
-            actionSourceType={actionSourceType}
-            onConnectSource={handleConnect}
-            onDisconnectSource={handleDisconnect}
-          />
 
           <SecondaryButton label="연동 상태 새로고침" onPress={loadIntegrationStatus} />
           <SecondaryButton label={backLabel} onPress={() => router.replace(backHref)} />

@@ -2,7 +2,6 @@ import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { BrandLoadingView } from '@/components/BrandLoadingView';
 import { Screen } from '@/components/Screen';
-import { IntegrationStatus } from '@/features/integrations/IntegrationStatus';
 import { TabHeader } from '@/components/ui/TabHeader';
 import { AccountActionsCard } from '@/features/profile/components/AccountActionsCard';
 import { ProfileEnvironmentDebugCard } from '@/features/profile/components/ProfileEnvironmentDebugCard';
@@ -19,14 +18,12 @@ export default function MyPageScreen() {
   const [showEnvironmentDebug, setShowEnvironmentDebug] = useState(showDebugByDefault);
   const [, setEnvironmentDebugTapCount] = useState(0);
   const {
-    connectedSourceCount,
     deleteConfirm,
     deleteSubmitting,
     error,
     handleDeleteAccount,
     handleLogout,
     handleShareTag,
-    integrationStatus,
     loading,
     logoutConfirm,
     logoutSubmitting,
@@ -59,16 +56,13 @@ export default function MyPageScreen() {
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      {profile && integrationStatus ? (
+      {profile ? (
         <>
           <ProfileSummaryCard
             profile={profile}
-            connectedSourceCount={connectedSourceCount}
             tagShared={tagShared}
             onShareTag={handleShareTag}
           />
-
-          <IntegrationStatus sources={integrationStatus.sources} />
 
           <ProfileSettingsCard onDebugUnlockPress={handleEnvironmentDebugUnlock} />
 

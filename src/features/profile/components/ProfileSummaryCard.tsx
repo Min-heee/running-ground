@@ -9,14 +9,12 @@ import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type ProfileSummaryCardProps = {
   profile: MyProfileResponse;
-  connectedSourceCount: number;
   tagShared: boolean;
   onShareTag: () => void;
 };
 
 export function ProfileSummaryCard({
   profile,
-  connectedSourceCount,
   tagShared,
   onShareTag,
 }: ProfileSummaryCardProps) {
@@ -41,7 +39,6 @@ export function ProfileSummaryCard({
         <Text style={styles.tagLabel}>공개 태그</Text>
         <Text style={styles.tag}>{profile.publicTag}</Text>
       </View>
-      <Text style={styles.profileHint}>연결된 소스 {connectedSourceCount}개</Text>
       <View style={styles.inlineActions}>
         <Link href="/edit-profile" asChild>
           <Pressable style={styles.inlineActionButton}>
@@ -104,11 +101,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontWeight: fontWeights.extraBold,
     fontSize: fontSizes.button,
-  },
-  profileHint: {
-    fontSize: fontSizes.sm,
-    color: colors.textSecondary,
-    fontWeight: fontWeights.bold,
   },
   inlineActions: {
     flexDirection: 'row',
