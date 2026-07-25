@@ -97,8 +97,7 @@ export default function IntegrationManagementScreen() {
               // 타 앱 수동 기록은 그 앱이 건강 허브로 넘겨주지 않아 애초에 읽을 수 없다 —
               // "왜 안 들어와요?" 문의 1순위라 미리 안내한다.
               <Text style={styles.helperText}>
-                다른 앱에서 손으로 직접 입력한 수동 기록은 건강 앱으로 전달되지 않아 가져올 수
-                없어요. GPS로 측정된 러닝만 가져와져요.
+                다른 앱의 수동 기록은 가져와지지 않아요.
               </Text>
             )}
             {importEligibility?.canImport ? (
