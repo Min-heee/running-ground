@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { router } from 'expo-router';
+import { needsProfileCompletion } from '@/features/auth/utils/profileCompletion';
 import { getApiErrorMessage } from '@/services/apiError';
 import { signInWithProvider } from '@/services/authService';
 
@@ -28,8 +29,14 @@ export function useSocialLogin() {
           return;
         }
 
-        // New social accounts go through the onboarding tutorial (permission gate);
-        // returning users drop straight into the app.
+        // 소셜 계정은 가입 폼을 건너뛰므로 지역이 비어 있으면 (신규는 항상,
+        // 기존 계정도 미설정이면) 기본 정보 설정을 먼저 거친다. 그다음 신규는
+        // 온보딩 투어(welcome), 기존 유저는 홈으로.
+        if (needsProfileCompletion(result.profile)) {
+          router.replace(`/complete-profile?next=${result.isNewUser ? 'welcome' : 'home'}`);
+          return;
+        }
+
         router.replace(result.isNewUser ? '/welcome' : '/(tabs)/home');
       } catch (socialError) {
         setError(getApiErrorMessage(socialError, '간편 로그인에 실패했어요.'));
