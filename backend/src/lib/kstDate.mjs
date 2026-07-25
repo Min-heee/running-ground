@@ -17,3 +17,22 @@ const KST_DATE_ONLY_FORMAT = new Intl.DateTimeFormat('en-CA', {
 export function formatKstDateKey(date = new Date()) {
   return KST_DATE_ONLY_FORMAT.format(date);
 }
+
+const KST_TIME_FORMAT = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Seoul',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+// "HH:mm" of the given instant in Korea time (슬롯 라벨 등 표시용).
+export function formatKstTimeLabel(date) {
+  return KST_TIME_FORMAT.format(date);
+}
+
+// "YYYY-MM-DD HH:mm" of the given instant in Korea time. 유저에게 보이는 시각
+// 문자열(마지막 확인/동기화 등)은 전부 이걸 거쳐야 한다 — 로컬 getHours()는
+// UTC 드롭릿에서 9시간 어긋난다 (실사례: 연동 진단 '마지막 확인' 2026-07-25).
+export function formatKstDisplayTimestamp(date = new Date()) {
+  return `${KST_DATE_ONLY_FORMAT.format(date)} ${KST_TIME_FORMAT.format(date)}`;
+}

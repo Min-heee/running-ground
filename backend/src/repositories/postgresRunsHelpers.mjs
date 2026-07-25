@@ -1,3 +1,5 @@
+import { formatKstDisplayTimestamp } from '../lib/kstDate.mjs';
+
 export function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -75,14 +77,8 @@ export function createNowIso() {
 }
 
 export function createDisplayTimestamp() {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-
-  return `${year}-${month}-${day} ${hours}:${minutes}`;
+  // KST 고정 — 로컬 getHours()는 UTC 드롭릿에서 9시간 어긋난다.
+  return formatKstDisplayTimestamp();
 }
 
 export function isUniqueViolation(error, constraintName) {

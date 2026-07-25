@@ -35,10 +35,18 @@ import {
 
 const fixedDate = new Date('2026-05-19T09:05:00.000Z');
 
+// KST 고정 검증 — 이 기대값들은 프로세스 시간대와 무관하게 성립해야 한다
+// (UTC 드롭릿에서 '마지막 확인'이 9시간 어긋나던 실버그의 회귀 가드).
 assert.equal(formatTimestamp(fixedDate), '2026-05-19 18:05');
+// 13:58Z → 22:58 KST (실제 신고 케이스), 15:30Z → 자정 넘어 다음날 00:30 KST.
+assert.equal(formatTimestamp(new Date('2026-07-25T13:58:00.000Z')), '2026-07-25 22:58');
+assert.equal(formatTimestamp(new Date('2026-07-25T15:30:00.000Z')), '2026-07-26 00:30');
 assert.equal(formatDuelSlotLabel('bad-date'), '시간대 미정');
 assert.equal(formatDuelSlotLabel(fixedDate.toISOString()), '18:05');
+assert.equal(formatDuelSlotLabel('2026-07-25T15:30:00.000Z'), '00:30');
 assert.equal(buildMatchSlotDateLabel('bad-date'), '날짜 미정');
+// 날짜 라벨도 KST 달력 기준 — 15:30Z는 KST로 다음날(일).
+assert.equal(buildMatchSlotDateLabel('2026-07-25T15:30:00.000Z'), '7. 26. (일)');
 assert.deepEqual(buildExpirySnapshot('bad-date', fixedDate), {});
 assert.deepEqual(buildExpirySnapshot(new Date(fixedDate.getTime() + 1500).toISOString(), fixedDate), {
   expiresAt: new Date(fixedDate.getTime() + 1500).toISOString(),

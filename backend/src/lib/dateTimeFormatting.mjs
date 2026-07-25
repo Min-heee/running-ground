@@ -1,11 +1,11 @@
-export function formatTimestamp(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
+import { formatKstDisplayTimestamp, formatKstTimeLabel } from './kstDate.mjs';
 
-  return `${year}-${month}-${day} ${hours}:${minutes}`;
+// 유저에게 보이는 모든 시각 문자열은 KST 고정 (한국 전용 서비스). 이전 구현은
+// 서버 로컬 getHours()라 UTC 드롭릿에서 9시간 어긋났다 — 개발 Mac(KST)에서는
+// 우연히 맞아 테스트가 통과하던 잠복 버그.
+
+export function formatTimestamp(date = new Date()) {
+  return formatKstDisplayTimestamp(date);
 }
 
 export function formatDuelSlotLabel(slotStartAt) {
@@ -15,9 +15,7 @@ export function formatDuelSlotLabel(slotStartAt) {
     return '시간대 미정';
   }
 
-  const startHours = String(slotStart.getHours()).padStart(2, '0');
-  const startMinutes = String(slotStart.getMinutes()).padStart(2, '0');
-  return `${startHours}:${startMinutes}`;
+  return formatKstTimeLabel(slotStart);
 }
 
 export function buildMatchSlotDateLabel(slotStartAt) {
@@ -28,6 +26,7 @@ export function buildMatchSlotDateLabel(slotStartAt) {
   }
 
   return slotStart.toLocaleDateString('ko-KR', {
+    timeZone: 'Asia/Seoul',
     month: 'numeric',
     day: 'numeric',
     weekday: 'short',
