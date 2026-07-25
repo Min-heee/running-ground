@@ -49,6 +49,33 @@ test('run save result mapper preserves tracked run payload shape', () => {
   assert.equal(result.averagePaceLabel, result.createRunInput.pace);
 });
 
+// 기록 날짜 귀속 규칙 (오너 확정 2026-07-26): 자정을 넘겨 끝나도 "시작한 날"의
+// 기록이다. 로컬 성분으로 시각을 만들어 어느 시간대에서 돌려도 성립한다.
+test('a run crossing midnight belongs to the day it STARTED', () => {
+  const startedBeforeMidnight = new Date(2026, 6, 24, 23, 40); // 로컬 7/24 23:40
+  const endedAfterMidnight = new Date(2026, 6, 25, 0, 30); // 로컬 7/25 00:30
+
+  const crossing = buildRunSaveResultSnapshot({
+    displayedSnapshot: snapshot({
+      startedAt: startedBeforeMidnight.toISOString(),
+      elapsedSeconds: 3_000,
+      route: [
+        { latitude: 37.1, longitude: 127.1, timestamp: startedBeforeMidnight.toISOString() },
+        { latitude: 37.2, longitude: 127.2, timestamp: endedAfterMidnight.toISOString() },
+      ],
+    }),
+    totalSteps: 5_000,
+  });
+  assert.equal(crossing.createRunInput.date, '2026-07-24');
+
+  // 자정 직후 시작한 러닝은 그날 기록 — UTC 슬라이스 시절엔 전날로 밀리던 케이스.
+  const startedAfterMidnight = buildRunSaveResultSnapshot({
+    displayedSnapshot: snapshot({ startedAt: new Date(2026, 6, 25, 0, 30).toISOString() }),
+    totalSteps: 5_000,
+  });
+  assert.equal(startedAfterMidnight.createRunInput.date, '2026-07-25');
+});
+
 test('run save result mapper rejects unsavable short route', () => {
   assert.throws(() => buildRunSaveResultSnapshot({
     displayedSnapshot: snapshot({ distanceKm: 0.05 }),
