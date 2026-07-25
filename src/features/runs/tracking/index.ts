@@ -167,7 +167,19 @@ export function calculateCadenceSpm(totalSteps: number, elapsedSeconds: number) 
 }
 
 export function buildRunDateFromTimestamp(timestamp: string) {
-  return timestamp.slice(0, 10);
+  // 기기 로컬 달력 날짜로 변환 — UTC ISO 문자열 앞자리를 그대로 자르면 KST
+  // 00~09시에 뛴 러닝이 전날 날짜로 저장돼 오늘 랭킹/일별 집계에서 빠진다.
+  const parsed = new Date(timestamp);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return timestamp.slice(0, 10);
+  }
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
 }
 
 // Raw cumulative average pace — NO movement floor. Use for a FINISHED/SAVED run, whose final

@@ -279,7 +279,13 @@ function toDateOnly(value: string) {
     throw new Error('기기 기록 날짜 형식이 올바르지 않아요.');
   }
 
-  return parsedDate.toISOString().slice(0, 10);
+  // 기기 로컬 달력 날짜 — toISOString() 슬라이스는 KST 00~09시 운동을 전날로
+  // 넘겨 날짜가 하루 어긋난다 (buildRunDateFromTimestamp와 같은 규칙).
+  const year = parsedDate.getFullYear();
+  const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+  const day = String(parsedDate.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
 }
 
 function formatPaceFromMinutesPerKm(minutesPerKm: number) {

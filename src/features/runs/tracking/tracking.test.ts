@@ -66,6 +66,14 @@ test('running distance and pace calculations are stable for normal routes', () =
   assert.equal(buildAveragePace(2, 760), '06:20/km');
   assert.equal(calculateCadenceSpm(860, 300), 172);
   assert.equal(buildRunDateFromTimestamp('2026-05-13T12:34:56.000Z'), '2026-05-13');
+
+  // 자정 직후(로컬) 러닝 — UTC 슬라이스였다면 KST에서 전날로 밀리던 케이스.
+  // 입력을 로컬 성분으로 만들어 어느 시간대에서 돌려도 기대값이 성립한다.
+  const localMidnightRun = new Date(2026, 4, 14, 0, 30);
+  assert.equal(buildRunDateFromTimestamp(localMidnightRun.toISOString()), '2026-05-14');
+
+  // 못 읽는 문자열은 기존 폴백(앞 10글자) 유지.
+  assert.equal(buildRunDateFromTimestamp('not-a-date'), 'not-a-date');
 });
 
 test('cadence plausibility floor hides a dead-sensor cadence but keeps real ones', () => {
