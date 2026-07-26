@@ -214,16 +214,20 @@ export type ThemeColors = { [K in ThemeColorKey]: string };
 // hue but brighten enough to hold contrast on navy.
 const DARK_COLORS: ThemeColors = {
   ...LIGHT_COLORS,
-  // Surfaces (elevation: surfaceApp < surfaceSubtleAlt(inset inputs) < surface(card)
+  // 미드나잇 글래스 (2026-07 리디자인): 표면을 불투명 네이비 대신 반투명 백색
+  // 유리로 — 배경 위에 겹칠수록 밝아지는 실제 유리의 엘리베이션이 나온다.
+  // (elevation: surfaceApp < surfaceSubtleAlt(inset inputs) < surface(card)
   // < surfaceSoft/surfaceSubtle(inner sections) < surfaceMuted(secondary fills)).
-  surfaceApp: '#0B1020',
-  surface: '#161E36',
-  surfaceSoft: '#1C2440',
-  surfaceSubtle: '#1E2745',
-  surfaceSubtleAlt: '#111930',
-  surfaceMuted: '#242D4E',
+  // 진짜 블러는 네이티브 비용이 커서 반투명 + 보더로 근사한다.
+  surfaceApp: '#0A0E1E',
+  surface: 'rgba(255,255,255,0.065)',
+  surfaceSoft: 'rgba(255,255,255,0.10)',
+  surfaceSubtle: 'rgba(255,255,255,0.09)',
+  surfaceSubtleAlt: 'rgba(255,255,255,0.045)',
+  surfaceMuted: 'rgba(255,255,255,0.13)',
   adminSurface: '#0D1526',
-  inkPill: '#3E4678',
+  // 선택된 필/세그먼트 — 유리 위에서 브랜드 바이올렛이 또렷이 서게.
+  inkPill: '#5D50E6',
   // Text ladder (inverted lightness, lavender-gray family).
   textPrimary: '#F3F5FF',
   textHeading: '#F7F8FF',
@@ -234,45 +238,45 @@ const DARK_COLORS: ThemeColors = {
   // textPlaceholder stays constant: its only consumers are the pinned dark match
   // chips (inputs use textTertiary for placeholderTextColor).
   textStrongMuted: '#D6D9F9',
-  // Borders / dividers.
-  border: '#37406A',
-  borderMuted: '#283053',
-  borderSoft: '#232B4A',
-  // Brand wash chips + their deep-accent text partners (lighten text, darken wash).
-  brandSoft: '#1D2047',
-  brandSoftBorder: '#343879',
-  brandWash: '#232858',
+  // Borders / dividers — 유리 가장자리: 흰빛이 살짝 도는 반투명 라인.
+  border: 'rgba(255,255,255,0.16)',
+  borderMuted: 'rgba(255,255,255,0.12)',
+  borderSoft: 'rgba(255,255,255,0.09)',
+  // Brand wash chips — 바이올렛이 유리 안에서 은은히 발광하는 반투명 워시.
+  brandSoft: 'rgba(109,94,247,0.16)',
+  brandSoftBorder: 'rgba(142,123,255,0.45)',
+  brandWash: 'rgba(109,94,247,0.22)',
   brandDeep: '#B7BEFF',
   brandStrong: '#AAB2FD',
   brandMuted: '#9AA1F2',
-  purpleRow: '#231F50',
-  purpleRowSoft: '#211E4B',
-  purpleBorder: '#4A4496',
-  purpleSoft: '#453F8F',
-  indigoBorder: '#2D3560',
-  // Semantic: green.
+  purpleRow: 'rgba(109,94,247,0.14)',
+  purpleRowSoft: 'rgba(109,94,247,0.11)',
+  purpleBorder: 'rgba(142,123,255,0.50)',
+  purpleSoft: 'rgba(142,123,255,0.35)',
+  indigoBorder: 'rgba(142,123,255,0.32)',
+  // Semantic: green — 유리 결에 맞춘 반투명 워시.
   successText: '#4ADE80',
   successStrong: '#34D399',
-  successSoft: '#143D2A',
-  successWash: '#1B4D33',
-  successCard: '#102A1D',
-  successCardSoft: '#112B1E',
-  successCardBorder: '#20603E',
+  successSoft: 'rgba(52,211,153,0.14)',
+  successWash: 'rgba(52,211,153,0.20)',
+  successCard: 'rgba(52,211,153,0.10)',
+  successCardSoft: 'rgba(52,211,153,0.08)',
+  successCardBorder: 'rgba(52,211,153,0.40)',
   // Semantic: red.
   danger: '#F97066',
   dangerBright: '#FF6F65',
-  dangerWash: '#3B1418',
-  roseWash: '#321723',
+  dangerWash: 'rgba(249,112,102,0.16)',
+  roseWash: 'rgba(249,112,102,0.12)',
   // Semantic: orange/amber.
   warningText: '#FDB022',
-  warningSoft: '#3A2B0B',
+  warningSoft: 'rgba(253,176,34,0.14)',
   orangeText: '#FDBA74',
-  orangeWash: '#33200E',
-  // Semantic: blue.
+  orangeWash: 'rgba(253,186,116,0.14)',
+  // Semantic: blue — 오로라의 시안 기운.
   blueAccent: '#6BA6FF',
   blueStrong: '#96B7FF',
-  blueWashSoft: '#152238',
-  bluePale: '#152647',
+  blueWashSoft: 'rgba(78,201,245,0.12)',
+  bluePale: 'rgba(78,201,245,0.16)',
 };
 
 // Frozen light-palette constants for deliberately theme-INDEPENDENT styling (dark
