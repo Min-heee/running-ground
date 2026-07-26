@@ -9,7 +9,8 @@ const APP_STORE_WEB_URL = 'https://apps.apple.com/kr/app/id6762328694';
 const APP_STORE_SCHEME_URL = 'itms-apps://apps.apple.com/kr/app/id6762328694';
 
 export async function routeDownloadRedirectRequest({ method, pathname, request, response }) {
-  if (pathname !== '/download' || method !== 'GET') {
+  // HEAD도 허용 — 메신저 링크 미리보기 크롤러가 HEAD로 찔러본다.
+  if (pathname !== '/download' || (method !== 'GET' && method !== 'HEAD')) {
     return false;
   }
 
