@@ -11,7 +11,6 @@ import { useConfigureNotificationHandler } from '@/navigation/notificationHandle
 import { useRootAuthGate } from '@/navigation/rootAuthGate';
 import { colors, getAppliedThemeMode } from '@/theme/tokens';
 import { hydrateThemePalette } from '@/theme/themeMode';
-import { loadAppFonts } from '@/theme/appFont';
 import { logRgEnvironmentOnce } from '@/utils/rgEnvTrace';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { initSentryOnce } from '@/observability/sentry';
@@ -32,15 +31,11 @@ export default function RootLayout() {
   useConfigureNotificationHandler();
 
   useEffect(() => {
-    // 테마와 전역 폰트(Freesentation)를 같은 게이트에서 준비한다 — 라우트 모듈이
-    // 게이트 뒤에서 lazy 로드되므로 첫 렌더부터 폰트가 적용된다. 둘 다 실패해도
-    // 부팅은 막지 않는다 (loadAppFonts는 내부에서 삼키고 시스템 폰트 폴백).
-    Promise.all([
-      hydrateThemePalette().catch(() => {
+    hydrateThemePalette()
+      .catch(() => {
         // Palette hydration must never block boot — fall through on the dark default.
-      }),
-      loadAppFonts(),
-    ]).finally(() => setThemeReady(true));
+      })
+      .finally(() => setThemeReady(true));
   }, []);
 
   useEffect(() => {
