@@ -142,7 +142,10 @@ const LeagueRegionGrid = memo(function LeagueRegionGrid({
                 isMyRegion={isMyRegionNode(nextNode)}
                 onSelectRegion={onSelectRegion}
               />
-            ) : null}
+            ) : (
+              // 홀수 마지막 행: 빈 자리를 채워 카드가 반폭을 유지하게 한다.
+              <View style={styles.regionCardSpacer} />
+            )}
           </View>
         );
       })}
@@ -275,7 +278,9 @@ const styles = StyleSheet.create({
     gap: spacing.s10,
   },
   regionCard: {
-    width: '47%',
+    // 고정 47%는 남는 폭이 전부 오른쪽에 몰려 좌우 여백이 비대칭이었다 —
+    // flex 균등 분할로 행을 꽉 채워 좌우 간격을 맞춘다.
+    flex: 1,
     backgroundColor: colors.brandSoft,
     borderRadius: radii.md,
     padding: spacing.s12,
@@ -288,6 +293,9 @@ const styles = StyleSheet.create({
   regionCardMy: {
     backgroundColor: colors.successCardSoft,
     borderColor: colors.successCardBorder,
+  },
+  regionCardSpacer: {
+    flex: 1,
   },
   rankBadge: {
     position: 'absolute',
