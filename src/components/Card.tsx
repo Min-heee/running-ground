@@ -11,6 +11,9 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
+    // 글래스 엣지 — 다크에선 빛나는 유리 테두리, 라이트에선 은은한 잉크 라인.
+    borderWidth: 1,
+    borderColor: colors.cardEdge,
     padding: spacing.s16,
     gap: spacing.xxl,
     // Split shadow vs elevation per platform — RN applies elevation on Android

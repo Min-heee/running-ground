@@ -62,6 +62,12 @@ const LIGHT_COLORS = {
   // 표면은 네이티브 기본 흰 바탕과 합성돼 탭바가 하얗게 떠버린다 — 크롬은
   // 반드시 이 불투명 토큰을 쓴다 (유리와 같은 톤으로 보이도록 미리 합성한 색).
   surfaceChrome: '#FFFFFF',
+  // 카드 공통 가장자리(글래스 엣지). 라이트는 거의 안 보이는 잉크 라인.
+  cardEdge: 'rgba(16,24,40,0.06)',
+  // 배경 오로라 글로우 (Screen이 렌더 시점에 읽음). 라이트 모드는 없음.
+  auroraGlowViolet: 'transparent',
+  auroraGlowVioletWide: 'transparent',
+  auroraGlowCyan: 'transparent',
   // Dark chip/button fill that must stay legible with white text in BOTH modes.
   // Light: near-black (the classic dark CTA); dark: an elevated indigo-slate so the
   // active pill still reads as raised on navy cards instead of vanishing.
@@ -232,6 +238,13 @@ const DARK_COLORS: ThemeColors = {
   // 유리(surface 0.065 백색)를 #0A0E1E 위에 미리 합성한 불투명 등가색 —
   // 탭바/시트가 카드와 같은 톤으로 보이면서 흰 바탕 합성 사고가 없다.
   surfaceChrome: '#191E33',
+  // 유리 카드의 빛나는 가장자리.
+  cardEdge: 'rgba(255,255,255,0.13)',
+  // 배경 오로라: 좌상단 바이올렛 글로우 + 넓은 할로 + 우하단 시안 기운.
+  // 진짜 라디얼 그라데이션 대신 저투명 원형 뷰 3겹으로 근사 (라이브러리 無).
+  auroraGlowViolet: 'rgba(109,94,247,0.16)',
+  auroraGlowVioletWide: 'rgba(109,94,247,0.07)',
+  auroraGlowCyan: 'rgba(78,201,245,0.06)',
   adminSurface: '#0D1526',
   // 선택된 필/세그먼트 — 유리 위에서 브랜드 바이올렛이 또렷이 서게.
   inkPill: '#5D50E6',
