@@ -453,3 +453,29 @@ await test('tag availability answers free / taken / own / format from one endpoi
   assert.equal((await ask('AB')).reason, 'format');
   assert.equal((await ask('태그')).reason, 'format');
 });
+
+// ── 앱 다운로드 단축 링크 (GET /download) ────────────────────────────────────────
+
+await test('download redirect sends iOS to the App Store scheme and others to the web page', async () => {
+  const handler = createRouteRequest();
+  const ask = async (userAgent) => {
+    const response = createMockResponse();
+    await handler(
+      { method: 'GET', url: '/download', headers: { host: 'localhost', 'user-agent': userAgent } },
+      response,
+    );
+    assert.equal(response.statusCode, 302);
+    return response.headers.Location;
+  };
+
+  // iOS(아이폰) → itms-apps 스킴: 카톡 인앱 브라우저에서도 App Store 앱이 바로 열린다.
+  assert.equal(
+    await ask('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15'),
+    'itms-apps://apps.apple.com/kr/app/id6762328694',
+  );
+  // 그 외(데스크톱 등) → https 스토어 페이지.
+  assert.equal(
+    await ask('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'),
+    'https://apps.apple.com/kr/app/id6762328694',
+  );
+});

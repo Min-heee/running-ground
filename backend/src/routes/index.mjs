@@ -1,4 +1,5 @@
 import { routeHealthRequest } from './healthRoutes.mjs';
+import { routeDownloadRedirectRequest } from './downloadRedirectRoutes.mjs';
 import { routeLegalRequest } from './legalRoutes.mjs';
 import { routeAdminRequest } from './adminRoutes.mjs';
 import { routeAuthRequest } from './authRoutes.mjs';
@@ -12,6 +13,7 @@ import { routeUserRequest } from './userRoutes.mjs';
 
 const ROUTE_HANDLERS = [
   routeHealthRequest,
+  routeDownloadRedirectRequest,
   routeLegalRequest,
   routeAdminRequest,
   routeAuthRequest,

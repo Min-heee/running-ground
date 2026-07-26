@@ -9,8 +9,10 @@ import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionE
 
 const MYPAGE_INITIAL_FETCH_DEFER_MS = 120;
 
-// 러닝그라운드 앱스토어 페이지 — 태그 공유 메시지에 실린다.
-const APP_STORE_URL = 'https://apps.apple.com/kr/app/id6762328694';
+// 앱 다운로드 링크 — 우리 도메인 리다이렉트(GET /download)를 쓴다: iOS에서는
+// itms-apps 스킴 302로 카톡 인앱 브라우저에서도 App Store 앱이 바로 열린다.
+// (apps.apple.com 직링크는 인앱 브라우저가 웹 스토어 페이지를 먼저 띄웠음.)
+const APP_STORE_URL = 'https://api.running-ground.com/download';
 
 export function useMyPageScreen() {
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
