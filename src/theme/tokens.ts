@@ -58,6 +58,10 @@ const LIGHT_COLORS = {
   surfaceSoft: '#F8FAFC',
   surfaceSubtle: '#F3F4F6',
   surfaceSubtleAlt: '#F9FAFB',
+  // 네이티브 크롬(탭바·모달 시트) 전용 OPAQUE 표면. 다크 모드의 유리(반투명)
+  // 표면은 네이티브 기본 흰 바탕과 합성돼 탭바가 하얗게 떠버린다 — 크롬은
+  // 반드시 이 불투명 토큰을 쓴다 (유리와 같은 톤으로 보이도록 미리 합성한 색).
+  surfaceChrome: '#FFFFFF',
   // Dark chip/button fill that must stay legible with white text in BOTH modes.
   // Light: near-black (the classic dark CTA); dark: an elevated indigo-slate so the
   // active pill still reads as raised on navy cards instead of vanishing.
@@ -225,6 +229,9 @@ const DARK_COLORS: ThemeColors = {
   surfaceSubtle: 'rgba(255,255,255,0.09)',
   surfaceSubtleAlt: 'rgba(255,255,255,0.045)',
   surfaceMuted: 'rgba(255,255,255,0.13)',
+  // 유리(surface 0.065 백색)를 #0A0E1E 위에 미리 합성한 불투명 등가색 —
+  // 탭바/시트가 카드와 같은 톤으로 보이면서 흰 바탕 합성 사고가 없다.
+  surfaceChrome: '#191E33',
   adminSurface: '#0D1526',
   // 선택된 필/세그먼트 — 유리 위에서 브랜드 바이올렛이 또렷이 서게.
   inkPill: '#5D50E6',

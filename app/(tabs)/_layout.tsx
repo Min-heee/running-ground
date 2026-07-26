@@ -34,7 +34,8 @@ export default function TabsLayout() {
       height: tabBarHeight,
       paddingTop: 8,
       paddingBottom: tabBarBottomPadding,
-      backgroundColor: colors.surface,
+      // 네이티브 탭바는 흰 바탕과 합성되므로 반투명 유리(surface) 금지 — 불투명 크롬.
+      backgroundColor: colors.surfaceChrome,
       borderTopWidth: 1,
       borderTopColor: colors.borderSoft,
       // Lower than 10 — Android elevation contributes to per-frame overdraw,

@@ -188,7 +188,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(11, 18, 32, 0.48)',
   },
   sheet: {
-    backgroundColor: colors.surface,
+    // 모달 시트도 네이티브 합성 대상 — 반투명 유리 대신 불투명 크롬.
+    backgroundColor: colors.surfaceChrome,
     borderTopLeftRadius: radii.cardLarge,
     borderTopRightRadius: radii.cardLarge,
     gap: spacing.s16,
