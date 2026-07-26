@@ -39,7 +39,10 @@ export async function handleRankedPersonPress({ userId, name }: { userId: string
       );
       return;
     default:
-      Alert.alert('친구 신청', `${name}님에게 친구 신청을 보낼까요?`, [
+      Alert.alert(
+        '친구 신청',
+        `상대방 프로필은 친구 추가가 되어 있어야 볼 수 있어요.\n${name}님에게 친구 신청을 보낼까요?`,
+        [
         { text: '아니요', style: 'cancel' },
         {
           text: '네',
