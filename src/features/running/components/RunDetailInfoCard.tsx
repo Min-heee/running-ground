@@ -4,6 +4,7 @@ import { Card } from '@/components/Card';
 import { formatDuration } from '@/features/runs/tracking';
 import { formatRunStartTime } from '@/features/running/utils/runStartLabel';
 import type { RunDetailResponse } from '@/lib/api/types';
+import { resolveRunDurationSeconds } from '@/utils/runDuration';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type RunRecord = RunDetailResponse['run'];
@@ -22,8 +23,10 @@ function MetricCard({ label, value }: { label: string; value: string }) {
 }
 
 export function RunDetailInfoCard({ run }: RunDetailInfoCardProps) {
-  const durationLabel = typeof run.durationSeconds === 'number'
-    ? formatDuration(run.durationSeconds)
+  // durationSeconds 없는 기록(예전 수동 추가)은 페이스 × 거리로 도출해 표시.
+  const resolvedDurationSeconds = resolveRunDurationSeconds(run);
+  const durationLabel = resolvedDurationSeconds !== null
+    ? formatDuration(resolvedDurationSeconds)
     : '--';
   const startTimeLabel = formatRunStartTime(run.startedAt) ?? '--';
   const cadenceLabel = run.cadenceSpm ? `${run.cadenceSpm}spm` : '--';

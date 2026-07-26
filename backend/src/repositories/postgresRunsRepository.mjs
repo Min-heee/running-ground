@@ -4,6 +4,7 @@ import {
   buildRunFingerprint,
   shouldOverwriteMatchResult,
 } from './runsRepository.mjs';
+import { deriveDurationSecondsFromPace } from '../lib/paceDuration.mjs';
 import {
   clone,
   createDisplayTimestamp,
@@ -67,12 +68,15 @@ export function createPostgresRunsRepository({
       return runWriteOperation(database, async (client) => {
         const user = await requireUserByToken(client, token, createError);
         const createdAt = nowIso();
+        // 수동 기록은 시간 입력이 없다 — 페이스 × 거리로 도출 (json repo와 동일 규칙).
+        const durationSeconds = deriveDurationSecondsFromPace(input.pace, input.distanceKm);
         const run = {
           id: nextId('run'),
           userId: user.id,
           date: input.date,
           distanceKm: input.distanceKm,
           pace: input.pace,
+          ...(durationSeconds !== null ? { durationSeconds } : {}),
           source: 'Manual',
           sourceType: 'manual',
           createdAt,

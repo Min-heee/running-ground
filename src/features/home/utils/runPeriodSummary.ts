@@ -1,4 +1,5 @@
 import type { MyRunRecord } from '@/domain';
+import { resolveRunDurationSeconds } from '@/utils/runDuration';
 
 export type RunPeriodMode = 'week' | 'month' | 'year';
 
@@ -213,9 +214,9 @@ export function summarizeRunsForPeriod(
     }
 
     const distanceKm = Number.isFinite(run.distanceKm) && run.distanceKm > 0 ? run.distanceKm : 0;
-    const durationSeconds = Number.isFinite(run.durationSeconds) && (run.durationSeconds ?? 0) > 0
-      ? run.durationSeconds ?? 0
-      : 0;
+    // durationSeconds가 없는 기록(예전 수동 추가)은 페이스 × 거리로 도출 —
+    // 시간 합계가 0:00으로 비는 걸 막는다.
+    const durationSeconds = resolveRunDurationSeconds(run) ?? 0;
 
     return {
       distanceKm: summary.distanceKm + distanceKm,

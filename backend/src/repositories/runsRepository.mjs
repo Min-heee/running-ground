@@ -1,6 +1,7 @@
 import { attachRouteToRunPayload, attachStoredRunRoute } from '../lib/runHelpers.mjs';
 import { applyRunIntegrityCheck } from '../lib/runIntegrity.mjs';
 import { formatKstDisplayTimestamp } from '../lib/kstDate.mjs';
+import { deriveDurationSecondsFromPace } from '../lib/paceDuration.mjs';
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -385,12 +386,16 @@ export function createJsonRunsRepository({
     async createManualRun({ token, input }) {
       return mutateStore((store) => {
         const user = requireUserByToken(store, token);
+        // 수동 기록은 시간 입력이 없다 — 페이스 × 거리로 도출해 저장해야
+        // 홈 '내 러닝 기록' 시간 합계에 잡힌다.
+        const durationSeconds = deriveDurationSecondsFromPace(input.pace, input.distanceKm);
         const run = {
           id: nextId('run'),
           userId: user.id,
           date: input.date,
           distanceKm: input.distanceKm,
           pace: input.pace,
+          ...(durationSeconds !== null ? { durationSeconds } : {}),
           source: 'Manual',
           sourceType: 'manual',
           createdAt: nowIso(),
