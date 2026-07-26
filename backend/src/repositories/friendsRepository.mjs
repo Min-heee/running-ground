@@ -194,6 +194,61 @@ export function createJsonFriendsRepository({
   // caller that does not wire it) keeps today's embedded-route behavior byte-for-byte.
   getStoredRunRoute = async () => null,
 }) {
+  // 태그 기반/유저ID 기반 친구 신청이 공유하는 생성 로직 — 검증(자기 자신,
+  // 이미 친구, 대기 중 중복)과 알림 발송이 항상 동일하게 걸린다.
+  function pushFriendRequestToTarget(store, currentUser, targetUser) {
+    if (!Array.isArray(store.friendRequests)) {
+      store.friendRequests = [];
+    }
+
+    if (targetUser.id === currentUser.id) {
+      throw createError(400, '나 자신에게는 친구 요청을 보낼 수 없어요.');
+    }
+
+    if (areFriends(store, currentUser.id, targetUser.id)) {
+      throw createError(409, '이미 친구로 연결되어 있어요.');
+    }
+
+    const existingRequest = (store.friendRequests ?? []).find((entry) => (
+      entry.status === 'pending'
+      && (
+        (entry.requesterId === currentUser.id && entry.receiverId === targetUser.id)
+        || (entry.requesterId === targetUser.id && entry.receiverId === currentUser.id)
+      )
+    ));
+
+    if (existingRequest) {
+      throw createError(409, '이미 대기 중인 친구 요청이 있어요.');
+    }
+
+    const requestId = nextId('request');
+
+    store.friendRequests.push({
+      id: requestId,
+      requesterId: currentUser.id,
+      receiverId: targetUser.id,
+      status: 'pending',
+      createdAt: nowIso(),
+    });
+    appendUserNotification(store, {
+      userId: targetUser.id,
+      type: 'friend_request',
+      title: '새 친구 요청',
+      body: `${currentUser.name}님이 친구 요청을 보냈어요.`,
+      data: {
+        friendUserId: currentUser.id,
+        requestId,
+      },
+      nowIso,
+    });
+
+    return {
+      success: true,
+      requestId,
+      status: 'pending',
+    };
+  }
+
   return {
     async getLeaderboard({ token }) {
       const store = await loadStore();
@@ -242,10 +297,6 @@ export function createJsonFriendsRepository({
 
     async createRequest({ token, tag }) {
       return mutateStore((store) => {
-        if (!Array.isArray(store.friendRequests)) {
-          store.friendRequests = [];
-        }
-
         const currentUser = requireUserByToken(store, token);
         const targetUser = store.users.find((entry) => entry.publicTag === tag);
 
@@ -253,15 +304,37 @@ export function createJsonFriendsRepository({
           throw createError(404, '해당 태그의 사용자를 찾지 못했어요.');
         }
 
-        if (targetUser.id === currentUser.id) {
-          throw createError(400, '내 태그로는 친구 요청을 보낼 수 없어요.');
-        }
+        return pushFriendRequestToTarget(store, currentUser, targetUser);
+      });
+    },
 
-        if (areFriends(store, currentUser.id, targetUser.id)) {
-          throw createError(409, '이미 친구로 연결되어 있어요.');
-        }
+    // 랭킹 보드 등 태그가 없는 곳에서 사람을 눌러 친구 신청하는 경로 — 검증/알림은
+    // 태그 기반 createRequest와 완전히 동일한 공유 로직을 탄다.
+    async createRequestByUserId({ token, userId }) {
+      return mutateStore((store) => {
+        const currentUser = requireUserByToken(store, token);
+        // findUserById는 미존재 시 404를 던진다.
+        const targetUser = findUserById(store, userId);
 
-        const existingRequest = (store.friendRequests ?? []).find((entry) => (
+        return pushFriendRequestToTarget(store, currentUser, targetUser);
+      });
+    },
+
+    // 사람 탭 시의 분기 재료: 나/친구/보낸 신청 대기/받은 신청 대기/무관계.
+    async getUserRelation({ token, userId }) {
+      const store = await loadStore();
+      const currentUser = requireUserByToken(store, token);
+      // findUserById는 미존재 시 404를 던진다.
+      const targetUser = findUserById(store, userId);
+
+      let relation = 'none';
+
+      if (targetUser.id === currentUser.id) {
+        relation = 'self';
+      } else if (areFriends(store, currentUser.id, targetUser.id)) {
+        relation = 'friend';
+      } else {
+        const pendingRequest = (store.friendRequests ?? []).find((entry) => (
           entry.status === 'pending'
           && (
             (entry.requesterId === currentUser.id && entry.receiverId === targetUser.id)
@@ -269,37 +342,16 @@ export function createJsonFriendsRepository({
           )
         ));
 
-        if (existingRequest) {
-          throw createError(409, '이미 대기 중인 친구 요청이 있어요.');
+        if (pendingRequest) {
+          relation = pendingRequest.requesterId === currentUser.id ? 'outgoing' : 'incoming';
         }
+      }
 
-        const requestId = nextId('request');
-
-        store.friendRequests.push({
-          id: requestId,
-          requesterId: currentUser.id,
-          receiverId: targetUser.id,
-          status: 'pending',
-          createdAt: nowIso(),
-        });
-        appendUserNotification(store, {
-          userId: targetUser.id,
-          type: 'friend_request',
-          title: '새 친구 요청',
-          body: `${currentUser.name}님이 친구 요청을 보냈어요.`,
-          data: {
-            friendUserId: currentUser.id,
-            requestId,
-          },
-          nowIso,
-        });
-
-        return {
-          success: true,
-          requestId,
-          status: 'pending',
-        };
-      });
+      return {
+        userId: targetUser.id,
+        name: targetUser.name,
+        relation,
+      };
     },
 
     async respondToRequest({ token, requestId, action }) {

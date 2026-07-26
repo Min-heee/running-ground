@@ -29,3 +29,12 @@ export type FriendRequestActionResponse = {
   requestId: string;
   status: 'accepted' | 'rejected' | 'cancelled';
 };
+
+// GET /friends/relation/:userId — 사람 탭 분기 재료.
+export type FriendRelation = 'self' | 'friend' | 'outgoing' | 'incoming' | 'none';
+
+export type FriendRelationResponse = {
+  userId: string;
+  name: string;
+  relation: FriendRelation;
+};

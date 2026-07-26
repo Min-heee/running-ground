@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -12,6 +12,7 @@ import { RankingItemRow } from '@/components/ranking/RankingItemRow';
 import { DistrictMetricSwitch } from '@/features/league/components/DistrictMetricSwitch';
 import { RankMarker } from '@/features/league/components/LeagueRankBadges';
 import { sortDistrictRanksByMetric } from '@/features/league/utils/leagueRanking';
+import { handleRankedPersonPress } from '@/features/friends/utils/personPress';
 import type { DistrictPersonalMetric } from '@/domain';
 import type { DistrictPersonalResponse } from '@/lib/api/types';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
@@ -48,6 +49,10 @@ const DistrictMemberRankRow = memo(function DistrictMemberRankRow({
   metric: DistrictPersonalMetric;
   onMyRankLayout: (event: LayoutChangeEvent) => void;
 }) {
+  const handlePress = useCallback(() => {
+    void handleRankedPersonPress({ userId: runner.id, name: runner.name });
+  }, [runner.id, runner.name]);
+
   return (
     <RankingItemRow
       leading={<RankMarker rank={runner.rank} />}
@@ -57,6 +62,7 @@ const DistrictMemberRankRow = memo(function DistrictMemberRankRow({
       friend={runner.isFriend}
       highlighted={runner.isMe}
       onLayout={runner.isMe ? onMyRankLayout : undefined}
+      onPress={handlePress}
     />
   );
 });

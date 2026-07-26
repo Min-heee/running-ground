@@ -331,3 +331,59 @@ await runTest('rejects access to non-friend activity', async () => {
     return true;
   });
 });
+
+// ── 사람 탭 플로우 (2026-07-27): 유저ID 친구신청 + 관계 조회 ──────────────────────
+
+await runTest('createRequestByUserId shares the tag-path validations and notification', async () => {
+  const { repository, storeHarness } = createRepositoryHarness({
+    users: [
+      { id: 'user-me', name: '민병희', publicTag: '#ME001' },
+      { id: 'user-new', name: '새친구', publicTag: '#NEW01' },
+    ],
+    sessions: [{ token: 'token-me', userId: 'user-me' }],
+  });
+
+  const created = await repository.createRequestByUserId({ token: 'token-me', userId: 'user-new' });
+  assert.equal(created.success, true);
+  assert.equal(created.status, 'pending');
+  assert.equal(storeHarness.getStore().notifications[0].userId, 'user-new');
+
+  // 중복/자기 자신 검증이 태그 경로와 동일하게 걸린다.
+  await assert.rejects(repository.createRequestByUserId({ token: 'token-me', userId: 'user-new' }), (error) => {
+    assertApiError(error, 409, '이미 대기 중인 친구 요청이 있어요.');
+    return true;
+  });
+  await assert.rejects(repository.createRequestByUserId({ token: 'token-me', userId: 'user-me' }), (error) => {
+    assertApiError(error, 400, '나 자신에게는 친구 요청을 보낼 수 없어요.');
+    return true;
+  });
+});
+
+await runTest('getUserRelation answers self/friend/outgoing/incoming/none', async () => {
+  const { repository } = createRepositoryHarness({
+    users: [
+      { id: 'user-me', name: '민병희', publicTag: '#ME001' },
+      { id: 'user-friend', name: '친구', publicTag: '#FRI01' },
+      { id: 'user-out', name: '보낸상대', publicTag: '#OUT01' },
+      { id: 'user-in', name: '받은상대', publicTag: '#IN001' },
+      { id: 'user-none', name: '무관계', publicTag: '#NON01' },
+    ],
+    sessions: [{ token: 'token-me', userId: 'user-me' }],
+    friendships: [
+      { id: 'friendship-1', userIds: ['user-me', 'user-friend'], createdAt: '2026-07-01T00:00:00.000Z' },
+    ],
+    friendRequests: [
+      { id: 'request-out', requesterId: 'user-me', receiverId: 'user-out', status: 'pending', createdAt: '2026-07-01T00:00:00.000Z' },
+      { id: 'request-in', requesterId: 'user-in', receiverId: 'user-me', status: 'pending', createdAt: '2026-07-01T00:00:00.000Z' },
+    ],
+  });
+
+  assert.equal((await repository.getUserRelation({ token: 'token-me', userId: 'user-me' })).relation, 'self');
+  assert.equal((await repository.getUserRelation({ token: 'token-me', userId: 'user-friend' })).relation, 'friend');
+  assert.equal((await repository.getUserRelation({ token: 'token-me', userId: 'user-out' })).relation, 'outgoing');
+  assert.equal((await repository.getUserRelation({ token: 'token-me', userId: 'user-in' })).relation, 'incoming');
+
+  const none = await repository.getUserRelation({ token: 'token-me', userId: 'user-none' });
+  assert.equal(none.relation, 'none');
+  assert.equal(none.name, '무관계');
+});

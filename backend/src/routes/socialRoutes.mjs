@@ -30,6 +30,29 @@ export async function routeSocialRequest({
     return true;
   }
 
+  // 랭킹 보드 등에서 유저ID로 직접 친구 신청 (태그 노출이 없는 지점용).
+  if (pathname === '/api/friends/requests/by-user' && method === 'POST') {
+    const body = await parseJsonBody(request);
+    const payload = await getFriendsRepository().createRequestByUserId({
+      token: getAccessToken(request),
+      userId: validateRequiredString(body.userId, '사용자를 선택해주세요.'),
+    });
+    sendJson(response, 201, payload);
+    return true;
+  }
+
+  // 사람 탭 분기용 관계 조회: self/friend/outgoing/incoming/none.
+  const friendRelationMatch = pathname.match(/^\/api\/friends\/relation\/([^/]+)$/);
+
+  if (friendRelationMatch && method === 'GET') {
+    const payload = await getFriendsRepository().getUserRelation({
+      token: getAccessToken(request),
+      userId: friendRelationMatch[1],
+    });
+    sendJson(response, 200, payload);
+    return true;
+  }
+
   if (pathname === '/api/friends/requests' && method === 'POST') {
     const body = await parseJsonBody(request);
     await handleFriendRequestCreate({

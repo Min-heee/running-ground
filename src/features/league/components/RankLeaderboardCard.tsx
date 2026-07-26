@@ -11,6 +11,7 @@ import {
   resolveOrderedRankTiers,
 } from '@/features/league/utils/rankLeaderboardView';
 import { RANK_TIERS, RANK_TIER_COLOR } from '@/features/rank/rankDisplay';
+import { handleRankedPersonPress } from '@/features/friends/utils/personPress';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 const RankLeaderboardRow = memo(function RankLeaderboardRow({
@@ -21,6 +22,9 @@ const RankLeaderboardRow = memo(function RankLeaderboardRow({
   user: RankLeaderboardUser;
 }) {
   const isCurrentUser = user.id === currentUserId;
+  const handlePress = useCallback(() => {
+    void handleRankedPersonPress({ userId: user.id, name: user.name });
+  }, [user.id, user.name]);
 
   return (
     <RankingItemRow
@@ -29,6 +33,7 @@ const RankLeaderboardRow = memo(function RankLeaderboardRow({
       detail={`${user.lp} LP`}
       highlighted={isCurrentUser}
       friendLabel={isCurrentUser ? '나' : undefined}
+      onPress={handlePress}
     />
   );
 });

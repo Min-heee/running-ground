@@ -11,6 +11,7 @@ import {
   CreateFriendRequestResponse,
   FriendActivityResponse,
   FriendLeaderboardResponse,
+  FriendRelationResponse,
   FriendRequestActionResponse,
 } from '../types';
 
@@ -33,6 +34,35 @@ export async function fetchFriendLeaderboard(): Promise<FriendLeaderboardRespons
     accessToken: await requireAccessToken(),
     fallbackMessage: '친구 랭킹을 불러오지 못했어요.',
   });
+}
+
+// 사람 탭 분기용 관계 조회 — 랭킹 보드에서 아무 유저나 눌렀을 때의 재료.
+export async function fetchFriendRelation(userId: string): Promise<FriendRelationResponse> {
+  if (USE_MOCK_API) {
+    const isFriend = normalizeMockFriendRanks(mockApiState.friendRanks).some((entry) => entry.id === userId);
+    return { userId, name: '러너', relation: isFriend ? 'friend' : 'none' };
+  }
+
+  return apiGet<FriendRelationResponse>(`/friends/relation/${encodeURIComponent(userId)}`, {
+    accessToken: await requireAccessToken(),
+    fallbackMessage: '사용자 정보를 불러오지 못했어요.',
+  });
+}
+
+// 태그 없이 유저ID로 친구 신청 (랭킹 보드 경로).
+export async function sendFriendRequestToUser(userId: string): Promise<CreateFriendRequestResponse> {
+  if (USE_MOCK_API) {
+    return { success: true, requestId: `mock-request-${userId}`, status: 'pending' };
+  }
+
+  return apiPost<CreateFriendRequestResponse>(
+    '/friends/requests/by-user',
+    { userId },
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '친구 신청을 보내지 못했어요.',
+    },
+  );
 }
 
 export async function fetchFriendActivity(friendId?: string): Promise<FriendActivityResponse> {

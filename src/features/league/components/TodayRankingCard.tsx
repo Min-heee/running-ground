@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { Card } from '@/components/Card';
 import { RankingItemRow } from '@/components/ranking/RankingItemRow';
 import { RankMarker } from '@/features/league/components/LeagueRankBadges';
+import { handleRankedPersonPress } from '@/features/friends/utils/personPress';
 import { useTodayRankings } from '@/features/league/hooks/useTodayRankings';
 import {
   hasTodayRankingEntries,
@@ -43,6 +44,10 @@ const TodayRankingTab = memo(function TodayRankingTab({
 });
 
 const TodayRankingRow = memo(function TodayRankingRow({ entry }: { entry: TodayRankingEntry }) {
+  const handlePress = useCallback(() => {
+    void handleRankedPersonPress({ userId: entry.userId, name: entry.name });
+  }, [entry.name, entry.userId]);
+
   return (
     <RankingItemRow
       leading={<RankMarker rank={entry.rank} />}
@@ -50,6 +55,7 @@ const TodayRankingRow = memo(function TodayRankingRow({ entry }: { entry: TodayR
       detail={`${entry.tag} · ${entry.value}`}
       highlighted={entry.isCurrentUser}
       friendLabel={entry.isCurrentUser ? '나' : undefined}
+      onPress={handlePress}
     />
   );
 });
