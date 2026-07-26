@@ -12,8 +12,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
     // 글래스 엣지 — 다크에선 네온 바이올렛 테두리, 라이트에선 은은한 잉크 라인.
-    // (오너 튜닝 2026-07-26: 1 → 1.25px)
-    borderWidth: 1.25,
+    // (오너 확정 2026-07-26: 1px + 형광 0.65)
+    borderWidth: 1,
     borderColor: colors.cardEdge,
     padding: spacing.s16,
     gap: spacing.xxl,
