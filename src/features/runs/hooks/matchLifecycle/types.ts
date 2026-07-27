@@ -1,6 +1,6 @@
 import type { MatchSlotOption, MatchTimeSection } from '@/features/runs/utils/matchScheduling';
 
-export type RunMatchMode = 'solo' | 'duel' | 'group' | 'room';
+export type RunMatchMode = 'solo' | 'duel' | 'group' | 'room' | 'chase';
 
 export type InitialMatchSlot = MatchSlotOption | null;
 

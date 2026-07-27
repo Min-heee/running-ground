@@ -25,6 +25,7 @@ export function buildRunDetail(run, weeklyDistanceKm, sourceOverride, metrics) {
       ...(normalizeOptionalString(run.startedAt) ? { startedAt: run.startedAt } : {}),
       ...(normalizeOptionalString(run.endedAt) ? { endedAt: run.endedAt } : {}),
       ...(run.matchResult ? { matchResult: clone(run.matchResult) } : {}),
+      ...(run.chase ? { chase: clone(run.chase) } : {}),
     },
     weeklyDistanceKm,
     estimatedMinutes: Math.round(run.distanceKm * (paceMinutes ?? 5.5)),

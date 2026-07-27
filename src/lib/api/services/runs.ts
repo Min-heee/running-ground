@@ -137,6 +137,7 @@ export async function createTrackedRun(input: CreateTrackedRunInput): Promise<Cr
       startedAt: input.startedAt,
       endedAt: input.endedAt,
       matchResult: input.matchResult ?? null,
+      ...(input.chaseArenaId ? { chaseArenaId: input.chaseArenaId } : {}),
     },
     {
       accessToken: await requireAccessToken(),

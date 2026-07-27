@@ -48,4 +48,18 @@ export type MyRunRecord = {
   startedAt?: string;
   endedAt?: string;
   matchResult?: RunMatchResult;
+  // 경찰과 도둑런: 경기장 태그 + 정산 누적 (chase 러닝만).
+  chase?: {
+    arenaId: string;
+    arenaName?: string;
+    bonusPoints: number;
+    events: {
+      type: 'catch' | 'meet';
+      role: 'catcher' | 'caught' | 'meet';
+      otherUserId: string;
+      otherName: string;
+      atIso: string;
+      points: number;
+    }[];
+  };
 };

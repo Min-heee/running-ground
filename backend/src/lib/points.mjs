@@ -160,11 +160,17 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
       const afterLevel = Math.floor(competitiveCumulativeDistanceKm / 10);
       const levelPoints = Math.max(0, afterLevel - beforeLevel) * 10;
       const matchBonusPoints = getMatchBonusPoints(run.matchResult);
+      // 경찰과 도둑런 보너스 — 정산(chaseSettlement)이 run.chase.bonusPoints에 박제한 값.
+      // 경쟁 러닝 가지 안에 있으므로 차량 판정/임포트 러닝은 자동으로 0.
+      const chasePoints = Number.isFinite(run.chase?.bonusPoints)
+        ? Math.max(0, Math.round(run.chase.bonusPoints))
+        : 0;
 
       runPointsById.set(run.id, {
-        earnedPoint: levelPoints + matchBonusPoints,
+        earnedPoint: levelPoints + matchBonusPoints + chasePoints,
         levelPoints,
         matchBonusPoints,
+        chasePoints,
         streakPoints: 0,
         growthPoints: 0,
         weekKey,
@@ -369,6 +375,7 @@ export function getRunPointBreakdown(metrics, runId) {
       streakPoints: 0,
       growthPoints: 0,
       matchBonusPoints: 0,
+      chasePoints: 0,
       totalPoints: 0,
     };
   }
@@ -378,6 +385,7 @@ export function getRunPointBreakdown(metrics, runId) {
     streakPoints: pointEntry.streakPoints ?? 0,
     growthPoints: pointEntry.growthPoints ?? 0,
     matchBonusPoints: pointEntry.matchBonusPoints ?? 0,
+    chasePoints: pointEntry.chasePoints ?? 0,
     totalPoints: pointEntry.earnedPoint ?? 0,
   };
 }

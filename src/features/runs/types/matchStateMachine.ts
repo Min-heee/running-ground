@@ -82,7 +82,7 @@ export type MatchArenaEntryInput = {
 };
 
 export type ActiveMatchIdentityInput = {
-  matchMode: 'solo' | 'duel' | 'group' | 'room';
+  matchMode: 'solo' | 'duel' | 'group' | 'room' | 'chase';
   duelMatchId?: string | null;
   groupMatchId?: string | null;
   roomLinkedMatchContext?: {

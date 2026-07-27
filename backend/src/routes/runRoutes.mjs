@@ -6,7 +6,11 @@ export async function routeRunRequest({
   sendJson,
   parseJsonBody,
   loadStore,
+  mutateStore,
   requireUser,
+  findChaseArena,
+  settleChaseRunUpload,
+  getStoredRunRoute,
   validateRequiredString,
   validateDistanceKm,
   validateDateOnly,
@@ -79,12 +83,17 @@ export async function routeRunRequest({
   if (pathname === '/api/runs/tracked' && method === 'POST') {
     await handleCreateTrackedRun({
       ApiError,
+      findChaseArena,
       getAccessToken,
       getRunsRepository,
+      getStoredRunRoute,
+      loadStore,
+      mutateStore,
       parseJsonBody,
       request,
       response,
       sendJson,
+      settleChaseRunUpload,
       validateDateOnly,
       validateDistanceKm,
       validateNonNegativeInteger,
@@ -133,12 +142,17 @@ async function handleCreateManualRun({
 
 async function handleCreateTrackedRun({
   ApiError,
+  findChaseArena,
   getAccessToken,
   getRunsRepository,
+  getStoredRunRoute,
+  loadStore,
+  mutateStore,
   parseJsonBody,
   request,
   response,
   sendJson,
+  settleChaseRunUpload,
   validateDateOnly,
   validateDistanceKm,
   validateNonNegativeInteger,
@@ -162,9 +176,20 @@ async function handleCreateTrackedRun({
     throw new ApiError(400, '러닝 종료 시각은 시작 시각보다 빠를 수 없어요.');
   }
 
+  // 경찰과 도둑런: 경기장 태그는 카탈로그에 실존할 때만 승인. 러닝 저장 자체는 chase와
+  // 무관하게 성립해야 하므로 검증 실패만 400, 이후 정산 실패는 저장을 깨지 않는다.
+  const chaseArenaId = typeof body.chaseArenaId === 'string' && body.chaseArenaId.trim()
+    ? body.chaseArenaId.trim()
+    : null;
+
+  if (chaseArenaId && !findChaseArena(chaseArenaId)) {
+    throw new ApiError(400, '알 수 없는 경기장이에요. 앱을 최신 버전으로 업데이트해주세요.');
+  }
+
   const payload = await getRunsRepository().createTrackedRun({
     token: getAccessToken(request),
     input: {
+      ...(chaseArenaId ? { chaseArenaId } : {}),
       date: validateDateOnly(body.date, '러닝 날짜를 입력해주세요.'),
       distanceKm: validateDistanceKm(body.distanceKm, '러닝 거리를 입력해주세요.'),
       pace: validatePace(body.pace, '페이스를 입력해주세요.'),
@@ -184,5 +209,19 @@ async function handleCreateTrackedRun({
     },
   });
 
-  sendJson(response, 201, payload);
+  // chase 러닝이면 업로드 직후 소급 정산 — 실패해도 러닝 저장(201)은 그대로.
+  let chaseSettlement = null;
+
+  if (chaseArenaId && payload?.run?.id) {
+    try {
+      chaseSettlement = await settleChaseRunUpload({
+        runId: payload.run.id,
+        deps: { loadStore, mutateStore, getStoredRunRoute },
+      });
+    } catch (error) {
+      console.warn('[chase] 정산 실패 (러닝 저장은 정상):', error?.message ?? error);
+    }
+  }
+
+  sendJson(response, 201, chaseSettlement ? { ...payload, chaseSettlement } : payload);
 }

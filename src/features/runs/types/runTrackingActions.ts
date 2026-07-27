@@ -19,6 +19,9 @@ export type Coordinate = {
 export type StartTrackingOptions = {
   allowCountdownWarmup?: boolean;
   matchId?: string;
+  // 경찰과 도둑런: 서버 입장(join)에 성공한 그 경기장 — 시작 시점의 카드 선택을 다시 읽지
+  // 않는다 (입장 왕복/권한 프롬프트 사이에 선택이 바뀌는 경합 차단).
+  chaseArena?: { arenaId: string; arenaName: string };
 };
 
 export type GpsTrackingStartGuard = {

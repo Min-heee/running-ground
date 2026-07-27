@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
 import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
-export type MatchOptionMode = 'solo' | 'duel' | 'group' | 'room';
+export type MatchOptionMode = 'solo' | 'duel' | 'group' | 'room' | 'chase';
 
 export type MatchOptionItem = {
   mode: MatchOptionMode;

@@ -5,6 +5,7 @@ import type {
   RunRoutePoint,
   RunSourceType,
 } from '@/domain';
+import type { ChaseSettlementSummary } from './chase';
 
 export type CreateManualRunInput = {
   date: string;
@@ -25,9 +26,13 @@ export type CreateTrackedRunInput = {
   startedAt: string;
   endedAt: string;
   matchResult?: RunMatchResult;
+  chaseArenaId?: string;
 };
 
-export type CreateTrackedRunResponse = RunDetailResponse;
+export type CreateTrackedRunResponse = RunDetailResponse & {
+  // 경찰과 도둑런: 업로드 직후 소급 정산 요약 (chase 러닝일 때만).
+  chaseSettlement?: ChaseSettlementSummary;
+};
 
 export type UpdateRunningLiveShareInput = {
   enabled: boolean;
@@ -115,6 +120,8 @@ export type RunPointBreakdown = {
   streakPoints: number;
   growthPoints: number;
   matchBonusPoints: number;
+  // 경찰과 도둑런 보너스 — 구버전 서버 응답에는 없으므로 optional.
+  chasePoints?: number;
   totalPoints: number;
 };
 

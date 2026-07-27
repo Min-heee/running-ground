@@ -16,6 +16,15 @@
 - **iOS 네이티브 주기 업로더** — 화면 꺼짐 라이브 동기화 잔여 근본 수술 (memory: bgsync-residual-and-native-uploader).
 - Sentry 소스맵 업로드 토큰 배선 (현재 SENTRY_DISABLE_AUTO_UPLOAD=true).
 
+## 경찰과 도둑런 2차 (1차 출시 2026-07-27)
+
+- 실시간 "주변에 러너!" 알림 (화면 켜짐/Android 한정 베스트에포트 — 1차는 종료 소급 정산만).
+- 시작 실패/러닝 폐기 시 경기장 슬롯 즉시 반납 — 지금은 3h TTL 자연 소멸에 의존
+  (같은 유저 재입장은 슬롯 교체라 실해는 점유 수 +1 표시뿐).
+- 정원(capacity)은 정직한 클라이언트만 구속 — 저장 시 presence 보유 검증 추가 검토.
+- 하루 상한(60P)이 기기 날짜(run.date) 기준 — 서버 날짜 클램프 보강 검토.
+- 경기장 지오펜스 원형 → 폴리곤 (강변 선형 공원 정밀화), 어드민 CRUD API.
+
 ## 기능/개선 백로그 (우선순위 미정)
 
 - 라이트 모드 글래스화 (다크만 전환됨 — 라벤더 유리 + 보라 라인).
@@ -33,6 +42,9 @@
 - DO Spaces 백업 키 재발급 (채팅에 노출된 적 있음 — 로테이션 권장).
 - postgres 계열 레포(dormant, 플래그 off)에 미러 안 된 신규 메서드: friends의
   createRequestByUserId/getUserRelation, auth의 updateSocialRefreshToken (전환 재개 때 함께).
+- **postgres run 매퍼가 chase/integrity 필드를 모름** — postgresRunsRowMappers.mjs mapRunRow와
+  postgresRunsRepository.createTrackedRun이 run.chase(+integrity)를 드랍. BACKEND_POSTGRES_ENABLE_RUN_READS
+  켜기 전에 반드시 미러 (지금은 플래그 off라 미발동).
 
 ## 운영 메모
 

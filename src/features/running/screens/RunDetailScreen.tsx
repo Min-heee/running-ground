@@ -5,6 +5,7 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
+import { ChaseResultCard } from '@/features/running/components/ChaseResultCard';
 import { RunDetailInfoCard } from '@/features/running/components/RunDetailInfoCard';
 import { RunMatchResultCard } from '@/features/running/components/RunMatchResultCard';
 import { RunPointBreakdownCard } from '@/features/running/components/RunPointBreakdownCard';
@@ -141,6 +142,8 @@ export default function RunDetailScreen() {
           ) : (
             <RunPointBreakdownCard pointBreakdown={runDetail.pointBreakdown} matchBonusLabel={matchBonusLabel} />
           )}
+
+          {runDetail.run.chase ? <ChaseResultCard chase={runDetail.run.chase} /> : null}
 
           {mapRegion && Platform.OS !== 'android' ? (
             <Card style={styles.mapCard}>

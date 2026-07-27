@@ -195,6 +195,7 @@ export function useIdleRunModeModel(input: UseIdleRunModeModelInput) {
   }, [input]);
 
   return {
+    readyChaseSetupVisible: input.matchMode === 'chase',
     readyDuelSetupProps,
     readyGroupSetupProps,
     readyMatchOptionProps,

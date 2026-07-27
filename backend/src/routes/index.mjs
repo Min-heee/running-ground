@@ -3,6 +3,7 @@ import { routeDownloadRedirectRequest } from './downloadRedirectRoutes.mjs';
 import { routeLegalRequest } from './legalRoutes.mjs';
 import { routeAdminRequest } from './adminRoutes.mjs';
 import { routeAuthRequest } from './authRoutes.mjs';
+import { routeChaseRequest } from './chaseRoutes.mjs';
 import { routeLeagueRequest } from './leagueRoutes.mjs';
 import { routeMarketRequest } from './marketRoutes.mjs';
 import { routeRaceRequest } from './raceRoutes.mjs';
@@ -18,6 +19,7 @@ const ROUTE_HANDLERS = [
   routeAdminRequest,
   routeAuthRequest,
   routeRunningMatchRequest,
+  routeChaseRequest,
   routeRunRequest,
   routeUserRequest,
   routeMarketRequest,

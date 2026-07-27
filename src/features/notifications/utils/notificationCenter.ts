@@ -53,6 +53,8 @@ export function getNotificationTypeLabel(type: InboxNotificationType) {
       return '친구 수락';
     case 'rank_change':
       return '랭크';
+    case 'chase_settlement':
+      return '경찰과 도둑';
     default:
       return '알림';
   }
@@ -75,6 +77,14 @@ export function resolveNotificationHref(notification: InboxNotification): Href |
         matchId: data.matchId.trim(),
         ...(data.mode === 'duel' || data.mode === 'group' ? { matchMode: data.mode } : {}),
       },
+    };
+  }
+
+  // 경찰과 도둑런 정산 알림 → 해당 러닝의 상세(정산 카드)로.
+  if (notification.type === 'chase_settlement' && typeof data.runId === 'string' && data.runId.trim()) {
+    return {
+      pathname: '/run-detail',
+      params: { runId: data.runId.trim() },
     };
   }
 

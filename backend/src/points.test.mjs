@@ -51,6 +51,7 @@ runTest('an imported run has no point entry and earns 0', () => {
     streakPoints: 0,
     growthPoints: 0,
     matchBonusPoints: 0,
+    chasePoints: 0,
     totalPoints: 0,
   });
   assert.equal(metrics.currentWeekPoints, 0);
@@ -272,4 +273,32 @@ runTest('KST anchor: today/week/month resolve on the Korea calendar on a UTC clo
   assert.equal(metrics.competitiveMonthDistanceKm, 4);
   // First-ever run: weekly growth bonus (4km > 0km previous week) lands today.
   assert.equal(metrics.todayPoints, 10);
+});
+
+// ── 경찰과 도둑런 (2026-07-27): chase 보너스는 경쟁 러닝 가지에 합산 ────────────────
+
+runTest('chase bonus points fold into the per-run entry and window sums', () => {
+  const metrics = buildUserRunMetrics(
+    [trackedRun('t-chase', '2026-07-10', 3, { chase: { arenaId: 'ilsan-lake', bonusPoints: 15, events: [] } })],
+    NOW,
+  );
+
+  const breakdown = getRunPointBreakdown(metrics, 't-chase');
+  assert.equal(breakdown.chasePoints, 15);
+  // 3km 첫 러닝: 레벨 0 + 주간성장 10 + chase 15.
+  assert.equal(getRunPointValue(metrics, 't-chase'), 25);
+  assert.equal(metrics.todayPoints, 25);
+});
+
+runTest('a vehicle-flagged chase run mints nothing (competitive gate wins)', () => {
+  const metrics = buildUserRunMetrics(
+    [trackedRun('t-cheat', '2026-07-10', 3, {
+      chase: { arenaId: 'ilsan-lake', bonusPoints: 15, events: [] },
+      integrity: { verdict: 'vehicle', checkedAt: '2026-07-10T03:00:00.000Z' },
+    })],
+    NOW,
+  );
+
+  assert.equal(getRunPointValue(metrics, 't-cheat'), 0);
+  assert.equal(getRunPointBreakdown(metrics, 't-cheat').chasePoints, 0);
 });

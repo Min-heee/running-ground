@@ -69,7 +69,9 @@ export function useLiveMatchRuntime({
     trackingPageProps: containerTrackingPageProps,
     exitAction: liveArenaExitAction,
     isSaving,
-    isRunningSolo: isRunning && matchMode === 'solo',
+    // chase(경찰과 도둑런)는 라이브 매치 아레나가 없는 솔로형 러닝 — 솔로 액션(일시정지/저장)을
+    // 그대로 쓴다. 이게 빠지면 체이스 러닝은 종료 버튼이 없어 앱 강제종료 말고는 못 끝낸다.
+    isRunningSolo: isRunning && (matchMode === 'solo' || matchMode === 'chase'),
     isPaused,
     onSaveTracking: actionHandlers.handleSaveTrackingPress,
     onPauseTracking: actionHandlers.handlePauseTrackingPress,

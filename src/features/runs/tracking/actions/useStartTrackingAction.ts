@@ -5,6 +5,7 @@ import {
   resetBackgroundRunTracking,
   startBackgroundRunTracking,
 } from '@/features/runs/tracking/background';
+import { setActiveChaseArena } from '@/features/runs/chase/chaseRunContext';
 import { clearPendingMatchSaveContext } from '@/features/runs/hooks/runSaveFlow/pendingMatchSaveContext';
 import { requestAndroidRunTrackingNotificationPermission } from '@/features/runs/tracking/runTrackingNotificationPermission';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
@@ -80,7 +81,7 @@ export function useStartTrackingAction({
       matchMode,
     });
     const trackingStartKey = getTrackingStartKey(matchMode, options);
-    const persistenceMatchId = matchMode === 'solo'
+    const persistenceMatchId = matchMode === 'solo' || matchMode === 'chase'
       ? null
       : options?.matchId ?? (
         matchMode === 'duel'
@@ -102,6 +103,9 @@ export function useStartTrackingAction({
       // match-save context here so it can never attach an old match's verdict to the run
       // that is about to begin.
       clearPendingMatchSaveContext();
+      // 경찰과 도둑런: chase 모드 시작이면 '입장에 성공한' 경기장을 이 러닝의 태그로 잠그고,
+      // 다른 모드면 반드시 비운다 — 이전 chase 태그가 다음 혼자런에 새는 것 차단.
+      setActiveChaseArena(matchMode === 'chase' ? options?.chaseArena ?? null : null);
       await resetBackgroundRunTracking();
 
       if (options?.allowCountdownWarmup) {

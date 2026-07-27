@@ -20,7 +20,7 @@ type LiveMatchForfeitDiagnosticsState = {
   pollAtMs: number | null;
   pollSource: string | null;
   pollsBySource: Record<string, number>;
-  mode: 'duel' | 'group' | 'solo' | 'room';
+  mode: 'duel' | 'group' | 'solo' | 'room' | 'chase';
   matchId: string | null;
   source: string;
   duelStatusMatchId: string | null;

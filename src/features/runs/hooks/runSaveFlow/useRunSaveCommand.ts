@@ -1,6 +1,10 @@
 import { Alert } from 'react-native';
 import { router } from 'expo-router';
 import {
+  clearActiveChaseArena,
+  getActiveChaseArena,
+} from '@/features/runs/chase/chaseRunContext';
+import {
   getBackgroundRunTrackingSnapshot,
   pauseBackgroundRunTracking,
   resetBackgroundRunTracking,
@@ -284,7 +288,15 @@ export function useRunSaveCommand({
         }
       }
 
-      const savedRun = await createTrackedRun(saveSnapshot.createRunInput);
+      // 경찰과 도둑런: 시작 시점에 잠근 경기장 태그를 저장 payload에 싣는다. 저장 실패 시
+      // 컨텍스트가 남아 paused-shell 재시도도 같은 태그로 저장된다 (매치 컨텍스트와 동일 계약).
+      const activeChaseArena = getActiveChaseArena();
+      const savedRun = await createTrackedRun(
+        activeChaseArena
+          ? { ...saveSnapshot.createRunInput, chaseArenaId: activeChaseArena.arenaId }
+          : saveSnapshot.createRunInput,
+      );
+      clearActiveChaseArena();
       options.onSavedRun?.(savedRun.run.id);
       await runCleanupAfterSave({
         activeMatchId,

@@ -23,6 +23,13 @@ export function RunPointBreakdownCard({ pointBreakdown, matchBonusLabel }: RunPo
         value={`+${pointBreakdown.matchBonusPoints}P`}
         highlight={pointBreakdown.matchBonusPoints > 0}
       />
+      {(pointBreakdown.chasePoints ?? 0) > 0 ? (
+        <PointBreakdownRow
+          label="경찰과 도둑"
+          value={`+${pointBreakdown.chasePoints}P`}
+          highlight
+        />
+      ) : null}
       <View style={styles.pointBreakdownTotalRow}>
         <Text style={styles.pointBreakdownTotalLabel}>총 획득 포인트</Text>
         <Text style={styles.pointBreakdownTotalValue}>+{pointBreakdown.totalPoints}P</Text>

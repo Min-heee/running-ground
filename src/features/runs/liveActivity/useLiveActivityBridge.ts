@@ -120,7 +120,8 @@ export function useLiveActivityBridge({
   // slotStartAt are always fresh.
   const buildRunContext = (): LiveActivityRunContext | null => {
     const input = inputRef.current;
-    const mode: LiveActivityRunContext['mode'] = input.matchMode === 'solo'
+    // chase(경찰과 도둑런)는 매치 세션이 없는 솔로형 러닝 — 솔로 락스크린 카드로 흘린다.
+    const mode: LiveActivityRunContext['mode'] = input.matchMode === 'solo' || input.matchMode === 'chase'
       ? 'solo'
       : input.matchMode === 'group'
         ? 'group'

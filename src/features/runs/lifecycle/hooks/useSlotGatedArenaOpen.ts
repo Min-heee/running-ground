@@ -38,7 +38,7 @@ type SlotGatedArenaOpenRoomContext = {
 type UseSlotGatedArenaOpenInput = {
   // Whether this runtime is currently focused on a live (duel/group/room) match.
   enabled: boolean;
-  matchMode: 'solo' | 'duel' | 'group' | 'room';
+  matchMode: 'solo' | 'duel' | 'group' | 'room' | 'chase';
   duelMatch: SlotGatedArenaOpenMatch | null;
   groupMatch: SlotGatedArenaOpenMatch | null;
   roomLinkedMatchContext: SlotGatedArenaOpenRoomContext;

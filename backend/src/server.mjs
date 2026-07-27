@@ -69,6 +69,9 @@ import {
   sendJson,
 } from './response/httpResponse.mjs';
 import { parseJsonBody } from './response/httpRequestBody.mjs';
+import { buildChaseArenaListPayload, joinChaseArenaPresence, leaveChaseArenaPresence } from './lib/chase/chasePresence.mjs';
+import { findChaseArena } from './lib/chase/chaseArenas.mjs';
+import { settleChaseRunUpload } from './lib/chase/chaseSettlement.mjs';
 import {
   normalizeOptionalString,
 } from './lib/adminNormalizers.mjs';
@@ -266,6 +269,12 @@ const leagueReadService = createLeagueReadService({
 
 const routeRequest = createApiRouteHandler({
   ApiError,
+  buildChaseArenaListPayload,
+  joinChaseArenaPresence,
+  leaveChaseArenaPresence,
+  findChaseArena,
+  settleChaseRunUpload,
+  getStoredRunRoute,
   buildHealthStatus: backendStatusService.buildHealthStatus,
   ENABLE_ADMIN_STATUS,
   ENABLE_RESET_ENDPOINT,

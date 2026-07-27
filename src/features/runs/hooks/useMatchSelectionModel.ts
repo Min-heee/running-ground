@@ -106,6 +106,15 @@ export function useMatchSelectionModel({
         liveText: '비슷한 러너들과 함께 뛰면서 내 순위를 보는 재미를 주는 모드예요.',
       },
       {
+        mode: 'chase',
+        title: '경찰과 도둑',
+        summary: '공원 경기장에서 러너를 따라잡고 마주치며 포인트를 모으는 모드예요.',
+        meta: '따라잡기 +10P · 마주침 +5P · 종료 후 자동 정산',
+        startLabel: '경기장 러닝 시작',
+        liveTitle: '경찰과 도둑런 진행 중',
+        liveText: '경기장 안에서 스친 러너들과는 러닝이 끝나면 자동 정산돼요.',
+      },
+      {
         mode: 'room',
         title: '파티런',
         summary: '친구 초대나 링크 공유로 직접 대결 방을 열 수 있어요.',

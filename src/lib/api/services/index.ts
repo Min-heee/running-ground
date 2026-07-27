@@ -1,3 +1,4 @@
+export * from './chase';
 export * from './home';
 export * from './runs';
 export * from './matches';

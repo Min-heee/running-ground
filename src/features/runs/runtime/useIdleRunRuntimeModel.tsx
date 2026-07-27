@@ -10,6 +10,7 @@ export function useIdleRunRuntimeModel(input: UseIdleRunRuntimeModelInput) {
   const inviteCodeModel = useIdleRunInviteCodeModel(input);
   const pendingStateModel = useIdleRunPendingStateModel(input);
   const {
+    readyChaseSetupVisible,
     readyDuelSetupProps,
     readyGroupSetupProps,
     readyMatchOptionProps,
@@ -26,7 +27,9 @@ export function useIdleRunRuntimeModel(input: UseIdleRunRuntimeModelInput) {
     partyRunProps: readyPartyRunProps,
     duelSetupProps: readyDuelSetupProps,
     groupSetupProps: readyGroupSetupProps,
+    chaseSetupVisible: readyChaseSetupVisible,
   }), [
+    readyChaseSetupVisible,
     readyDuelSetupProps,
     readyGroupSetupProps,
     readyMatchOptionProps,
