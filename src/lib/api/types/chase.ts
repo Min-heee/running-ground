@@ -18,8 +18,40 @@ export type ChaseArenaListResponse = {
 export type ChaseJoinResponse = {
   arenaId: string;
   arenaName: string;
+  // 라이브 지도용 지오펜스 (서버 단일 소스) — 러닝 컨텍스트에 그대로 잠근다.
+  latitude: number;
+  longitude: number;
+  radiusM: number;
   capacity: number;
   currentCount: number;
+};
+
+export type ChasePositionInput = {
+  arenaId: string;
+  latitude: number;
+  longitude: number;
+  headingDeg?: number | null;
+  paceLabel?: string | null;
+};
+
+export type ChaseLiveParticipant = {
+  userId: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  headingDeg: number | null;
+  paceLabel: string | null;
+  ageSeconds: number;
+  isSelf: boolean;
+};
+
+export type ChaseLiveResponse = {
+  arenaId: string;
+  arenaName: string;
+  latitude: number;
+  longitude: number;
+  radiusM: number;
+  participants: ChaseLiveParticipant[];
 };
 
 export type ChaseLeaveResponse = {

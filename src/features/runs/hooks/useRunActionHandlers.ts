@@ -12,7 +12,13 @@ import { rgPerfMark } from '@/utils/rgPerfTrace';
 type StartTrackingOptions = {
   allowCountdownWarmup?: boolean;
   matchId?: string;
-  chaseArena?: { arenaId: string; arenaName: string };
+  chaseArena?: {
+    arenaId: string;
+    arenaName: string;
+    latitude: number;
+    longitude: number;
+    radiusM: number;
+  };
 };
 
 type UseRunActionHandlersInput = {
@@ -122,11 +128,23 @@ export function useRunActionHandlers({
 
       chaseJoinInFlightRef.current = true;
       void (async () => {
-        let joinedArena: { arenaId: string; arenaName: string };
+        let joinedArena: {
+          arenaId: string;
+          arenaName: string;
+          latitude: number;
+          longitude: number;
+          radiusM: number;
+        };
 
         try {
           const joinResult = await joinChaseArena(selectedArena.id);
-          joinedArena = { arenaId: joinResult.arenaId, arenaName: joinResult.arenaName };
+          joinedArena = {
+            arenaId: joinResult.arenaId,
+            arenaName: joinResult.arenaName,
+            latitude: joinResult.latitude,
+            longitude: joinResult.longitude,
+            radiusM: joinResult.radiusM,
+          };
         } catch (joinError) {
           chaseJoinInFlightRef.current = false;
           Alert.alert('경기장 입장 실패', getApiErrorMessage(joinError, '경기장에 입장하지 못했어요.'));

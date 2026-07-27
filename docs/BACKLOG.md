@@ -15,10 +15,14 @@
 - **expo-av의 FGS_MEDIA_PLAYBACK 제거 검토** — expo-audio만 쓰면 Play 선언 자체를 없앨 수 있음.
 - **iOS 네이티브 주기 업로더** — 화면 꺼짐 라이브 동기화 잔여 근본 수술 (memory: bgsync-residual-and-native-uploader).
 - Sentry 소스맵 업로드 토큰 배선 (현재 SENTRY_DISABLE_AUTO_UPLOAD=true).
+- **Android Google Maps API 키 배선** — 경찰과 도둑런 라이브 지도가 iOS는 애플 지도,
+  Android는 레이더 폴백(#207 제약). 키 넣고 ChaseLiveMapView.android.tsx를 native 구현으로 교체.
 
-## 경찰과 도둑런 2차 (1차 출시 2026-07-27)
+## 경찰과 도둑런 2차 (1차 출시 2026-07-27, 라이브 지도 2026-07-28)
 
-- 실시간 "주변에 러너!" 알림 (화면 켜짐/Android 한정 베스트에포트 — 1차는 종료 소급 정산만).
+- 라이브 지도 1차 탑재됨(7/28): 10초 하트비트(지오펜스 게이트) + 참가자 지도(iOS)/레이더(Android),
+  경기장은 일산 호수공원 단일 오픈 (나머지 18곳 DORMANT — chaseArenas.mjs에서 배열만 옮기면 활성화).
+- 실시간 "주변에 러너!" 알림/진동 (지도는 봐야 보임 — 푸시형은 미탑재).
 - 시작 실패/러닝 폐기 시 경기장 슬롯 즉시 반납 — 지금은 3h TTL 자연 소멸에 의존
   (같은 유저 재입장은 슬롯 교체라 실해는 점유 수 +1 표시뿐).
 - 정원(capacity)은 정직한 클라이언트만 구속 — 저장 시 presence 보유 검증 추가 검토.

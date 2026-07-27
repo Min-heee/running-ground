@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { Text, View } from 'react-native';
 import { Card } from '@/components/Card';
+import { ChaseLiveMapCard } from '@/features/runs/chase/ChaseLiveMapCard';
 import { LiveMatchActionSection } from '@/features/runs/components/liveMatchTracking/LiveMatchActionSection';
 import { LiveMatchRankingSection } from '@/features/runs/components/liveMatchTracking/LiveMatchRankingSection';
 import { liveMatchTrackingStyles as styles } from '@/features/runs/components/liveMatchTracking/styles';
@@ -135,6 +136,8 @@ export const LiveMatchProgressSection = memo(function LiveMatchProgressSection({
   return (
     <Card style={styles.mapCard}>
       <LiveMatchIntroCard title={liveMatchTitle} text={liveMatchText} />
+      {/* 경찰과 도둑런: 참가자 실시간 지도 (자급자족 컴포넌트 — chaseRunContext에서 경기장 읽음) */}
+      {matchMode === 'chase' ? <ChaseLiveMapCard /> : null}
       {matchMode === 'duel' && effectiveDuelOpponent ? (
         <DuelTrackingSummaryCard
           opponent={effectiveDuelOpponent}

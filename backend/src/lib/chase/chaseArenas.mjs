@@ -1,9 +1,16 @@
 // 경찰과 도둑런 경기장 카탈로그 — 코드 상수가 단일 소스 (MVP: 어드민 편집 없음,
 // 추가/수정은 백엔드 배포로). 반경은 공원 전체 + 산책로를 넉넉히 덮는 원형 지오펜스.
 // 좌표를 바꿀 때는 공원 중심(호수/잔디밭)에 맞추고, 강변 선형 공원은 중앙 구간 기준.
+//
+// 오너 결정 2026-07-28: 1차 오픈은 일산 호수공원 단일 경기장. 나머지는 DORMANT로 보관
+// (목록/입장에는 안 나오지만 findChaseArena는 계속 해석 — 이미 저장된 러닝의 정산·표기 보호).
 
 export const CHASE_ARENAS = [
   { id: 'ilsan-lake', name: '일산 호수공원', regionLabel: '고양', latitude: 37.6585, longitude: 126.7676, radiusM: 900, capacity: 100 },
+];
+
+// 확장 대기 경기장 — 활성화는 위 배열로 옮기기만 하면 된다 (좌표는 OSM/Wikidata 교차 검증됨).
+export const DORMANT_CHASE_ARENAS = [
   { id: 'yeouido-han', name: '여의도 한강공원', regionLabel: '서울 영등포', latitude: 37.5285, longitude: 126.9337, radiusM: 1300, capacity: 100 },
   { id: 'banpo-han', name: '반포 한강공원', regionLabel: '서울 서초', latitude: 37.5099, longitude: 126.9957, radiusM: 1200, capacity: 100 },
   { id: 'ttukseom-han', name: '뚝섬 한강공원', regionLabel: '서울 광진', latitude: 37.5296, longitude: 127.0668, radiusM: 1200, capacity: 100 },
@@ -24,8 +31,17 @@ export const CHASE_ARENAS = [
   { id: 'deokjin-park', name: '덕진공원', regionLabel: '전주', latitude: 35.8480, longitude: 127.1224, radiusM: 450, capacity: 60 },
 ];
 
-const ARENA_BY_ID = new Map(CHASE_ARENAS.map((arena) => [arena.id, arena]));
+const ARENA_BY_ID = new Map(
+  [...CHASE_ARENAS, ...DORMANT_CHASE_ARENAS].map((arena) => [arena.id, arena]),
+);
 
 export function findChaseArena(arenaId) {
   return ARENA_BY_ID.get(String(arenaId ?? '')) ?? null;
+}
+
+const ACTIVE_ARENA_IDS = new Set(CHASE_ARENAS.map((arena) => arena.id));
+
+// 입장(join)은 활성 경기장만 — dormant는 기존 러닝의 정산/표기 해석용으로만 남는다.
+export function isActiveChaseArena(arenaId) {
+  return ACTIVE_ARENA_IDS.has(String(arenaId ?? ''));
 }

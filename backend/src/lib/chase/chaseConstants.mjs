@@ -28,6 +28,16 @@ export const CHASE_PAIR_COOLDOWN_MS = 15 * 60 * 1_000; // 같은 두 사람은 1
 
 // 경기장 점유(정원)
 export const CHASE_PRESENCE_TTL_MS = 3 * 60 * 60 * 1_000; // 입장 슬롯 수명 (러닝 업로드 시 조기 반납)
+// 라이브 지도: 이보다 오래된 위치는 지도에서 숨긴다 (주머니 속 아이폰은 업로드가 멈추므로
+// 마지막 위치가 낡는다 — 신선도는 ageSeconds로 클라에 전달).
+export const CHASE_POSITION_STALE_MS = 10 * 60 * 1_000;
+// 위치 하트비트 지오펜스 여유 — 이 밖에서 보낸 좌표는 거부 (집에서 슬롯을 만들어
+// 라이브 지도를 훔쳐보는 원격 스토킹 차단; GPS 흔들림은 여유로 흡수).
+export const CHASE_POSITION_GEOFENCE_MARGIN_M = 150;
+// 하트비트가 '새로' 만드는 슬롯(중도 TTL 만료 자가회복)은 짧게 산다 — 저장 직후 늦게 도착한
+// 하트비트가 부활시킨 고스트 슬롯이 3시간 대신 15분 만에 소멸. 진짜 러너는 10초마다
+// 갱신(full TTL)하므로 영향 없음.
+export const CHASE_POSITION_SLOT_TTL_MS = 15 * 60 * 1_000;
 
 // 정산 원장 — 러닝 쌍은 정확히 1번만 정산 (재업로드/dedupe 재시도 이중 지급 방지)
 export const CHASE_PAIR_LEDGER_TTL_MS = 3 * 24 * 60 * 60 * 1_000;

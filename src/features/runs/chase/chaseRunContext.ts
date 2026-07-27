@@ -15,6 +15,9 @@ import type { ChaseArenaSummary } from '@/lib/api/types';
 export type ActiveChaseArena = {
   arenaId: string;
   arenaName: string;
+  latitude: number;
+  longitude: number;
+  radiusM: number;
 };
 
 let selectedArena: ChaseArenaSummary | null = null;
