@@ -15,6 +15,7 @@ type MatchSetupSectionProps = {
   duelSetupProps: ComponentProps<typeof DuelMatchSetupCard> | null;
   groupSetupProps: ComponentProps<typeof GroupMatchSetupCard> | null;
   chaseSetupVisible: boolean;
+  onChaseStart?: () => void;
 };
 
 export function MatchSetupSection({
@@ -23,6 +24,7 @@ export function MatchSetupSection({
   duelSetupProps,
   groupSetupProps,
   chaseSetupVisible,
+  onChaseStart,
 }: MatchSetupSectionProps) {
   return (
     <View style={styles.matchCard}>
@@ -30,7 +32,7 @@ export function MatchSetupSection({
       <PartyRunHomePanel {...partyRunProps} />
       {duelSetupProps ? <DuelMatchSetupCard {...duelSetupProps} /> : null}
       {groupSetupProps ? <GroupMatchSetupCard {...groupSetupProps} /> : null}
-      {chaseSetupVisible ? <ChaseSetupCard /> : null}
+      {chaseSetupVisible ? <ChaseSetupCard onStartRun={onChaseStart} /> : null}
       {/* 1대1(duel)·그룹(group) 대결 중간 알림 설정은 매칭 후 각자의 예약 대기실
           (DuelReservationRoomScreen / GroupReservationRoomScreen)에서 하므로
           러닝 탭에선 중복이라 두 카드 모두 제거. */}

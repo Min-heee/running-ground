@@ -43,9 +43,11 @@ function ParticipantMarkerBody({
       ) : (
         <View style={[styles.dot, { backgroundColor: color }]} />
       )}
-      <Text style={[styles.nameLabel, { color }]} numberOfLines={1}>
-        {participant.isSelf ? '나' : participant.name}
-      </Text>
+      {participant.isSelf || participant.name ? (
+        <Text style={[styles.nameLabel, { color }]} numberOfLines={1}>
+          {participant.isSelf ? '나' : participant.name}
+        </Text>
+      ) : null}
       {participant.paceLabel ? <Text style={styles.paceLabel}>{participant.paceLabel}</Text> : null}
     </View>
   );

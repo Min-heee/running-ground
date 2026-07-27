@@ -199,9 +199,12 @@ export function useMatchSelectionModel({
           : groupMatchState === 'waiting'
             ? '비슷한 그룹을 계속 찾는 중'
             : null
-      : visibleMatchRoom
+      : matchMode === 'chase'
+        // 경찰과 도둑런: 시작 버튼은 경기장 지도 카드 안(지도 아래)에 있다 — 큰 readyAction 버튼 제거.
         ? null
-        : selectedMatch.startLabel;
+        : visibleMatchRoom
+          ? null
+          : selectedMatch.startLabel;
 
   return {
     matchOptions,

@@ -14,6 +14,7 @@ export async function routeChaseRequest({
   requireUser,
   validateRequiredString,
   buildChaseArenaListPayload,
+  buildChaseArenaOverviewPayload,
   buildChaseLivePayload,
   joinChaseArenaPresence,
   leaveChaseArenaPresence,
@@ -34,6 +35,15 @@ export async function routeChaseRequest({
       return joinChaseArenaPresence(store, user, arenaId);
     });
     sendJson(response, 200, payload);
+    return true;
+  }
+
+  // 시작 전 경기장 미리보기 — 익명 점 + 인원 수 (로그인 사용자 누구나).
+  if (pathname === '/api/chase/overview' && method === 'GET') {
+    const arenaId = validateRequiredString(url.searchParams.get('arenaId'), '경기장을 선택해주세요.');
+    const store = await loadStore();
+    requireUser(store, request);
+    sendJson(response, 200, buildChaseArenaOverviewPayload(store, arenaId));
     return true;
   }
 

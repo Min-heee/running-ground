@@ -187,9 +187,15 @@ export function buildChaseLivePayload(store, user, arenaId, now = new Date()) {
     (entry) => entry.userId === user.id && entry.arenaId === arena.id
       && Date.parse(entry.expiresAt ?? '') > nowMs,
   );
+  // 입장(join)은 어디서든 보낼 수 있으므로 슬롯만으로는 부족하다 — 뷰어 본인의 '지오펜스 안
+  // 최신 위치'(하트비트로만 생김)가 있어야 이름 붙은 라이브 지도를 볼 수 있다. 시작 전
+  // 미리보기는 익명 overview 엔드포인트가 담당.
+  const viewerPositionFresh = viewerEntry?.position
+    && Number.isFinite(Date.parse(viewerEntry.position.updatedAt ?? ''))
+    && nowMs - Date.parse(viewerEntry.position.updatedAt) <= CHASE_POSITION_STALE_MS;
 
-  if (!viewerEntry) {
-    throw new ApiError(403, '경기장에 입장한 러너만 라이브 지도를 볼 수 있어요.');
+  if (!viewerEntry || !viewerPositionFresh) {
+    throw new ApiError(403, '경기장 안에서 달리는 중일 때만 라이브 지도를 볼 수 있어요.');
   }
 
   const usersById = new Map(store.users.map((entry) => [entry.id, entry]));
@@ -235,6 +241,54 @@ export function leaveChaseArenaPresence(store, user) {
   const left = remaining.length !== entries.length;
   store.chasePresence = remaining;
   return { left };
+}
+
+// 시작 전 경기장 미리보기 — 로그인만 하면 볼 수 있는 '익명' 라이브: 러너 수 + 위치 점
+// (방향 포함)만. userId/이름/페이스는 절대 싣지 않는다 — 특정인 추적은 여기서 불가능하고,
+// 이름 붙은 상세는 buildChaseLivePayload(경기장 안 러너 전용)가 담당한다.
+export function buildChaseArenaOverviewPayload(store, arenaId, now = new Date()) {
+  const arena = findChaseArena(arenaId);
+
+  if (!arena || !isActiveChaseArena(arena.id)) {
+    throw new ApiError(404, '해당 경기장을 찾을 수 없어요.');
+  }
+
+  const nowMs = now.getTime();
+  const entries = ensureChasePresence(store);
+  const runners = [];
+  let currentCount = 0;
+
+  for (const entry of entries) {
+    if (entry.arenaId !== arena.id || Date.parse(entry.expiresAt ?? '') <= nowMs) {
+      continue;
+    }
+
+    currentCount += 1;
+    const position = entry.position;
+    const updatedAtMs = Date.parse(position?.updatedAt ?? '');
+
+    if (!position || !Number.isFinite(updatedAtMs) || nowMs - updatedAtMs > CHASE_POSITION_STALE_MS) {
+      continue;
+    }
+
+    runners.push({
+      latitude: position.latitude,
+      longitude: position.longitude,
+      headingDeg: position.headingDeg ?? null,
+      ageSeconds: Math.max(0, Math.round((nowMs - updatedAtMs) / 1_000)),
+    });
+  }
+
+  return {
+    arenaId: arena.id,
+    arenaName: arena.name,
+    latitude: arena.latitude,
+    longitude: arena.longitude,
+    radiusM: arena.radiusM,
+    capacity: arena.capacity,
+    currentCount: Math.min(arena.capacity, currentCount),
+    runners,
+  };
 }
 
 // 러닝 업로드 정산 시 조기 반납 (mutator 내부에서 호출) — 정산된 러닝의 경기장 슬롯만.

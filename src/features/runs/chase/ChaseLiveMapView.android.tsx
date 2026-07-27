@@ -71,7 +71,7 @@ export function ChaseLiveMapView({ latitude, longitude, radiusM, participants }:
                 ) : (
                   <View style={[styles.dot, { backgroundColor: color }]} />
                 )}
-                {showLabels ? (
+                {showLabels && (participant.isSelf || participant.name || participant.paceLabel) ? (
                   <Text style={[styles.nameLabel, { color }]} numberOfLines={1}>
                     {participant.isSelf ? '나' : participant.name}
                     {participant.paceLabel ? ` ${participant.paceLabel}` : ''}

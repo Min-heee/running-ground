@@ -58,6 +58,25 @@ export type ChaseLeaveResponse = {
   left: boolean;
 };
 
+// 시작 전 미리보기 — 익명 점 + 인원 수 (신원/페이스 없음: 프라이버시 게이트).
+export type ChaseOverviewRunner = {
+  latitude: number;
+  longitude: number;
+  headingDeg: number | null;
+  ageSeconds: number;
+};
+
+export type ChaseOverviewResponse = {
+  arenaId: string;
+  arenaName: string;
+  latitude: number;
+  longitude: number;
+  radiusM: number;
+  capacity: number;
+  currentCount: number;
+  runners: ChaseOverviewRunner[];
+};
+
 export type ChaseRunEventType = 'catch' | 'meet';
 
 export type ChaseRunEvent = {

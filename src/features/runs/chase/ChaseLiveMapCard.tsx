@@ -11,6 +11,7 @@ import { headingDegreesBetween } from '@/features/runs/chase/chaseLiveGeo';
 import { ChaseLiveMapView } from '@/features/runs/chase/ChaseLiveMapView';
 import { getBackgroundRunTrackingSnapshot } from '@/features/runs/tracking/background';
 import { fetchChaseLive, updateChasePosition } from '@/services';
+import { isApiError } from '@/services/apiError';
 import type { ChaseLiveResponse } from '@/lib/api/types';
 import { colors, fixedColors, fontSizes, fontWeights, spacing } from '@/theme/tokens';
 
@@ -58,6 +59,9 @@ export function ChaseLiveMapCard() {
   // 실패 자체는 표시하지 않지만, 실패 틱마다 리렌더를 일으켜 isStale(시간 경과) 재평가를
   // 보장한다 — 이게 없으면 통신이 끊겨도 카드가 리렌더될 계기가 없어 '끊김' 표시가 안 뜬다.
   const [, setFailedTickCount] = useState(0);
+  // 지오펜스 게이트 403: 경기장 밖에서 시작한 러닝(예: 집에서 테스트)에는 지도가 영영
+  // 안 뜨는데, 이유를 말해주지 않으면 고장으로 보인다.
+  const [outsideArena, setOutsideArena] = useState(false);
   const tickInFlightRef = useRef(false);
 
   useEffect(() => {
@@ -79,20 +83,29 @@ export function ChaseLiveMapCard() {
       try {
         const own = buildOwnPosition();
 
-        if (own) {
-          await updateChasePosition({ arenaId: arena.arenaId, ...own });
+        if (!own) {
+          // 첫 GPS 픽스 전: 하트비트가 없으면 라이브 게이트(403)를 통과할 수 없다 —
+          // 여기서 fetch하면 경기장 안 러너에게 '경기장 밖' 오해 문구가 뜬다. 다음 틱까지 대기.
+          return;
         }
 
+        await updateChasePosition({ arenaId: arena.arenaId, ...own });
         const liveData = await fetchChaseLive(arena.arenaId);
 
         if (!cancelled) {
           setLive(liveData);
           setLastFetchedAtMs(Date.now());
+          setOutsideArena(false);
         }
-      } catch {
+      } catch (tickError) {
         // 일시 실패는 다음 틱이 만회 — 러닝을 방해하는 배너는 띄우지 않는다.
         if (!cancelled) {
           setFailedTickCount((count) => count + 1);
+
+          // 성공 전까지는 sticky — 403 뒤의 단순 네트워크 실패가 안내 문구를 되돌리지 않게.
+          if (isApiError(tickError) && tickError.status === 403) {
+            setOutsideArena(true);
+          }
         }
       } finally {
         tickInFlightRef.current = false;
@@ -141,9 +154,11 @@ export function ChaseLiveMapCard() {
         />
       </View>
       <Text style={styles.hintText}>
-        {otherCount > 0
-          ? '확대하면 러너들의 방향과 페이스가 보여요. 스침은 러닝이 끝나면 자동 정산돼요.'
-          : '아직 경기장에 다른 러너가 없어요. 스침은 러닝이 끝나면 자동 정산돼요.'}
+        {outsideArena
+          ? '경기장 안에 들어오면 지도에 러너들이 보여요. 스침 판정도 경기장 안에서만 돼요.'
+          : otherCount > 0
+            ? '확대하면 러너들의 방향과 페이스가 보여요. 스침은 러닝이 끝나면 자동 정산돼요.'
+            : '아직 경기장에 다른 러너가 없어요. 스침은 러닝이 끝나면 자동 정산돼요.'}
       </Text>
     </Card>
   );

@@ -7,6 +7,7 @@ import type {
   ChaseJoinResponse,
   ChaseLeaveResponse,
   ChaseLiveResponse,
+  ChaseOverviewResponse,
   ChasePositionInput,
 } from '../types';
 
@@ -23,6 +24,14 @@ export async function joinChaseArena(arenaId: string): Promise<ChaseJoinResponse
   return apiPost<ChaseJoinResponse>('/chase/join', { arenaId }, {
     accessToken: await requireAccessToken(),
     fallbackMessage: '경기장에 입장하지 못했어요.',
+  });
+}
+
+// 시작 전 경기장 미리보기 — 익명 점 + 인원 수 (로그인 사용자 누구나).
+export async function fetchChaseOverview(arenaId: string): Promise<ChaseOverviewResponse> {
+  return apiGet<ChaseOverviewResponse>(`/chase/overview?arenaId=${encodeURIComponent(arenaId)}`, {
+    accessToken: await requireAccessToken(),
+    fallbackMessage: '경기장 정보를 불러오지 못했어요.',
   });
 }
 

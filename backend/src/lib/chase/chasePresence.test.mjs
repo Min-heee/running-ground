@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   buildChaseArenaListPayload,
+  buildChaseArenaOverviewPayload,
   buildChaseLivePayload,
   joinChaseArenaPresence,
   updateChasePresencePosition,
@@ -80,7 +81,7 @@ test('슬롯 없는 유저의 라이브 조회는 403, 위치 하트비트는 �
 
   assert.throws(
     () => buildChaseLivePayload(store, { id: 'user-a' }, 'ilsan-lake', NOW),
-    /입장한 러너만/,
+    /달리는 중일 때만/,
   );
 
   // TTL 만료로 슬롯이 사라져도 러닝 중 하트비트가 자가 회복.
@@ -121,8 +122,48 @@ test('지오펜스 밖 좌표의 위치 하트비트는 403 — 원격 스토킹
   assert.equal((store.chasePresence ?? []).length, 0);
   assert.throws(
     () => buildChaseLivePayload(store, { id: 'user-a' }, 'ilsan-lake', NOW),
-    /입장한 러너만/,
+    /달리는 중일 때만/,
   );
+});
+
+test('join만 한(위치 미보고) 뷰어는 이름 붙은 라이브를 볼 수 없다 — 집에서 join 스토킹 차단', () => {
+  const store = buildStore();
+  joinChaseArenaPresence(store, { id: 'user-a' }, 'ilsan-lake', NOW);
+  updateChasePresencePosition(store, { id: 'user-b' }, {
+    arenaId: 'ilsan-lake',
+    latitude: 37.6580,
+    longitude: 126.7670,
+  }, NOW);
+
+  assert.throws(
+    () => buildChaseLivePayload(store, { id: 'user-a' }, 'ilsan-lake', NOW),
+    /달리는 중일 때만/,
+  );
+});
+
+test('시작 전 미리보기(overview)는 익명 점 + 인원 수만 — 신원/페이스 없음', () => {
+  const store = buildStore();
+  joinChaseArenaPresence(store, { id: 'user-a' }, 'ilsan-lake', NOW);
+  updateChasePresencePosition(store, { id: 'user-b' }, {
+    arenaId: 'ilsan-lake',
+    latitude: 37.6580,
+    longitude: 126.7670,
+    headingDeg: 90,
+    paceLabel: '06:00/km',
+  }, NOW);
+
+  // 슬롯도 위치도 없는 제3자 관점 — overview는 로그인만으로 조회 가능해야 한다.
+  const overview = buildChaseArenaOverviewPayload(store, 'ilsan-lake', NOW);
+
+  assert.equal(overview.currentCount, 2); // join만 한 user-a도 인원에는 포함
+  assert.equal(overview.runners.length, 1); // 점은 위치 보고된 러너만
+  assert.equal(overview.runners[0].headingDeg, 90);
+  assert.equal('userId' in overview.runners[0], false);
+  assert.equal('name' in overview.runners[0], false);
+  assert.equal('paceLabel' in overview.runners[0], false);
+
+  // dormant 경기장 미리보기는 404.
+  assert.throws(() => buildChaseArenaOverviewPayload(store, 'yeouido-han', NOW), /찾을 수 없어요/);
 });
 
 test('A 경기장 슬롯으로 B 경기장 라이브는 볼 수 없다', () => {
@@ -131,7 +172,21 @@ test('A 경기장 슬롯으로 B 경기장 라이브는 볼 수 없다', () => {
 
   assert.throws(
     () => buildChaseLivePayload(store, { id: 'user-a' }, 'yeouido-han', NOW),
-    /입장한 러너만/,
+    /달리는 중일 때만/,
+  );
+});
+
+test('본인 위치가 10분 넘게 낡은 뷰어도 이름 라이브는 403 — 공원을 떠난 뒤 계속 보기 차단', () => {
+  const store = buildStore();
+  updateChasePresencePosition(store, { id: 'user-a' }, {
+    arenaId: 'ilsan-lake',
+    latitude: 37.6585,
+    longitude: 126.7676,
+  }, NOW);
+
+  assert.throws(
+    () => buildChaseLivePayload(store, { id: 'user-a' }, 'ilsan-lake', new Date(NOW.getTime() + 11 * 60_000)),
+    /달리는 중일 때만/,
   );
 });
 

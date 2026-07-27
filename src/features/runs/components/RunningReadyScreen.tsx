@@ -40,7 +40,9 @@ export function RunningReadyScreen({
       {/* 방금 끝난 혼자러닝의 나와의 대결 저장 프롬프트 — 후보가 있을 때만 렌더. */}
       <GhostSavePromptCard />
       <UpcomingMatchList {...upcomingMatchesProps} />
-      <MatchSetupSection {...matchSetupProps} />
+      {/* 경찰과 도둑런의 시작 버튼은 경기장 지도 카드 안에 있다 — 기존 chase 시작
+          플로우(입장→GPS 시작)를 그대로 태우기 위해 readyAction을 내려보낸다. */}
+      <MatchSetupSection {...matchSetupProps} onChaseStart={onReadyAction} />
 
       {readyActionLabel ? (
         <PrimaryButton

@@ -71,6 +71,7 @@ import {
 import { parseJsonBody } from './response/httpRequestBody.mjs';
 import {
   buildChaseArenaListPayload,
+  buildChaseArenaOverviewPayload,
   buildChaseLivePayload,
   joinChaseArenaPresence,
   leaveChaseArenaPresence,
@@ -276,6 +277,7 @@ const leagueReadService = createLeagueReadService({
 const routeRequest = createApiRouteHandler({
   ApiError,
   buildChaseArenaListPayload,
+  buildChaseArenaOverviewPayload,
   buildChaseLivePayload,
   joinChaseArenaPresence,
   leaveChaseArenaPresence,

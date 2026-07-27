@@ -1,6 +1,7 @@
 export {
   fetchChaseArenas,
   fetchChaseLive,
+  fetchChaseOverview,
   joinChaseArena,
   leaveChaseArena,
   updateChasePosition,
