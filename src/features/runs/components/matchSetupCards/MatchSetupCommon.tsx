@@ -1,4 +1,5 @@
 import { Pressable, Text, View } from 'react-native';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import type { RunningMatchState } from '@/lib/api/types';
 import { matchSetupCardStyles as styles } from '@/features/runs/components/matchSetupCards/styles';
@@ -66,7 +67,9 @@ export function MatchActionButtons({
         </>
       ) : matchState === 'active' ? null : (
         <View style={styles.matchActionColumn}>
-          <SecondaryButton label={requestLabel} onPress={onRequestMatch} disabled={!canCreateMatch} />
+          {/* 매칭 신청은 해당 모드의 유일한 메인 CTA — 브랜드 보라 솔리드로 (오너 2026-07-27:
+              무색이라 버튼인지 몰랐다는 피드백). 취소류는 조용한 secondary 유지. */}
+          <PrimaryButton label={requestLabel} onPress={onRequestMatch} disabled={!canCreateMatch} />
         </View>
       )}
       {!canCreateMatch && blockingMatchHelperText ? (

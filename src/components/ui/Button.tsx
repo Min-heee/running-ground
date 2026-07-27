@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
-type ButtonVariant = 'primary' | 'secondary';
+type ButtonVariant = 'primary' | 'secondary' | 'tinted';
 
 type ButtonProps = {
   label: string;
@@ -13,6 +13,7 @@ type ButtonProps = {
 
 export function Button({ label, onPress, disabled = false, variant = 'primary' }: ButtonProps) {
   const isSecondary = variant === 'secondary';
+  const isTinted = variant === 'tinted';
 
   // 테마 토큰(surface/border/text*)은 렌더 시점에 읽는다: 이 모듈은 RouteErrorBoundary 재수출
   // 경로로 테마 게이트보다 먼저 import되므로, StyleSheet에 구우면 라이트 모드 부팅에서도 다크
@@ -23,7 +24,9 @@ export function Button({ label, onPress, disabled = false, variant = 'primary' }
         styles.button,
         isSecondary
           ? { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }
-          : styles.primaryButton,
+          : isTinted
+            ? { backgroundColor: colors.brandWash, borderWidth: 1, borderColor: colors.brandSoftBorder }
+            : styles.primaryButton,
         !isSecondary && disabled ? styles.primaryButtonDisabled : undefined,
         isSecondary && disabled
           ? { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSoft }
@@ -36,7 +39,11 @@ export function Button({ label, onPress, disabled = false, variant = 'primary' }
       <Text
         style={[
           styles.text,
-          isSecondary ? [styles.secondaryText, { color: colors.textPrimary }] : styles.primaryText,
+          isSecondary
+            ? [styles.secondaryText, { color: colors.textPrimary }]
+            : isTinted
+              ? [styles.primaryText, { color: colors.brandDeep }]
+              : styles.primaryText,
           isSecondary && disabled ? { color: colors.textTertiary } : undefined,
         ]}
       >

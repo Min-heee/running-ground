@@ -85,7 +85,7 @@ function SoloFeatureRow({
     >
       <View style={styles.featureAccentBar} />
       <Text style={styles.featureLabel}>{label}</Text>
-      <Feather name="chevron-right" size={18} color="rgba(255, 255, 255, 0.45)" />
+      <Feather name="chevron-right" size={18} color="rgba(199, 210, 254, 0.85)" />
     </Pressable>
   );
 }
@@ -99,10 +99,12 @@ const styles = StyleSheet.create({
   },
   // Vertical metrics mirror the base Button (paddingVertical s16 + radii.lg +
   // fontSizes.button) so these rows sit at the same height as 바로 러닝 시작.
+  // Violet-tinted glass (오너 2026-07-27): plain white glass read as static
+  // text, not a button. Fixed rgba is safe — the ready card is always dark.
   featureRow: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.07)',
-    borderColor: 'rgba(255, 255, 255, 0.13)',
+    backgroundColor: 'rgba(109, 94, 247, 0.20)',
+    borderColor: 'rgba(142, 123, 255, 0.50)',
     borderRadius: radii.lg,
     borderWidth: 1,
     flexDirection: 'row',

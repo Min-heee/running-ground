@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { type Href, router } from 'expo-router';
-import { SecondaryButton } from '@/components/ui/SecondaryButton';
+import { Button } from '@/components/ui/Button';
 import { PartyRunInviteCard } from '@/features/runs/components/PartyRunInviteCard';
 import type {
   RunningMatchRoom,
@@ -145,7 +145,9 @@ export function PartyRunHomePanel({
                   }}
                   style={styles.roomInput}
                 />
-                <SecondaryButton
+                {/* 보라 틴트: 버튼임을 드러내되, 아래 '방 만들기' 솔리드 CTA와 위계는 구분. */}
+                <Button
+                  variant="tinted"
                   label={isJoining ? '입장 중...' : '방 입장'}
                   onPress={onJoinRoom}
                   disabled={isJoining}
