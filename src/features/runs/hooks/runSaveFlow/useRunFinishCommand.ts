@@ -8,8 +8,12 @@ import {
   resolveMatchExitId,
   type MatchExitSource,
 } from '@/features/runs/lifecycle/matchExitFlow';
-import { getApiErrorMessage, leaveRunningMatch } from '@/services';
+import { getApiErrorMessage, leaveChaseArena, leaveRunningMatch } from '@/services';
 import { beginRgInputTrace, waitForRgInputFeedbackFrame } from '@/utils/rgInputTrace';
+import {
+  clearActiveChaseArena,
+  getActiveChaseArena,
+} from '@/features/runs/chase/chaseRunContext';
 import { clearPendingMatchSaveContext } from './pendingMatchSaveContext';
 import type { ContinueSoloOptions, UseRunSaveFlowInput } from './types';
 
@@ -76,6 +80,12 @@ export function useRunFinishCommand({
     // C-2 — discarding the tracking discards the failed-save context with it (mirrors the
     // freeze, which the resetBackgroundRunTracking below releases).
     clearPendingMatchSaveContext();
+    // 경찰과 도둑런: 버려진 러닝은 업로드 정산(슬롯 반납 경로)에 도달하지 않는다 —
+    // 여기서 반납하지 않으면 경기장 인원수가 3시간 TTL 동안 부풀어 있는다.
+    if (getActiveChaseArena()) {
+      clearActiveChaseArena();
+      void leaveChaseArena().catch(() => {});
+    }
     await resetBackgroundRunTracking();
     await syncLiveSharing({
       enabled: false,

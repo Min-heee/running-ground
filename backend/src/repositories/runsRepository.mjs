@@ -1,6 +1,7 @@
 import { attachRouteToRunPayload, attachStoredRunRoute } from '../lib/runHelpers.mjs';
 import { applyRunIntegrityCheck } from '../lib/runIntegrity.mjs';
 import { findChaseArena } from '../lib/chase/chaseArenas.mjs';
+import { releaseChasePresenceForUser } from '../lib/chase/chasePresence.mjs';
 import { formatKstDisplayTimestamp } from '../lib/kstDate.mjs';
 import { deriveDurationSecondsFromPace } from '../lib/paceDuration.mjs';
 
@@ -517,6 +518,13 @@ export function createJsonRunsRepository({
         };
 
         store.runs.push(run);
+
+        // 경찰과 도둑런: 러닝이 저장되는 순간 경기장 슬롯을 반납한다 — 정산(chaseSettlement)의
+        // 조기 리턴 경로(차량 판정, 경로 부족)는 반납까지 도달하지 않으므로 여기가 단일 보장점.
+        // 정산 쪽 반납은 idempotent한 이중 안전망으로 남는다.
+        if (run.chase?.arenaId) {
+          releaseChasePresenceForUser(store, user.id, run.chase.arenaId);
+        }
 
         // Anti-cheat V1 stage 2 (lib/runIntegrity.mjs): classify the just-saved run BEFORE the
         // metrics recompute below so a vehicle-flagged run never mints competitive points, and

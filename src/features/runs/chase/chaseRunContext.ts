@@ -22,6 +22,9 @@ export type ActiveChaseArena = {
 
 let selectedArena: ChaseArenaSummary | null = null;
 let activeArena: ActiveChaseArena | null = null;
+// 경기장 상세 화면(/chase-arena)의 '러닝 시작' → 러닝 탭의 시작 플로우로 넘기는 원샷 신호.
+// 시작 로직(입장→GPS)은 러닝 탭 런타임에 살아 있으므로, 화면은 신호만 남기고 복귀한다.
+let autoStartRequested = false;
 const listeners = new Set<() => void>();
 
 function emitChange() {
@@ -56,4 +59,15 @@ export function clearActiveChaseArena() {
 
 export function getActiveChaseArena(): ActiveChaseArena | null {
   return activeArena;
+}
+
+export function requestChaseAutoStart() {
+  autoStartRequested = true;
+  emitChange();
+}
+
+export function consumeChaseAutoStart(): boolean {
+  const requested = autoStartRequested;
+  autoStartRequested = false;
+  return requested;
 }

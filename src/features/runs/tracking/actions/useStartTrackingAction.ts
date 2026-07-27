@@ -6,6 +6,7 @@ import {
   startBackgroundRunTracking,
 } from '@/features/runs/tracking/background';
 import { setActiveChaseArena } from '@/features/runs/chase/chaseRunContext';
+import { leaveChaseArena } from '@/services';
 import { clearPendingMatchSaveContext } from '@/features/runs/hooks/runSaveFlow/pendingMatchSaveContext';
 import { requestAndroidRunTrackingNotificationPermission } from '@/features/runs/tracking/runTrackingNotificationPermission';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
@@ -204,6 +205,13 @@ export function useStartTrackingAction({
         rgPerfMark('live share initial sync failed', { matchMode, phase: 'match' });
       }
     } catch (trackingError) {
+      // 경찰과 도둑런: 입장(join)까지 됐는데 GPS 시작이 실패하면 슬롯이 3시간 유령으로
+      // 남는다 — 즉시 반납하고 컨텍스트를 비운다.
+      if (matchMode === 'chase') {
+        setActiveChaseArena(null);
+        void leaveChaseArena().catch(() => {});
+      }
+
       await handleStartFailure(trackingError, endGpsStartTrace);
     }
   }, [
