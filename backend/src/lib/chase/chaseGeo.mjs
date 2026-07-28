@@ -28,7 +28,58 @@ export function localOffsetMeters(origin, point) {
   };
 }
 
+// 레이 캐스팅 point-in-polygon (위경도 그대로 — 경기장 스케일에서 곡률 무시 가능).
+export function isPointInPolygon(point, polygon) {
+  let inside = false;
+
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+    const a = polygon[i];
+    const b = polygon[j];
+    const crosses =
+      (a.latitude > point.latitude) !== (b.latitude > point.latitude) &&
+      point.longitude <
+        ((b.longitude - a.longitude) * (point.latitude - a.latitude)) /
+          (b.latitude - a.latitude) +
+          a.longitude;
+
+    if (crosses) {
+      inside = !inside;
+    }
+  }
+
+  return inside;
+}
+
+// 폴리곤 가장자리까지 최소 거리(미터) — 지오펜스 여유(margin) 판정용.
+export function distanceToPolygonEdgeMeters(point, polygon) {
+  let minDistance = Infinity;
+
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+    const a = localOffsetMeters(point, polygon[i]);
+    const b = localOffsetMeters(point, polygon[j]);
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const lengthSq = dx * dx + dy * dy;
+    const t = lengthSq > 0 ? Math.max(0, Math.min(1, -(a.x * dx + a.y * dy) / lengthSq)) : 0;
+    const distance = Math.hypot(a.x + t * dx, a.y + t * dy);
+
+    if (distance < minDistance) {
+      minDistance = distance;
+    }
+  }
+
+  return minDistance;
+}
+
+// 경기장 판정 — polygon이 있으면 실제 공원 모양(+여유), 없으면 원형 반경.
 export function isInsideArena(point, arena, marginM = 0) {
+  if (Array.isArray(arena.polygon) && arena.polygon.length >= 3) {
+    return (
+      isPointInPolygon(point, arena.polygon) ||
+      (marginM > 0 && distanceToPolygonEdgeMeters(point, arena.polygon) <= marginM)
+    );
+  }
+
   return (
     distanceBetweenMeters(point, { latitude: arena.latitude, longitude: arena.longitude }) <=
     arena.radiusM + marginM

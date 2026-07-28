@@ -4,7 +4,7 @@ import test from 'node:test';
 import { detectChaseEncounters } from './chaseEncounterDetection.mjs';
 
 // 테스트 경기장: 일산 호수공원 스케일의 원형 지오펜스.
-const ARENA = { latitude: 37.6585, longitude: 126.7676, radiusM: 900 };
+const ARENA = { latitude: 37.65749, longitude: 126.76325, radiusM: 900 };
 const BASE_MS = Date.parse('2026-07-27T21:00:00.000Z');
 const METERS_PER_LAT = 111_320;
 const METERS_PER_LNG = 111_320 * Math.cos((ARENA.latitude * Math.PI) / 180);

@@ -9,6 +9,7 @@ type ChaseLiveMapViewProps = {
   latitude: number;
   longitude: number;
   radiusM: number;
+  polygon?: { latitude: number; longitude: number }[];
   participants: ChaseLiveParticipant[];
 };
 

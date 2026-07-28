@@ -5,7 +5,7 @@ import { settleChaseRunUpload } from './chaseSettlement.mjs';
 
 // 실제 카탈로그의 일산 호수공원(ilsan-lake, 중심 37.6585/126.7676)을 그대로 쓴다 —
 // 정산은 arenaId로 카탈로그를 조회하므로 테스트 경기장도 실존 id여야 한다.
-const ARENA_CENTER = { latitude: 37.6585, longitude: 126.7676 };
+const ARENA_CENTER = { latitude: 37.65749, longitude: 126.76325 };
 const BASE_MS = Date.parse('2026-07-27T21:00:00.000Z');
 const METERS_PER_LAT = 111_320;
 const METERS_PER_LNG = 111_320 * Math.cos((ARENA_CENTER.latitude * Math.PI) / 180);

@@ -4,7 +4,11 @@
 
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import NativeMapView, { Circle as NativeCircle, Marker as NativeMarker } from 'react-native-maps';
+import NativeMapView, {
+  Circle as NativeCircle,
+  Marker as NativeMarker,
+  Polygon as NativePolygon,
+} from 'react-native-maps';
 import { latitudeDeltaForRadius, metersPerLngDegree } from '@/features/runs/chase/chaseLiveGeo';
 import type { ChaseLiveParticipant } from '@/lib/api/types';
 import { fixedColors, fontWeights } from '@/theme/tokens';
@@ -16,6 +20,8 @@ type ChaseLiveMapViewProps = {
   latitude: number;
   longitude: number;
   radiusM: number;
+  // 공원 실제 경계 — 있으면 원 대신 이 모양을 그린다 (지오펜스 판정도 서버에서 이 모양).
+  polygon?: { latitude: number; longitude: number }[];
   participants: ChaseLiveParticipant[];
 };
 
@@ -53,7 +59,7 @@ function ParticipantMarkerBody({
   );
 }
 
-export function ChaseLiveMapView({ latitude, longitude, radiusM, participants }: ChaseLiveMapViewProps) {
+export function ChaseLiveMapView({ latitude, longitude, radiusM, polygon, participants }: ChaseLiveMapViewProps) {
   const initialLatitudeDelta = latitudeDeltaForRadius(radiusM);
   // 뷰포트 세로 스팬이 경기장 반경(≈지름의 절반) 수준까지 좁혀지면 "확대"로 본다.
   const detailedThresholdDelta = (radiusM * 1.4) / 111_320;
@@ -81,13 +87,22 @@ export function ChaseLiveMapView({ latitude, longitude, radiusM, participants }:
       pitchEnabled={false}
       toolbarEnabled={false}
     >
-      <NativeCircle
-        center={{ latitude, longitude }}
-        radius={radiusM}
-        strokeColor="rgba(109, 94, 247, 0.55)"
-        strokeWidth={2}
-        fillColor="rgba(109, 94, 247, 0.08)"
-      />
+      {polygon && polygon.length >= 3 ? (
+        <NativePolygon
+          coordinates={polygon}
+          strokeColor="rgba(109, 94, 247, 0.55)"
+          strokeWidth={2}
+          fillColor="rgba(109, 94, 247, 0.08)"
+        />
+      ) : (
+        <NativeCircle
+          center={{ latitude, longitude }}
+          radius={radiusM}
+          strokeColor="rgba(109, 94, 247, 0.55)"
+          strokeWidth={2}
+          fillColor="rgba(109, 94, 247, 0.08)"
+        />
+      )}
       {participants.map((participant) => (
         <NativeMarker
           key={participant.userId}

@@ -150,6 +150,7 @@ export function ChaseLiveMapCard() {
           latitude={arena.latitude}
           longitude={arena.longitude}
           radiusM={arena.radiusM}
+          polygon={arena.polygon}
           participants={participants}
         />
       </View>

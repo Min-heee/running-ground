@@ -27,6 +27,7 @@ export type StartTrackingOptions = {
     latitude: number;
     longitude: number;
     radiusM: number;
+    polygon?: { latitude: number; longitude: number }[];
   };
 };
 

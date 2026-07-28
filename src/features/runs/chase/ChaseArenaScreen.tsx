@@ -103,6 +103,7 @@ export default function ChaseArenaScreen() {
           latitude={arena.latitude}
           longitude={arena.longitude}
           radiusM={arena.radiusM}
+          polygon={arena.polygon}
           participants={toAnonymousParticipants(overview)}
         />
       </View>

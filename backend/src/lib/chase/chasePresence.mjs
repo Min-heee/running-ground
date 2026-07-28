@@ -10,7 +10,7 @@ import {
   CHASE_POSITION_STALE_MS,
   CHASE_PRESENCE_TTL_MS,
 } from './chaseConstants.mjs';
-import { distanceBetweenMeters } from './chaseGeo.mjs';
+import { isInsideArena } from './chaseGeo.mjs';
 
 export function ensureChasePresence(store) {
   if (!Array.isArray(store.chasePresence)) {
@@ -51,6 +51,7 @@ export function buildChaseArenaListPayload(store, now = new Date()) {
       latitude: arena.latitude,
       longitude: arena.longitude,
       radiusM: arena.radiusM,
+      ...(arena.polygon ? { polygon: arena.polygon } : {}),
       capacity: arena.capacity,
       // 하트비트 자가회복 슬롯이 정원을 스칠 수 있어 표시용으로 클램프.
       currentCount: Math.min(arena.capacity, countArenaPresence(entries, arena.id, nowMs)),
@@ -93,6 +94,7 @@ export function joinChaseArenaPresence(store, user, arenaId, now = new Date()) {
     latitude: arena.latitude,
     longitude: arena.longitude,
     radiusM: arena.radiusM,
+    ...(arena.polygon ? { polygon: arena.polygon } : {}),
     capacity: arena.capacity,
     currentCount: othersInArena + 1,
   };
@@ -119,12 +121,7 @@ export function updateChasePresencePosition(store, user, input, now = new Date()
     throw new ApiError(400, '위치 좌표가 올바르지 않아요.');
   }
 
-  const distanceFromCenter = distanceBetweenMeters(
-    { latitude, longitude },
-    { latitude: arena.latitude, longitude: arena.longitude },
-  );
-
-  if (distanceFromCenter > arena.radiusM + CHASE_POSITION_GEOFENCE_MARGIN_M) {
+  if (!isInsideArena({ latitude, longitude }, arena, CHASE_POSITION_GEOFENCE_MARGIN_M)) {
     throw new ApiError(403, '경기장 안에서만 위치를 공유할 수 있어요.');
   }
 
@@ -231,6 +228,7 @@ export function buildChaseLivePayload(store, user, arenaId, now = new Date()) {
     latitude: arena.latitude,
     longitude: arena.longitude,
     radiusM: arena.radiusM,
+    ...(arena.polygon ? { polygon: arena.polygon } : {}),
     participants,
   };
 }
@@ -285,6 +283,7 @@ export function buildChaseArenaOverviewPayload(store, arenaId, now = new Date())
     latitude: arena.latitude,
     longitude: arena.longitude,
     radiusM: arena.radiusM,
+    ...(arena.polygon ? { polygon: arena.polygon } : {}),
     capacity: arena.capacity,
     currentCount: Math.min(arena.capacity, currentCount),
     runners,

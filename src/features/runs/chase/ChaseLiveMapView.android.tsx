@@ -17,6 +17,8 @@ type ChaseLiveMapViewProps = {
   latitude: number;
   longitude: number;
   radiusM: number;
+  // 레이더는 추상화라 폴리곤을 그리지 않는다 — 스케일은 바운딩 반경(radiusM) 기준.
+  polygon?: { latitude: number; longitude: number }[];
   participants: ChaseLiveParticipant[];
 };
 

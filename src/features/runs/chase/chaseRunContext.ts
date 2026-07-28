@@ -18,6 +18,7 @@ export type ActiveChaseArena = {
   latitude: number;
   longitude: number;
   radiusM: number;
+  polygon?: { latitude: number; longitude: number }[];
 };
 
 let selectedArena: ChaseArenaSummary | null = null;

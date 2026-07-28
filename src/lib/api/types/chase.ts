@@ -1,5 +1,11 @@
 // 경찰과 도둑런(chase) API 타입 — backend/src/lib/chase/* 응답과 1:1.
 
+// 경기장 폴리곤 꼭짓점 (공원 실제 경계 — 없으면 원형 반경 지오펜스).
+export type ChaseArenaVertex = {
+  latitude: number;
+  longitude: number;
+};
+
 export type ChaseArenaSummary = {
   id: string;
   name: string;
@@ -7,6 +13,7 @@ export type ChaseArenaSummary = {
   latitude: number;
   longitude: number;
   radiusM: number;
+  polygon?: ChaseArenaVertex[];
   capacity: number;
   currentCount: number;
 };
@@ -22,6 +29,7 @@ export type ChaseJoinResponse = {
   latitude: number;
   longitude: number;
   radiusM: number;
+  polygon?: ChaseArenaVertex[];
   capacity: number;
   currentCount: number;
 };
@@ -51,6 +59,7 @@ export type ChaseLiveResponse = {
   latitude: number;
   longitude: number;
   radiusM: number;
+  polygon?: ChaseArenaVertex[];
   participants: ChaseLiveParticipant[];
 };
 
@@ -72,6 +81,7 @@ export type ChaseOverviewResponse = {
   latitude: number;
   longitude: number;
   radiusM: number;
+  polygon?: ChaseArenaVertex[];
   capacity: number;
   currentCount: number;
   runners: ChaseOverviewRunner[];

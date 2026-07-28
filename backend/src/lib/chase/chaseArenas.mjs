@@ -6,7 +6,30 @@
 // (목록/입장에는 안 나오지만 findChaseArena는 계속 해석 — 이미 저장된 러닝의 정산·표기 보호).
 
 export const CHASE_ARENAS = [
-  { id: 'ilsan-lake', name: '일산 호수공원', regionLabel: '고양', latitude: 37.6585, longitude: 126.7676, radiusM: 900, capacity: 100 },
+  {
+    id: 'ilsan-lake',
+    name: '일산 호수공원',
+    regionLabel: '고양',
+    // 중심은 폴리곤 무게중심, radiusM은 바운딩 반경(지도 뷰포트/레이더 스케일용) —
+    // 지오펜스 판정은 아래 polygon(공원 실제 경계, OSM 실측을 20m 허용오차로 단순화)이 우선.
+    latitude: 37.65749,
+    longitude: 126.76325,
+    radiusM: 1200,
+    capacity: 100,
+    polygon: [
+      { latitude: 37.66366, longitude: 126.75638 },
+      { latitude: 37.65822, longitude: 126.76051 },
+      { latitude: 37.65182, longitude: 126.76346 },
+      { latitude: 37.65013, longitude: 126.76627 },
+      { latitude: 37.65057, longitude: 126.76671 },
+      { latitude: 37.64883, longitude: 126.76981 },
+      { latitude: 37.64963, longitude: 126.77227 },
+      { latitude: 37.65865, longitude: 126.76704 },
+      { latitude: 37.66388, longitude: 126.76188 },
+      { latitude: 37.66495, longitude: 126.76031 },
+      { latitude: 37.66593, longitude: 126.75798 },
+    ],
+  },
 ];
 
 // 확장 대기 경기장 — 활성화는 위 배열로 옮기기만 하면 된다 (좌표는 OSM/Wikidata 교차 검증됨).

@@ -41,8 +41,10 @@ test('join 응답에 라이브 지도용 지오펜스 좌표가 실린다', () =
   const payload = joinChaseArenaPresence(buildStore(), { id: 'user-a' }, 'ilsan-lake', NOW);
 
   assert.equal(payload.arenaId, 'ilsan-lake');
-  assert.equal(payload.latitude, 37.6585);
-  assert.equal(payload.radiusM, 900);
+  assert.equal(payload.latitude, 37.65749);
+  assert.equal(payload.radiusM, 1200);
+  // 폴리곤 지오펜스도 응답에 실린다 (클라 지도가 공원 실제 모양을 그린다).
+  assert.ok(Array.isArray(payload.polygon) && payload.polygon.length >= 3);
   assert.equal(payload.currentCount, 1);
 });
 
@@ -53,15 +55,15 @@ test('위치 하트비트: 슬롯 업서트 + 좌표/방향/페이스 저장, �
 
   updateChasePresencePosition(store, { id: 'user-a' }, {
     arenaId: 'ilsan-lake',
-    latitude: 37.6588,
-    longitude: 126.7680,
+    latitude: 37.6578,
+    longitude: 126.7636,
     headingDeg: 425.4, // 정규화 → 65
     paceLabel: '06:10/km',
   }, NOW);
   updateChasePresencePosition(store, { id: 'user-b' }, {
     arenaId: 'ilsan-lake',
-    latitude: 37.6580,
-    longitude: 126.7670,
+    latitude: 37.6570,
+    longitude: 126.7630,
   }, new Date(NOW.getTime() + 5_000));
 
   const live = buildChaseLivePayload(store, { id: 'user-a' }, 'ilsan-lake', new Date(NOW.getTime() + 10_000));
@@ -87,8 +89,8 @@ test('슬롯 없는 유저의 라이브 조회는 403, 위치 하트비트는 �
   // TTL 만료로 슬롯이 사라져도 러닝 중 하트비트가 자가 회복.
   updateChasePresencePosition(store, { id: 'user-a' }, {
     arenaId: 'ilsan-lake',
-    latitude: 37.6585,
-    longitude: 126.7676,
+    latitude: 37.6575,
+    longitude: 126.7633,
   }, NOW);
   const live = buildChaseLivePayload(store, { id: 'user-a' }, 'ilsan-lake', NOW);
   assert.equal(live.participants.length, 1);
@@ -98,8 +100,8 @@ test('headingDeg null(정지)은 null로 남는다 — 북쪽 화살표로 강�
   const store = buildStore();
   updateChasePresencePosition(store, { id: 'user-a' }, {
     arenaId: 'ilsan-lake',
-    latitude: 37.6585,
-    longitude: 126.7676,
+    latitude: 37.6575,
+    longitude: 126.7633,
     headingDeg: null,
   }, NOW);
 
@@ -131,8 +133,8 @@ test('join만 한(위치 미보고) 뷰어는 이름 붙은 라이브를 볼 수
   joinChaseArenaPresence(store, { id: 'user-a' }, 'ilsan-lake', NOW);
   updateChasePresencePosition(store, { id: 'user-b' }, {
     arenaId: 'ilsan-lake',
-    latitude: 37.6580,
-    longitude: 126.7670,
+    latitude: 37.6570,
+    longitude: 126.7630,
   }, NOW);
 
   assert.throws(
@@ -146,8 +148,8 @@ test('시작 전 미리보기(overview)는 익명 점 + 인원 수만 — 신원
   joinChaseArenaPresence(store, { id: 'user-a' }, 'ilsan-lake', NOW);
   updateChasePresencePosition(store, { id: 'user-b' }, {
     arenaId: 'ilsan-lake',
-    latitude: 37.6580,
-    longitude: 126.7670,
+    latitude: 37.6570,
+    longitude: 126.7630,
     headingDeg: 90,
     paceLabel: '06:00/km',
   }, NOW);
@@ -180,8 +182,8 @@ test('본인 위치가 10분 넘게 낡은 뷰어도 이름 라이브는 403 —
   const store = buildStore();
   updateChasePresencePosition(store, { id: 'user-a' }, {
     arenaId: 'ilsan-lake',
-    latitude: 37.6585,
-    longitude: 126.7676,
+    latitude: 37.6575,
+    longitude: 126.7633,
   }, NOW);
 
   assert.throws(
@@ -194,13 +196,13 @@ test('10분 넘게 낡은 위치는 라이브 지도에서 숨긴다', () => {
   const store = buildStore();
   updateChasePresencePosition(store, { id: 'user-a' }, {
     arenaId: 'ilsan-lake',
-    latitude: 37.6585,
-    longitude: 126.7676,
+    latitude: 37.6575,
+    longitude: 126.7633,
   }, NOW);
   updateChasePresencePosition(store, { id: 'user-b' }, {
     arenaId: 'ilsan-lake',
-    latitude: 37.6580,
-    longitude: 126.7670,
+    latitude: 37.6570,
+    longitude: 126.7630,
   }, new Date(NOW.getTime() + 11 * 60_000));
 
   const live = buildChaseLivePayload(
@@ -212,4 +214,26 @@ test('10분 넘게 낡은 위치는 라이브 지도에서 숨긴다', () => {
 
   assert.equal(live.participants.length, 1);
   assert.equal(live.participants[0].userId, 'user-b');
+});
+
+test('폴리곤 지오펜스: 공원 동쪽 아파트단지(옛 원 안)는 이제 거부된다', () => {
+  const store = buildStore();
+
+  // 37.6585,126.7717 — 장항동 쪽, 옛 900m 원 안이지만 공원 폴리곤 밖 + 150m 여유 밖.
+  assert.throws(
+    () => updateChasePresencePosition(store, { id: 'user-a' }, {
+      arenaId: 'ilsan-lake',
+      latitude: 37.6585,
+      longitude: 126.7717,
+    }, NOW),
+    /경기장 안에서만/,
+  );
+
+  // 공원 안(호수 위쪽 산책로)은 통과.
+  updateChasePresencePosition(store, { id: 'user-a' }, {
+    arenaId: 'ilsan-lake',
+    latitude: 37.6610,
+    longitude: 126.7615,
+  }, NOW);
+  assert.equal(store.chasePresence.length, 1);
 });

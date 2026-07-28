@@ -18,6 +18,7 @@ type StartTrackingOptions = {
     latitude: number;
     longitude: number;
     radiusM: number;
+    polygon?: { latitude: number; longitude: number }[];
   };
 };
 
@@ -134,6 +135,7 @@ export function useRunActionHandlers({
           latitude: number;
           longitude: number;
           radiusM: number;
+          polygon?: { latitude: number; longitude: number }[];
         };
 
         try {
@@ -144,6 +146,7 @@ export function useRunActionHandlers({
             latitude: joinResult.latitude,
             longitude: joinResult.longitude,
             radiusM: joinResult.radiusM,
+            ...(joinResult.polygon ? { polygon: joinResult.polygon } : {}),
           };
         } catch (joinError) {
           chaseJoinInFlightRef.current = false;
