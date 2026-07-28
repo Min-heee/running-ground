@@ -293,7 +293,29 @@ const DARK_COLORS: ThemeColors = {
 // Frozen light-palette constants for deliberately theme-INDEPENDENT styling (dark
 // hero cards, live-match chrome, tier-pastel cards, white pills on dark chrome).
 // Pointing at fixedColors.X documents "this surface/text does not follow the theme".
+// NOTE: freeze는 라이트 글래스 오버라이드(아래) 이전에 실행된다 — fixedColors는
+// 유리화 이전의 '클래식' 불투명 라이트 값을 영구 고정한다 (다크 카드 위 흰 필 등
+// 테마 불변 표면이 반투명 유리로 변하면 밑색이 비쳐 깨진다).
 export const fixedColors: Readonly<ThemeColors> = Object.freeze({ ...LIGHT_COLORS });
+
+// 라이트 글래스 (오너 2026-07-28): 라벤더 유리 + 보라 라인 — 미드나잇 글래스의 라이트 대응.
+// 앱 배경을 연보라로 깔고, 카드 표면은 반투명 흰 유리(배경이 은은히 비침), 테두리는
+// 보랏빛 잉크 라인, 카드 엣지는 은은한 브랜드 보라. 텍스트/시맨틱 컬러는 그대로.
+Object.assign(LIGHT_COLORS, {
+  surfaceApp: '#EFF0FA',
+  surface: 'rgba(255, 255, 255, 0.66)',
+  surfaceMuted: 'rgba(255, 255, 255, 0.45)',
+  surfaceSoft: 'rgba(255, 255, 255, 0.55)',
+  surfaceSubtle: 'rgba(255, 255, 255, 0.42)',
+  surfaceSubtleAlt: 'rgba(255, 255, 255, 0.60)',
+  // 네이티브 크롬(탭바·모달 시트)은 반드시 OPAQUE — 유리 톤을 미리 합성한 색.
+  surfaceChrome: '#F7F7FE',
+  // borderCool/borderNeutral은 의도적 불변 토큰(테마 무관 표면) — 유리화 제외.
+  border: 'rgba(84, 76, 160, 0.20)',
+  borderMuted: 'rgba(84, 76, 160, 0.10)',
+  borderSoft: 'rgba(84, 76, 160, 0.12)',
+  cardEdge: 'rgba(109, 94, 247, 0.30)',
+});
 
 export type ThemeMode = 'dark' | 'light';
 

@@ -23,9 +23,16 @@ test('default palette is light and fixedColors mirrors the light palette', () =>
   assert.equal(getAppliedThemeMode(), 'light');
   assert.equal(colors.surfaceApp, light.surfaceApp);
   assert.equal(colors.textPrimary, light.textPrimary);
-  // fixedColors is the light palette, frozen — pinned chrome renders today's values.
-  assert.deepEqual({ ...fixedColors }, { ...light });
+  // fixedColors pins the CLASSIC (pre-glass) light values, frozen — pinned chrome
+  // must stay opaque even though the themed light palette went glass.
+  assert.equal(fixedColors.surface, '#FFFFFF');
+  assert.equal(fixedColors.surfaceApp, '#F5F7FB');
+  assert.equal(fixedColors.textPrimary, light.textPrimary);
+  assert.deepEqual(Object.keys({ ...fixedColors }).sort(), Object.keys(light).sort());
   assert.ok(Object.isFrozen(fixedColors));
+  // themed light palette is the GLASS variant: translucent surfaces + violet card edge.
+  assert.equal(light.surface, 'rgba(255, 255, 255, 0.66)');
+  assert.equal(light.cardEdge, 'rgba(109, 94, 247, 0.30)');
 });
 
 test('applyThemePalette mutates the shared colors object in place', () => {
