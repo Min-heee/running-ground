@@ -64,10 +64,6 @@ export default function FriendsScreen() {
             onOpenFriend={(friendId) => router.push({ pathname: '/friend-detail', params: { friendId } })}
           />
 
-          <Pressable style={styles.addButton} onPress={() => router.push('/add-friend')}>
-            <Text style={styles.addButtonText}>친구 추가하기</Text>
-          </Pressable>
-
           <FriendRequestsCard
             received={received}
             pending={pending}
@@ -83,6 +79,10 @@ export default function FriendsScreen() {
               void handleCancel(requestId);
             }}
           />
+
+          <Pressable style={styles.addButton} onPress={() => router.push('/add-friend')}>
+            <Text style={styles.addButtonText}>친구 추가</Text>
+          </Pressable>
         </>
       ) : null}
     </Screen>
