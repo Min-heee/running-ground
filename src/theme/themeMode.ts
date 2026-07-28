@@ -19,10 +19,14 @@ import {
 
 const THEME_MODE_STORAGE_KEY = 'runningground.themeMode.v1';
 
-// Fail-closed parser: anything that is not exactly 'light' resolves to the dark
-// default — fresh installs (null) and corrupted values both boot dark.
+// Fail-closed parser: 명시적으로 저장된 'dark'/'light'는 존중하고, 신규 설치(null)와
+// 손상된 값만 기본(라이트)으로 — 다크를 골라둔 기존 유저를 기본값 변경이 뒤집으면 안 된다.
 export function normalizeStoredThemeMode(value: string | null | undefined): ThemeMode {
-  return value === 'light' ? 'light' : DEFAULT_THEME_MODE;
+  if (value === 'dark' || value === 'light') {
+    return value;
+  }
+
+  return DEFAULT_THEME_MODE;
 }
 
 function getWebStorage() {

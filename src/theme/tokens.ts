@@ -297,14 +297,14 @@ export const fixedColors: Readonly<ThemeColors> = Object.freeze({ ...LIGHT_COLOR
 
 export type ThemeMode = 'dark' | 'light';
 
-// Fresh installs default to DARK.
-export const DEFAULT_THEME_MODE: ThemeMode = 'dark';
+// Fresh installs default to LIGHT (오너 2026-07-28 — 다크는 토글로 선택).
+export const DEFAULT_THEME_MODE: ThemeMode = 'light';
 
 let appliedThemeMode: ThemeMode = DEFAULT_THEME_MODE;
 
-// MUTABLE on purpose (see header comment). Initialized to the dark palette so the
-// default experience — and anything imported before the stored mode is read — is dark.
-export const colors: ThemeColors = { ...DARK_COLORS };
+// MUTABLE on purpose (see header comment). Initialized to the light palette so the
+// default experience — and anything imported before the stored mode is read — is light.
+export const colors: ThemeColors = { ...LIGHT_COLORS };
 
 // Mutates `colors` in place so every module-scope StyleSheet.create that runs AFTER
 // this call bakes the requested palette. Must run before route modules are imported

@@ -15,14 +15,14 @@ test('light and dark palettes expose exactly the same token keys', () => {
   assert.deepEqual(Object.keys(dark).sort(), Object.keys(light).sort());
 });
 
-test('default palette is dark and fixedColors mirrors the light palette', () => {
-  const { light, dark } = getThemePalettesForTest();
-  assert.equal(DEFAULT_THEME_MODE, 'dark');
-  // Fresh import state: `colors` must already hold the dark palette (fresh installs
-  // and every module imported before hydration bake dark values).
-  assert.equal(getAppliedThemeMode(), 'dark');
-  assert.equal(colors.surfaceApp, dark.surfaceApp);
-  assert.equal(colors.textPrimary, dark.textPrimary);
+test('default palette is light and fixedColors mirrors the light palette', () => {
+  const { light } = getThemePalettesForTest();
+  assert.equal(DEFAULT_THEME_MODE, 'light');
+  // Fresh import state: `colors` must already hold the light palette (fresh installs
+  // and every module imported before hydration bake light values).
+  assert.equal(getAppliedThemeMode(), 'light');
+  assert.equal(colors.surfaceApp, light.surfaceApp);
+  assert.equal(colors.textPrimary, light.textPrimary);
   // fixedColors is the light palette, frozen — pinned chrome renders today's values.
   assert.deepEqual({ ...fixedColors }, { ...light });
   assert.ok(Object.isFrozen(fixedColors));
