@@ -5,7 +5,6 @@ import { Screen } from '@/components/Screen';
 import { FriendsRanking } from '@/features/friends/FriendsRanking';
 import { FriendListCard } from '@/features/friends/components/FriendListCard';
 import { FriendRequestsCard } from '@/features/friends/components/FriendRequestsCard';
-import { FriendTagCard } from '@/features/friends/components/FriendTagCard';
 import { useFriendsScreen } from '@/features/friends/hooks/useFriendsScreen';
 import { TabHeader } from '@/components/ui/TabHeader';
 import { Card } from '@/components/Card';
@@ -19,12 +18,10 @@ export default function FriendsScreen() {
   const {
     actionError,
     compareTargets,
-    copyMessage,
     error,
     expandedLiveFriendId,
     handleAccept,
     handleCancel,
-    handleCopyTag,
     handleReject,
     leaderboard,
     loadFriends,
@@ -58,17 +55,18 @@ export default function FriendsScreen() {
         <>
           <FriendsRanking ranks={leaderboard.ranks} highlightTag={profile.publicTag} />
 
+          <FriendListCard
+            friends={compareTargets}
+            expandedLiveFriendId={expandedLiveFriendId}
+            onToggleLiveFriend={(friendId) => {
+              setExpandedLiveFriendId((current) => (current === friendId ? null : friendId));
+            }}
+            onOpenFriend={(friendId) => router.push({ pathname: '/friend-detail', params: { friendId } })}
+          />
+
           <Pressable style={styles.addButton} onPress={() => router.push('/add-friend')}>
             <Text style={styles.addButtonText}>친구 추가하기</Text>
           </Pressable>
-
-          <FriendTagCard
-            profile={profile}
-            copyMessage={copyMessage}
-            onCopyTag={() => {
-              void handleCopyTag();
-            }}
-          />
 
           <FriendRequestsCard
             received={received}
@@ -84,15 +82,6 @@ export default function FriendsScreen() {
             onCancel={(requestId) => {
               void handleCancel(requestId);
             }}
-          />
-
-          <FriendListCard
-            friends={compareTargets}
-            expandedLiveFriendId={expandedLiveFriendId}
-            onToggleLiveFriend={(friendId) => {
-              setExpandedLiveFriendId((current) => (current === friendId ? null : friendId));
-            }}
-            onOpenFriend={(friendId) => router.push({ pathname: '/friend-detail', params: { friendId } })}
           />
         </>
       ) : null}
