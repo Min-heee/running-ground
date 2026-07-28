@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View, TextInput, Pressable, ActivityIndicator } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
@@ -9,6 +9,8 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export default function AddFriendScreen() {
+  // 공유 링크 딥링크(runningground://add-friend?tag=CODE)로 진입하면 태그가 실려 온다.
+  const { tag } = useLocalSearchParams<{ tag?: string }>();
   const {
     added,
     copied,
@@ -21,7 +23,7 @@ export default function AddFriendScreen() {
     profile,
     requestCounts,
     submitting,
-  } = useAddFriendScreen();
+  } = useAddFriendScreen({ deepLinkTag: Array.isArray(tag) ? tag[0] : tag });
 
   return (
     <Screen>

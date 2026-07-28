@@ -76,9 +76,12 @@ export function useMyPageScreen() {
     }
 
     try {
+      // 태그를 링크에 실으면: 앱 설치자는 링크 탭 → 딥링크로 친구 추가 화면(자동 신청),
+      // 미설치자는 같은 링크에서 스토어로 넘어간다 (GET /download?tag= 스마트 랜딩).
+      const tagCode = tag.replace(/^#/, '');
       await Share.share({
         // 안드로이드 정식 출시 후 Play 링크(또는 랜딩 페이지)로 확장 예정.
-        message: `러닝그라운드에서 같이 달려요! 내 친구 태그: ${tag}\n앱 다운로드: ${APP_STORE_URL}`,
+        message: `러닝그라운드에서 같이 달려요! 내 친구 태그: ${tag}\n앱에서 바로 친구 추가: ${APP_STORE_URL}?tag=${tagCode}`,
       });
       setTagShared(true);
     } catch {

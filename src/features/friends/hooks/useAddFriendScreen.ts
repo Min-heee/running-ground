@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FriendLeaderboardResponse, MyProfileResponse } from '@/lib/api/types';
 import { createFriendRequest, fetchFriendLeaderboard, fetchMyProfile, getApiErrorMessage } from '@/services';
 
-export function useAddFriendScreen() {
+export function useAddFriendScreen({ deepLinkTag }: { deepLinkTag?: string } = {}) {
   const [friendTag, setFriendTag] = useState('');
   const [copied, setCopied] = useState(false);
   const [added, setAdded] = useState(false);
@@ -33,13 +33,7 @@ export function useAddFriendScreen() {
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const handleAddFriend = async () => {
-    const tagCode = friendTag.trim();
-    if (!tagCode) {
-      setError('친구 태그를 입력해주세요.');
-      return;
-    }
-
+  const submitFriendTag = async (tagCode: string) => {
     setError(null);
     setSubmitting(true);
 
@@ -58,6 +52,37 @@ export function useAddFriendScreen() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // 공유 링크 딥링크로 태그가 실려 오면: 입력을 채우고 1회 자동으로 친구 신청까지 보낸다
+  // ("링크만 누르면 알아서 신청"). 자기 태그·중복 신청 등은 서버 검증 메시지가 그대로 뜬다.
+  const autoSubmittedDeepLinkRef = useRef(false);
+
+  useEffect(() => {
+    if (loading || !profile || autoSubmittedDeepLinkRef.current) {
+      return;
+    }
+
+    const deepLinkCode = String(deepLinkTag ?? '').replace(/^#/, '').trim().toUpperCase();
+
+    if (!/^[A-Z0-9]{3,8}$/.test(deepLinkCode)) {
+      return;
+    }
+
+    autoSubmittedDeepLinkRef.current = true;
+    setFriendTag(deepLinkCode);
+    void submitFriendTag(deepLinkCode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkTag, loading, profile]);
+
+  const handleAddFriend = async () => {
+    const tagCode = friendTag.trim();
+    if (!tagCode) {
+      setError('친구 태그를 입력해주세요.');
+      return;
+    }
+
+    await submitFriendTag(tagCode);
   };
 
   const requestCounts = useMemo(() => ({
