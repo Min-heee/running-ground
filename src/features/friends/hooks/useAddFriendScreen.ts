@@ -72,7 +72,6 @@ export function useAddFriendScreen({ deepLinkTag }: { deepLinkTag?: string } = {
     autoSubmittedDeepLinkRef.current = true;
     setFriendTag(deepLinkCode);
     void submitFriendTag(deepLinkCode);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLinkTag, loading, profile]);
 
   const handleAddFriend = async () => {
