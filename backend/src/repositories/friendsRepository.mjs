@@ -82,6 +82,10 @@ function buildFriendRank(store, user, rank, getUserMetrics, {
     rank,
     name: user.name,
     tag: user.publicTag,
+    // 친구 목록에 이름 옆 상태메시지 (프로필의 statusMessage — 없으면 생략).
+    ...(typeof user.statusMessage === 'string' && user.statusMessage
+      ? { statusMessage: user.statusMessage }
+      : {}),
     // Competitive leaderboard: rank by AND show the competitive weekly distance
     // (imports excluded) so the displayed number agrees with the sort key.
     distanceKm: metrics.competitiveWeekDistanceKm,

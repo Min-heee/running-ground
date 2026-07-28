@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View, Pressable } from 'react-native';
+import { useState } from 'react';
+import { Alert, StyleSheet, Text, View, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { BrandLoadingView } from '@/components/BrandLoadingView';
 import { Screen } from '@/components/Screen';
@@ -6,6 +7,7 @@ import { FriendsRanking } from '@/features/friends/FriendsRanking';
 import { FriendListCard } from '@/features/friends/components/FriendListCard';
 import { FriendRequestsCard } from '@/features/friends/components/FriendRequestsCard';
 import { useFriendsScreen } from '@/features/friends/hooks/useFriendsScreen';
+import { createRunningMatchRoom, getApiErrorMessage } from '@/services';
 import { TabHeader } from '@/components/ui/TabHeader';
 import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -32,6 +34,32 @@ export default function FriendsScreen() {
     requestActionId,
     setExpandedLiveFriendId,
   } = useFriendsScreen();
+  // 친구 행의 러너 버튼 → 그 친구를 초대한 파티런 1대1 방을 바로 만든다. 거리(기본 5km)는
+  // 방장 대기실에서 조정 가능. 이미 참여 중인 방/매칭이 있으면 서버가 막고 메시지를 준다.
+  const [creatingPartyRunFriendId, setCreatingPartyRunFriendId] = useState<string | null>(null);
+
+  const handleStartPartyRun = (friendId: string) => {
+    if (creatingPartyRunFriendId) {
+      return;
+    }
+
+    setCreatingPartyRunFriendId(friendId);
+    void (async () => {
+      try {
+        await createRunningMatchRoom({
+          mode: 'duel',
+          distanceKm: 5,
+          startMode: 'host',
+          invitedFriendIds: [friendId],
+        });
+        router.push('/match-room');
+      } catch (createError) {
+        Alert.alert('파티런 방 만들기 실패', getApiErrorMessage(createError, '방을 만들지 못했어요.'));
+      } finally {
+        setCreatingPartyRunFriendId(null);
+      }
+    })();
+  };
 
   if (loading) {
     return <BrandLoadingView />;
@@ -58,10 +86,12 @@ export default function FriendsScreen() {
           <FriendListCard
             friends={compareTargets}
             expandedLiveFriendId={expandedLiveFriendId}
+            creatingPartyRunFriendId={creatingPartyRunFriendId}
             onToggleLiveFriend={(friendId) => {
               setExpandedLiveFriendId((current) => (current === friendId ? null : friendId));
             }}
             onOpenFriend={(friendId) => router.push({ pathname: '/friend-detail', params: { friendId } })}
+            onStartPartyRun={handleStartPartyRun}
           />
 
           <FriendRequestsCard

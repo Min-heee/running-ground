@@ -3,6 +3,8 @@ export type FriendRank = {
   rank: number;
   name: string;
   tag?: string;
+  // 프로필 상태메시지 — 친구 목록에서 이름 옆에 보여준다 (구버전 서버는 안 보냄).
+  statusMessage?: string;
   // Weekly competitive aggregates — the server's rank order is based on these.
   distanceKm: number;
   points: number;

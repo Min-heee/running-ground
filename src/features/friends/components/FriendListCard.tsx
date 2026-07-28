@@ -1,5 +1,6 @@
 import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Card } from '@/components/Card';
 import type { FriendLeaderboardResponse } from '@/lib/api/types';
@@ -10,22 +11,28 @@ type FriendRankItem = FriendLeaderboardResponse['ranks'][number];
 type FriendListCardProps = {
   friends: FriendRankItem[];
   expandedLiveFriendId: string | null;
+  creatingPartyRunFriendId: string | null;
   onToggleLiveFriend: (friendId: string) => void;
   onOpenFriend: (friendId: string) => void;
+  onStartPartyRun: (friendId: string) => void;
 };
 
 type FriendListRowProps = {
   friend: FriendRankItem;
   expanded: boolean;
+  isCreatingPartyRun: boolean;
   onToggleLiveFriend: (friendId: string) => void;
   onOpenFriend: (friendId: string) => void;
+  onStartPartyRun: (friendId: string) => void;
 };
 
 const FriendListRow = memo(function FriendListRow({
   friend,
   expanded,
+  isCreatingPartyRun,
   onToggleLiveFriend,
   onOpenFriend,
+  onStartPartyRun,
 }: FriendListRowProps) {
   const handleOpen = useCallback(() => {
     onOpenFriend(friend.id);
@@ -33,6 +40,9 @@ const FriendListRow = memo(function FriendListRow({
   const handleToggleLiveFriend = useCallback(() => {
     onToggleLiveFriend(friend.id);
   }, [friend.id, onToggleLiveFriend]);
+  const handleStartPartyRun = useCallback(() => {
+    onStartPartyRun(friend.id);
+  }, [friend.id, onStartPartyRun]);
 
   return (
     <View style={styles.friendItem}>
@@ -42,6 +52,11 @@ const FriendListRow = memo(function FriendListRow({
             <View style={styles.friendRowHeader}>
               {friend.isRunningNow ? <View style={styles.friendLiveDot} /> : null}
               <Text style={styles.requestName}>{friend.name}</Text>
+              {friend.statusMessage ? (
+                <Text style={styles.statusMessage} numberOfLines={1}>
+                  {friend.statusMessage}
+                </Text>
+              ) : null}
               {friend.isRunningNow ? (
                 <Text style={styles.friendLiveLabel}>위치 공유 중</Text>
               ) : null}
@@ -74,6 +89,18 @@ const FriendListRow = memo(function FriendListRow({
           <Pressable style={styles.friendDetailButton} onPress={handleOpen}>
             <Text style={styles.compareLink}>보기</Text>
           </Pressable>
+
+          {/* 이 친구와 파티런 1대1 — 방을 만들고 초대 알림까지 한 번에. */}
+          <Pressable
+            style={[styles.partyRunButton, isCreatingPartyRun ? styles.partyRunButtonBusy : null]}
+            onPress={handleStartPartyRun}
+            disabled={isCreatingPartyRun}
+            accessibilityRole="button"
+            accessibilityLabel={`${friend.name}님과 파티런 1대1`}
+            hitSlop={6}
+          >
+            <MaterialCommunityIcons name="run" size={20} color={colors.white} />
+          </Pressable>
         </View>
       </View>
 
@@ -93,8 +120,10 @@ const FriendListRow = memo(function FriendListRow({
 export function FriendListCard({
   friends,
   expandedLiveFriendId,
+  creatingPartyRunFriendId,
   onToggleLiveFriend,
   onOpenFriend,
+  onStartPartyRun,
 }: FriendListCardProps) {
   return (
     <Card>
@@ -104,8 +133,10 @@ export function FriendListCard({
           key={friend.id}
           friend={friend}
           expanded={expandedLiveFriendId === friend.id}
+          isCreatingPartyRun={creatingPartyRunFriendId === friend.id}
           onToggleLiveFriend={onToggleLiveFriend}
           onOpenFriend={onOpenFriend}
+          onStartPartyRun={onStartPartyRun}
         />
       ))}
       {friends.length === 0 ? <Text style={styles.emptyText}>아직 비교할 친구 기록이 없어요.</Text> : null}
@@ -132,6 +163,22 @@ const styles = StyleSheet.create({
   },
   friendPrimaryAction: {
     flex: 1,
+  },
+  statusMessage: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+    flexShrink: 1,
+  },
+  partyRunButton: {
+    width: 34,
+    height: 34,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.brand,
+  },
+  partyRunButtonBusy: {
+    opacity: 0.5,
   },
   friendRowActions: {
     flexDirection: 'row',
