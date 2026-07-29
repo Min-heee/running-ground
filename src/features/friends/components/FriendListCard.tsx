@@ -12,9 +12,11 @@ type FriendListCardProps = {
   friends: FriendRankItem[];
   expandedLiveFriendId: string | null;
   creatingPartyRunFriendId: string | null;
+  receivedRequestCount: number;
   onToggleLiveFriend: (friendId: string) => void;
   onOpenFriend: (friendId: string) => void;
   onStartPartyRun: (friendId: string) => void;
+  onOpenRequests: () => void;
 };
 
 type FriendListRowProps = {
@@ -116,13 +118,26 @@ export function FriendListCard({
   friends,
   expandedLiveFriendId,
   creatingPartyRunFriendId,
+  receivedRequestCount,
   onToggleLiveFriend,
   onOpenFriend,
   onStartPartyRun,
+  onOpenRequests,
 }: FriendListCardProps) {
   return (
     <Card>
-      <Text style={styles.sectionTitle}>친구</Text>
+      <View style={styles.cardHeaderRow}>
+        <Text style={styles.sectionTitle}>친구</Text>
+        {/* 요청 처리(수락/거절/취소)는 별도 화면으로 — 받은 요청이 있으면 개수 배지. */}
+        <Pressable style={styles.requestsButton} onPress={onOpenRequests} accessibilityRole="button">
+          <Text style={styles.requestsButtonText}>친구 요청 상태</Text>
+          {receivedRequestCount > 0 ? (
+            <View style={styles.requestsBadge}>
+              <Text style={styles.requestsBadgeText}>{receivedRequestCount}</Text>
+            </View>
+          ) : null}
+        </Pressable>
+      </View>
       {friends.map((friend) => (
         <FriendListRow
           key={friend.id}
@@ -140,6 +155,40 @@ export function FriendListCard({
 }
 
 const styles = StyleSheet.create({
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.s12,
+  },
+  requestsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
+    backgroundColor: colors.brandWash,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.md,
+  },
+  requestsButtonText: {
+    color: colors.brandStrong,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+  },
+  requestsBadge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: radii.pill,
+    backgroundColor: colors.brand,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  requestsBadgeText: {
+    color: colors.white,
+    fontSize: 11,
+    fontWeight: fontWeights.extraBold,
+  },
   sectionTitle: {
     fontSize: fontSizes.title,
     fontWeight: fontWeights.extraBold,

@@ -5,7 +5,6 @@ import { BrandLoadingView } from '@/components/BrandLoadingView';
 import { Screen } from '@/components/Screen';
 import { FriendsRanking } from '@/features/friends/FriendsRanking';
 import { FriendListCard } from '@/features/friends/components/FriendListCard';
-import { FriendRequestsCard } from '@/features/friends/components/FriendRequestsCard';
 import { useFriendsScreen } from '@/features/friends/hooks/useFriendsScreen';
 import { createRunningMatchRoom, getApiErrorMessage } from '@/services';
 import { TabHeader } from '@/components/ui/TabHeader';
@@ -18,20 +17,14 @@ export default function FriendsScreen() {
   useTabWarmupTrace('friends');
   const { scrollToTop } = useLocalSearchParams<{ scrollToTop?: string }>();
   const {
-    actionError,
     compareTargets,
     error,
     expandedLiveFriendId,
-    handleAccept,
-    handleCancel,
-    handleReject,
     leaderboard,
     loadFriends,
     loading,
-    pending,
     profile,
     received,
-    requestActionId,
     setExpandedLiveFriendId,
   } = useFriendsScreen();
   // 친구 행의 러너 버튼 → 그 친구를 초대한 파티런 1대1 방을 바로 만든다. 거리(기본 5km)는
@@ -83,38 +76,18 @@ export default function FriendsScreen() {
         <>
           <FriendsRanking ranks={leaderboard.ranks} highlightTag={profile.publicTag} />
 
-          {/* 친구 카드와 요청 상태 카드를 양옆으로 (오너 2026-07-29). */}
-          <View style={styles.cardDuoRow}>
-            <View style={styles.cardDuoItem}>
-              <FriendListCard
-                friends={compareTargets}
-                expandedLiveFriendId={expandedLiveFriendId}
-                creatingPartyRunFriendId={creatingPartyRunFriendId}
-                onToggleLiveFriend={(friendId) => {
-                  setExpandedLiveFriendId((current) => (current === friendId ? null : friendId));
-                }}
-                onOpenFriend={(friendId) => router.push({ pathname: '/friend-detail', params: { friendId } })}
-                onStartPartyRun={handleStartPartyRun}
-              />
-            </View>
-            <View style={styles.cardDuoItem}>
-              <FriendRequestsCard
-                received={received}
-                pending={pending}
-                actionError={actionError}
-                requestActionId={requestActionId}
-                onReject={(requestId) => {
-                  void handleReject(requestId);
-                }}
-                onAccept={(requestId) => {
-                  void handleAccept(requestId);
-                }}
-                onCancel={(requestId) => {
-                  void handleCancel(requestId);
-                }}
-              />
-            </View>
-          </View>
+          <FriendListCard
+            friends={compareTargets}
+            expandedLiveFriendId={expandedLiveFriendId}
+            creatingPartyRunFriendId={creatingPartyRunFriendId}
+            receivedRequestCount={received.length}
+            onToggleLiveFriend={(friendId) => {
+              setExpandedLiveFriendId((current) => (current === friendId ? null : friendId));
+            }}
+            onOpenFriend={(friendId) => router.push({ pathname: '/friend-detail', params: { friendId } })}
+            onStartPartyRun={handleStartPartyRun}
+            onOpenRequests={() => router.push('/friend-requests')}
+          />
 
           <Pressable style={styles.addButton} onPress={() => router.push('/add-friend')}>
             <Text style={styles.addButtonText}>친구 추가</Text>
@@ -127,14 +100,6 @@ export default function FriendsScreen() {
 
 const styles = StyleSheet.create({
   headerWrap: { gap: 12 },
-  cardDuoRow: {
-    flexDirection: 'row',
-    gap: spacing.s10,
-    alignItems: 'stretch',
-  },
-  cardDuoItem: {
-    flex: 1,
-  },
   addButton: {
     backgroundColor: colors.brand,
     borderRadius: radii.md,
