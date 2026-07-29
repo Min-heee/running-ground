@@ -61,7 +61,6 @@ const FriendListRow = memo(function FriendListRow({
                 <Text style={styles.friendLiveLabel}>위치 공유 중</Text>
               ) : null}
             </View>
-            <Text style={styles.requestDetail}>{friend.tag}</Text>
           </View>
         </Pressable>
 
@@ -85,10 +84,6 @@ const FriendListRow = memo(function FriendListRow({
               </Text>
             </Pressable>
           ) : null}
-
-          <Pressable style={styles.friendDetailButton} onPress={handleOpen}>
-            <Text style={styles.compareLink}>보기</Text>
-          </Pressable>
 
           {/* 이 친구와 파티런 1대1 — 방을 만들고 초대 알림까지 한 번에. */}
           <Pressable
@@ -127,7 +122,7 @@ export function FriendListCard({
 }: FriendListCardProps) {
   return (
     <Card>
-      <Text style={styles.sectionTitle}>친구 목록</Text>
+      <Text style={styles.sectionTitle}>친구</Text>
       {friends.map((friend) => (
         <FriendListRow
           key={friend.id}
@@ -216,9 +211,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontWeight: fontWeights.bold,
   },
-  requestDetail: {
-    color: colors.textSecondary,
-  },
   locationButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -248,14 +240,6 @@ const styles = StyleSheet.create({
   },
   locationButtonTextActive: {
     color: colors.successText,
-  },
-  friendDetailButton: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxl,
-  },
-  compareLink: {
-    color: colors.brand,
-    fontWeight: fontWeights.extraBold,
   },
   liveLocationPanel: {
     marginBottom: spacing.s14,

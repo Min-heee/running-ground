@@ -5,6 +5,8 @@ export type FriendRank = {
   tag?: string;
   // 프로필 상태메시지 — 친구 목록에서 이름 옆에 보여준다 (구버전 서버는 안 보냄).
   statusMessage?: string;
+  // 지역 표시 라벨 (시/도 시군구 동) — 프로필 화면용 (구버전 서버는 안 보냄).
+  regionLabel?: string;
   // Weekly competitive aggregates — the server's rank order is based on these.
   distanceKm: number;
   points: number;

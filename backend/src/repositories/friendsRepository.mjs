@@ -86,6 +86,13 @@ function buildFriendRank(store, user, rank, getUserMetrics, {
     ...(typeof user.statusMessage === 'string' && user.statusMessage
       ? { statusMessage: user.statusMessage }
       : {}),
+    // 프로필 화면의 지역 표시 재료 — 시/도 · 시군구 · 동 중 있는 것만 이어붙인다.
+    ...(() => {
+      const regionLabel = [user.provinceName, user.cityName, user.districtName]
+        .filter((part) => typeof part === 'string' && part.trim())
+        .join(' ');
+      return regionLabel ? { regionLabel } : {};
+    })(),
     // Competitive leaderboard: rank by AND show the competitive weekly distance
     // (imports excluded) so the displayed number agrees with the sort key.
     distanceKm: metrics.competitiveWeekDistanceKm,

@@ -57,6 +57,9 @@ export default function FriendDetailScreen() {
             <Text style={styles.heroLabel}>친구 프로필</Text>
             <Text style={styles.heroTitle}>{activity.friend.name}</Text>
             <Text style={styles.heroTag}>{activity.friend.tag}</Text>
+            {activity.friend.regionLabel ? (
+              <Text style={styles.heroRegion}>{activity.friend.regionLabel}</Text>
+            ) : null}
           </Card>
 
           {activity.friend.isRunningNow ? (
@@ -118,6 +121,11 @@ const styles = StyleSheet.create({
   heroTag: {
     color: fixedColors.textTertiary,
     fontWeight: fontWeights.bold,
+  },
+  heroRegion: {
+    color: colors.brandLighter,
+    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.sm,
   },
   liveCard: {
     backgroundColor: colors.successCard,
