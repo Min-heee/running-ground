@@ -7,6 +7,9 @@ export type FriendRank = {
   statusMessage?: string;
   // 지역 표시 라벨 (시/도 시군구 동) — 프로필 화면용 (구버전 서버는 안 보냄).
   regionLabel?: string;
+  // 친구 카드 행의 컴팩트 표시: 동 단위 지역 + 랭크 티어 (구버전 서버는 안 보냄).
+  districtName?: string;
+  rankTier?: string;
   // Weekly competitive aggregates — the server's rank order is based on these.
   distanceKm: number;
   points: number;

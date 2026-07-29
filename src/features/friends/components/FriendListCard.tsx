@@ -54,6 +54,12 @@ const FriendListRow = memo(function FriendListRow({
             <View style={styles.friendRowHeader}>
               {friend.isRunningNow ? <View style={styles.friendLiveDot} /> : null}
               <Text style={styles.requestName}>{friend.name}</Text>
+              {friend.rankTier ? <Text style={styles.metaChip}>{friend.rankTier}</Text> : null}
+              {friend.districtName ? (
+                <Text style={styles.metaText} numberOfLines={1}>
+                  {friend.districtName}
+                </Text>
+              ) : null}
               {friend.statusMessage ? (
                 <Text style={styles.statusMessage} numberOfLines={1}>
                   {friend.statusMessage}
@@ -213,6 +219,21 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     flexShrink: 1,
   },
+  metaChip: {
+    color: colors.brandStrong,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+    backgroundColor: colors.brandWash,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: 2,
+    overflow: 'hidden',
+  },
+  metaText: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+    flexShrink: 1,
+  },
   partyRunButton: {
     width: 34,
     height: 34,
@@ -258,7 +279,9 @@ const styles = StyleSheet.create({
   },
   requestName: {
     color: colors.textPrimary,
-    fontWeight: fontWeights.bold,
+    // 오너 2026-07-29: 친구 이름을 한 급 키운다 (행의 앵커).
+    fontSize: fontSizes.rank,
+    fontWeight: fontWeights.extraBold,
   },
   locationButton: {
     flexDirection: 'row',

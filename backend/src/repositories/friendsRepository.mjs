@@ -1,4 +1,5 @@
 import { attachStoredRunRoute } from '../lib/runHelpers.mjs';
+import { RANK_TIERS, resolveRankTier } from '../lib/rankSystem.mjs';
 import { appendUserNotification } from '../lib/userNotifications.mjs';
 
 function getFriendIds(store, userId) {
@@ -92,6 +93,14 @@ function buildFriendRank(store, user, rank, getUserMetrics, {
         .filter((part) => typeof part === 'string' && part.trim())
         .join(' ');
       return regionLabel ? { regionLabel } : {};
+    })(),
+    // 친구 카드 행의 컴팩트 표시 재료: 동 단위 지역 + 랭크 티어.
+    ...(typeof user.districtName === 'string' && user.districtName
+      ? { districtName: user.districtName }
+      : {}),
+    ...(() => {
+      const tier = resolveRankTier(user.rankState?.tier);
+      return RANK_TIERS.includes(tier) ? { rankTier: tier } : {};
     })(),
     // Competitive leaderboard: rank by AND show the competitive weekly distance
     // (imports excluded) so the displayed number agrees with the sort key.
