@@ -83,32 +83,38 @@ export default function FriendsScreen() {
         <>
           <FriendsRanking ranks={leaderboard.ranks} highlightTag={profile.publicTag} />
 
-          <FriendListCard
-            friends={compareTargets}
-            expandedLiveFriendId={expandedLiveFriendId}
-            creatingPartyRunFriendId={creatingPartyRunFriendId}
-            onToggleLiveFriend={(friendId) => {
-              setExpandedLiveFriendId((current) => (current === friendId ? null : friendId));
-            }}
-            onOpenFriend={(friendId) => router.push({ pathname: '/friend-detail', params: { friendId } })}
-            onStartPartyRun={handleStartPartyRun}
-          />
-
-          <FriendRequestsCard
-            received={received}
-            pending={pending}
-            actionError={actionError}
-            requestActionId={requestActionId}
-            onReject={(requestId) => {
-              void handleReject(requestId);
-            }}
-            onAccept={(requestId) => {
-              void handleAccept(requestId);
-            }}
-            onCancel={(requestId) => {
-              void handleCancel(requestId);
-            }}
-          />
+          {/* 친구 카드와 요청 상태 카드를 양옆으로 (오너 2026-07-29). */}
+          <View style={styles.cardDuoRow}>
+            <View style={styles.cardDuoItem}>
+              <FriendListCard
+                friends={compareTargets}
+                expandedLiveFriendId={expandedLiveFriendId}
+                creatingPartyRunFriendId={creatingPartyRunFriendId}
+                onToggleLiveFriend={(friendId) => {
+                  setExpandedLiveFriendId((current) => (current === friendId ? null : friendId));
+                }}
+                onOpenFriend={(friendId) => router.push({ pathname: '/friend-detail', params: { friendId } })}
+                onStartPartyRun={handleStartPartyRun}
+              />
+            </View>
+            <View style={styles.cardDuoItem}>
+              <FriendRequestsCard
+                received={received}
+                pending={pending}
+                actionError={actionError}
+                requestActionId={requestActionId}
+                onReject={(requestId) => {
+                  void handleReject(requestId);
+                }}
+                onAccept={(requestId) => {
+                  void handleAccept(requestId);
+                }}
+                onCancel={(requestId) => {
+                  void handleCancel(requestId);
+                }}
+              />
+            </View>
+          </View>
 
           <Pressable style={styles.addButton} onPress={() => router.push('/add-friend')}>
             <Text style={styles.addButtonText}>친구 추가</Text>
@@ -121,6 +127,14 @@ export default function FriendsScreen() {
 
 const styles = StyleSheet.create({
   headerWrap: { gap: 12 },
+  cardDuoRow: {
+    flexDirection: 'row',
+    gap: spacing.s10,
+    alignItems: 'stretch',
+  },
+  cardDuoItem: {
+    flex: 1,
+  },
   addButton: {
     backgroundColor: colors.brand,
     borderRadius: radii.md,

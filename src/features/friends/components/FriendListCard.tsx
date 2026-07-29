@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
   compareRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     paddingVertical: spacing.s12,
     gap: spacing.s12,
   },

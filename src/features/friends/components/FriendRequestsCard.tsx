@@ -41,7 +41,6 @@ const ReceivedRequestRow = memo(function ReceivedRequestRow({
     <View style={styles.requestRow}>
       <View style={styles.requestMeta}>
         <Text style={styles.requestName}>{request.name}</Text>
-        <Text style={styles.requestDetail}>{request.tag} · 나에게 친구 요청 보냄</Text>
       </View>
       <View style={styles.requestActions}>
         <Pressable
@@ -77,7 +76,6 @@ const PendingRequestRow = memo(function PendingRequestRow({
     <View style={styles.requestRow}>
       <View style={styles.requestMeta}>
         <Text style={styles.requestName}>{request.name}</Text>
-        <Text style={styles.requestDetail}>{request.tag} · 수락 대기중</Text>
       </View>
       <View style={styles.requestActions}>
         <View style={styles.pendingBadge}>
@@ -159,9 +157,6 @@ const styles = StyleSheet.create({
   requestName: {
     color: colors.textPrimary,
     fontWeight: fontWeights.bold,
-  },
-  requestDetail: {
-    color: colors.textSecondary,
   },
   acceptButton: {
     backgroundColor: colors.brand,
