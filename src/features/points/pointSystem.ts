@@ -65,7 +65,7 @@ function buildDistanceTrack(stats: WeeklyPointStats): WeeklyPointTrack {
     rewardPoints: 10,
     progressPercent: Math.min(100, Math.max(0, stats.distanceLevelProgressPercent)),
     achieved: false,
-    helperText: '앱에서 측정한 누적 거리 10km마다 1레벨업하고 포인트를 받아요.',
+    helperText: '누적 거리 10km마다 1레벨업하고 포인트를 받아요. 가져온 기록도 포함돼요.',
     statusText: `다음 레벨까지 ${stats.distanceLevelRemainingKm}km`,
     badgeText: `Lv.${stats.distanceLevel}`,
   };
@@ -118,24 +118,30 @@ export function buildWeeklyPointOverview(
   summary: WeeklyPointSummaryInput,
   options?: {
     lifetimeDistanceKm?: number;
+    // 거리 레벨 사다리 전용 누적 (오너 2026-07-30: 임포트 포함) — 서버 points.mjs의
+    // 개정 사다리와 동일 기준. 스트릭/성장 문턱은 여전히 경쟁(lifetimeDistanceKm) 기반.
+    ladderLifetimeDistanceKm?: number;
     runs?: MyRunRecord[];
     currentDate?: Date;
   },
 ): WeeklyPointOverview {
   const currentDate = options?.currentDate ?? new Date();
   const stats = buildWeeklyPointStats(summary, options?.lifetimeDistanceKm);
+  const ladderStats = options?.ladderLifetimeDistanceKm !== undefined
+    ? buildWeeklyPointStats(summary, Math.max(options.ladderLifetimeDistanceKm, options?.lifetimeDistanceKm ?? 0))
+    : stats;
   const streakCalendar = buildStreakCalendar(options?.runs ?? [], currentDate, stats.minimumRunDistanceKm);
   const tracks = [
-    buildDistanceTrack(stats),
+    buildDistanceTrack(ladderStats),
     buildStreakTrack(stats, streakCalendar),
     buildGrowthTrack(summary, stats),
   ];
 
   return {
     totalPoints: calculateWeeklyEarnedPoints(streakCalendar, tracks),
-    lifetimeDistanceKm: stats.normalizedLifetimeDistanceKm,
-    distanceLevel: stats.distanceLevel,
-    distanceLevelPoints: stats.distanceLevel * 10,
+    lifetimeDistanceKm: ladderStats.normalizedLifetimeDistanceKm,
+    distanceLevel: ladderStats.distanceLevel,
+    distanceLevelPoints: ladderStats.distanceLevel * 10,
     previousWeekDistanceKm: stats.previousWeekDistanceKm,
     improvementDistanceKm: stats.improvementDistanceKm,
     tracks,

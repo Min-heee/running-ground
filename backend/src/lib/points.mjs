@@ -128,12 +128,11 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
   const weekRunCountByKey = new Map();
   const monthDistanceByKey = new Map();
   const distanceByDate = new Map();
-  // POINTS are competitive-only: a health-store import can be hand-typed into
-  // the platform health app, and points are redeemable in the market and used
-  // as a ranking tie-break — so imported runs mint nothing. Every points
-  // lattice below (level ladder, streak, weekly growth) therefore runs on its
-  // own competitive-only structures; imported runs simply have no
-  // runPointsById entry (getRunPointValue → 0).
+  // POINTS 정책 (오너 2026-07-30 개정): 거리 레벨 사다리는 임포트 러닝 거리도
+  // 포함해 오른다 — 타앱과 병행 측정하는 유저의 게이지가 반토막 나는 혼란이 커서.
+  // 나머지 격자(매치 보너스, 스트릭, 주간 성장, chase)는 여전히 경쟁 러닝 전용:
+  // 손으로 입력 가능한 헬스 임포트가 대결·연속성 보너스를 파밍하는 건 계속 차단.
+  // 차량 판정(integrity.verdict === 'vehicle') 러닝은 어떤 사다리에도 안 오른다.
   const competitiveWeekRunsByKey = new Map();
   const competitiveMonthDistanceByKey = new Map();
   const competitiveDistanceByDate = new Map();
@@ -141,6 +140,8 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
 
   let cumulativeDistanceKm = 0;
   let competitiveCumulativeDistanceKm = 0;
+  // 레벨 사다리 전용 누적 — 임포트 포함, 차량 판정만 제외.
+  let ladderDistanceKm = 0;
   let latestRun = null;
 
   for (const run of sortedRuns) {
@@ -150,15 +151,18 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
     const weekKey = getWeekKey(runDate);
     const monthKey = getMonthKey(runDate);
 
+    // 거리 레벨 사다리 (오너 2026-07-30): 임포트 러닝도 오른다. 차량 판정만 제외.
+    let levelPoints = 0;
+
+    if (run.integrity?.verdict !== 'vehicle') {
+      const beforeLevel = Math.floor(ladderDistanceKm / 10);
+      ladderDistanceKm = toFixed1(ladderDistanceKm + run.distanceKm);
+      const afterLevel = Math.floor(ladderDistanceKm / 10);
+      levelPoints = Math.max(0, afterLevel - beforeLevel) * 10;
+    }
+
     if (isCompetitiveRun(run)) {
-      // The level ladder for points climbs on the COMPETITIVE cumulative
-      // distance, so an imported run can neither trigger nor shift a level
-      // bonus. Match bonuses are safe here: a run carrying matchResult is
-      // competitive by definition.
-      const beforeLevel = Math.floor(competitiveCumulativeDistanceKm / 10);
       competitiveCumulativeDistanceKm = toFixed1(competitiveCumulativeDistanceKm + run.distanceKm);
-      const afterLevel = Math.floor(competitiveCumulativeDistanceKm / 10);
-      const levelPoints = Math.max(0, afterLevel - beforeLevel) * 10;
       const matchBonusPoints = getMatchBonusPoints(run.matchResult);
       // 경찰과 도둑런 보너스 — 정산(chaseSettlement)이 run.chase.bonusPoints에 박제한 값.
       // 경쟁 러닝 가지 안에 있으므로 차량 판정/임포트 러닝은 자동으로 0.
@@ -189,6 +193,19 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
       );
       competitiveDistanceByDate.set(run.date, toFixed1((competitiveDistanceByDate.get(run.date) ?? 0) + run.distanceKm));
       competitiveLastRunIdByDate.set(run.date, run.id);
+    } else if (levelPoints > 0) {
+      // 임포트 러닝이 레벨 문턱을 넘긴 경우 — 레벨 보너스만 발행 (매치/스트릭/성장/chase 없음).
+      runPointsById.set(run.id, {
+        earnedPoint: levelPoints,
+        levelPoints,
+        matchBonusPoints: 0,
+        chasePoints: 0,
+        streakPoints: 0,
+        growthPoints: 0,
+        weekKey,
+        monthKey,
+        dateKey: run.date,
+      });
     }
 
     weekDistanceByKey.set(weekKey, toFixed1((weekDistanceByKey.get(weekKey) ?? 0) + run.distanceKm));

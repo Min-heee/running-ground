@@ -29,18 +29,22 @@ export function HomeOverview({
     date.setMonth(date.getMonth() + calendarMonthOffset);
     return date;
   }, [calendarMonthOffset]);
-  // The point gauge promises "+NP" rewards, and the server mints points for
-  // COMPETITIVE runs only (app-tracked / match) — so the gauge computes from
-  // the competitive-filtered basis, NOT the all-runs summary/lifetime props
-  // (those still feed the personal activity card above, imports included).
+  // 포인트 정책 (오너 2026-07-30 개정): 거리 레벨 사다리는 임포트 러닝 거리도 포함해
+  // 오른다 (서버 points.mjs 개정 사다리와 동일 기준). 스트릭/성장 트랙은 여전히 경쟁
+  // 러닝(앱 측정/매치) 기반 — 손으로 입력 가능한 헬스 임포트로 파밍하는 건 계속 차단.
   const competitivePointBasis = useMemo(() => buildCompetitivePointBasis(runs), [runs]);
+  const allRunsLifetimeDistanceKm = useMemo(
+    () => runs.reduce((total, run) => total + run.distanceKm, 0),
+    [runs],
+  );
   const pointOverview = useMemo(
     () => buildWeeklyPointOverview(competitivePointBasis.weeklySummary, {
       lifetimeDistanceKm: competitivePointBasis.lifetimeDistanceKm,
+      ladderLifetimeDistanceKm: allRunsLifetimeDistanceKm,
       runs: competitivePointBasis.competitiveRuns,
       currentDate: calendarReferenceDate,
     }),
-    [calendarReferenceDate, competitivePointBasis],
+    [allRunsLifetimeDistanceKm, calendarReferenceDate, competitivePointBasis],
   );
   const selectedTrack = useMemo(
     () => pointOverview.tracks.find((track) => track.id === selectedTrackId) ?? pointOverview.tracks[0],

@@ -40,22 +40,28 @@ function importedRun(id, date, distanceKm, extra = {}) {
   };
 }
 
-// ── 적립 차단 (2026-07-12): imported runs mint NO points ────────────────────────
+// ── 포인트 정책 (2026-07-30 개정): 거리 레벨은 임포트 포함, 나머지 격자는 경쟁 전용 ──
 
-runTest('an imported run has no point entry and earns 0', () => {
+runTest('an imported run climbs the level ladder (level points only)', () => {
+  // 12km 임포트: 10km 문턱을 넘겨 레벨 보너스 +10P — 매치/스트릭/성장은 없음.
   const metrics = buildUserRunMetrics([importedRun('import-1', '2026-07-06', 12)], NOW);
 
-  assert.equal(getRunPointValue(metrics, 'import-1'), 0);
+  assert.equal(getRunPointValue(metrics, 'import-1'), 10);
   assert.deepEqual(getRunPointBreakdown(metrics, 'import-1'), {
-    levelPoints: 0,
+    levelPoints: 10,
     streakPoints: 0,
     growthPoints: 0,
     matchBonusPoints: 0,
     chasePoints: 0,
-    totalPoints: 0,
+    totalPoints: 10,
   });
-  assert.equal(metrics.currentWeekPoints, 0);
-  assert.equal(metrics.currentMonthPoints, 0);
+  assert.equal(metrics.totalEarnedPoints, 10);
+});
+
+runTest('an imported run below the level threshold still earns nothing', () => {
+  const metrics = buildUserRunMetrics([importedRun('import-1', '2026-07-06', 4)], NOW);
+
+  assert.equal(getRunPointValue(metrics, 'import-1'), 0);
   assert.equal(metrics.totalEarnedPoints, 0);
 });
 
@@ -72,24 +78,17 @@ runTest('imported runs still count in personal display metrics', () => {
   assert.equal(metrics.competitiveDistanceLevel, 0);
 });
 
-runTest('the level ladder for points climbs on competitive distance only', () => {
-  // 8km import then 3km tracked: the ALL-runs cumulative crosses 10km on the
-  // tracked run, but the competitive ladder is only at 3km — no level bonus.
+runTest('the level ladder mixes imported and tracked distance (2026-07-30 정책)', () => {
+  // 8km 임포트 + 3km 측정: 합산 사다리가 측정 러닝에서 10km를 넘는다 → 그 러닝에 +10P.
   const metrics = buildUserRunMetrics([
     importedRun('import-1', '2026-07-06', 8),
     trackedRun('tracked-1', '2026-07-07', 3),
   ], NOW);
 
-  assert.equal(getRunPointBreakdown(metrics, 'tracked-1').levelPoints, 0);
+  assert.equal(getRunPointBreakdown(metrics, 'tracked-1').levelPoints, 10);
   assert.equal(metrics.distanceLevel, 1);
+  // 경쟁 집계(리더보드/스트릭 문턱 재료)는 여전히 측정 러닝만.
   assert.equal(metrics.competitiveDistanceLevel, 0);
-
-  // The same 3km after 8km of TRACKED history does cross the ladder.
-  const trackedOnly = buildUserRunMetrics([
-    trackedRun('tracked-0', '2026-07-06', 8),
-    trackedRun('tracked-1', '2026-07-07', 3),
-  ], NOW);
-  assert.equal(getRunPointBreakdown(trackedOnly, 'tracked-1').levelPoints, 10);
 });
 
 runTest('imported days extend the display streak but never earn streak points', () => {
@@ -246,9 +245,10 @@ runTest('per-window competitive aggregates are real sums and exclude imports', (
   assert.equal(metrics.competitiveWeekDistanceKm, 3);
   // Personal month total keeps the import (display-only surfaces).
   assert.equal(metrics.currentMonthDistanceKm, 16);
-  // Today's run minted level(10, crossing 12km cumulative) + weekly growth(10).
-  assert.equal(metrics.todayPoints, 20);
-  assert.equal(metrics.currentMonthPoints, 20);
+  // 오늘 발행: 측정 러닝 레벨(합산 12km 돌파, +10) + 주간 성장(+10) + 임포트 러닝
+  // 레벨(합산 23km로 20km 돌파, +10 — 2026-07-30 정책: 임포트도 사다리를 오른다).
+  assert.equal(metrics.todayPoints, 30);
+  assert.equal(metrics.currentMonthPoints, 30);
 });
 
 runTest('zero runs today stays zero — no fabricated floor', () => {
