@@ -65,7 +65,8 @@ export function useMatchRoomLobbyEffects({
       }
 
       // 2) 그래도 서버가 "너는 아직 이 대기방에 있다"고 하면, 앱이 이미 없다고 말한 방이므로
-      //    실제로 나간다. 방장이면 방 자체가 사라진다(혼자면 삭제, 남은 사람 있으면 위임).
+      //    실제로 나간다. 대상은 '나 혼자 남은 시작 전 방'뿐이고(emptyLobbyReconcile 참고),
+      //    폭파 의사표시(deleteRoom)는 보내지 않는다 — 사람이 누른 삭제만 방을 폭파한다.
       rgPerfMark('empty lobby reconcile leaving diverged room', {
         mode: divergedRoom.mode,
         roomId: divergedRoom.roomId,

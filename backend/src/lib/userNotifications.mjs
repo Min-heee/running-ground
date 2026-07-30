@@ -2,6 +2,8 @@ import { nextId } from './idHelpers.mjs';
 
 export const USER_NOTIFICATION_TYPES = new Set([
   'match_invite',
+  // 방장이 파티방을 삭제해 참가자/초대자가 퇴장당했을 때 (2026-07-31).
+  'match_room_closed',
   'match_result',
   'friend_request',
   'friend_accepted',

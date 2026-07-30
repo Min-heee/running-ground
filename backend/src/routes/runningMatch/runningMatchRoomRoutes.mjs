@@ -290,6 +290,9 @@ async function handleLeaveRunningMatchRoom({
     const currentUser = requireUser(store, request);
     return leaveRunningMatchRoom(store, currentUser, {
       roomId: validateRequiredString(body.roomId, '나갈 방 아이디가 필요해요.'),
+      // 방장의 '방 삭제' 버튼만 true를 보낸다. 자동 복구 경로가 남의 방을 폭파하지 못하게
+      // 삭제는 명시적 의사표시가 있을 때만 (기본값 = 예전처럼 이탈 + 방장 위임).
+      deleteRoom: body.deleteRoom === true,
     });
   });
 

@@ -57,6 +57,9 @@ async function leaveBlockerRoomIfPresent(roomId: string | null) {
   }
 
   try {
+    // deleteRoom은 절대 보내지 않는다. 이건 사람이 누른 삭제가 아니라 자동 회수 경로라,
+    // 방장이 불러도 방을 폭파하면 안 된다 — 남아 있던 참가자가 영문도 모르고 쫓겨난다.
+    // 서버는 의사표시 없는 이탈을 '나가기 + 방장 위임'으로 처리한다.
     await leaveRunningMatchRoom({ roomId });
   } catch {
     // Best-effort cleanup before retrying room creation.

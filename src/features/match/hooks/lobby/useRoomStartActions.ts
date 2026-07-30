@@ -236,7 +236,25 @@ export function useRoomStartActions({
       return;
     }
 
-    const exitRoom = room;
+    // 방장의 '방 삭제'는 방을 폭파해 참가자 전원을 퇴장시킨다(2026-07-31). 나 혼자면 물어볼
+    // 게 없지만, 다른 사람이 들어와 있는데 실수로 눌러 전원을 쫓아내는 건 되돌릴 수 없다.
+    if (room.isHost && room.participants.length > 1) {
+      Alert.alert(
+        '방을 삭제할까요?',
+        '방을 삭제하면 참가자 전원이 방에서 나가게 돼요.',
+        [
+          { text: '취소', style: 'cancel' },
+          { text: '삭제', style: 'destructive', onPress: () => runRoomExit(room) },
+        ],
+      );
+      return;
+    }
+
+    runRoomExit(room);
+  };
+
+  const runRoomExit = (targetRoom: RunningMatchRoom) => {
+    const exitRoom = targetRoom;
     const nextExitState: RoomExitState = exitRoom.isHost ? 'deleting' : 'leaving';
     const exitTraceLabel = exitRoom.isHost ? 'room delete API' : 'room leave API';
     const failureTitle = exitRoom.isHost ? '방 삭제 실패' : '방 나가기 실패';
@@ -291,7 +309,9 @@ export function useRoomStartActions({
           roomId: exitRoom.roomId,
         });
         try {
-          await leaveRunningMatchRoom({ roomId: exitRoom.roomId });
+          // 방장의 '방 삭제'만 폭파 의사표시를 보낸다. 자동 복구 경로들도 같은 API를 쓰기
+          // 때문에, 이 플래그가 곧 "사람이 삭제 버튼을 눌렀다"는 유일한 증거다.
+          await leaveRunningMatchRoom({ roomId: exitRoom.roomId, deleteRoom: exitRoom.isHost });
           endExitApiTrace({ success: true });
           if (exitRoom.isHost) {
             await verifyDeletedRoomServerMembership({

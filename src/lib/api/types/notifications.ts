@@ -1,5 +1,8 @@
 export type InboxNotificationType =
   | 'match_invite'
+  // 방장이 파티방을 삭제해 참가자/초대자가 퇴장당했을 때. 이미 사라진 방이라 갈 곳이
+  // 없으므로 data에 roomId를 싣지 않는다(= 눌러도 이동하지 않는 알림).
+  | 'match_room_closed'
   | 'match_result'
   | 'friend_request'
   | 'friend_accepted'

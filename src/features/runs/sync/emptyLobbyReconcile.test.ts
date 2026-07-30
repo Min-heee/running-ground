@@ -90,6 +90,33 @@ test('시각을 읽을 수 없으면 아무것도 하지 않는다', () => {
   assert.equal(shouldLeaveDivergedWaitingRoom({ nowMs: NOW_MS, room }), false);
 });
 
+// 적대 검증에서 나온 사고 경로: 폴링이 한 번 타임아웃돼 대기실이 잠깐 비면, 아무도 누르지
+// 않았는데 사람이 들어와 있는 방에까지 자동으로 손이 갔다. 자동 화해의 반경은 '나 혼자'다.
+test('다른 참가자가 있는 방은 자동으로 건드리지 않는다', () => {
+  const base = buildRoom();
+  const room = buildRoom({
+    participants: [
+      base.participants[0],
+      { ...base.participants[0], userId: 'u2', name: '게스트', isHost: false },
+    ],
+  });
+
+  assert.equal(shouldLeaveDivergedWaitingRoom({ nowMs: NOW_MS, room }), false);
+});
+
+test('초대만 받고 아직 참가하지 않은 방은 자동 거절되지 않는다', () => {
+  // joined:false = 초대만 받은 상태. 여기서 나가면 초대가 조용히 사라진다.
+  const room = buildRoom({ joined: false, isHost: false, hostUserId: 'u9' });
+
+  assert.equal(shouldLeaveDivergedWaitingRoom({ nowMs: NOW_MS, room }), false);
+});
+
+test('초대로 막힌 blocker(matchRooms.invited)는 화해 대상이 아니다', () => {
+  const cleanup = buildCleanup({ blockerSource: 'matchRooms.invited' });
+
+  assert.equal(findDivergedWaitingRoomFromCleanup({ cleanup, nowMs: NOW_MS }), null);
+});
+
 test('서버가 스스로 정리해서 막는 게 없으면 화해할 것도 없다', () => {
   const cleanup = buildCleanup({ blocker: undefined, code: undefined, room: null });
 

@@ -45,6 +45,8 @@ export function getNotificationTypeLabel(type: InboxNotificationType) {
   switch (type) {
     case 'match_invite':
       return '초대';
+    case 'match_room_closed':
+      return '파티방';
     case 'match_result':
       return '결과';
     case 'friend_request':

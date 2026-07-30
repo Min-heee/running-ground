@@ -20,6 +20,10 @@ import {
   updateRunningMatchRoomReady,
 } from './lib/matchRoomStoreHelpers.mjs';
 import { findMatchSessionById } from './lib/runningMatchSessionStoreHelpers.mjs';
+import {
+  getMatchRoomLastActivityAtMs,
+  isWaitingMatchRoomExpired,
+} from './lib/matchPureHelpers.mjs';
 
 const TEST_HOST = '127.0.0.1';
 const REQUEST_TIMEOUT_MS = 5000;
@@ -487,6 +491,136 @@ await runTest('party run room invite creates a recipient notification', async ()
     assert.equal(notification.data.mode, 'duel');
     assert.equal(typeof notification.data.roomId, 'string');
     assert.equal(typeof notification.data.inviteToken, 'string');
+  });
+});
+
+// 오너 2026-07-31: 방장의 '방 삭제'는 방을 폭파한다. 예전에는 남은 사람이 있으면 방장만
+// 넘기고 방을 살려 뒀고, 그래서 앱은 "삭제됨"인데 서버/관리자 화면에는 방이 남았다.
+await runTest('host delete blows up the room: participants are kicked and the room is gone', async () => {
+  const store = createBaseStore();
+
+  await withBackend(store, async ({ request, readStore }) => {
+    const created = await request('host-token', 'POST', '/api/running/rooms', {
+      mode: 'duel',
+      distanceKm: 5,
+      startMode: 'host',
+      maxParticipants: 2,
+    });
+    const { roomId, inviteToken } = created.room;
+
+    await request('guest-token', 'POST', '/api/running/rooms/join', { inviteToken });
+
+    const left = await request('host-token', 'POST', '/api/running/rooms/leave', { roomId, deleteRoom: true });
+    assert.equal(left.room, null);
+
+    const persisted = readStore();
+    assert.equal(persisted.matchRooms.some((entry) => entry.id === roomId), false, '방이 서버에서 실제로 사라져야 한다');
+
+    // 남아 있던 참가자에게도 방이 없다 — 방장만 빠지고 방이 이어지지 않는다.
+    const guestRoom = await request('guest-token', 'GET', '/api/running/rooms/my');
+    assert.equal(guestRoom.room, null);
+
+    // 쫓겨난 이유를 알림으로 남긴다. 이미 없는 방이라 이동 링크(roomId)는 싣지 않는다.
+    const closedNotification = persisted.notifications.find(
+      (item) => item.userId === 'guest-user' && item.type === 'match_room_closed',
+    );
+    assert.equal(Boolean(closedNotification), true);
+    assert.equal(closedNotification.data.roomId, undefined);
+
+    // 그리고 방장은 곧바로 새 방을 만들 수 있어야 한다 — 유령 방이 막지 않는다.
+    const recreated = await request('host-token', 'POST', '/api/running/rooms', {
+      mode: 'duel',
+      distanceKm: 5,
+      startMode: 'host',
+      maxParticipants: 2,
+    });
+    assert.equal(recreated.success, true);
+  });
+});
+
+// 적대 검증에서 나온 사고 경로: 클라의 자동 복구 경로들(빈 대기실 화해, 방 만들기 blocker
+// 회수)도 같은 leave 엔드포인트를 부른다. 삭제 의사표시가 없으면 절대 폭파되면 안 된다.
+await runTest('host leave WITHOUT the delete flag never blows up the room — it hands the host role over', async () => {
+  const store = createBaseStore();
+
+  await withBackend(store, async ({ request, readStore }) => {
+    const created = await request('host-token', 'POST', '/api/running/rooms', {
+      mode: 'group',
+      distanceKm: 5,
+      startMode: 'host',
+      maxParticipants: 10,
+    });
+    const { roomId, inviteToken } = created.room;
+
+    await request('guest-token', 'POST', '/api/running/rooms/join', { inviteToken });
+    await request('host-token', 'POST', '/api/running/rooms/leave', { roomId });
+
+    const persisted = readStore();
+    const room = persisted.matchRooms.find((entry) => entry.id === roomId);
+
+    assert.equal(Boolean(room), true, '의사표시 없는 이탈은 방을 지우지 않는다');
+    assert.equal(room.hostUserId, 'guest-user');
+    assert.deepEqual(room.participants.map((participant) => participant.userId), ['guest-user']);
+    assert.equal(room.participants[0].isHost, true);
+    assert.equal(
+      persisted.notifications.some((item) => item.type === 'match_room_closed'),
+      false,
+      '아무도 삭제를 누르지 않았으므로 폭파 알림도 없다',
+    );
+  });
+});
+
+// 마지막 활동 시각이 과거로 되감기면 멀쩡한 대기실이 만료 처리된다.
+await runTest('a leave refreshes the room activity clock instead of rewinding it', async () => {
+  const store = createBaseStore();
+
+  await withBackend(store, async ({ request, readStore }) => {
+    const created = await request('host-token', 'POST', '/api/running/rooms', {
+      mode: 'group',
+      distanceKm: 5,
+      startMode: 'host',
+      maxParticipants: 10,
+    });
+    const { roomId, inviteToken } = created.room;
+
+    await request('guest-token', 'POST', '/api/running/rooms/join', { inviteToken });
+    await request('guest-token', 'POST', '/api/running/rooms/leave', { roomId });
+
+    const room = readStore().matchRooms.find((entry) => entry.id === roomId);
+    const lastActivityMs = getMatchRoomLastActivityAtMs(room);
+
+    assert.equal(Number.isFinite(lastActivityMs), true);
+    assert.equal(lastActivityMs >= Date.parse(room.createdAt), true, '나간 사람의 joinedAt이 사라져도 시계가 뒤로 가면 안 된다');
+    assert.equal(isWaitingMatchRoomExpired(room, new Date()), false);
+  });
+});
+
+await runTest('a guest leaving only removes that guest — the room lives on', async () => {
+  const store = createBaseStore();
+
+  await withBackend(store, async ({ request, readStore }) => {
+    const created = await request('host-token', 'POST', '/api/running/rooms', {
+      mode: 'group',
+      distanceKm: 5,
+      startMode: 'host',
+      maxParticipants: 10,
+    });
+    const { roomId, inviteToken } = created.room;
+
+    await request('guest-token', 'POST', '/api/running/rooms/join', { inviteToken });
+    await request('guest-token', 'POST', '/api/running/rooms/leave', { roomId });
+
+    const persisted = readStore();
+    const room = persisted.matchRooms.find((entry) => entry.id === roomId);
+
+    assert.equal(Boolean(room), true);
+    assert.deepEqual(room.participants.map((participant) => participant.userId), ['host-user']);
+    assert.equal(room.hostUserId, 'host-user');
+    assert.equal(
+      persisted.notifications.some((item) => item.type === 'match_room_closed'),
+      false,
+      '게스트 퇴장은 폭파가 아니다',
+    );
   });
 });
 

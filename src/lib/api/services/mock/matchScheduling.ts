@@ -2,6 +2,11 @@ import { myProfile, myRunRecords, weeklySummary } from '@/data/mock';
 import type { RunMatchResult } from '@/domain';
 import { CREATE_ROOM_GROUP_MIN_PARTICIPANTS } from '@/features/runs/runtime/resolveCreateRoomMaxParticipants';
 import { getCurrentUserProfile } from '@/lib/session';
+import {
+  getResponseNowMs,
+  shouldHideStaleRunningMatchRoom,
+  STALE_MATCHED_HIDE_MS,
+} from '../staleRoomVisibility';
 import type {
   FetchMatchDemandSummaryInput,
   MatchDemandSummaryResponse,
@@ -54,21 +59,16 @@ export const GROUP_MIN_COMPATIBILITY_SCORE = 68;
 // Mirrors the backend MATCH_ROOM_GROUP_MIN_PARTICIPANTS (3) via the shared client
 // constant so mock-only copy never contradicts the group min-3 rule.
 export const GROUP_MIN_PARTICIPANTS = CREATE_ROOM_GROUP_MIN_PARTICIPANTS;
+export { getResponseNowMs, STALE_MATCHED_HIDE_MS };
 export const MATCH_BOOKING_CUTOFF_MS = 30 * 60 * 1000;
 export const MATCH_CANCELLATION_CUTOFF_MS = 60 * 60 * 1000;
 export const MATCH_RUNNING_STALE_MS = 90 * 1000;
 export const MATCH_BACKGROUND_STALE_MS = 20 * 60 * 1000;
 export const MATCH_TEST_COUNTDOWN_SECONDS = 30;
-export const STALE_MATCHED_HIDE_MS = 10 * 60 * 1000;
 export const STALE_ACTIVE_MATCH_HIDE_MS = 8 * 60 * 60 * 1000;
 
 export function formatMockTimestamp(date = new Date()) {
   return date.toISOString().slice(0, 16).replace('T', ' ');
-}
-
-export function getResponseNowMs(serverNow?: string) {
-  const parsedMs = serverNow ? new Date(serverNow).getTime() : NaN;
-  return Number.isFinite(parsedMs) ? parsedMs : Date.now();
 }
 
 export function shouldHideStaleUpcomingMatch(
@@ -100,24 +100,9 @@ export function sanitizeUpcomingRunningMatchesResponse(payload: UpcomingRunningM
 }
 
 export function sanitizeRunningMatchRoomResponse(payload: RunningMatchRoomResponse): RunningMatchRoomResponse {
-  if (!payload.room) {
-    return payload;
-  }
-
-  const nowMs = getResponseNowMs(payload.serverNow);
-  const referenceStartAt = payload.room.linkedMatchSlotStartAt ?? payload.room.slotStartAt;
-  const referenceStartMs = new Date(referenceStartAt).getTime();
-
-  if (!Number.isFinite(referenceStartMs)) {
-    return payload;
-  }
-
-  const elapsedMs = nowMs - referenceStartMs;
-  const shouldHideRoom = payload.room.linkedMatchId || payload.room.state === 'countdown'
-    ? elapsedMs > STALE_MATCHED_HIDE_MS
-    : elapsedMs > STALE_MATCHED_HIDE_MS;
-
-  if (!shouldHideRoom) {
+  // 판정은 staleRoomVisibility(순수 모듈)에 있다 — 진짜 서버 응답에도 걸리는 필터라
+  // React Native를 끌고 오지 않고 그대로 테스트할 수 있어야 한다.
+  if (!shouldHideStaleRunningMatchRoom(payload.room, getResponseNowMs(payload.serverNow))) {
     return payload;
   }
 

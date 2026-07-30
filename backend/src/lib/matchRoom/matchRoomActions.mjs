@@ -66,6 +66,28 @@ function appendMatchRoomInviteNotifications(store, currentUser, room, invitedUse
   }
 }
 
+// 방장이 방을 삭제해 쫓겨난 사람들에게 이유를 남긴다. 대기실이 갑자기 "열린 방이 없어요"로
+// 바뀌는 것만으로는 왜 사라졌는지 알 길이 없다.
+// data에 roomId를 싣지 않는 건 의도적이다 — 이미 없는 방으로 보내는 링크가 되면 안 된다.
+function appendMatchRoomClosedNotifications(store, hostUser, room) {
+  const kickedUserIds = [...new Set([
+    ...room.participants.map((participant) => participant.userId),
+    ...(Array.isArray(room.invitedFriendIds) ? room.invitedFriendIds : []),
+  ])].filter((userId) => userId && userId !== hostUser.id);
+
+  for (const kickedUserId of kickedUserIds) {
+    appendUserNotification(store, {
+      userId: kickedUserId,
+      type: 'match_room_closed',
+      title: '파티방이 사라졌어요',
+      body: `${hostUser.name}님이 ${getMatchRoomModeLabel(room.mode)} 파티방을 삭제했어요.`,
+      data: {
+        mode: room.mode,
+      },
+    });
+  }
+}
+
 export function createRunningMatchRoom(store, currentUser, {
   mode,
   distanceKm,
@@ -362,7 +384,14 @@ export function updateRunningMatchRoom(store, currentUser, {
   return buildRunningMatchRoomResponse(store, currentUser, room);
 }
 
-export function leaveRunningMatchRoom(store, currentUser, { roomId }) {
+// deleteRoom: 방장이 대기실의 '방 삭제' 버튼을 눌렀다는 명시적 의사표시. 이 플래그가 있을 때만
+// 방이 폭파된다(참가자 전원 퇴장).
+//
+// 왜 플래그가 필요한가: 이 함수는 사람이 누르는 버튼만 부르는 게 아니다. 클라의 자동 복구
+// 경로들(방 만들기 blocker 회수, 빈 대기실 화해)이 같은 엔드포인트를 조용히 호출한다. 방장이
+// 나가면 무조건 폭파하게 두면, 폴링 한 번 실패한 것만으로 아무도 누르지 않았는데 남의 파티방이
+// 사라진다. 그래서 '삭제'는 의사표시가 있을 때만이고, 의사표시 없는 이탈은 예전처럼 방장 위임이다.
+export function leaveRunningMatchRoom(store, currentUser, { roomId, deleteRoom = false }) {
   const room = findRunningMatchRoomById(store, roomId);
 
   if (!room) {
@@ -380,10 +409,18 @@ export function leaveRunningMatchRoom(store, currentUser, { roomId }) {
     return buildRunningMatchRoomResponse(store, currentUser, room);
   }
 
+  // 방장이 누르는 버튼은 '방 나가기'가 아니라 '방 삭제'다 (오너 2026-07-31). 방장이 삭제하면
+  // 방은 폭파되고 참가자 전원이 퇴장한다 — 라벨이 곧 동작이다.
+  if (deleteRoom && room.hostUserId === currentUser.id) {
+    store.matchRooms = ensureMatchRooms(store).filter((entry) => entry.id !== room.id);
+    appendMatchRoomClosedNotifications(store, currentUser, room);
+    return { success: true, room: null };
+  }
+
   room.invitedFriendIds = room.invitedFriendIds.filter((userId) => userId !== currentUser.id);
 
   if (participantIndex !== -1) {
-    const wasHost = room.participants[participantIndex].isHost;
+    const wasHost = room.participants[participantIndex].isHost || room.hostUserId === currentUser.id;
     room.participants.splice(participantIndex, 1);
 
     if (!room.participants.length) {
@@ -399,6 +436,12 @@ export function leaveRunningMatchRoom(store, currentUser, { roomId }) {
       }));
     }
   }
+
+  // 사람이 빠지는 것도 '이 방은 아직 살아 있다'는 활동이다. 여기서 안 찍으면, 방금 들어온
+  // 참가자가 나갈 때 그 사람의 joinedAt이 사라지면서 방의 마지막 활동 시각이 과거로 되감기고
+  // (getMatchRoomLastActivityAtMs는 참가자 joinedAt의 최댓값을 본다) 멀쩡한 대기실이 다음
+  // prune에서 만료 처리될 수 있다.
+  room.updatedAt = new Date().toISOString();
 
   return buildRunningMatchRoomResponse(store, currentUser, room);
 }

@@ -165,6 +165,10 @@ export type StartRunningMatchRoomInput = {
 
 export type LeaveRunningMatchRoomInput = {
   roomId: string;
+  // 방장의 '방 삭제' 버튼에서만 true. 방을 폭파해 참가자 전원을 퇴장시킨다.
+  // 자동 복구 경로(빈 대기실 화해, 방 만들기 blocker 회수)는 절대 이걸 켜지 않는다 —
+  // 아무도 누르지 않았는데 남의 파티방이 사라지면 안 된다.
+  deleteRoom?: boolean;
 };
 
 export type UpdateRunningMatchRoomReadyInput = {

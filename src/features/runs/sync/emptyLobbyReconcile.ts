@@ -8,12 +8,16 @@
 // 있으면, 그 방에서 실제로 나간다(방장이면 방이 사라진다). 앱이 없다고 말한 방은 서버에도
 // 없어야 한다.
 //
-// 안전장치 — 이 화해는 방을 지우는 쪽이므로 조건을 좁게 잡는다:
+// 안전장치 — 이 화해는 사람이 아무것도 누르지 않았는데 서버 상태를 바꾸는 자동 동작이다.
+// 폴링 한 번 실패한 것만으로 남의 파티방에 영향이 가면 안 되므로 조건을 아주 좁게 잡는다:
 //  1) 연결된 대결 세션이 있는 방(linkedMatchId)은 절대 건드리지 않는다. 진행 중인 대결을
 //     화면 한 번 비었다고 날려버리면 안 된다.
 //  2) 시작 전(waiting) 상태만.
-//  3) 방이 생긴 지 EMPTY_LOBBY_RECONCILE_MIN_ROOM_AGE_MS 이상 지난 방만. 방금 도착한 친구
-//     초대가 조회 사이에 끼어들어 자동으로 거절되는 사고를 막는다.
+//  3) 나 혼자 있는 방만. 다른 참가자가 있는 방은 손대지 않는다 — 유령 대기방은 정의상
+//     아무도 안 들어온 방이고, 사람이 있는 방을 건드리는 건 그 사람들에게 영향을 준다.
+//  4) 초대만 받은 방은 제외. 그건 '내가 갇힌 방'이 아니라 아직 답 안 한 초대이고, 여기서
+//     나가면 초대가 조용히 거절된다. 거절은 사람이 누르는 동작이어야 한다.
+//  5) 방이 생긴 지 EMPTY_LOBBY_RECONCILE_MIN_ROOM_AGE_MS 이상 지난 방만.
 
 import type { RunningMatchRoom, RunningMatchRoomCleanupResponse } from '@/lib/api/types';
 
@@ -41,6 +45,19 @@ export function shouldLeaveDivergedWaitingRoom({
     return false;
   }
 
+  // 다른 사람이 들어와 있는 방은 자동으로 손대지 않는다. 유령 대기방은 아무도 안 들어온
+  // 방이므로 이 조건으로도 신고된 증상은 그대로 낫고, 사람이 있는 방의 반경은 0이 된다.
+  if (room.participants.length > 1) {
+    return false;
+  }
+
+  // 초대만 받은 상태(참가 전)면 대상이 아니다 — 자동 거절이 돼버린다.
+  const joinedThisRoom = room.joined !== false && room.participants.length > 0;
+
+  if (!joinedThisRoom) {
+    return false;
+  }
+
   const openedAtMs = getMatchRoomOpenedAtMs(room);
 
   // 나이를 못 읽으면 건드리지 않는다 — 지우는 동작의 기본값은 '아무것도 안 함'이어야 한다.
@@ -57,6 +74,11 @@ export function findDivergedWaitingRoomFromCleanup({
   nowMs?: number;
 }): RunningMatchRoom | null {
   if (!cleanup || cleanup.blocker !== 'activeRoom') {
+    return null;
+  }
+
+  // 초대로 막힌 경우(matchRooms.invited)는 화해 대상이 아니다 — 아직 답 안 한 초대다.
+  if (cleanup.blockerSource === 'matchRooms.invited') {
     return null;
   }
 

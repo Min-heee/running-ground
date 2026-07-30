@@ -18,7 +18,9 @@ export const NotificationTypeIcon = memo(function NotificationTypeIcon({ type, u
 
   const iconName = type === 'match_result'
     ? 'flag'
-    : type === 'friend_request'
+    : type === 'match_room_closed'
+      ? 'x-circle'
+      : type === 'friend_request'
       ? 'user-plus'
       : type === 'friend_accepted'
         ? 'user-check'
