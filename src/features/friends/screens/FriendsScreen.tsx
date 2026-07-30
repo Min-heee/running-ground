@@ -36,22 +36,37 @@ export default function FriendsScreen() {
       return;
     }
 
-    setCreatingPartyRunFriendId(friendId);
-    void (async () => {
-      try {
-        await createRunningMatchRoom({
-          mode: 'duel',
-          distanceKm: 5,
-          startMode: 'host',
-          invitedFriendIds: [friendId],
-        });
-        router.push('/match-room');
-      } catch (createError) {
-        Alert.alert('파티런 방 만들기 실패', getApiErrorMessage(createError, '방을 만들지 못했어요.'));
-      } finally {
-        setCreatingPartyRunFriendId(null);
-      }
-    })();
+    const friendName = compareTargets.find((entry) => entry.id === friendId)?.name ?? '이 친구';
+
+    // 방 생성은 초대 알림까지 나가는 되돌리기 번거로운 동작 — 확인 후에만 (오너 2026-07-31).
+    Alert.alert(
+      '파티런 신청',
+      `${friendName}님에게 파티런 1대1을 신청할까요?`,
+      [
+        { text: '아니요', style: 'cancel' },
+        {
+          text: '예',
+          onPress: () => {
+            setCreatingPartyRunFriendId(friendId);
+            void (async () => {
+              try {
+                await createRunningMatchRoom({
+                  mode: 'duel',
+                  distanceKm: 5,
+                  startMode: 'host',
+                  invitedFriendIds: [friendId],
+                });
+                router.push('/match-room');
+              } catch (createError) {
+                Alert.alert('파티런 방 만들기 실패', getApiErrorMessage(createError, '방을 만들지 못했어요.'));
+              } finally {
+                setCreatingPartyRunFriendId(null);
+              }
+            })();
+          },
+        },
+      ],
+    );
   };
 
   if (loading) {
