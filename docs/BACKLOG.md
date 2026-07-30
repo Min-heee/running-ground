@@ -16,9 +16,8 @@
 - **iOS 네이티브 주기 업로더** — 화면 꺼짐 라이브 동기화 잔여 근본 수술 (memory: bgsync-residual-and-native-uploader).
 - Sentry 소스맵 업로드 토큰 배선 (현재 SENTRY_DISABLE_AUTO_UPLOAD=true).
 - **푸시 알림 자격증명 + Android 재빌드** (2026-07-31 파이프라인 코드는 완료):
-  · iOS: APNs .p8 키를 EAS 크리덴셜에 업로드하면 빌드 52에서 OTA만으로 동작할 가능성이 높음
-    (expo-notifications 플러그인이 빌드 52 이전부터 있어 aps-environment 엔타이틀먼트 존재 추정 —
-    `npx eas-cli credentials -p ios`로 프로비저닝 프로파일에 Push 권한 있는지 먼저 확인).
+  · iOS: **확인 완료(2026-07-31)** — 출시된 빌드 52의 IPA 엔타이틀먼트에 aps-environment=production
+    존재(codesign으로 실측). 따라서 **APNs .p8 키를 EAS 크리덴셜에 올리기만 하면 재빌드 없이 동작**.
   · Android: Firebase 프로젝트 생성 → google-services.json을 app.json android.googleServicesFile에
     지정 + FCM v1 서비스계정 JSON을 EAS 크리덴셜에 업로드 → **네이티브 재빌드 필수**(versionCode 40+).
 - **Android Google Maps API 키 배선** — 경찰과 도둑런 라이브 지도가 iOS는 애플 지도,
