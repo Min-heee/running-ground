@@ -20,6 +20,7 @@ function toFixed1(value) {
 // 유저 1-pass로 지역 키별 {members, active, totalKm} 인덱스를 만든다.
 // 키 종류: 시/도(p) · 시/군 롤업(p|c) · 광역시 구(p||d — city 없는 트리).
 export function buildRegionLiveStatsIndex(store, getUserMetrics) {
+  const nationwide = { members: 0, active: 0, totalKm: 0 };
   const byProvince = new Map();
   const byCity = new Map();
   const byMetroDistrict = new Map();
@@ -51,6 +52,15 @@ export function buildRegionLiveStatsIndex(store, getUserMetrics) {
     const districtName = normalizeName(user.districtName);
     const monthKm = getUserMetrics(store, user.id).currentMonthDistanceKm;
 
+    // 루트(대한민국) 카드는 전국 합계 — 지역 미설정 유저도 회원수엔 포함하지 않는다
+    // (province 없는 유저는 위에서 이미 continue).
+    nationwide.members += 1;
+
+    if (monthKm > 0) {
+      nationwide.active += 1;
+      nationwide.totalKm += monthKm;
+    }
+
     accumulate(byProvince, provinceName, monthKm);
 
     if (cityName) {
@@ -65,7 +75,9 @@ export function buildRegionLiveStatsIndex(store, getUserMetrics) {
     const provinceName = node.level === 'province' ? normalizeName(node.name) : normalizeName(ancestors.provinceName);
     let entry = null;
 
-    if (node.level === 'province') {
+    if (node.level === 'country') {
+      entry = nationwide;
+    } else if (node.level === 'province') {
       entry = byProvince.get(provinceName) ?? null;
     } else if (node.level === 'city') {
       entry = byCity.get(`${provinceName}|${normalizeName(node.name)}`) ?? null;

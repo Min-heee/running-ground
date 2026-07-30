@@ -1,5 +1,6 @@
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
@@ -19,15 +20,59 @@ type LeagueRegionSelectorCardProps = {
 
 type RegionNodeIdentity = Pick<RegionDrilldownNode, 'level' | 'name'>;
 
+// 순위 기준 안내 (오너 2026-07-31) — 네이버 '기자 ▾ 연재 ▾'처럼 눌러서 펼치는 칩.
+// 지역 순위는 인당 평균(총거리 ÷ 회원수) 순이라, 회원이 많은 지역이 무조건 유리하지
+// 않다는 걸 알려준다. 서버 정렬(normalizeRegionChildren)과 문구를 일치시킬 것.
+const RankCriteriaPanel = memo(function RankCriteriaPanel() {
+  return (
+    <View style={styles.criteriaPanel}>
+      <Text style={styles.criteriaHeadline}>순위는 인당 평균 거리 순이에요</Text>
+      <Text style={styles.criteriaLine}>
+        <Text style={styles.criteriaEmphasis}>인당 평균</Text> = 이번 달 총거리 ÷ 회원수
+      </Text>
+      <Text style={styles.criteriaLine}>
+        <Text style={styles.criteriaEmphasis}>총거리</Text> = 지역 회원들이 이번 달 달린 거리의 합
+        (다른 앱에서 가져온 기록도 포함)
+      </Text>
+      <Text style={styles.criteriaLine}>
+        <Text style={styles.criteriaEmphasis}>회원수</Text> = 그 지역을 선택한 회원 수
+      </Text>
+      <Text style={styles.criteriaFootnote}>
+        평균이 같으면 총거리 → 회원수 순으로 앞섭니다. 매달 1일에 새로 시작해요.
+      </Text>
+    </View>
+  );
+});
+
 export const LeagueRegionSelectorCard = memo(function LeagueRegionSelectorCard({
   breadcrumbNodes,
   visibleChildren,
   isMyRegionNode,
   onSelectRegion,
 }: LeagueRegionSelectorCardProps) {
+  const [criteriaExpanded, setCriteriaExpanded] = useState(false);
+  const toggleCriteria = useCallback(() => setCriteriaExpanded((current) => !current), []);
+
   return (
     <Card>
-      <SectionTitle>지역 선택</SectionTitle>
+      <View style={styles.headerRow}>
+        <SectionTitle>지역 선택</SectionTitle>
+        <Pressable
+          style={styles.criteriaChip}
+          onPress={toggleCriteria}
+          accessibilityRole="button"
+          accessibilityLabel="지역 순위 기준 설명 보기"
+          hitSlop={8}
+        >
+          <Text style={styles.criteriaChipText}>순위 기준</Text>
+          <Feather
+            name={criteriaExpanded ? 'chevron-up' : 'chevron-down'}
+            size={14}
+            color={colors.brandStrong}
+          />
+        </Pressable>
+      </View>
+      {criteriaExpanded ? <RankCriteriaPanel /> : null}
       <View style={styles.selectorWrap}>
         <LeagueBreadcrumbPath
           breadcrumbNodes={breadcrumbNodes}
@@ -200,6 +245,53 @@ function MyRegionBadge({ active, visible }: { active: boolean; visible: boolean 
 }
 
 const styles = StyleSheet.create({
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.s12,
+  },
+  criteriaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.brandWash,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.md,
+  },
+  criteriaChipText: {
+    color: colors.brandStrong,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+  },
+  criteriaPanel: {
+    gap: spacing.xs,
+    padding: spacing.s12,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  criteriaHeadline: {
+    color: colors.textPrimary,
+    fontWeight: fontWeights.extraBold,
+  },
+  criteriaLine: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+    lineHeight: 19,
+  },
+  criteriaEmphasis: {
+    color: colors.textPrimary,
+    fontWeight: fontWeights.bold,
+  },
+  criteriaFootnote: {
+    color: colors.textTertiary,
+    fontSize: fontSizes.sm,
+    lineHeight: 18,
+    marginTop: spacing.xxs,
+  },
   selectorWrap: {
     gap: spacing.s12,
   },

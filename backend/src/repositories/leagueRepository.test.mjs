@@ -450,3 +450,34 @@ await runTest('region board stats are LIVE sums of member weekly competitive dis
   const gyeonggi = root.children.find((entry) => entry.name === '경기도');
   assert.equal(gyeonggi.totalDistanceKm, 12.5);
 });
+
+await runTest('루트(대한민국) 카드도 전국 합계를 보여준다', async () => {
+  const { repository } = createRepositoryHarness({
+    users: [
+      { id: 'user-me', name: '나', provinceName: '경기도', cityName: '고양시', districtName: '고양시' },
+      { id: 'user-2', name: '광주러너', provinceName: '전남광주통합특별시', cityName: '', districtName: '동구' },
+      { id: 'user-3', name: '지역미설정', provinceName: '' },
+    ],
+    sessions: [
+      { token: 'token-me', userId: 'user-me' },
+    ],
+    regionTree: {
+      id: 'region-root',
+      name: '대한민국',
+      level: 'country',
+      children: [
+        { id: 'kr-gg', name: '경기도', level: 'province', averageDistanceKm: 0, totalDistanceKm: 0, participants: 0, children: [] },
+        { id: 'kr-gj', name: '전남광주통합특별시', level: 'province', averageDistanceKm: 0, totalDistanceKm: 0, participants: 0, children: [] },
+      ],
+    },
+  }, {
+    'user-me': { currentMonthDistanceKm: 10.8 },
+    'user-2': { currentMonthDistanceKm: 5.1 },
+  });
+
+  const root = await repository.getRegions({ token: 'token-me' });
+
+  // 하위 지역엔 숫자가 있는데 루트만 0으로 보이던 버그 회귀 방지.
+  assert.equal(root.currentNode.totalDistanceKm, 15.9);
+  assert.equal(root.currentNode.participants, 2); // 지역 미설정 유저는 제외
+});
