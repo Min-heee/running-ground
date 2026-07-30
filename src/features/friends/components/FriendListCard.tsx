@@ -57,9 +57,11 @@ const FriendListRow = memo(function FriendListRow({
               {friend.rankTier ? <Text style={styles.metaChip}>{friend.rankTier}</Text> : null}
               {(() => {
                 // 지역은 마지막 두 섹션만 (오너 2026-07-31): "경기도 고양시 주엽동" → "고양시 주엽동".
+                // 인접 중복은 접는다 — 구 없는 시는 '경기도 고양시 고양시'로 와서 '고양시 고양시'가 됐다.
                 const regionTwoSections = (friend.regionLabel ?? friend.districtName ?? '')
                   .split(' ')
                   .filter(Boolean)
+                  .filter((part, index, list) => index === 0 || part !== list[index - 1])
                   .slice(-2)
                   .join(' ');
                 return regionTwoSections ? (

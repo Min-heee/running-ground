@@ -87,11 +87,13 @@ function buildFriendRank(store, user, rank, getUserMetrics, {
     ...(typeof user.statusMessage === 'string' && user.statusMessage
       ? { statusMessage: user.statusMessage }
       : {}),
-    // 프로필 화면의 지역 표시 재료 — 시/도 · 시군구 · 동 중 있는 것만 이어붙인다.
+    // 프로필 화면의 지역 표시 재료 — 시/도 · 시군구 · 동 중 있는 것만, 인접 중복은 접는다
+    // (구 없는 시는 districtName이 cityName과 같게 저장돼 '고양시 고양시'가 되는 것 방지).
     ...(() => {
-      const regionLabel = [user.provinceName, user.cityName, user.districtName]
+      const parts = [user.provinceName, user.cityName, user.districtName]
         .filter((part) => typeof part === 'string' && part.trim())
-        .join(' ');
+        .filter((part, index, list) => index === 0 || part !== list[index - 1]);
+      const regionLabel = parts.join(' ');
       return regionLabel ? { regionLabel } : {};
     })(),
     // 친구 카드 행의 컴팩트 표시 재료: 동 단위 지역 + 랭크 티어.
