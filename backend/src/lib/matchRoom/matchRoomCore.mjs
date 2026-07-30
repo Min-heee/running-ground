@@ -38,10 +38,19 @@ export function pruneMatchRooms(store, now = new Date()) {
       return false;
     }
 
+    const participantCountBefore = room.participants.length;
     room.participants = room.participants.filter((participant) => activeUserIds.has(participant.userId));
     room.invitedFriendIds = Array.isArray(room.invitedFriendIds)
       ? room.invitedFriendIds.filter((userId) => activeUserIds.has(userId) && userId !== room.hostUserId)
       : [];
+
+    // 탈퇴한 유저의 참가 기록을 걷어내면 그 사람의 joinedAt도 함께 사라진다. 활동 시각은
+    // 참가자 joinedAt의 최댓값이라(getMatchRoomLastActivityAtMs) 그대로 두면 방의 시계가
+    // 과거로 되감기고, 바로 아래 만료 검사에서 멀쩡한 대기실이 죽는다. 실제로 뭔가를
+    // 걷어냈을 때만 찍어 no-op 저장 스킵(#209)은 유지한다.
+    if (room.participants.length !== participantCountBefore) {
+      room.updatedAt = now.toISOString();
+    }
 
     if (!room.participants.some((participant) => participant.userId === room.hostUserId)) {
       return false;

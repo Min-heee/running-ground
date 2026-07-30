@@ -8,7 +8,10 @@
 import assert from 'node:assert/strict';
 
 import { MATCH_ROOM_WAITING_TTL_MS } from '../lib/matchConstants.mjs';
-import { isWaitingMatchRoomExpired } from '../lib/matchPureHelpers.mjs';
+import {
+  getMatchRoomLastActivityAtMs,
+  isWaitingMatchRoomExpired,
+} from '../lib/matchPureHelpers.mjs';
 import { pruneMatchRooms } from '../lib/matchRoom/matchRoomCore.mjs';
 import { sweepStaleMatchState, startStaleMatchStateSweeper } from './staleMatchStateSweeper.mjs';
 
@@ -126,6 +129,24 @@ await runTest('a room with no readable timestamps is treated as expired', () => 
   const room = buildWaitingRoom({ createdAt: null, updatedAt: null, participants: [{ userId: 'u1', isHost: true }] });
 
   assert.equal(isWaitingMatchRoomExpired(room, NOW), true);
+});
+
+// 적대 검증에서 나온 경로: prune은 탈퇴한 유저의 참가 기록을 걷어내는데, 그 사람의 joinedAt이
+// 방의 마지막 활동 시각이었다면 시계가 과거로 되감겨 멀쩡한 대기실이 같은 패스에서 죽었다.
+await runTest('pruning a withdrawn participant does not rewind the room activity clock', () => {
+  const store = buildStore([buildWaitingRoom({
+    participants: [
+      { userId: 'u1', isHost: true, joinedAt: isoAgo(MATCH_ROOM_WAITING_TTL_MS + 60_000) },
+      // 방금 들어왔던 사람이 탈퇴해 users에서 사라진 상태.
+      { userId: 'gone-user', isHost: false, joinedAt: isoAgo(60_000) },
+    ],
+  })]);
+
+  pruneMatchRooms(store, NOW);
+
+  assert.equal(store.matchRooms.length, 1, '탈퇴자 정리가 방을 죽이면 안 된다');
+  assert.deepEqual(store.matchRooms[0].participants.map((entry) => entry.userId), ['u1']);
+  assert.equal(getMatchRoomLastActivityAtMs(store.matchRooms[0]), NOW.getTime());
 });
 
 await runTest('the sweep reports what it removed', async () => {

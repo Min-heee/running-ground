@@ -7,7 +7,11 @@ import {
   leaveRunningMatchRoom,
 } from '@/services/matchService';
 import { getApiErrorMessage } from '@/services/apiError';
-import { findDivergedWaitingRoomFromCleanup } from '@/features/runs/sync/emptyLobbyReconcile';
+import {
+  findDivergedWaitingRoomFromCleanup,
+  parseServerNowMs,
+} from '@/features/runs/sync/emptyLobbyReconcile';
+import { hasServerConfirmedNoRoomSince } from '@/features/runs/sync/serverConfirmedNoRoom';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { getMatchStartRemainingSeconds } from '@/lib/matchCountdown';
 import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateMachine';
@@ -53,14 +57,30 @@ export function useMatchRoomLobbyEffects({
   const countdownReadyRoomAckRef = useRef<string | null>(null);
   const missingSlotStartRefreshKeyRef = useRef<string | null>(null);
   const emptyLobbyReconcileStateRef = useRef<'idle' | 'done'>('idle');
+  const lobbyMountedAtMsRef = useRef(Date.now());
+  const latestRoomRef = useRef<RunningMatchRoom | null>(room);
+
+  useEffect(() => {
+    latestRoomRef.current = room;
+  }, [room]);
 
   const reconcileEmptyLobby = useCallback(async () => {
     try {
       // 1) 서버에게 먼저 스스로 정리할 기회를 준다(만료된 방/세션/큐 prune + 유령 참조 제거).
       const cleanup = await cleanupStaleRunningMatchRoomState();
-      const divergedRoom = findDivergedWaitingRoomFromCleanup({ cleanup });
+      // 나이 판정은 서버 시계로 한다. 기기 시계가 앞서 있으면(안드로이드에서 흔하다) 방금 만든
+      // 방이 '5분 넘은 방'으로 보여 갓 만든 방 보호막이 무력화된다.
+      const divergedRoom = findDivergedWaitingRoomFromCleanup({
+        cleanup,
+        nowMs: parseServerNowMs(cleanup?.serverNow),
+      });
 
       if (!divergedRoom) {
+        return;
+      }
+
+      // 조회가 오가는 사이에 방이 도착했으면 분기가 아니었다 — 아무것도 하지 않는다.
+      if (latestRoomRef.current) {
         return;
       }
 
@@ -287,12 +307,23 @@ export function useMatchRoomLobbyEffects({
       return undefined;
     }
 
-    // 첫 조회가 늦게 도착해 잠깐 비어 보이는 정상 상태와 구분하려고 조금 기다렸다 확인한다.
-    const timer = setTimeout(() => {
+    // 트리거는 '증거의 부재'가 아니라 '양성 신호'여야 한다: 서버 응답이 실제로 도착했고 그
+    // 응답에 방이 없었을 때만 화해한다. 조회 타임아웃/스킵/예외로 비어 보이는 상태는
+    // loading이 꺼져도 이 검사에서 걸러진다 — 그걸 분기로 오해하면 조회 한 번 실패한 것만으로
+    // 멀쩡한 내 대기방이 지워진다(적대 검증에서 실제 모듈로 재현된 경로).
+    //
+    // 확인 신호는 이 이펙트를 다시 돌리지 않으므로(빈 상태 → 빈 상태는 리렌더가 없다) 짧은
+    // 간격으로 지켜본다. 화면이 비어 있는 동안만 돌고, 한 번 실행하면 멈춘다.
+    const timer = setInterval(() => {
+      if (!hasServerConfirmedNoRoomSince(lobbyMountedAtMsRef.current)) {
+        return;
+      }
+
+      clearInterval(timer);
       emptyLobbyReconcileStateRef.current = 'done';
       void reconcileEmptyLobby();
     }, EMPTY_LOBBY_RECONCILE_DELAY_MS);
 
-    return () => clearTimeout(timer);
+    return () => clearInterval(timer);
   }, [loading, reconcileEmptyLobby, room]);
 }

@@ -24,6 +24,14 @@ import type { RunningMatchRoom, RunningMatchRoomCleanupResponse } from '@/lib/ap
 // 갓 만들어진 방/초대는 화해 대상이 아니다.
 export const EMPTY_LOBBY_RECONCILE_MIN_ROOM_AGE_MS = 5 * 60 * 1000;
 
+// 나이 비교는 서버 시계끼리 해야 한다. 방의 시각(joinedAt)은 서버가 찍는데 '지금'을 기기
+// 시계로 잡으면, 기기 시계가 앞선 폰에서는(안드로이드에서 드물지 않다) 방금 만든 방이
+// 5분 넘은 방으로 보여 '갓 만든 방' 보호막이 통째로 무력화된다.
+export function parseServerNowMs(serverNow?: string | null): number {
+  const parsedMs = serverNow ? Date.parse(serverNow) : Number.NaN;
+  return Number.isFinite(parsedMs) ? parsedMs : Date.now();
+}
+
 // 방이 생긴 시각의 근사치 — 응답에 createdAt이 없으므로 가장 오래된 참가자의 joinedAt
 // (= 방장이 방을 만든 시각)을 쓴다. 참가자가 하나도 없으면 판단 불가.
 export function getMatchRoomOpenedAtMs(room: RunningMatchRoom | null | undefined): number {
@@ -48,6 +56,12 @@ export function shouldLeaveDivergedWaitingRoom({
   // 다른 사람이 들어와 있는 방은 자동으로 손대지 않는다. 유령 대기방은 아무도 안 들어온
   // 방이므로 이 조건으로도 신고된 증상은 그대로 낫고, 사람이 있는 방의 반경은 0이 된다.
   if (room.participants.length > 1) {
+    return false;
+  }
+
+  // 아직 답을 기다리는 초대가 걸린 방도 마찬가지다. 방이 사라지면 그 친구들의 초대가 조용히
+  // 죽고(초대 카드가 '참여할 방을 찾지 못했어요'가 된다) 아무 안내도 가지 않는다.
+  if ((room.invitedFriendIds?.length ?? 0) > 0) {
     return false;
   }
 

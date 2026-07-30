@@ -5,6 +5,7 @@ import type { RunningMatchRoom, RunningMatchRoomCleanupResponse } from '@/lib/ap
 import {
   EMPTY_LOBBY_RECONCILE_MIN_ROOM_AGE_MS,
   findDivergedWaitingRoomFromCleanup,
+  parseServerNowMs,
   shouldLeaveDivergedWaitingRoom,
 } from './emptyLobbyReconcile';
 
@@ -109,6 +110,36 @@ test('초대만 받고 아직 참가하지 않은 방은 자동 거절되지 않
   const room = buildRoom({ joined: false, isHost: false, hostUserId: 'u9' });
 
   assert.equal(shouldLeaveDivergedWaitingRoom({ nowMs: NOW_MS, room }), false);
+});
+
+test('답을 기다리는 초대가 걸린 방은 건드리지 않는다', () => {
+  // 방이 사라지면 그 친구들의 초대가 조용히 죽고 아무 안내도 가지 않는다.
+  const room = buildRoom({ invitedFriendIds: ['u2'] });
+
+  assert.equal(shouldLeaveDivergedWaitingRoom({ nowMs: NOW_MS, room }), false);
+});
+
+// 기기 시계가 앞서 있으면(안드로이드에서 드물지 않다) 방금 만든 방이 '5분 넘은 방'으로 보였다.
+test('나이 판정은 서버 시계로 한다 — 기기 시계가 앞서도 갓 만든 방은 안전하다', () => {
+  const serverNow = '2026-07-31T12:00:00.000Z';
+  const cleanup = buildCleanup({
+    serverNow,
+    room: buildRoom({
+      participants: [{
+        ...buildRoom().participants[0],
+        // 서버 기준으로는 20초 전에 만든 방.
+        joinedAt: '2026-07-31T11:59:40.000Z',
+      }],
+    }),
+  });
+
+  // 기기 시계가 10분 빨라도(= Date.now 기준으로는 10분 20초 된 방) 서버 시계로 판정한다.
+  assert.equal(
+    findDivergedWaitingRoomFromCleanup({ cleanup, nowMs: parseServerNowMs(cleanup.serverNow) }),
+    null,
+  );
+  assert.equal(parseServerNowMs(serverNow), Date.parse(serverNow));
+  assert.equal(Number.isFinite(parseServerNowMs(undefined)), true, 'serverNow가 없으면 기기 시계로 폴백');
 });
 
 test('초대로 막힌 blocker(matchRooms.invited)는 화해 대상이 아니다', () => {

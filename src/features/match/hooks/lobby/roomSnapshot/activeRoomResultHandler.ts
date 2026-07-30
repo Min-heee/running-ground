@@ -17,6 +17,10 @@ import {
 import {
   shouldAcceptServerSnapshot,
 } from '@/features/runs/sync/serverClockSync';
+import {
+  clearServerConfirmedNoRoom,
+  markServerConfirmedNoRoom,
+} from '@/features/runs/sync/serverConfirmedNoRoom';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 import type { InviteInboxReceiver } from './useInviteInboxReceiver';
 
@@ -117,10 +121,16 @@ export async function handleMatchRoomActiveRoomResult({
       room: roomRef.current,
       source: 'match-room snapshot no-active-room',
     });
+    // 여기가 '서버가 실제로 방이 없다고 답했다'는 유일한 지점이다. 타임아웃/스킵/예외 경로는
+    // 위에서 이미 return 했으므로 이 신호를 남기지 않는다 — 빈 대기실 화해가 그 차이를 본다.
+    markServerConfirmedNoRoom();
     commitRoom(null);
     setError(null);
     return null;
   }
+
+  // 방을 실제로 받았다 = 분기 상태가 아니다. 이전 신호를 무효화해 뒤늦게 화해가 돌지 않게 한다.
+  clearServerConfirmedNoRoom();
 
   markMatchRoomHostTransferObserved({
     currentRoom: roomRef.current,
