@@ -3,9 +3,10 @@
 // 뛰어도 지역 보드 총거리가 오르지 않았다 (오너 버그 리포트 2026-07-30). 이 모듈이 유저
 // 러닝에서 매 요청 계산한 값으로 노드를 덮어쓴다.
 //
-// 집계 기준: 이번 달(KST) '경쟁' 거리 — 멤버 보드의 기본 정렬("이번 달 누적 거리")과
-// 같은 숫자라 보드 총거리와 멤버 목록의 합이 맞는다. 임포트 기록은 지역 대항전에선 제외
-// (헬스 앱 수기 입력으로 지역 순위를 미는 파밍 차단 — 홈 포인트 게이지와는 다른 정책).
+// 집계 기준 (오너 2026-07-31): 이번 달(KST) 전체 거리 — 타앱에서 가져온 기록도 포함한다.
+// 멤버 보드의 '이번달 거리' 칸이 쓰는 monthlyDistanceKm(currentMonthDistanceKm)와 같은
+// 값이라, 히어로 총거리가 아래 목록의 합과 정확히 맞는다 (기존엔 히어로만 경쟁 거리라
+// 3.1 vs 5.1처럼 어긋났다). 포인트/LP는 별개 정책으로 계속 경쟁 러닝 기준.
 // participants 필드는 클라 라벨('회원수')에 맞춰 지역 소속 회원 수를 담는다.
 
 function normalizeName(value) {
@@ -48,7 +49,7 @@ export function buildRegionLiveStatsIndex(store, getUserMetrics) {
 
     const cityName = normalizeName(user.cityName);
     const districtName = normalizeName(user.districtName);
-    const monthKm = getUserMetrics(store, user.id).competitiveMonthDistanceKm;
+    const monthKm = getUserMetrics(store, user.id).currentMonthDistanceKm;
 
     accumulate(byProvince, provinceName, monthKm);
 

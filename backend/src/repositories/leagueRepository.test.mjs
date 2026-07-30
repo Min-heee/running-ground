@@ -432,11 +432,12 @@ await runTest('region board stats are LIVE sums of member weekly competitive dis
     ],
     regionTree: createCappedRegionTree(),
   }, {
-    'user-me': { competitiveMonthDistanceKm: 10.5 },
-    'user-2': { competitiveMonthDistanceKm: 2 },
+    // 히어로 총거리는 멤버 목록의 '이번달 거리'(가져온 기록 포함)와 같은 값으로 합산된다.
+    'user-me': { currentMonthDistanceKm: 10.5, competitiveMonthDistanceKm: 3.1 },
+    'user-2': { currentMonthDistanceKm: 2, competitiveMonthDistanceKm: 0 },
   });
 
-  // 경기도 보드: 고양시 노드의 총거리는 시드값(880)이 아니라 멤버 이번 달 합(12.5)이어야 한다.
+  // 경기도 보드: 고양시 노드의 총거리는 시드값(880)이 아니라 멤버 이번 달 합(12.5, 임포트 포함).
   const province = await repository.getRegions({ token: 'token-me', nodeId: 'kr-gg' });
   const goyang = province.children.find((entry) => entry.name === '고양시');
   assert.equal(goyang.totalDistanceKm, 12.5);
