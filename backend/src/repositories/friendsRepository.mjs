@@ -72,6 +72,10 @@ function areFriends(store, leftUserId, rightUserId) {
   ));
 }
 
+function normalizeRegionPart(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function buildFriendRank(store, user, rank, getUserMetrics, {
   nowIso = () => new Date().toISOString(),
 } = {}) {
@@ -87,13 +91,16 @@ function buildFriendRank(store, user, rank, getUserMetrics, {
     ...(typeof user.statusMessage === 'string' && user.statusMessage
       ? { statusMessage: user.statusMessage }
       : {}),
-    // 프로필 화면의 지역 표시 재료 — 시/도 · 시군구 · 동 중 있는 것만, 인접 중복은 접는다
-    // (구 없는 시는 districtName이 cityName과 같게 저장돼 '고양시 고양시'가 되는 것 방지).
+    // 지역 라벨 = 우리 지역 체계의 실제 두 단계: 시/도 + 시·군·구 (addressCatalog는
+    // province → city|district 2단계뿐 — 동 단위는 없다). 도 소속은 cityName(고양시),
+    // 광역시 소속은 districtName(강남구)이 두 번째 칸. 구 없는 시는 두 필드가 같게
+    // 저장되므로 중복을 접어 '경기도 고양시'가 되게 한다.
     ...(() => {
-      const parts = [user.provinceName, user.cityName, user.districtName]
-        .filter((part) => typeof part === 'string' && part.trim())
-        .filter((part, index, list) => index === 0 || part !== list[index - 1]);
-      const regionLabel = parts.join(' ');
+      const provinceName = normalizeRegionPart(user.provinceName);
+      const secondName = normalizeRegionPart(user.cityName) || normalizeRegionPart(user.districtName);
+      const regionLabel = [provinceName, secondName === provinceName ? '' : secondName]
+        .filter(Boolean)
+        .join(' ');
       return regionLabel ? { regionLabel } : {};
     })(),
     // 친구 카드 행의 컴팩트 표시 재료: 동 단위 지역 + 랭크 티어.

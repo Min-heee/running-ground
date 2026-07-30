@@ -55,21 +55,13 @@ const FriendListRow = memo(function FriendListRow({
               {friend.isRunningNow ? <View style={styles.friendLiveDot} /> : null}
               <Text style={styles.requestName}>{friend.name}</Text>
               {friend.rankTier ? <Text style={styles.metaChip}>{friend.rankTier}</Text> : null}
-              {(() => {
-                // 지역은 마지막 두 섹션만 (오너 2026-07-31): "경기도 고양시 주엽동" → "고양시 주엽동".
-                // 인접 중복은 접는다 — 구 없는 시는 '경기도 고양시 고양시'로 와서 '고양시 고양시'가 됐다.
-                const regionTwoSections = (friend.regionLabel ?? friend.districtName ?? '')
-                  .split(' ')
-                  .filter(Boolean)
-                  .filter((part, index, list) => index === 0 || part !== list[index - 1])
-                  .slice(-2)
-                  .join(' ');
-                return regionTwoSections ? (
-                  <Text style={styles.metaText} numberOfLines={1}>
-                    {regionTwoSections}
-                  </Text>
-                ) : null;
-              })()}
+              {/* 지역 = 시/도 + 시·군·구 (서버가 우리 지역 체계 2단계로 만들어 보낸 라벨).
+                  구버전 서버 응답에는 regionLabel이 없어 districtName으로 폴백. */}
+              {friend.regionLabel ?? friend.districtName ? (
+                <Text style={styles.metaText} numberOfLines={1}>
+                  {friend.regionLabel ?? friend.districtName}
+                </Text>
+              ) : null}
               {friend.statusMessage ? (
                 <Text style={styles.statusMessage} numberOfLines={1}>
                   {friend.statusMessage}

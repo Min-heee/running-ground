@@ -387,3 +387,36 @@ await runTest('getUserRelation answers self/friend/outgoing/incoming/none', asyn
   assert.equal(none.relation, 'none');
   assert.equal(none.name, '무관계');
 });
+
+await runTest('region label is 시/도 + 시·군·구 — our catalog has no 동 level', async () => {
+  const { repository } = createRepositoryHarness({
+    users: [
+      { id: 'user-me', name: '나', publicTag: '#ME001' },
+      // 도 소속: 구 없는 시는 districtName이 cityName과 같게 저장된다.
+      { id: 'user-goyang', name: '고양러너', publicTag: '#GY001', provinceName: '경기도', cityName: '고양시', districtName: '고양시' },
+      // 광역시 소속: city 레벨이 없고 구가 province 직속.
+      { id: 'user-metro', name: '광주러너', publicTag: '#GJ001', provinceName: '전남광주통합특별시', cityName: '', districtName: '동구' },
+      // 옛 가입 흐름이 시 아래 구/동을 남겼어도 보드 단계(시)까지만 보여준다.
+      { id: 'user-legacy', name: '레거시', publicTag: '#LG001', provinceName: '경기도', cityName: '고양시', districtName: '일산동구' },
+    ],
+    sessions: [
+      { token: 'token-me', userId: 'user-me' },
+    ],
+    friendships: [
+      { id: 'f-1', userIds: ['user-me', 'user-goyang'] },
+      { id: 'f-2', userIds: ['user-me', 'user-metro'] },
+      { id: 'f-3', userIds: ['user-me', 'user-legacy'] },
+    ],
+  });
+
+  const leaderboard = await repository.getLeaderboard({ token: 'token-me' });
+  const labelByName = Object.fromEntries(
+    leaderboard.ranks.map((entry) => [entry.name, entry.regionLabel]),
+  );
+
+  assert.equal(labelByName['고양러너'], '경기도 고양시');
+  assert.equal(labelByName['광주러너'], '전남광주통합특별시 동구');
+  assert.equal(labelByName['레거시'], '경기도 고양시');
+  // 지역 미설정 유저는 라벨 자체가 없다.
+  assert.equal(labelByName['나'], undefined);
+});
