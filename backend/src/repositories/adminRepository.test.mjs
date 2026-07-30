@@ -260,7 +260,8 @@ await runTest('force-deleting a live session removes it plus its linked room', a
     ],
     matchRooms: [
       { id: 'room-9', mode: 'duel', hostUserId: 'u1', participants: [{ userId: 'u1' }], linkedMatchId: 'duel-match-9' },
-      { id: 'room-free', mode: 'group', hostUserId: 'u1', participants: [{ userId: 'u1' }], linkedMatchId: null },
+      // createdAt/joinedAt은 실제 방이 항상 갖는 필드 — 없으면 대기방 만료 판정이 유령 방으로 본다.
+      { id: 'room-free', mode: 'group', hostUserId: 'u1', participants: [{ userId: 'u1', joinedAt: new Date().toISOString() }], linkedMatchId: null, createdAt: new Date().toISOString() },
     ],
   });
 

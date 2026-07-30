@@ -41,6 +41,7 @@ import {
 } from './phoneVerification.mjs';
 import { createApiRouteHandler } from './routes/index.mjs';
 import { createBackendStatusService } from './services/backendStatusService.mjs';
+import { startStaleMatchStateSweeper } from './services/staleMatchStateSweeper.mjs';
 import { createLeagueReadService } from './services/leagueReadService.mjs';
 import { createReadPayloadBuilders } from './services/readPayloads.mjs';
 import {
@@ -65,6 +66,7 @@ import {
   applyCorsHeaders,
   getErrorMessage,
   logBackendError,
+  logBackendInfo,
   sendError,
   sendJson,
 } from './response/httpResponse.mjs';
@@ -426,6 +428,15 @@ server.listen(PORT, HOST, () => {
   console.log(`[runningground-backend] listening on http://${HOST}:${PORT}`);
   console.log(`[runningground-backend] store: ${getStoreFilePath()}`);
   console.log(`[runningground-backend] env: ${getPublicBackendConfig().usingEnvFile ? 'backend/.env loaded' : 'process env only'}`);
+});
+
+// 만료된 대기방/세션/큐는 누가 앱을 열어주기를 기다리지 않고 서버가 스스로 지운다.
+// 부팅 직후에는 일부러 쓸지 않는다: 기동 순간에 blob 전체 쓰기를 얹지 않고, 첫 요청과
+// 청소가 뒤엉키지 않게 한다. 재배포 직후 남은 유령 방도 최대 한 주기면 사라진다.
+startStaleMatchStateSweeper({
+  mutateStore,
+  onSwept: (swept) => logBackendInfo('stale_match_state_swept', swept),
+  onError: (error) => logBackendError('stale_match_state_sweep_failed', error),
 });
 
 let isShuttingDown = false;

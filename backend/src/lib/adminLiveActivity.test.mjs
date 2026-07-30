@@ -32,8 +32,9 @@ const store = {
     ],
   }],
   matchRooms: [
-    { id: 'room-1', mode: 'group', startMode: 'host', distanceKm: 5, hostUserId: 'u2', inviteToken: 'ABC123', participants: [{ userId: 'u2' }], maxParticipants: 6, linkedMatchId: null },
-    { id: 'room-2', mode: 'duel', hostUserId: 'u1', participants: [{ userId: 'u1' }], maxParticipants: 2, linkedMatchId: 'duel-match-1' },
+    // 실제 방은 항상 createdAt/joinedAt을 갖는다 — 대기방 만료 판정이 그 시각을 읽는다.
+    { id: 'room-1', mode: 'group', startMode: 'host', distanceKm: 5, hostUserId: 'u2', inviteToken: 'ABC123', participants: [{ userId: 'u2', joinedAt: '2026-07-23T11:50:00.000Z' }], maxParticipants: 6, linkedMatchId: null, createdAt: '2026-07-23T11:50:00.000Z' },
+    { id: 'room-2', mode: 'duel', hostUserId: 'u1', participants: [{ userId: 'u1', joinedAt: '2026-07-23T11:54:00.000Z' }], maxParticipants: 2, linkedMatchId: 'duel-match-1', createdAt: '2026-07-23T11:54:00.000Z' },
   ],
   liveRunShares: [
     { userId: 'u1', enabled: true, status: 'running', locationLabel: '일산 호수공원', updatedAt: '2026-07-23T11:59:30.000Z' },
@@ -62,6 +63,30 @@ runTest('rooms exclude those already linked to a session', () => {
   assert.equal(live.rooms[0].id, 'room-1');
   assert.equal(live.rooms[0].hostName, '회원D');
   assert.equal(live.rooms[0].participantCount, 1);
+});
+
+// 오너 2026-07-31: 앱에서는 이미 사라진 대기방이 관리자 화면에만 '대기 중'으로 남아 있었다.
+// 만료된 대기방은 청소기가 실제로 지우기 전에도 이 화면에 보이면 안 된다.
+runTest('expired waiting rooms are not listed as 대기 중인 파티방', () => {
+  const live = buildAdminLiveActivity({
+    ...store,
+    matchRooms: [{
+      id: 'ghost-room',
+      mode: 'duel',
+      startMode: 'host',
+      distanceKm: 3,
+      hostUserId: 'u1',
+      inviteToken: 'GHOST1',
+      // 3시간 전에 만들고 아무 일도 없었던 방 (대기방 수명 2시간).
+      createdAt: '2026-07-23T09:00:00.000Z',
+      participants: [{ userId: 'u1', joinedAt: '2026-07-23T09:00:00.000Z' }],
+      maxParticipants: 2,
+      linkedMatchId: null,
+    }],
+  }, NOW);
+
+  assert.equal(live.rooms.length, 0);
+  assert.equal(live.counts.rooms, 0);
 });
 
 runTest('live runs keep enabled running shares and flag stale ones', () => {

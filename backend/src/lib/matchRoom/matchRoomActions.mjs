@@ -275,6 +275,9 @@ export function updateRunningMatchRoomReady(store, currentUser, {
   }
 
   participant.isReady = Boolean(ready);
+  // 준비 토글은 '이 대기실은 살아 있다'는 신호 — 대기방 만료(MATCH_ROOM_WAITING_TTL_MS)의
+  // 기준 시각을 여기서 밀어준다. 안 밀면 사람이 계속 준비를 눌러도 방이 2시간에 죽는다.
+  room.updatedAt = new Date().toISOString();
   syncMatchRooms(store);
   return buildRunningMatchRoomResponse(store, currentUser, room);
 }

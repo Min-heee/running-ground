@@ -5,6 +5,8 @@
 //  - rooms:    아직 시작 전인 파티 대기방 (linkedMatchId가 생기면 세션 쪽으로 넘어감)
 //  - liveRuns: 라이브 공유가 켜진 솔로 러너 (친구 탭 '달리는 중' 표시와 같은 소스)
 
+import { isWaitingMatchRoomExpired } from './matchPureHelpers.mjs';
+
 // 이 시간 안에 갱신이 없으면 stale로 표시 (liveRunShares의 기존 기준과 동일).
 const LIVE_SHARE_STALE_MS = 2 * 60 * 1000;
 
@@ -45,6 +47,10 @@ export function buildAdminLiveActivity(store, now = new Date()) {
 
   const rooms = (store.matchRooms ?? [])
     .filter((room) => !room.linkedMatchId)
+    // 만료된 대기방은 앱에서 이미 없는 방이다. 청소기가 도는 사이(최대 5분)에도 관리자
+    // 화면이 유령 방을 '대기 중'으로 보여주면 안 된다 — 앱과 관리자 화면이 갈라지는
+    // 그 증상이 이 필터가 막는 대상이다.
+    .filter((room) => !isWaitingMatchRoomExpired(room, now))
     .map((room) => ({
       id: room.id,
       mode: room.mode,

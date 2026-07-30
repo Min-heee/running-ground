@@ -61,7 +61,13 @@ export const MATCH_ROOM_HOST_MAX_LOADING_WAIT_SECONDS = 14;
 export const MATCH_ROOM_GROUP_MIN_PARTICIPANTS = 3;
 export const MATCH_ROOM_GROUP_DEFAULT_PARTICIPANTS = 10;
 export const MATCH_ROOM_GROUP_MAX_PARTICIPANTS = 30;
-export const MATCH_ROOM_IDLE_TTL_MS = 24 * 60 * 60 * 1000;
+// 시작 전 대기방의 수명 — 마지막 '활동'(생성/참가/준비/설정변경) 기준. 24시간
+// (MATCH_ROOM_IDLE_TTL_MS)은 대기실의 실사용 수명과 맞지 않았다: 어제 만들고 잊은 유령
+// 대기방이 오늘의 매칭을 통째로 막고("이미 참여 중인 1대1 방이 있어요"), 관리자 라이브
+// 화면에도 '대기 중인 파티방'으로 계속 남는다. 대기실은 실시간 합류 수단이므로 2시간 동안
+// 아무 일도 없었으면 죽은 방으로 본다. 만료되면 prune이 방을 실제로 지운다 — 앱이 "열린
+// 방이 없어요"라고 말하면 서버에도 정말 없어야 한다는 게 이 상수의 계약이다.
+export const MATCH_ROOM_WAITING_TTL_MS = 2 * 60 * 60 * 1000;
 export const MATCH_ROOM_INVITE_LINK_BASE = 'runningground://running';
 // 5m: GPS discreteness + toFixed(2) display rounding boundary only — so a 5km race finishes
 // at ~4.995km (displays 5.00), not 20m early at 4.98km. Keep aligned with the client constant.

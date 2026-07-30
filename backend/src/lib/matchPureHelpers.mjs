@@ -5,6 +5,7 @@ import {
   MATCH_ROOM_GROUP_MAX_PARTICIPANTS,
   MATCH_ROOM_GROUP_MIN_PARTICIPANTS,
   MATCH_ROOM_INVITE_LINK_BASE,
+  MATCH_ROOM_WAITING_TTL_MS,
   RECOMMENDED_MATCH_DISTANCES,
 } from './matchConstants.mjs';
 
@@ -88,6 +89,39 @@ export function isMatchRoomVisibleToUser(room, userId) {
   return room.hostUserId === userId
     || room.participants.some((participant) => participant.userId === userId)
     || (Array.isArray(room.invitedFriendIds) && room.invitedFriendIds.includes(userId));
+}
+
+// 대기방의 '마지막 활동' 시각 — 만료 판정의 기준점.
+//
+// updatedAt은 방 설정 변경에서만 찍히므로 그것만 보면 사람이 계속 들어오고 준비를 누르는
+// 살아 있는 대기실도 생성 2시간이면 죽는다. 참가자 joinedAt까지 함께 보는 이유다(참가는
+// 그 자체로 활동이고, 준비 토글은 updatedAt을 올린다). 폴링(/rooms/my)은 활동이 아니다 —
+// 폴링마다 방을 쓰면 whole-store 블롭이 폴링 주기마다 통째로 재직렬화된다(#209).
+export function getMatchRoomLastActivityAtMs(room) {
+  const candidates = [
+    Date.parse(room?.createdAt ?? ''),
+    Date.parse(room?.updatedAt ?? ''),
+    ...(Array.isArray(room?.participants)
+      ? room.participants.map((participant) => Date.parse(participant?.joinedAt ?? ''))
+      : []),
+  ].filter((value) => Number.isFinite(value));
+
+  return candidates.length ? Math.max(...candidates) : Number.NaN;
+}
+
+// 시작 전(연결된 대결 세션이 없는) 방장-시작 대기방이 수명을 넘겼는지. prune과 관리자 화면이
+// 같은 판정을 쓰도록 여기 한 곳에만 둔다 — 둘이 갈라지면 앱에는 없는 방이 관리자 화면에만
+// 남는 지금의 증상이 그대로 재발한다.
+export function isWaitingMatchRoomExpired(room, now = new Date(), ttlMs = MATCH_ROOM_WAITING_TTL_MS) {
+  if (!room || room.linkedMatchId || room.startMode === 'scheduled') {
+    return false;
+  }
+
+  const lastActivityAtMs = getMatchRoomLastActivityAtMs(room);
+
+  // 시각을 못 읽는 방(손상/구버전 레코드)은 만료로 본다 — 되살릴 근거가 없는 방이
+  // 영원히 매칭을 막는 쪽이 더 나쁘다.
+  return !Number.isFinite(lastActivityAtMs) || lastActivityAtMs + ttlMs <= now.getTime();
 }
 
 export function buildMatchRoomInviteLink(inviteToken) {

@@ -1,11 +1,11 @@
 import {
   MATCH_ROOM_HOST_START_DELAY_SECONDS,
-  MATCH_ROOM_IDLE_TTL_MS,
   MATCH_SESSION_ACTIVE_TTL_MS,
 } from '../matchConstants.mjs';
 import {
   areAllRunningMatchRoomParticipantsCountdownReady,
   isParticipantDoneWithMatch,
+  isWaitingMatchRoomExpired,
 } from '../matchPureHelpers.mjs';
 import {
   findMatchSessionById,
@@ -72,8 +72,9 @@ export function pruneMatchRooms(store, now = new Date()) {
       return Number.isFinite(slotStartAtMs) && slotStartAtMs + MATCH_SESSION_ACTIVE_TTL_MS > nowMs;
     }
 
-    const createdAtMs = new Date(room.createdAt).getTime();
-    return Number.isFinite(createdAtMs) && createdAtMs + MATCH_ROOM_IDLE_TTL_MS > nowMs;
+    // 시작 전 대기방: 마지막 활동 기준 MATCH_ROOM_WAITING_TTL_MS이 지나면 실제로 지운다.
+    // (예전 규칙은 생성 후 24시간이었고, 그 사이 유령 대기방이 매칭을 막았다.)
+    return !isWaitingMatchRoomExpired(room, now);
   });
 
   return store.matchRooms;

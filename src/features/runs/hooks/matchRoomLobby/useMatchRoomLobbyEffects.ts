@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { type Href, router } from 'expo-router';
-import { acknowledgeRunningMatchRoomCountdown } from '@/services/matchService';
+import {
+  acknowledgeRunningMatchRoomCountdown,
+  cleanupStaleRunningMatchRoomState,
+  leaveRunningMatchRoom,
+} from '@/services/matchService';
 import { getApiErrorMessage } from '@/services/apiError';
+import { findDivergedWaitingRoomFromCleanup } from '@/features/runs/sync/emptyLobbyReconcile';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { getMatchStartRemainingSeconds } from '@/lib/matchCountdown';
 import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateMachine';
@@ -13,10 +18,15 @@ import { shouldRouteLinkedMatchRoomToRunning } from './linkedMatchRoomRouting';
 
 type PartyRunFlowSnapshot = ReturnType<typeof buildPartyRunFlowSnapshot>;
 
+// 빈 대기실을 서버와 맞춰보기 전에 기다리는 시간 — 첫 조회가 늦어 잠깐 비어 보이는
+// 정상 상태를 분기로 오해하지 않을 만큼만.
+const EMPTY_LOBBY_RECONCILE_DELAY_MS = 2_000;
+
 type UseMatchRoomLobbyEffectsInput = {
   commitRoom: (room: RunningMatchRoom | null) => void;
   currentUserTag: string;
   latestRoomServerNowMsRef: MutableRefObject<number>;
+  loading: boolean;
   loadRoom: () => Promise<RunningMatchRoom | null>;
   partyRunFlow: PartyRunFlowSnapshot;
   pauseRoomPolling: () => void;
@@ -30,6 +40,7 @@ export function useMatchRoomLobbyEffects({
   commitRoom,
   currentUserTag,
   latestRoomServerNowMsRef,
+  loading,
   loadRoom,
   partyRunFlow,
   pauseRoomPolling,
@@ -41,6 +52,33 @@ export function useMatchRoomLobbyEffects({
   const openedLinkedMatchKeyRef = useRef<string | null>(null);
   const countdownReadyRoomAckRef = useRef<string | null>(null);
   const missingSlotStartRefreshKeyRef = useRef<string | null>(null);
+  const emptyLobbyReconcileStateRef = useRef<'idle' | 'done'>('idle');
+
+  const reconcileEmptyLobby = useCallback(async () => {
+    try {
+      // 1) 서버에게 먼저 스스로 정리할 기회를 준다(만료된 방/세션/큐 prune + 유령 참조 제거).
+      const cleanup = await cleanupStaleRunningMatchRoomState();
+      const divergedRoom = findDivergedWaitingRoomFromCleanup({ cleanup });
+
+      if (!divergedRoom) {
+        return;
+      }
+
+      // 2) 그래도 서버가 "너는 아직 이 대기방에 있다"고 하면, 앱이 이미 없다고 말한 방이므로
+      //    실제로 나간다. 방장이면 방 자체가 사라진다(혼자면 삭제, 남은 사람 있으면 위임).
+      rgPerfMark('empty lobby reconcile leaving diverged room', {
+        mode: divergedRoom.mode,
+        roomId: divergedRoom.roomId,
+        source: 'match-room empty lobby',
+        state: divergedRoom.state,
+      });
+      await leaveRunningMatchRoom({ roomId: divergedRoom.roomId });
+      await loadRoom().catch(() => null);
+    } catch {
+      // 네트워크 실패 등은 조용히 넘긴다 — 빈 대기실 화면은 그대로 유효하고,
+      // 다음 진입에서 다시 시도된다.
+    }
+  }, [loadRoom]);
 
   const openLinkedMatchInRunning = useCallback((nextRoom: RunningMatchRoom) => {
     if (!nextRoom.linkedMatchId) {
@@ -238,4 +276,22 @@ export function useMatchRoomLobbyEffects({
     setError,
     syncServerClock,
   ]);
+
+  // 빈 대기실 화해 — "열린 방이 없어요"인데 서버는 아직 나를 시작 전 대기방에 넣어두고 있는
+  // 상태(= 방 만들기가 "이미 참여 중인 방이 있어요"로 막히고 관리자 화면에도 그 방이 남는
+  // 상태)를 실제로 해소한다. 앱이 없다고 말한 방은 서버에도 없어야 한다.
+  // 한 번 실행되면 다시 시도하지 않는다(무한 정리 루프 방지). 조건은 emptyLobbyReconcile 참고.
+  useEffect(() => {
+    if (loading || room || emptyLobbyReconcileStateRef.current !== 'idle') {
+      return undefined;
+    }
+
+    // 첫 조회가 늦게 도착해 잠깐 비어 보이는 정상 상태와 구분하려고 조금 기다렸다 확인한다.
+    const timer = setTimeout(() => {
+      emptyLobbyReconcileStateRef.current = 'done';
+      void reconcileEmptyLobby();
+    }, EMPTY_LOBBY_RECONCILE_DELAY_MS);
+
+    return () => clearTimeout(timer);
+  }, [loading, reconcileEmptyLobby, room]);
 }

@@ -32,6 +32,7 @@ export function useMatchRoomLobby() {
     commitRoom,
     currentUserTag,
     latestRoomServerNowMsRef,
+    loading,
     loadRoom,
     partyRunFlow: viewModel.partyRunFlow,
     pauseRoomPolling,
