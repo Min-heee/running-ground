@@ -48,10 +48,16 @@ export function buildMatchRunnerProfile(store, user, runs = getRunsForUser(store
       .join(' '),
     averagePaceMinutes,
     averagePace: formatPaceMinutesLabel(averagePaceMinutes),
+    // 매칭 계산용(경쟁 기준) — 상대 적합도/시드 산식이 읽는다. 헬스 임포트로 매칭을
+    // 흔들 수 없게 여기는 계속 경쟁 러닝만 본다 (matchPureHelpers).
     distanceLevel: metrics.competitiveDistanceLevel,
-    levelLabel: buildLevelLabel(metrics.competitiveDistanceLevel),
     weeklyDistanceKm: metrics.competitiveWeekDistanceKm,
     lifetimeDistanceKm: metrics.competitiveLifetimeDistanceKm,
+    // 화면 표시용(전체 거리 기준) — 홈/친구/지역 보드와 같은 숫자여야 한다 (오너 2026-07-31).
+    // 옛 스냅샷에는 없으므로 소비 측은 경쟁 값으로 폴백한다.
+    displayDistanceLevel: metrics.distanceLevel,
+    displayWeeklyDistanceKm: metrics.currentWeekDistanceKm,
+    levelLabel: buildLevelLabel(metrics.distanceLevel),
     latestDistanceKm,
   };
 }

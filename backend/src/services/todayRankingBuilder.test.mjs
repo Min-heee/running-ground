@@ -43,37 +43,33 @@ function buildRanking(category, runsByUserId) {
 
 // (a) imported runs are excluded from each competitive aggregation.
 
-runTest('distance ranking ignores imported runs', () => {
+runTest('distance ranking includes imported runs (표시 기준 2026-07-31)', () => {
   const runsByUserId = new Map([
     ['user-me', [trackedRun({ id: 'run-me-1', distanceKm: 5, pace: '5:00/km' })]],
-    // A huge imported run that would top the board if it leaked.
     ['user-importer', [importedRun({ id: 'run-imp-1', distanceKm: 99, pace: '4:00/km' })]],
   ]);
 
   const ranking = buildRanking('distance', runsByUserId);
   const importerEntry = ranking.entries.find((entry) => entry.userId === 'user-importer');
 
-  assert.equal(importerEntry, undefined, 'imported-only runner must not appear on the distance leaderboard');
-  assert.equal(ranking.entries[0]?.userId, 'user-me');
-  assert.equal(ranking.entries[0]?.value, '5km');
+  // 가져온 기록만 있는 러너도 보드에 오른다 — 친구/지역 보드와 같은 기준.
+  assert.equal(importerEntry?.value, '99km');
+  assert.equal(ranking.entries[0]?.userId, 'user-importer');
 });
 
-runTest('pace ranking ignores imported runs', () => {
+runTest('pace ranking includes imported runs (표시 기준 2026-07-31)', () => {
   const runsByUserId = new Map([
     ['user-me', [trackedRun({ id: 'run-me-1', distanceKm: 5, pace: '5:00/km' })]],
-    // A fast imported run that would top the pace board if it leaked.
     ['user-importer', [importedRun({ id: 'run-imp-1', distanceKm: 10, pace: '3:00/km' })]],
   ]);
 
   const ranking = buildRanking('pace', runsByUserId);
-  const importerEntry = ranking.entries.find((entry) => entry.userId === 'user-importer');
 
-  assert.equal(importerEntry, undefined, 'imported-only runner must not appear on the pace leaderboard');
-  assert.equal(ranking.entries[0]?.userId, 'user-me');
-  assert.equal(ranking.entries[0]?.value, '5:00/km');
+  assert.equal(ranking.entries[0]?.userId, 'user-importer');
+  assert.equal(ranking.entries[0]?.value, '3:00/km');
 });
 
-runTest('streak ranking does not count imported runs toward a streak', () => {
+runTest('streak ranking counts imported days (홈 연속 기록 카드와 같은 기준)', () => {
   const runsByUserId = new Map([
     // Real two-day tracked streak (each day >= 3km minimum).
     ['user-me', [
@@ -91,11 +87,13 @@ runTest('streak ranking does not count imported runs toward a streak', () => {
   const importerEntry = ranking.entries.find((entry) => entry.userId === 'user-importer');
   const myEntry = ranking.entries.find((entry) => entry.userId === 'user-me');
 
-  assert.equal(importerEntry, undefined, 'imported-only streak must not appear on the streak leaderboard');
-  assert.equal(myEntry?.value, '2일', 'tracked streak should still be counted');
+  // 홈 카드의 '연속 기록'은 임포트 포함 스트릭이므로 이 보드도 같은 값이어야 한다.
+  // (연속 러닝 '포인트'는 여전히 경쟁 러닝 전용 — points.mjs.)
+  assert.equal(importerEntry?.value, '2일');
+  assert.equal(myEntry?.value, '2일');
 });
 
-runTest('a runner mixing imported runs only ranks on their tracked distance', () => {
+runTest('a runner mixing imported runs ranks on the combined distance', () => {
   const runsByUserId = new Map([
     ['user-me', [
       trackedRun({ id: 'run-me-1', distanceKm: 3, pace: '5:00/km' }),
@@ -107,13 +105,13 @@ runTest('a runner mixing imported runs only ranks on their tracked distance', ()
   const ranking = buildRanking('distance', runsByUserId);
   const myEntry = ranking.entries.find((entry) => entry.userId === 'user-me');
 
-  // 3km tracked, NOT 43km — the 40km import is excluded competitively.
-  assert.equal(myEntry?.value, '3km');
-  assert.equal(ranking.entries[0]?.userId, 'user-importer', 'tracked 6km should outrank tracked 3km');
+  // 3km 측정 + 40km 임포트 = 43km (홈 기록 카드가 보여주는 것과 같은 값).
+  assert.equal(myEntry?.value, '43km');
+  assert.equal(ranking.entries[0]?.userId, 'user-me');
 });
 
-// Belt-and-suspenders: match-result runs (always in-app) stay competitive.
-runTest('match-result runs remain competitive even without runningground sourceType', () => {
+// 매치 러닝(sourceType 없이 matchResult만 있는 기록)도 보드에 정상 집계된다.
+runTest('match-result runs rank on the board like any other run', () => {
   const runsByUserId = new Map([
     ['user-me', [{
       id: 'run-me-match',
@@ -126,9 +124,11 @@ runTest('match-result runs remain competitive even without runningground sourceT
   ]);
 
   const ranking = buildRanking('distance', runsByUserId);
+  const myEntry = ranking.entries.find((entry) => entry.userId === 'user-me');
 
-  assert.equal(ranking.entries[0]?.userId, 'user-me');
-  assert.equal(ranking.entries[0]?.value, '7km');
+  assert.equal(myEntry?.value, '7km');
+  // 임포트 99km가 1위인 건 새 표시 기준상 정상 — 매치 러닝도 자기 값 그대로 오른다.
+  assert.equal(ranking.entries[0]?.userId, 'user-importer');
 });
 
 console.log('[todayRankingBuilder] all tests passed');

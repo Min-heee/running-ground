@@ -244,6 +244,6 @@ export function buildQueuedParticipants(entries) {
       weeklyDistanceKm: participant.weeklyDistanceKm,
       lifetimeDistanceKm: participant.lifetimeDistanceKm,
       seedRank: index + 1,
-      seedSummary: `${index + 1}번 시드 · 이번 주 ${participant.weeklyDistanceKm.toFixed(1)}km`,
+      seedSummary: `${index + 1}번 시드 · 이번 주 ${(participant.displayWeeklyDistanceKm ?? participant.weeklyDistanceKm).toFixed(1)}km`,
     }));
 }

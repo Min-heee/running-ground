@@ -394,12 +394,11 @@ export function createRegionTree(data = {}) {
   }
 
   for (const user of users) {
-    // Display-only policy: the browsable region-tree rollup (totals/averages/sort) is a
-    // competitive surface, so it ranks on competitive runs only — an imported run
-    // (Apple Health / Health Connect / NRC / Strava) must not inflate a region's standing.
-    // Personal stats (home 내 주간거리 etc.) keep the full currentWeekDistanceKm elsewhere.
-    const weeklyDistanceKm = buildUserRunMetrics(runsByUserId.get(user.id) ?? []).competitiveWeekDistanceKm;
-    distanceByUserId.set(user.id, weeklyDistanceKm);
+    // 표시 기준 (오너 2026-07-31): 지역 롤업은 이번 달 전체 거리 — 가져온 기록도 포함한다.
+    // json 드라이버는 요청 때 lib/regionLiveStats.mjs가 같은 기준으로 덮어쓰지만, postgres
+    // 경로는 이 트리를 그대로 서빙하므로 여기서부터 기준이 맞아야 한다.
+    const monthlyDistanceKm = buildUserRunMetrics(runsByUserId.get(user.id) ?? []).currentMonthDistanceKm;
+    distanceByUserId.set(user.id, monthlyDistanceKm);
   }
 
   for (const user of users) {

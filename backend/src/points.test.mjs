@@ -302,3 +302,17 @@ runTest('a vehicle-flagged chase run mints nothing (competitive gate wins)', () 
   assert.equal(getRunPointValue(metrics, 't-cheat'), 0);
   assert.equal(getRunPointBreakdown(metrics, 't-cheat').chasePoints, 0);
 });
+
+runTest('todayDistanceKm is the all-runs today total (leaderboard basis)', () => {
+  // 표시 기준(2026-07-31): 오늘 거리는 임포트 포함. 경쟁 값은 별도로 계속 계산된다.
+  const metrics = buildUserRunMetrics([
+    trackedRun('t-today', '2026-07-10', 3),
+    importedRun('i-today', '2026-07-10', 11),
+    trackedRun('t-other-day', '2026-07-09', 5),
+  ], NOW);
+
+  assert.equal(metrics.todayDistanceKm, 14);
+  assert.equal(metrics.competitiveTodayDistanceKm, 3);
+  // 기록이 없으면 undefined가 아니라 0 (리더보드가 0으로 안전하게 렌더).
+  assert.equal(buildUserRunMetrics([], NOW).todayDistanceKm, 0);
+});

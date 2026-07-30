@@ -67,9 +67,8 @@ function buildDistrictRank(store, user, rank, currentUserId, getUserMetrics) {
     id: user.id,
     rank,
     name: user.name,
-    // Competitive district ranking: rank by AND show the competitive weekly
-    // distance (imports excluded) so the shown number matches the sort key.
-    distanceKm: metrics.competitiveWeekDistanceKm,
+    // 표시/정렬 거리 (오너 2026-07-31): 전체 러닝 — 가져온 기록 포함 (히어로 총거리와 동일 기준).
+    distanceKm: metrics.currentWeekDistanceKm,
     points: metrics.currentWeekPoints,
     rankScore: getUserRankScore(user),
     monthlyDistanceKm: metrics.currentMonthDistanceKm,
@@ -80,8 +79,8 @@ function buildDistrictRank(store, user, rank, currentUserId, getUserMetrics) {
 function compareDistrictRank(store, left, right, getUserMetrics) {
   const leftMetrics = getUserMetrics(store, left.id);
   const rightMetrics = getUserMetrics(store, right.id);
-  const leftDistanceKm = leftMetrics.competitiveWeekDistanceKm;
-  const rightDistanceKm = rightMetrics.competitiveWeekDistanceKm;
+  const leftDistanceKm = leftMetrics.currentWeekDistanceKm;
+  const rightDistanceKm = rightMetrics.currentWeekDistanceKm;
 
   if (rightDistanceKm !== leftDistanceKm) {
     return rightDistanceKm - leftDistanceKm;
@@ -211,9 +210,8 @@ function buildDistrictPersonal(store, user, getUserMetrics, nodeId) {
     districtName: regionName,
     myRank,
     myPoints: myMetrics.currentWeekPoints,
-    // Header "my weekly distance" on the competitive district board must match
-    // my ranked distance, so it uses the competitive value (imports excluded).
-    weeklyDistanceKm: myMetrics.competitiveWeekDistanceKm,
+    // 헤더의 '내 주간 거리'는 랭크된 거리와 같은 기준 — 전체 러닝(가져온 기록 포함).
+    weeklyDistanceKm: myMetrics.currentWeekDistanceKm,
     focusRanks,
     ranks: districtUsers,
   };

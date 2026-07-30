@@ -369,8 +369,10 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
     currentWeekPoints,
     currentMonthDistanceKm: toFixed1(currentMonthDistanceKm),
     currentMonthPoints,
-    // Real per-window competitive aggregates for the friend leaderboard's
-    // 오늘/이번 달 tabs (the client used to fabricate these from week values).
+    // 리더보드 표시용 오늘 거리 — 전체 러닝(가져온 기록 포함). 경쟁 전용 값은 아래에.
+    todayDistanceKm: toFixed1(distanceByDate.get(todayKey) ?? 0),
+    // 경쟁 전용 창별 집계 — 현재 프로덕션 표시면은 쓰지 않는다(전부 전체 거리 기준).
+    // 포인트 파생과 향후 경쟁 판정용으로 계속 계산해 둔다.
     competitiveTodayDistanceKm: toFixed1(competitiveDistanceByDate.get(todayKey) ?? 0),
     competitiveMonthDistanceKm: toFixed1(competitiveMonthDistanceByKey.get(currentMonthKey) ?? 0),
     todayPoints,

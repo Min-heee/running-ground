@@ -86,9 +86,8 @@ await runTest('returns district personal ranks focused around current user', asy
       { token: 'token-me', userId: 'user-me' },
     ],
   }, {
-    // FULL weekly distance is import-inflated for everyone; the competitive
-    // weekly distance is the real ranking driver. The district board must rank
-    // by AND show competitive distance, so imports cannot reorder it.
+    // 표시/정렬 기준 (오너 2026-07-31): 전체 주간 거리 — 가져온 기록 포함.
+    // 민병희 90 > 준호 70 > 가영 11 (경쟁 값과 순서가 반대인 케이스로 기준을 못 박는다).
     'user-me': { currentWeekDistanceKm: 90, competitiveWeekDistanceKm: 10, currentWeekPoints: 15 },
     'user-a': { currentWeekDistanceKm: 11, competitiveWeekDistanceKm: 12, currentWeekPoints: 20 },
     'user-b': { currentWeekDistanceKm: 70, competitiveWeekDistanceKm: 8, currentWeekPoints: 11 },
@@ -98,15 +97,15 @@ await runTest('returns district personal ranks focused around current user', asy
   const result = await repository.getDistrictPersonal({ token: 'token-me' });
 
   assert.equal(result.districtName, '강남구');
-  assert.equal(result.myRank.rank, 2);
+  assert.equal(result.myRank.rank, 1);
   assert.equal(result.myPoints, 15);
-  // Competitive weekly distance, not the import-inflated full 90.
-  assert.equal(result.weeklyDistanceKm, 10);
-  assert.equal(result.myRank.distanceKm, 10);
+  // 전체 주간 거리 (가져온 기록 포함) — 홈 기록 카드/지역 히어로와 같은 값.
+  assert.equal(result.weeklyDistanceKm, 90);
+  assert.equal(result.myRank.distanceKm, 90);
   assert.deepEqual(result.focusRanks.map((entry) => `${entry.rank}:${entry.name}`), [
-    '1:가영',
-    '2:민병희',
-    '3:준호',
+    '1:민병희',
+    '2:준호',
+    '3:가영',
   ]);
 });
 

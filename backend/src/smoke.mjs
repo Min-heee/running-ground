@@ -420,11 +420,9 @@ async function main() {
       },
     });
     assert(districtPersonal.districtName === '중구', '구 내 개인 경쟁 지역이 예상과 달라.');
-    // 구 내 개인 경쟁(경쟁 리더보드)은 경쟁 주간 거리(수동/가져온 기록 제외)를 보여줘야 해.
-    // 스모크의 기록은 전부 수동 기록이라 경쟁 주간 거리는 0이고, 홈 카드의 개인 전체
-    // 주간 거리(currentWeekDistanceKm)와 의도적으로 달라.
-    assert(districtPersonal.weeklyDistanceKm === expectedMetrics.competitiveWeekDistanceKm, '구 내 개인 경쟁 주간 거리가 경쟁 주간 거리와 맞지 않아요.');
-    assert(expectedMetrics.competitiveWeekDistanceKm === 0, '수동 기록만 있을 때 경쟁 주간 거리는 0이어야 해요.');
+    // 지역 보드의 거리(오너 2026-07-31)는 전체 주간 거리 — 가져온/수동 기록도 포함해
+    // 홈 카드의 개인 주간 거리와 같은 값이어야 한다.
+    assert(districtPersonal.weeklyDistanceKm === expectedMetrics.currentWeekDistanceKm, '구 내 개인 주간 거리가 전체 주간 거리와 맞지 않아요.');
     assert(districtPersonal.myPoints === expectedMetrics.currentWeekPoints, '구 내 개인 경쟁 포인트가 예상과 달라.');
     logStep('league flow ok');
 

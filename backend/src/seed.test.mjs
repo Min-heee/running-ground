@@ -43,7 +43,7 @@ const today = todayDateKey();
 // provinceName + a real 서울 district so the user's weekly distance lands on a tree node.
 const user = { id: 'u1', provinceName: PROVINCE, districtName: '강남구' };
 
-runTest('region-tree rollup counts a competitive run', () => {
+runTest('region-tree rollup counts an in-app run', () => {
   const tree = createRegionTree({
     users: [user],
     runs: [{ userId: 'u1', distanceKm: 10, date: today, sourceType: 'runningground' }],
@@ -53,8 +53,8 @@ runTest('region-tree rollup counts a competitive run', () => {
   assert.equal(node.totalDistanceKm, 10);
 });
 
-runTest('region-tree rollup excludes an imported run (display-only policy)', () => {
-  // The same user adds a 100km imported run — it must NOT inflate the region rollup.
+runTest('region-tree rollup includes imported runs (표시 기준 2026-07-31)', () => {
+  // 가져온 기록도 지역 총거리에 포함 — 랭킹 화면의 멤버 목록 합과 같은 기준.
   const tree = createRegionTree({
     users: [user],
     runs: [
@@ -63,12 +63,12 @@ runTest('region-tree rollup excludes an imported run (display-only policy)', () 
     ],
   });
   const node = findNodeByName(tree, PROVINCE);
-  assert.equal(node.totalDistanceKm, 10, 'imported run must not inflate the region total');
-  assert.equal(node.averageDistanceKm, 10);
+  assert.equal(node.totalDistanceKm, 110);
+  assert.equal(node.averageDistanceKm, 110);
 });
 
-runTest('region-tree rollup keeps region order unchanged by imports', () => {
-  // Two users in different provinces: the import-heavy one must not outrank the tracked one.
+runTest('region-tree rollup ranks on the combined distance (imports included)', () => {
+  // 가져온 기록이 많은 지역이 그만큼 위로 올라간다 — 표시 기준이 전체 거리이기 때문.
   const seoulUser = { id: 'a', provinceName: '서울특별시', districtName: '강남구' };
   const busanUser = { id: 'b', provinceName: '부산광역시', districtName: '해운대구' };
   const tree = createRegionTree({
@@ -83,11 +83,11 @@ runTest('region-tree rollup keeps region order unchanged by imports', () => {
   const seoul = findNodeByName(tree, '서울특별시');
   const busan = findNodeByName(tree, '부산광역시');
   assert.equal(seoul.totalDistanceKm, 12);
-  assert.equal(busan.totalDistanceKm, 3, 'imported runs must not pad the region total');
-  assert.ok(seoul.totalDistanceKm > busan.totalDistanceKm, 'Seoul outranks Busan on competitive distance');
+  assert.equal(busan.totalDistanceKm, 203);
+  assert.ok(busan.totalDistanceKm > seoul.totalDistanceKm);
 });
 
-runTest('region-tree rollup still counts a match-result run as competitive', () => {
+runTest('region-tree rollup counts a match-result run', () => {
   const tree = createRegionTree({
     users: [user],
     runs: [

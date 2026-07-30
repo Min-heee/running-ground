@@ -65,13 +65,13 @@ export function buildFriendRank(user, rank, metrics, liveShare, nowIso = createN
     tag: user.publicTag,
     // Competitive leaderboard: rank by AND show the competitive weekly distance
     // (imports excluded) so the displayed number agrees with the sort key.
-    distanceKm: metrics.competitiveWeekDistanceKm,
+    distanceKm: metrics.currentWeekDistanceKm,
     points: metrics.currentWeekPoints,
     // Real KST-anchored 오늘/이번 달 aggregates — the client's window tabs
     // display these verbatim (it used to fabricate them from the week values).
-    todayDistanceKm: metrics.competitiveTodayDistanceKm ?? 0,
+    todayDistanceKm: metrics.todayDistanceKm ?? 0,
     todayPoints: metrics.todayPoints ?? 0,
-    monthDistanceKm: metrics.competitiveMonthDistanceKm ?? 0,
+    monthDistanceKm: metrics.currentMonthDistanceKm ?? 0,
     monthPoints: metrics.currentMonthPoints ?? 0,
     ...(liveSharePresentation.isRunningNow ? { isRunningNow: true } : {}),
     ...(liveSharePresentation.liveLocationLabel ? { liveLocationLabel: liveSharePresentation.liveLocationLabel } : {}),
@@ -81,8 +81,8 @@ export function buildFriendRank(user, rank, metrics, liveShare, nowIso = createN
 export function compareFriendRank(leftUser, rightUser, metricsByUserId) {
   const leftMetrics = metricsByUserId.get(leftUser.id);
   const rightMetrics = metricsByUserId.get(rightUser.id);
-  const leftDistanceKm = leftMetrics?.competitiveWeekDistanceKm ?? 0;
-  const rightDistanceKm = rightMetrics?.competitiveWeekDistanceKm ?? 0;
+  const leftDistanceKm = leftMetrics?.currentWeekDistanceKm ?? 0;
+  const rightDistanceKm = rightMetrics?.currentWeekDistanceKm ?? 0;
 
   if (rightDistanceKm !== leftDistanceKm) {
     return rightDistanceKm - leftDistanceKm;

@@ -133,10 +133,8 @@ await runTest('returns leaderboard with ranks and actionable requests', async ()
       { id: 'request-3', requesterId: 'user-haneul', receiverId: 'user-me', status: 'accepted' },
     ],
   }, {
-    // Inflate the FULL weekly distance with imports for everyone, but keep the
-    // competitive weekly distance as the real ranking driver. The leaderboard
-    // must rank by AND display the competitive value, so imports cannot reorder
-    // the board or change the shown number.
+    // 표시/정렬 기준 (오너 2026-07-31): 전체 주간 거리 — 가져온 기록 포함. 경쟁 값과
+    // 달라도 보드는 전체 거리로 줄 세우고 그 숫자를 그대로 보여준다.
     'user-me': { currentWeekDistanceKm: 99, competitiveWeekDistanceKm: 10, currentWeekPoints: 20, currentMonthDistanceKm: 30, currentMonthPoints: 40 },
     'user-juno': { currentWeekDistanceKm: 11, competitiveWeekDistanceKm: 12, currentWeekPoints: 18, currentMonthDistanceKm: 50, currentMonthPoints: 60 },
     'user-seoyeon': { currentWeekDistanceKm: 80, competitiveWeekDistanceKm: 10, currentWeekPoints: 25, currentMonthDistanceKm: 45, currentMonthPoints: 55 },
@@ -145,15 +143,15 @@ await runTest('returns leaderboard with ranks and actionable requests', async ()
   const result = await repository.getLeaderboard({ token: 'token-me' });
 
   assert.deepEqual(result.ranks.map((entry) => `${entry.rank}:${entry.name}`), [
-    '1:준호',
+    '1:민병희',
     '2:서연',
-    '3:민병희',
+    '3:준호',
   ]);
-  // Shown distance is the competitive value, never the import-inflated full one.
+  // 보이는 거리 = 전체 주간 거리 (홈 기록 카드/지역 보드와 같은 기준).
   assert.deepEqual(result.ranks.map((entry) => `${entry.name}:${entry.distanceKm}`), [
-    '준호:12',
-    '서연:10',
-    '민병희:10',
+    '민병희:99',
+    '서연:80',
+    '준호:11',
   ]);
   assert.deepEqual(result.requests, [
     { id: 'request-1', name: '가영', tag: '#GAY01', status: 'received' },

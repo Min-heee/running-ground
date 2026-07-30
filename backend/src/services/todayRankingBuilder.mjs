@@ -1,4 +1,3 @@
-import { buildCompetitiveRunsByUserId } from '../lib/competitiveRuns.mjs';
 import { formatKstDateKey } from '../lib/kstDate.mjs';
 
 const TODAY_RANKING_LIMIT = 50;
@@ -135,11 +134,12 @@ function buildDistanceEntries({ users, runsByUserId, todayKey, currentUserId }) 
   });
 }
 
-function buildStreakEntries({ users, currentUserId, getCompetitiveMetricsForUser }) {
+function buildStreakEntries({ users, currentUserId, getMetricsForUser }) {
   const entries = [];
 
   for (const user of users) {
-    const streakDays = Number(getCompetitiveMetricsForUser(user.id)?.currentStreakDays ?? 0);
+    // 홈 '연속 기록' 카드와 같은 표시용 스트릭(전체 러닝 기준).
+    const streakDays = Number(getMetricsForUser(user.id)?.currentStreakDays ?? 0);
 
     if (!Number.isFinite(streakDays) || streakDays <= 0) {
       continue;
@@ -184,31 +184,29 @@ export function buildTodayRanking({
   // yesterday's runs between 00:00 and 09:00 KST.
   const todayKey = formatKstDateKey(safeRankedAt);
 
-  // Imported runs (Apple Health / Health Connect / NRC / Strava / Garmin / MyNB
-  // and manual entries) are display-only and must never feed competitive
-  // leaderboards. Narrow every user's runs to the competitive-eligible set
-  // before aggregating any category, and recompute streaks from that same set
-  // so an imported run can't extend a competitive streak.
-  const competitiveRunsByUserId = buildCompetitiveRunsByUserId(runsByUserId);
-  const competitiveMetricsByUserId = new Map();
-  const getCompetitiveMetricsForUser = (userId) => {
-    if (!competitiveMetricsByUserId.has(userId)) {
-      competitiveMetricsByUserId.set(
+  // 표시 기준 (오너 2026-07-31): 보여주고 줄 세우는 값은 전체 러닝 — 타앱에서 가져온
+  // 기록도 포함한다. 친구 보드·지역 보드·홈 기록 카드와 같은 숫자여야 한다 (예전엔 이
+  // 보드만 경쟁 러닝으로 집계해 같은 날 거리가 3km/14km로 갈렸다).
+  // 포인트/LP/매치메이킹은 여전히 경쟁 러닝 전용 — 이 보드는 순수 표시면이다.
+  const metricsByUserId = new Map();
+  const getMetricsForUser = (userId) => {
+    if (!metricsByUserId.has(userId)) {
+      metricsByUserId.set(
         userId,
         // Pass the ranking's reference time so the streak (and week windows) are
         // computed against rankedAt, not whenever this runs — deterministic + correct.
-        buildUserMetrics(competitiveRunsByUserId.get(userId) ?? [], safeRankedAt),
+        buildUserMetrics(runsByUserId.get(userId) ?? [], safeRankedAt),
       );
     }
 
-    return competitiveMetricsByUserId.get(userId);
+    return metricsByUserId.get(userId);
   };
 
   const rankedEntries = category === 'pace'
-    ? buildPaceEntries({ users, runsByUserId: competitiveRunsByUserId, todayKey, currentUserId })
+    ? buildPaceEntries({ users, runsByUserId, todayKey, currentUserId })
     : category === 'distance'
-      ? buildDistanceEntries({ users, runsByUserId: competitiveRunsByUserId, todayKey, currentUserId })
-      : buildStreakEntries({ users, currentUserId, getCompetitiveMetricsForUser });
+      ? buildDistanceEntries({ users, runsByUserId, todayKey, currentUserId })
+      : buildStreakEntries({ users, currentUserId, getMetricsForUser });
 
   return {
     category,

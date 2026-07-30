@@ -158,11 +158,10 @@ await runTest('returns district personal ranks from postgres rows', async () => 
       { token: 'token-me', user_id: 'user-me', expires_at: '2099-01-01T00:00:00.000Z' },
     ],
     runs: [
-      // Competitive (in-app GPS) runs drive the district ranking by distance:
-      // 가영 12 > 민병희 10 > 준호 8.
+      // 표시/정렬 기준 (오너 2026-07-31): 전체 주간 거리 — 가져온 기록 포함.
+      // 민병희 10+99=109 > 가영 12 > 준호 8.
       { id: 'run-me', user_id: 'user-me', run_date: '2026-04-23', distance_km: 10, pace: '05:40/km', source_label: 'RunningGround', source_type: 'runningground' },
-      // Import that hugely inflates user-me's FULL weekly distance but must be
-      // excluded from the competitive district rank and shown distance.
+      // 가져온 기록(NRC)도 보드 거리에 포함 — 민병희가 1위가 된다.
       { id: 'run-me-import', user_id: 'user-me', run_date: '2026-04-22', distance_km: 99, pace: '06:00/km', source_label: 'NRC', source_type: 'nrc' },
       { id: 'run-a', user_id: 'user-a', run_date: '2026-04-23', distance_km: 12, pace: '05:20/km', source_label: 'RunningGround', source_type: 'runningground' },
       { id: 'run-b', user_id: 'user-b', run_date: '2026-04-23', distance_km: 8, pace: '05:30/km', source_label: 'RunningGround', source_type: 'runningground' },
@@ -181,19 +180,17 @@ await runTest('returns district personal ranks from postgres rows', async () => 
   ], new Date('2026-04-24T00:00:00.000Z'));
 
   assert.equal(result.districtName, '강남구');
-  // The 99km import does not change my competitive rank (still 2) or the shown
-  // competitive weekly distance (10, not the import-inflated 109).
-  assert.equal(result.myRank.rank, 2);
+  // 가져온 99km가 보드 거리에 포함되어 1위 (전체 주간 109km).
+  assert.equal(result.myRank.rank, 1);
   assert.equal(result.myPoints, expectedMyMetrics.currentWeekPoints);
-  assert.equal(result.weeklyDistanceKm, 10);
-  assert.equal(result.myRank.distanceKm, 10);
-  // Sanity: the import really did inflate the FULL weekly distance well past the
-  // competitive 10, proving the gate is what keeps the board at 10.
+  assert.equal(result.weeklyDistanceKm, 109);
+  assert.equal(result.myRank.distanceKm, 109);
+  // 두 기준이 실제로 다른 데이터임을 확인 (경쟁 값은 10으로 별도 유지 — 포인트/매치용).
   assert.equal(expectedMyMetrics.currentWeekDistanceKm, 109);
   assert.equal(expectedMyMetrics.competitiveWeekDistanceKm, 10);
   assert.deepEqual(result.focusRanks.map((entry) => `${entry.rank}:${entry.name}`), [
-    '1:가영',
-    '2:민병희',
+    '1:민병희',
+    '2:가영',
     '3:준호',
   ]);
 });

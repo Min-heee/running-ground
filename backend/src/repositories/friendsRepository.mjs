@@ -111,15 +111,15 @@ function buildFriendRank(store, user, rank, getUserMetrics, {
       const tier = resolveRankTier(user.rankState?.tier);
       return RANK_TIERS.includes(tier) ? { rankTier: tier } : {};
     })(),
-    // Competitive leaderboard: rank by AND show the competitive weekly distance
-    // (imports excluded) so the displayed number agrees with the sort key.
-    distanceKm: metrics.competitiveWeekDistanceKm,
+    // 표시/정렬 거리 (오너 2026-07-31): 전체 러닝 — 타앱에서 가져온 기록도 포함한다.
+    // 지역 보드·오늘 랭킹·홈 기록 카드와 같은 기준. 포인트/LP는 여전히 경쟁 러닝 전용.
+    distanceKm: metrics.currentWeekDistanceKm,
     points: metrics.currentWeekPoints,
     // Real KST-anchored 오늘/이번 달 aggregates — the client's window tabs
     // display these verbatim (it used to fabricate them from the week values).
-    todayDistanceKm: metrics.competitiveTodayDistanceKm,
+    todayDistanceKm: metrics.todayDistanceKm ?? 0,
     todayPoints: metrics.todayPoints,
-    monthDistanceKm: metrics.competitiveMonthDistanceKm,
+    monthDistanceKm: metrics.currentMonthDistanceKm,
     monthPoints: metrics.currentMonthPoints,
     ...(liveShare.isRunningNow ? { isRunningNow: true } : {}),
     ...(liveShare.liveLocationLabel ? { liveLocationLabel: liveShare.liveLocationLabel } : {}),
@@ -129,8 +129,8 @@ function buildFriendRank(store, user, rank, getUserMetrics, {
 function compareFriendRank(store, left, right, getUserMetrics) {
   const leftMetrics = getUserMetrics(store, left.id);
   const rightMetrics = getUserMetrics(store, right.id);
-  const leftDistanceKm = leftMetrics.competitiveWeekDistanceKm;
-  const rightDistanceKm = rightMetrics.competitiveWeekDistanceKm;
+  const leftDistanceKm = leftMetrics.currentWeekDistanceKm;
+  const rightDistanceKm = rightMetrics.currentWeekDistanceKm;
 
   if (rightDistanceKm !== leftDistanceKm) {
     return rightDistanceKm - leftDistanceKm;
