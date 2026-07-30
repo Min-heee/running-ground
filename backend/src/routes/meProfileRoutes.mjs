@@ -43,6 +43,9 @@ export async function routeMeProfileRequest({
 
   // 원격 푸시 토큰 등록/해제 (공지 푸시).
   if (pathname === '/api/me/push-token' && method === 'POST') {
+    // 헤더만 보는 값싼 인증 가드 — 토큰 없는 요청이 전역 쓰기 락을 잡고 401을 던지면
+    // 러닝 저장/매치 푸시가 그 뒤에 줄 선다. 스토어는 한 번도 읽지 않는다.
+    getAccessToken(request);
     const body = (await parseJsonBody(request)) ?? {};
     const payload = await mutateStore((store) => {
       const user = requireUser(store, request);
@@ -54,6 +57,7 @@ export async function routeMeProfileRequest({
 
   // 해제는 쿼리로 토큰을 받는다 (클라 apiDelete는 바디를 싣지 않는다).
   if (pathname === '/api/me/push-token' && method === 'DELETE') {
+    getAccessToken(request);
     const token = (url.searchParams.get('token') ?? '').trim();
     await mutateStore((store) => {
       const user = requireUser(store, request);
@@ -76,7 +80,8 @@ export async function routeMeProfileRequest({
   if (pathname === '/api/me/inquiries' && method === 'POST') {
     // 인증은 쓰기 락 밖에서 — mutateStore는 전역 단일 라이터라, 미인증 요청이
     // 트랜잭션을 잡고 401을 던지면 러닝 저장/매치 푸시까지 줄 서게 된다.
-    requireUser(await loadStore(), request);
+    // 헤더만 보므로 스토어 읽기 비용이 없다 (세션 유효성은 뮤테이터 안에서 최종 확인).
+    getAccessToken(request);
     const body = (await parseJsonBody(request)) ?? {};
     const payload = await mutateStore((store) => {
       const user = requireUser(store, request);
