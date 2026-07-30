@@ -38,7 +38,7 @@ const RankCriteriaPanel = memo(function RankCriteriaPanel() {
         <Text style={styles.criteriaEmphasis}>회원수</Text> = 그 지역을 선택한 회원 수
       </Text>
       <Text style={styles.criteriaFootnote}>
-        평균이 같으면 총거리 → 회원수 순으로 앞섭니다. 매달 1일에 새로 시작해요.
+        평균이 같으면 총거리 → 회원수 순으로 앞섭니다. 매달 1일에 새로 시작합니다.
       </Text>
     </View>
   );

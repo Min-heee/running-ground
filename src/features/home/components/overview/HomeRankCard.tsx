@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Link, type Href } from 'expo-router';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import type { DimensionValue, StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { Card } from '@/components/Card';
 import type { RankState } from '@/domain';
@@ -24,6 +25,46 @@ type HomeRankCardProps = {
   };
   recordHref: Href;
 };
+
+// 랭크 안내 (오너 2026-07-31) — 지역 '순위 기준'과 같은 결의 펼침 설명.
+// 각 티어의 문양을 함께 보여줘서 대결 화면에서 본 문양이 무엇인지 바로 알 수 있게 한다.
+function RankGuidePanel({ currentTier }: { currentTier: string }) {
+  return (
+    <View style={styles.guidePanel}>
+      <Text style={styles.guideHeadline}>대결에서 이기면 LP가 올라 랭크가 올라갑니다</Text>
+
+      {RANK_TIERS.map((tier) => {
+        const isCurrent = tier === currentTier;
+        const symbol = RANK_TIER_SYMBOL[tier];
+
+        return (
+          <View key={tier} style={[styles.guideRow, isCurrent ? styles.guideRowCurrent : null]}>
+            {symbol ? (
+              <Image source={symbol} style={styles.guideSymbol} resizeMode="contain" />
+            ) : null}
+            <Text
+              style={[
+                styles.guideTierName,
+                { color: RANK_TIER_COLOR[tier] ?? colors.textPrimary },
+              ]}
+            >
+              {tier}
+            </Text>
+            {isCurrent ? <Text style={styles.guideCurrentBadge}>지금</Text> : null}
+          </View>
+        );
+      })}
+
+      <Text style={styles.guideLine}>
+        한 랭크는 <Text style={styles.guideEmphasis}>{LP_PER_TIER} LP</Text>이고, 다 채우면 다음 랭크로
+        올라갑니다. 1대1은 이기면 +LP, 지면 -LP이고 그룹 대결은 순위가 높을수록 많이 받습니다.
+      </Text>
+      <Text style={styles.guideFootnote}>
+        LP는 앱에서 측정한 대결 기록으로만 오르내립니다. 매달 초기화되지 않고 계속 쌓입니다.
+      </Text>
+    </View>
+  );
+}
 
 export function HomeRankCard({ rankState, matchRecord, recordHref }: HomeRankCardProps) {
   const normalizedRankState = useMemo(() => normalizeRankStateForDisplay(rankState), [rankState]);
@@ -51,6 +92,8 @@ export function HomeRankCard({ rankState, matchRecord, recordHref }: HomeRankCar
     styles.rankLabel,
     { color: accentColor },
   ], [accentColor]);
+  const [guideExpanded, setGuideExpanded] = useState(false);
+  const toggleGuide = useCallback(() => setGuideExpanded((current) => !current), []);
   const progressFillStyle = useMemo<StyleProp<ViewStyle>>(() => [
     styles.lpProgressFill,
     {
@@ -63,7 +106,23 @@ export function HomeRankCard({ rankState, matchRecord, recordHref }: HomeRankCar
     <Card style={rankCardStyle}>
       <View style={styles.rankHeader}>
         <Text style={styles.sectionEyebrow}>내 랭크</Text>
+        <Pressable
+          style={styles.guideChip}
+          onPress={toggleGuide}
+          accessibilityRole="button"
+          accessibilityLabel="랭크 설명 보기"
+          hitSlop={8}
+        >
+          <Text style={styles.guideChipText}>랭크 안내</Text>
+          <Feather
+            name={guideExpanded ? 'chevron-up' : 'chevron-down'}
+            size={14}
+            color={colors.textSecondary}
+          />
+        </Pressable>
       </View>
+
+      {guideExpanded ? <RankGuidePanel currentTier={normalizedRankState.tier} /> : null}
 
       <View style={styles.rankBody}>
         <View style={styles.tierGroup}>
@@ -104,6 +163,68 @@ const styles = StyleSheet.create({
   rankCard: {
     borderWidth: 1,
     gap: spacing.s12,
+  },
+  guideChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: fixedColors.surfaceSubtle,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.sm,
+  },
+  guideChipText: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+  },
+  guidePanel: {
+    gap: spacing.lg,
+    padding: spacing.s12,
+    borderRadius: radii.lg,
+    backgroundColor: fixedColors.surfaceSubtleAlt,
+  },
+  guideHeadline: {
+    color: colors.textPrimary,
+    fontWeight: fontWeights.extraBold,
+  },
+  guideRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s10,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.md,
+  },
+  guideRowCurrent: {
+    backgroundColor: fixedColors.brandWash,
+  },
+  guideSymbol: {
+    width: 26,
+    height: 26,
+  },
+  guideTierName: {
+    flex: 1,
+    fontWeight: fontWeights.extraBold,
+  },
+  guideCurrentBadge: {
+    color: fixedColors.brand,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+  },
+  guideLine: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+    lineHeight: 19,
+  },
+  guideEmphasis: {
+    color: colors.textPrimary,
+    fontWeight: fontWeights.bold,
+  },
+  guideFootnote: {
+    color: colors.textTertiary,
+    fontSize: fontSizes.sm,
+    lineHeight: 18,
   },
   rankHeader: {
     alignItems: 'center',
