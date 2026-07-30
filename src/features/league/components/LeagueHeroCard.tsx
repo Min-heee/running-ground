@@ -27,7 +27,7 @@ export function LeagueHeroCard({ node, isMyRegion }: LeagueHeroCardProps) {
       </Text>
       <View style={styles.heroMetrics}>
         <View style={styles.heroMetricColumn}>
-          <Text style={styles.heroMetricLabel}>총거리</Text>
+          <Text style={styles.heroMetricLabel}>이번 달 총거리</Text>
           <Text style={styles.heroMetricValue}>
             {formatLeagueDistanceValue(node.totalDistanceKm)}
             <Text style={styles.heroMetricUnitInline}> km</Text>
@@ -43,7 +43,7 @@ export function LeagueHeroCard({ node, isMyRegion }: LeagueHeroCardProps) {
         </View>
         <View style={styles.heroMetricDivider} />
         <View style={styles.heroMetricColumn}>
-          <Text style={styles.heroMetricLabel}>누적평균거리</Text>
+          <Text style={styles.heroMetricLabel}>인당 평균</Text>
           <Text style={styles.heroMetricValue}>
             {formatLeagueDistanceValue(node.averageDistanceKm)}
             <Text style={styles.heroMetricUnitInline}> km</Text>

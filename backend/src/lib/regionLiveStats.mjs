@@ -3,9 +3,10 @@
 // 뛰어도 지역 보드 총거리가 오르지 않았다 (오너 버그 리포트 2026-07-30). 이 모듈이 유저
 // 러닝에서 매 요청 계산한 값으로 노드를 덮어쓴다.
 //
-// 집계 기준: 이번 주(KST) '경쟁' 거리 — 멤버 랭킹(compareDistrictRank)과 같은 숫자라
-// 보드의 총거리와 멤버 목록이 항상 합이 맞는다. 임포트 기록은 지역 대항전에선 제외
+// 집계 기준: 이번 달(KST) '경쟁' 거리 — 멤버 보드의 기본 정렬("이번 달 누적 거리")과
+// 같은 숫자라 보드 총거리와 멤버 목록의 합이 맞는다. 임포트 기록은 지역 대항전에선 제외
 // (헬스 앱 수기 입력으로 지역 순위를 미는 파밍 차단 — 홈 포인트 게이지와는 다른 정책).
+// participants 필드는 클라 라벨('회원수')에 맞춰 지역 소속 회원 수를 담는다.
 
 function normalizeName(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -47,14 +48,14 @@ export function buildRegionLiveStatsIndex(store, getUserMetrics) {
 
     const cityName = normalizeName(user.cityName);
     const districtName = normalizeName(user.districtName);
-    const weeklyKm = getUserMetrics(store, user.id).competitiveWeekDistanceKm;
+    const monthKm = getUserMetrics(store, user.id).competitiveMonthDistanceKm;
 
-    accumulate(byProvince, provinceName, weeklyKm);
+    accumulate(byProvince, provinceName, monthKm);
 
     if (cityName) {
-      accumulate(byCity, `${provinceName}|${cityName}`, weeklyKm);
+      accumulate(byCity, `${provinceName}|${cityName}`, monthKm);
     } else if (districtName) {
-      accumulate(byMetroDistrict, `${provinceName}|${districtName}`, weeklyKm);
+      accumulate(byMetroDistrict, `${provinceName}|${districtName}`, monthKm);
     }
   }
 
@@ -81,9 +82,11 @@ export function buildRegionLiveStatsIndex(store, getUserMetrics) {
 
     return {
       memberCount: members,
-      participants: active,
+      // 클라 히어로/행 라벨이 '회원수'로 이 필드를 읽는다 — 지역 소속 인원.
+      participants: members,
       totalDistanceKm: totalKm,
-      averageDistanceKm: active > 0 ? toFixed1(totalKm / active) : 0,
+      // '인당 평균' — 회원수 기준 (활동자만으로 나누면 라벨과 어긋난다).
+      averageDistanceKm: members > 0 ? toFixed1(totalKm / members) : 0,
       participationRate: members > 0 ? Math.round((active / members) * 100) : 0,
     };
   };
