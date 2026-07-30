@@ -7,6 +7,7 @@ export const USER_NOTIFICATION_TYPES = new Set([
   'friend_accepted',
   'rank_change',
   'chase_settlement',
+  'inquiry_reply',
 ]);
 export const MAX_USER_NOTIFICATIONS = 50;
 

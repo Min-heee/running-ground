@@ -1,5 +1,7 @@
 export {
   checkMyTagAvailability,
+  createMyInquiry,
+  fetchMyInquiries,
   fetchMyProfile,
   fetchNotificationSettings,
   updateMyProfile,

@@ -55,6 +55,8 @@ export function getNotificationTypeLabel(type: InboxNotificationType) {
       return '랭크';
     case 'chase_settlement':
       return '경찰과 도둑';
+    case 'inquiry_reply':
+      return '문의 답변';
     default:
       return '알림';
   }
@@ -78,6 +80,11 @@ export function resolveNotificationHref(notification: InboxNotification): Href |
         ...(data.mode === 'duel' || data.mode === 'group' ? { matchMode: data.mode } : {}),
       },
     };
+  }
+
+  // 문의 답변 알림 → 문의하기 화면(내역에 답변이 보인다).
+  if (notification.type === 'inquiry_reply') {
+    return '/support';
   }
 
   // 경찰과 도둑런 정산 알림 → 해당 러닝의 상세(정산 카드)로.

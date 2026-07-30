@@ -77,6 +77,12 @@ export function ProfileSettingsCard({ onDebugUnlockPress }: ProfileSettingsCardP
           <Text style={styles.settingValue}>열기</Text>
         </Pressable>
       </Link>
+      <Link href="/support" asChild>
+        <Pressable style={styles.settingRow}>
+          <Text style={styles.settingLabel}>문의하기</Text>
+          <Text style={styles.settingValue}>열기</Text>
+        </Pressable>
+      </Link>
       <Pressable
         style={styles.settingRow}
         onPress={openPrivacyPolicy}

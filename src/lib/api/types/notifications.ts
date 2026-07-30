@@ -4,7 +4,8 @@ export type InboxNotificationType =
   | 'friend_request'
   | 'friend_accepted'
   | 'rank_change'
-  | 'chase_settlement';
+  | 'chase_settlement'
+  | 'inquiry_reply';
 
 export type InboxNotificationData = {
   roomId?: string;
@@ -15,6 +16,7 @@ export type InboxNotificationData = {
   lpDelta?: number;
   arenaId?: string;
   runId?: string;
+  inquiryId?: string;
   [key: string]: unknown;
 };
 

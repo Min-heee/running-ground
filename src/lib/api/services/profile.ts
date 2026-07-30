@@ -11,11 +11,15 @@ import {
 import {
   apiGet,
   apiPatch,
+  apiPost,
 } from '../client';
 
 import { USE_MOCK_API } from '../config';
 
 import {
+  CreateInquiryInput,
+  CreateInquiryResponse,
+  MyInquiriesResponse,
   MyProfileResponse,
   NotificationSettingsResponse,
   TagAvailabilityResponse,
@@ -173,4 +177,20 @@ export async function updateMyRegion(input: UpdateMyRegionInput): Promise<Update
 
   await setCurrentUserProfile(nextProfile);
   return nextProfile;
+}
+
+// 문의하기 — 유저는 제목/내용만 보낸다. 관리자 답변은 목록의 replies로 내려오고
+// 답변이 달리면 인박스 알림(inquiry_reply)도 함께 도착한다.
+export async function fetchMyInquiries(): Promise<MyInquiriesResponse> {
+  return apiGet<MyInquiriesResponse>('/me/inquiries', {
+    accessToken: await requireAccessToken(),
+    fallbackMessage: '문의 내역을 불러오지 못했어요.',
+  });
+}
+
+export async function createMyInquiry(input: CreateInquiryInput): Promise<CreateInquiryResponse> {
+  return apiPost<CreateInquiryResponse>('/me/inquiries', input, {
+    accessToken: await requireAccessToken(),
+    fallbackMessage: '문의를 보내지 못했어요.',
+  });
 }

@@ -22,7 +22,11 @@ export const NotificationTypeIcon = memo(function NotificationTypeIcon({ type, u
       ? 'user-plus'
       : type === 'friend_accepted'
         ? 'user-check'
-        : 'trending-up';
+        : type === 'inquiry_reply'
+          ? 'message-circle'
+          : type === 'chase_settlement'
+            ? 'target'
+            : 'trending-up';
 
   return <Feather name={iconName} size={fontSizes.title} color={iconColor} />;
 });

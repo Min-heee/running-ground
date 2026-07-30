@@ -1,4 +1,5 @@
 import { buildAdminLiveActivity } from '../lib/adminLiveActivity.mjs';
+import { removeUserInquiries } from '../lib/inquiries.mjs';
 import { recordVanishedMatch } from '../lib/vanishedMatchTombstones.mjs';
 
 function createNowIso() {
@@ -149,6 +150,9 @@ export function createJsonAdminRepository({
         store.friendRequests = store.friendRequests.filter((entry) => entry.requesterId !== userId && entry.receiverId !== userId);
         store.rewardRedemptions = (store.rewardRedemptions ?? []).filter((entry) => entry.userId !== userId);
         store.integrationImports = ensureIntegrationImports(store).filter((entry) => entry.userId !== userId);
+        // 문의(자유서술 PII)와 인박스 알림도 함께 파기 — 유저 탈퇴 경로와 동일 계약.
+        removeUserInquiries(store, userId);
+        store.notifications = (store.notifications ?? []).filter((entry) => entry.userId !== userId);
 
         for (const event of store.offlineRaceEvents) {
           event.registeredUserTags = (event.registeredUserTags ?? []).filter((tag) => tag !== deletedUser.publicTag);

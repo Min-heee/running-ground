@@ -1,4 +1,5 @@
 import { ApiError } from '../response/httpResponse.mjs';
+import { buildMyInquiriesPayload, createUserInquiry } from '../lib/inquiries.mjs';
 import {
   isAppleRevocationConfigured,
   revokeAppleRefreshToken,
@@ -36,6 +37,27 @@ export async function routeMeProfileRequest({
       sendJson,
       url,
     });
+    return true;
+  }
+
+  // 문의하기 — 작성/내역 (오너 2026-07-31). 관리자 답변은 admin API에서.
+  if (pathname === '/api/me/inquiries' && method === 'GET') {
+    const store = await loadStore();
+    const user = requireUser(store, request);
+    sendJson(response, 200, buildMyInquiriesPayload(store, user));
+    return true;
+  }
+
+  if (pathname === '/api/me/inquiries' && method === 'POST') {
+    // 인증은 쓰기 락 밖에서 — mutateStore는 전역 단일 라이터라, 미인증 요청이
+    // 트랜잭션을 잡고 401을 던지면 러닝 저장/매치 푸시까지 줄 서게 된다.
+    requireUser(await loadStore(), request);
+    const body = (await parseJsonBody(request)) ?? {};
+    const payload = await mutateStore((store) => {
+      const user = requireUser(store, request);
+      return createUserInquiry(store, user, { title: body.title, body: body.body });
+    });
+    sendJson(response, 201, payload);
     return true;
   }
 

@@ -84,6 +84,35 @@ export type NotificationSettingsResponse = {
   matchReminders: boolean;
 };
 
+// 문의하기 (오너 2026-07-31) — 유저는 제목/내용만 보내고, 관리자 답변이 replies로 실린다.
+export type MyInquiryReply = {
+  id: string;
+  body: string;
+  createdAt: string;
+};
+
+export type MyInquiry = {
+  id: string;
+  title: string;
+  body: string;
+  status: 'pending' | 'answered';
+  createdAt: string;
+  replies: MyInquiryReply[];
+};
+
+export type MyInquiriesResponse = {
+  inquiries: MyInquiry[];
+};
+
+export type CreateInquiryInput = {
+  title: string;
+  body: string;
+};
+
+export type CreateInquiryResponse = {
+  inquiry: MyInquiry;
+};
+
 export type UpdateMyProfileInput = {
   name: string;
   // Tag code with or without '#' — the server normalizes to '#CODE' (uppercase

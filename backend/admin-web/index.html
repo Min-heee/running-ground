@@ -111,6 +111,7 @@ const TABS = [
   { id: 'live', label: '🔴 라이브' },
   { id: 'users', label: '유저' },
   { id: 'redemptions', label: '리워드 신청' },
+  { id: 'inquiries', label: '문의' },
   { id: 'notices', label: '공지' },
   { id: 'market', label: '마켓' },
   { id: 'races', label: '오프라인 대회' },
@@ -208,7 +209,7 @@ function selectTab(tabId) {
 function refreshCurrent() {
   syncLiveAutoRefresh();
   el('panel').innerHTML = '<div class="empty">불러오는 중...</div>';
-  ({ overview: loadOverview, live: loadLive, users: loadUsers, redemptions: loadRedemptions, notices: loadNotices, market: loadMarket, races: loadRaces })[currentTab]()
+  ({ overview: loadOverview, live: loadLive, users: loadUsers, redemptions: loadRedemptions, inquiries: loadInquiries, notices: loadNotices, market: loadMarket, races: loadRaces })[currentTab]()
     .catch((error) => { el('panel').innerHTML = `<div class="empty">${esc(error.message)}</div>`; });
 }
 
@@ -465,6 +466,80 @@ async function removeNotice(id) {
     toast('공지를 삭제했어요');
     refreshCurrent();
   } catch (error) { toast(error.message, true); }
+}
+
+// ── 문의 ─────────────────────────────────────────────────────────────────────
+function formatInquiryAt(value) {
+  // 서버는 ISO(UTC) — 한국 시간으로 읽기 좋게.
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).format(date);
+}
+
+async function loadInquiries() {
+  const data = await api('/inquiries');
+
+  const cards = data.inquiries.map((inquiry) => {
+    const replies = inquiry.replies.map((reply) => `
+      <div style="margin-top:8px; padding:10px 12px; border-radius:10px; background:rgba(109,94,247,0.10);">
+        <div class="muted" style="font-size:12px;">답변 · ${esc(formatInquiryAt(reply.createdAt))}</div>
+        <div style="white-space:pre-wrap;">${esc(reply.body)}</div>
+      </div>`).join('');
+
+    return `
+      <div style="border:1px solid #E4E7EC; border-radius:12px; padding:14px; margin-bottom:12px;">
+        <div class="row" style="justify-content:space-between; align-items:flex-start; gap:10px;">
+          <div>
+            <b>${esc(inquiry.title)}</b>
+            <div class="muted" style="font-size:12px;">
+              ${esc(inquiry.userName)} ${esc(inquiry.userTag)} · ${esc(formatInquiryAt(inquiry.createdAt))}
+            </div>
+          </div>
+          <span class="chip ${inquiry.status === 'pending' ? 'off' : 'on'}">${inquiry.status === 'pending' ? '답변 대기' : '답변 완료'}</span>
+        </div>
+        <div style="margin-top:10px; white-space:pre-wrap;">${esc(inquiry.body)}</div>
+        ${replies}
+        <form class="inquiry-reply-form" data-inquiry-id="${esc(inquiry.id)}" onsubmit="return replyInquiry(event)" style="margin-top:12px;">
+          <textarea name="replyBody" rows="2" maxlength="1000" placeholder="답변을 입력하면 유저 앱 알림으로 전달돼요" required style="width:100%;"></textarea>
+          <button class="btn primary small" type="submit" style="margin-top:6px;">답변 보내기</button>
+        </form>
+      </div>`;
+  }).join('');
+
+  el('panel').innerHTML = `
+    <div class="section-title" style="margin-top:0;">문의 ${data.pendingCount > 0 ? `<span class="chip off">답변 대기 ${data.pendingCount}건</span>` : ''}</div>
+    ${cards || '<div class="empty">문의가 없어요.</div>'}`;
+}
+
+async function replyInquiry(event) {
+  event.preventDefault();
+  // id는 data 속성으로 읽는다 — 문자열 이스케이프 이중 디코딩 컨텍스트(onsubmit 안의
+  // JS 리터럴)에 사용자 입력을 넣지 않기 위함.
+  const form = event.target;
+  const inquiryId = form.dataset.inquiryId;
+  const field = form.elements.replyBody;
+  const submitButton = form.querySelector('button[type="submit"]');
+
+  // 더블클릭 방지 — 두 번 보내면 답변도 알림도 두 번 간다.
+  if (form.dataset.sending === '1') return false;
+  form.dataset.sending = '1';
+  if (submitButton) submitButton.disabled = true;
+
+  try {
+    await api(`/inquiries/${encodeURIComponent(inquiryId)}/reply`, {
+      method: 'POST',
+      body: JSON.stringify({ body: field.value.trim() }),
+    });
+    toast('답변을 보냈어요');
+    refreshCurrent();
+  } catch (error) {
+    toast(error.message, true);
+    form.dataset.sending = '';
+    if (submitButton) submitButton.disabled = false;
+  }
+  return false;
 }
 
 // ── 마켓 ─────────────────────────────────────────────────────────────────────

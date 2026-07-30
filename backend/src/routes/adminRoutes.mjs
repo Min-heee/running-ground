@@ -1,4 +1,5 @@
 import { routeAdminReadRequest } from './adminReadRoutes.mjs';
+import { buildAdminInquiriesPayload, replyToInquiry } from '../lib/inquiries.mjs';
 import {
   isAppleRevocationConfigured,
   revokeAppleRefreshToken,
@@ -17,6 +18,8 @@ export async function routeAdminRequest(routeContext) {
     requireAdmin,
     sendJson,
     parseJsonBody,
+    loadStore,
+    mutateStore,
     resetStore,
     getStoreFilePath,
     buildAdminStatus,
@@ -155,6 +158,23 @@ export async function routeAdminRequest(routeContext) {
       sendJson,
       validateRewardRedemptionStatus,
     });
+    return true;
+  }
+
+  // 문의 관리 — 목록/답변 (오너 2026-07-31).
+  if (pathname === '/api/admin/inquiries' && method === 'GET') {
+    requireAdmin(request);
+    sendJson(response, 200, buildAdminInquiriesPayload(await loadStore()));
+    return true;
+  }
+
+  const adminInquiryReplyMatch = pathname.match(/^\/api\/admin\/inquiries\/([^/]+)\/reply$/);
+
+  if (adminInquiryReplyMatch && method === 'POST') {
+    requireAdmin(request);
+    const body = (await parseJsonBody(request)) ?? {};
+    const payload = await mutateStore((store) => replyToInquiry(store, adminInquiryReplyMatch[1], { body: body.body }));
+    sendJson(response, 200, payload);
     return true;
   }
 
