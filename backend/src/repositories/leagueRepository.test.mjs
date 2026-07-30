@@ -419,3 +419,34 @@ await runTest('hybrid merged province: 구 board and 시 board stay disjoint und
   assert.equal(mokpo.districtName, '목포시');
   assert.deepEqual(mokpo.ranks.map((entry) => entry.name), ['목포주민']);
 });
+
+await runTest('region board stats are LIVE sums of member weekly competitive distance (박제 시드값 무시)', async () => {
+  const { repository } = createRepositoryHarness({
+    users: [
+      { id: 'user-me', name: '회원G', provinceName: '경기도', cityName: '고양시', districtName: '주엽동' },
+      { id: 'user-2', name: '이웃', provinceName: '경기도', cityName: '고양시', districtName: '덕양구' },
+      { id: 'user-3', name: '무활동', provinceName: '경기도', cityName: '고양시', districtName: '주엽동' },
+    ],
+    sessions: [
+      { token: 'token-me', userId: 'user-me' },
+    ],
+    regionTree: createCappedRegionTree(),
+  }, {
+    'user-me': { competitiveWeekDistanceKm: 3.1 },
+    'user-2': { competitiveWeekDistanceKm: 2 },
+  });
+
+  // 경기도 보드: 고양시 노드의 총거리는 시드값(880)이 아니라 멤버 합(5.1)이어야 한다.
+  const province = await repository.getRegions({ token: 'token-me', nodeId: 'kr-gg' });
+  const goyang = province.children.find((entry) => entry.name === '고양시');
+  assert.equal(goyang.totalDistanceKm, 5.1);
+  assert.equal(goyang.participants, 2); // 이번 주 달린 사람만
+  assert.equal(goyang.memberCount, 3);
+  assert.equal(goyang.averageDistanceKm, 2.5); // 5.1/2 = 2.55 → toFixed(1) 부동소수점 → 2.5
+  assert.equal(goyang.participationRate, 67);
+
+  // 루트 보드: 경기도 노드도 실시간 합.
+  const root = await repository.getRegions({ token: 'token-me' });
+  const gyeonggi = root.children.find((entry) => entry.name === '경기도');
+  assert.equal(gyeonggi.totalDistanceKm, 5.1);
+});

@@ -45,6 +45,8 @@
 - DO Spaces 백업 키 재발급 (채팅에 노출된 적 있음 — 로테이션 권장).
 - postgres 계열 레포(dormant, 플래그 off)에 미러 안 된 신규 메서드: friends의
   createRequestByUserId/getUserRelation, auth의 updateSocialRefreshToken (전환 재개 때 함께).
+- **postgres league 레포(dormant)의 buildRegionLeague는 여전히 박제 시드 통계를 읽음** —
+  json 레포는 2026-07-30에 실시간 집계(regionLiveStats)로 교체됨. 전환 재개 때 미러 필수.
 - **postgres run 매퍼가 chase/integrity 필드를 모름** — postgresRunsRowMappers.mjs mapRunRow와
   postgresRunsRepository.createTrackedRun이 run.chase(+integrity)를 드랍. BACKEND_POSTGRES_ENABLE_RUN_READS
   켜기 전에 반드시 미러 (지금은 플래그 off라 미발동).

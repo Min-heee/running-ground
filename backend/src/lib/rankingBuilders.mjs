@@ -1,4 +1,9 @@
 import { findRegionPathForUser, normalizeRegionChildren } from './regionTreeHelpers.mjs';
+import {
+  buildRegionLiveStatsIndex,
+  decorateRegionNodeWithLiveStats,
+  regionAncestorsFromPath,
+} from './regionLiveStats.mjs';
 import { getUserMetrics } from './userStoreHelpers.mjs';
 
 export function compareFriendRank(store, left, right) {
@@ -36,8 +41,14 @@ export function getDistrictBattle(store, user) {
     };
   }
 
-  const normalizedSiblings = parentNode ? normalizeRegionChildren(parentNode.children ?? []) : [rawNode];
-  const currentNode = normalizedSiblings.find((entry) => entry.id === rawNode.id) ?? rawNode;
+  // 트리의 시드 통계는 박제 값 — 유저 러닝(이번 주 경쟁 거리)에서 실시간 계산 (지역 보드와 동일 기준).
+  const statsIndex = buildRegionLiveStatsIndex(store, getUserMetrics);
+  const siblingAncestors = regionAncestorsFromPath(path.slice(0, -1));
+  const decoratedSiblings = (parentNode ? parentNode.children ?? [] : [rawNode])
+    .map((entry) => decorateRegionNodeWithLiveStats(entry, siblingAncestors, statsIndex));
+  const normalizedSiblings = normalizeRegionChildren(decoratedSiblings);
+  const currentNode = normalizedSiblings.find((entry) => entry.id === rawNode.id)
+    ?? decorateRegionNodeWithLiveStats(rawNode, siblingAncestors, statsIndex);
 
   return {
     averageDistancePerMember: currentNode.averageDistanceKm,

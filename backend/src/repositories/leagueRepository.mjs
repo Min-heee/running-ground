@@ -2,6 +2,11 @@ import {
   buildTodayRanking,
   isTodayRankingCategory,
 } from '../services/todayRankingBuilder.mjs';
+import {
+  buildRegionLiveStatsIndex,
+  decorateRegionNodeWithLiveStats,
+  regionAncestorsFromPath,
+} from '../lib/regionLiveStats.mjs';
 import { buildUserRunMetrics } from '../lib/points.mjs';
 import { ensureUserRankState } from '../lib/userStoreHelpers.mjs';
 import { LP_PER_TIER, RANK_TIERS } from '../lib/rankSystem.mjs';
@@ -226,7 +231,7 @@ function capRegionPathDepth(path) {
   return path.slice(0, leafIndex + 1);
 }
 
-function buildRegionLeague(store, nodeId, createError) {
+function buildRegionLeague(store, nodeId, createError, getUserMetrics) {
   const rootNode = store.regionTree;
   const rawPath = nodeId ? findRegionPath(rootNode, nodeId) : [rootNode];
 
@@ -234,16 +239,28 @@ function buildRegionLeague(store, nodeId, createError) {
     throw createError(404, '선택한 지역 정보를 찾을 수 없어요.');
   }
 
+  // 트리에 저장된 시드 통계는 박제 값 — 유저 러닝(이번 주 경쟁 거리)에서 실시간 계산해
+  // 덮어쓴다. 정렬/순위(rank)도 실시간 값 기준이 된다.
+  const statsIndex = buildRegionLiveStatsIndex(store, getUserMetrics);
   const path = capRegionPathDepth(rawPath);
   const rawCurrentNode = path[path.length - 1];
   const parentNode = path[path.length - 2] ?? null;
-  const normalizedSiblings = parentNode ? normalizeRegionChildren(parentNode.children ?? []) : [rawCurrentNode];
-  const currentNode = normalizedSiblings.find((child) => child.id === rawCurrentNode.id) ?? rawCurrentNode;
+  const siblingAncestors = regionAncestorsFromPath(path.slice(0, -1));
+  const decoratedSiblings = (parentNode ? parentNode.children ?? [] : [rawCurrentNode])
+    .map((node) => decorateRegionNodeWithLiveStats(node, siblingAncestors, statsIndex));
+  const normalizedSiblings = normalizeRegionChildren(decoratedSiblings);
+  const currentNode = normalizedSiblings.find((child) => child.id === rawCurrentNode.id)
+    ?? decorateRegionNodeWithLiveStats(rawCurrentNode, siblingAncestors, statsIndex);
+  const childAncestors = regionAncestorsFromPath(path);
   // City (시/군) nodes are leaves: never expose their 구/동 children so the drill
   // stops at three levels and the city's whole member ranking is shown instead.
   const children = isRegionLeafLevel(currentNode.level)
     ? []
-    : normalizeRegionChildren(currentNode.children ?? []);
+    : normalizeRegionChildren(
+        (rawCurrentNode.children ?? []).map((node) =>
+          decorateRegionNodeWithLiveStats(node, childAncestors, statsIndex),
+        ),
+      );
 
   return {
     currentNode,
@@ -276,7 +293,7 @@ export function createJsonLeagueRepository({
     async getRegions({ token, nodeId }) {
       const store = await loadStore();
       requireUserByToken(store, token);
-      return buildRegionLeague(store, nodeId, createError);
+      return buildRegionLeague(store, nodeId, createError, getUserMetrics);
     },
 
     async getTodayRankings({ token, category }) {
