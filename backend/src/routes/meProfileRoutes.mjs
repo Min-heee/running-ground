@@ -1,4 +1,5 @@
 import { ApiError } from '../response/httpResponse.mjs';
+import { registerPushToken, removeOwnPushToken } from '../lib/pushTokens.mjs';
 import { buildMyInquiriesPayload, createUserInquiry } from '../lib/inquiries.mjs';
 import {
   isAppleRevocationConfigured,
@@ -37,6 +38,30 @@ export async function routeMeProfileRequest({
       sendJson,
       url,
     });
+    return true;
+  }
+
+  // 원격 푸시 토큰 등록/해제 (공지 푸시).
+  if (pathname === '/api/me/push-token' && method === 'POST') {
+    const body = (await parseJsonBody(request)) ?? {};
+    const payload = await mutateStore((store) => {
+      const user = requireUser(store, request);
+      return registerPushToken(store, user, { token: body.token, platform: body.platform });
+    });
+    sendJson(response, 200, payload);
+    return true;
+  }
+
+  // 해제는 쿼리로 토큰을 받는다 (클라 apiDelete는 바디를 싣지 않는다).
+  if (pathname === '/api/me/push-token' && method === 'DELETE') {
+    const token = (url.searchParams.get('token') ?? '').trim();
+    await mutateStore((store) => {
+      const user = requireUser(store, request);
+      // 내 토큰만 — 토큰 문자열만 알면 남의 알림을 끌 수 있으면 안 된다.
+      removeOwnPushToken(store, user.id, token);
+      return null;
+    });
+    sendJson(response, 200, { success: true });
     return true;
   }
 

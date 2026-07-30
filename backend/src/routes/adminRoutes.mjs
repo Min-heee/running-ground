@@ -1,4 +1,6 @@
 import { routeAdminReadRequest } from './adminReadRoutes.mjs';
+import { sendExpoPushNotifications } from '../lib/expoPushSender.mjs';
+import { collectPushTargets, removePushToken } from '../lib/pushTokens.mjs';
 import { buildAdminInquiriesPayload, replyToInquiry } from '../lib/inquiries.mjs';
 import {
   isAppleRevocationConfigured,
@@ -81,6 +83,8 @@ export async function routeAdminRequest(routeContext) {
     requireAdmin(request);
     await handleCreateAdminNotice({
       getAdminRepository,
+      loadStore,
+      mutateStore,
       normalizeAdminNoticeInput,
       parseJsonBody,
       request,
@@ -292,6 +296,8 @@ async function handleDeleteAdminMarketItem({
 
 async function handleCreateAdminNotice({
   getAdminRepository,
+  loadStore,
+  mutateStore,
   normalizeAdminNoticeInput,
   parseJsonBody,
   request,
@@ -304,6 +310,44 @@ async function handleCreateAdminNotice({
   });
 
   sendJson(response, 201, payload);
+
+  // 공지 등록 = 전체 푸시 (오너 2026-07-31). 응답을 보낸 뒤 fire-and-forget —
+  // 푸시 게이트웨이가 느리거나 죽어도 관리자 요청은 이미 성공으로 끝나 있다.
+  // 노출 off로 만든 공지는 보내지 않는다.
+  const notice = payload?.item ?? null;
+
+  if (notice?.isActive) {
+    void sendNoticePushNotification({ loadStore, mutateStore, notice }).catch(() => {});
+  }
+}
+
+// 공지 푸시 — 마켓/친구 알림 설정과 무관한 '서비스 공지'라 설정 게이트 없이 전원 발송.
+async function sendNoticePushNotification({ loadStore, mutateStore, notice }) {
+  const tokens = collectPushTargets(await loadStore());
+
+  if (tokens.length === 0) {
+    return;
+  }
+
+  await sendExpoPushNotifications(
+    tokens,
+    {
+      title: notice.title,
+      body: notice.message,
+      data: { type: 'notice', noticeId: notice.id },
+    },
+    {
+      onInvalidTokens: async (invalidTokens) => {
+        await mutateStore((store) => {
+          for (const token of invalidTokens) {
+            removePushToken(store, token);
+          }
+
+          return null;
+        });
+      },
+    },
+  );
 }
 
 async function handleUpdateAdminNotice({

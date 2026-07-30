@@ -15,6 +15,12 @@
 - **expo-av의 FGS_MEDIA_PLAYBACK 제거 검토** — expo-audio만 쓰면 Play 선언 자체를 없앨 수 있음.
 - **iOS 네이티브 주기 업로더** — 화면 꺼짐 라이브 동기화 잔여 근본 수술 (memory: bgsync-residual-and-native-uploader).
 - Sentry 소스맵 업로드 토큰 배선 (현재 SENTRY_DISABLE_AUTO_UPLOAD=true).
+- **푸시 알림 자격증명 + Android 재빌드** (2026-07-31 파이프라인 코드는 완료):
+  · iOS: APNs .p8 키를 EAS 크리덴셜에 업로드하면 빌드 52에서 OTA만으로 동작할 가능성이 높음
+    (expo-notifications 플러그인이 빌드 52 이전부터 있어 aps-environment 엔타이틀먼트 존재 추정 —
+    `npx eas-cli credentials -p ios`로 프로비저닝 프로파일에 Push 권한 있는지 먼저 확인).
+  · Android: Firebase 프로젝트 생성 → google-services.json을 app.json android.googleServicesFile에
+    지정 + FCM v1 서비스계정 JSON을 EAS 크리덴셜에 업로드 → **네이티브 재빌드 필수**(versionCode 40+).
 - **Android Google Maps API 키 배선** — 경찰과 도둑런 라이브 지도가 iOS는 애플 지도,
   Android는 레이더 폴백(#207 제약). 키 넣고 ChaseLiveMapView.android.tsx를 native 구현으로 교체.
 

@@ -3,6 +3,8 @@ export {
   createMyInquiry,
   fetchMyInquiries,
   fetchMyProfile,
+  registerPushToken,
+  unregisterPushToken,
   fetchNotificationSettings,
   updateMyProfile,
   updateMyRegion,

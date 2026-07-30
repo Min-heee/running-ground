@@ -1,4 +1,5 @@
 import { buildSessionExpiry, setUserPassword, verifyPassword } from '../auth.mjs';
+import { removeUserPushTokens } from '../lib/pushTokens.mjs';
 import { removeUserInquiries } from '../lib/inquiries.mjs';
 import { INITIAL_RANK } from '../lib/rankSystem.mjs';
 import { SOCIAL_PROVIDER_LABEL } from '../lib/socialAuthProviders.mjs';
@@ -258,6 +259,7 @@ export function createJsonAuthRepository({
         store.liveRunShares = (store.liveRunShares ?? []).filter((entry) => entry.userId !== user.id);
         // 문의(자유서술 PII)와 인박스 알림도 함께 파기 — 개인정보 파기 의무 + 5.1.1(v).
         removeUserInquiries(store, user.id);
+        removeUserPushTokens(store, user.id);
         store.notifications = (store.notifications ?? []).filter((entry) => entry.userId !== user.id);
 
         if (Array.isArray(store.offlineRaceEvents)) {

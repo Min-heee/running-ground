@@ -1,4 +1,5 @@
 import * as Linking from 'expo-linking';
+import { clearPushRegistration } from '@/lib/push/pushRegistration';
 import * as WebBrowser from 'expo-web-browser';
 import type {
   AuthResponse,
@@ -118,6 +119,9 @@ export async function signInWithProvider(provider: 'kakao' | 'google' | 'apple' 
 
 export async function signOut() {
   await ensureHydrated();
+
+  // 이 기기로 더는 공지 푸시가 가지 않게 서버에서 토큰을 지운다 (실패는 무시).
+  await clearPushRegistration();
 
   if (USE_MOCK_API) {
     await clearSession();

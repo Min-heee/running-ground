@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'expo-router';
 import { getIsSignedIn, hydrateSession } from '@/lib/session';
+import { syncPushRegistration } from '@/lib/push/pushRegistration';
 import { isAdminRouteEnabled } from '@/utils/rgEnvTrace';
 
 const PUBLIC_ROUTES = new Set([
@@ -27,7 +28,11 @@ export function useRootAuthGate() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    hydrateSession().finally(() => setReady(true));
+    hydrateSession().finally(() => {
+      setReady(true);
+      // 공지 푸시 대상 등록 — 실패는 내부에서 삼킨다 (권한 거절/자격증명 없는 빌드).
+      void syncPushRegistration();
+    });
   }, []);
 
   if (!ready) {

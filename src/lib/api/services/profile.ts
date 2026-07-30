@@ -9,6 +9,7 @@ import {
 } from '@/lib/session';
 
 import {
+  apiDelete,
   apiGet,
   apiPatch,
   apiPost,
@@ -17,6 +18,7 @@ import {
 import { USE_MOCK_API } from '../config';
 
 import {
+  RegisterPushTokenInput,
   CreateInquiryInput,
   CreateInquiryResponse,
   MyInquiriesResponse,
@@ -192,5 +194,20 @@ export async function createMyInquiry(input: CreateInquiryInput): Promise<Create
   return apiPost<CreateInquiryResponse>('/me/inquiries', input, {
     accessToken: await requireAccessToken(),
     fallbackMessage: '문의를 보내지 못했어요.',
+  });
+}
+
+// 원격 푸시 토큰 — 공지 푸시 발송 대상. 등록 실패는 호출부가 조용히 삼킨다.
+export async function registerPushToken(input: RegisterPushTokenInput): Promise<{ success: boolean }> {
+  return apiPost<{ success: boolean }>('/me/push-token', input, {
+    accessToken: await requireAccessToken(),
+    fallbackMessage: '푸시 알림을 등록하지 못했어요.',
+  });
+}
+
+export async function unregisterPushToken(token: string): Promise<{ success: boolean }> {
+  return apiDelete<{ success: boolean }>(`/me/push-token?token=${encodeURIComponent(token)}`, {
+    accessToken: await requireAccessToken(),
+    fallbackMessage: '푸시 알림을 해제하지 못했어요.',
   });
 }

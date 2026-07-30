@@ -84,6 +84,12 @@ export type NotificationSettingsResponse = {
   matchReminders: boolean;
 };
 
+// 원격 푸시 토큰 등록 — 공지 푸시 대상 저장용.
+export type RegisterPushTokenInput = {
+  token: string;
+  platform: 'ios' | 'android';
+};
+
 // 문의하기 (오너 2026-07-31) — 유저는 제목/내용만 보내고, 관리자 답변이 replies로 실린다.
 export type MyInquiryReply = {
   id: string;

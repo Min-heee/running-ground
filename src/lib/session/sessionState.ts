@@ -1,4 +1,5 @@
 import { myProfile } from '@/data/mock';
+import { syncPushRegistration } from '@/lib/push/pushRegistration';
 import type { UserProfile } from '@/domain';
 import type { AuthResponse } from '@/lib/api/types';
 import {
@@ -177,6 +178,9 @@ export async function applyMockSignIn() {
 export async function applyBackendAuthSession(authResponse: AuthResponse) {
   setBackendSession(authResponse);
   await persistSession();
+  // 로그인/가입 직후 이 기기를 공지 푸시 대상으로 등록한다 (부팅 훅만 있으면 신규 가입과
+  // 같은 세션 내 계정 전환에서 토큰이 올라가지 않는다). 실패는 내부에서 삼킨다.
+  void syncPushRegistration();
   return authResponse.user;
 }
 
