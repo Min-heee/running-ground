@@ -5,7 +5,56 @@
 // default; it intentionally resets to the default on a full app restart (no native
 // persistence layer is wired for non-session prefs).
 
-export type LiveGapInterval = 'off' | '1m' | '3m' | '5m' | '10m';
+// 프리셋 + 직접 입력(custom:N분). 직접 입력은 정수 분만 허용한다 (오너 2026-07-31):
+// 소수점 분은 체크포인트 정합(60초 배수 = 10초 배수)을 깨뜨릴 수 있고, 사용자에게도 의미가 없다.
+export type LiveGapInterval = 'off' | '1m' | '3m' | '5m' | '10m' | `custom:${number}`;
+
+const CUSTOM_INTERVAL_PREFIX = 'custom:';
+// 직접 입력 상한 — 이보다 길면 대결 한 판 안에 한 번도 안 울린다.
+export const LIVE_GAP_CUSTOM_INTERVAL_MIN_MINUTES = 1;
+export const LIVE_GAP_CUSTOM_INTERVAL_MAX_MINUTES = 180;
+
+// 사용자가 친 문자열 → 유효한 분(정수) 또는 null. 소수점·0·음수·공백은 전부 null.
+export function parseCustomIntervalMinutesInput(raw: string): number | null {
+  const trimmed = String(raw ?? '').trim();
+
+  if (!/^\d+$/.test(trimmed)) {
+    return null;
+  }
+
+  const minutes = Number(trimmed);
+
+  if (
+    !Number.isInteger(minutes)
+    || minutes < LIVE_GAP_CUSTOM_INTERVAL_MIN_MINUTES
+    || minutes > LIVE_GAP_CUSTOM_INTERVAL_MAX_MINUTES
+  ) {
+    return null;
+  }
+
+  return minutes;
+}
+
+export function buildCustomLiveGapInterval(minutes: number): LiveGapInterval | null {
+  if (
+    !Number.isInteger(minutes)
+    || minutes < LIVE_GAP_CUSTOM_INTERVAL_MIN_MINUTES
+    || minutes > LIVE_GAP_CUSTOM_INTERVAL_MAX_MINUTES
+  ) {
+    return null;
+  }
+
+  return `${CUSTOM_INTERVAL_PREFIX}${minutes}` as LiveGapInterval;
+}
+
+// custom:N → N (프리셋/비정상 값은 null).
+export function parseCustomLiveGapIntervalMinutes(interval: LiveGapInterval | string): number | null {
+  if (typeof interval !== 'string' || !interval.startsWith(CUSTOM_INTERVAL_PREFIX)) {
+    return null;
+  }
+
+  return parseCustomIntervalMinutesInput(interval.slice(CUSTOM_INTERVAL_PREFIX.length));
+}
 
 // Relative targets (ahead1/behind1) follow my live rank; absolute targets (rank1)
 // follow the leaderboard position regardless of where I sit. Legacy values
@@ -111,6 +160,13 @@ export const LIVE_GAP_DELIVERY_MODE_OPTIONS: readonly LiveGapDeliveryModeOption[
 ];
 
 export function resolveLiveGapIntervalMs(interval: LiveGapInterval): number | null {
+  const customMinutes = parseCustomLiveGapIntervalMinutes(interval);
+
+  if (customMinutes !== null) {
+    // 정수 분이므로 항상 60초 배수 = 10초 체크포인트 배수 (무손실 스냅 불변식 유지).
+    return customMinutes * 60_000;
+  }
+
   return LIVE_GAP_INTERVAL_OPTIONS.find((option) => option.value === interval)?.ms ?? null;
 }
 
@@ -214,9 +270,13 @@ export function normalizeLiveGapPushConfig(raw: unknown): LiveGapPushConfig {
 
   const candidate = raw as Record<string, unknown>;
 
-  const interval = VALID_INTERVALS.has(candidate.interval as LiveGapInterval)
-    ? (candidate.interval as LiveGapInterval)
-    : DEFAULT_CONFIG.interval;
+  const rawInterval = candidate.interval as LiveGapInterval;
+  const customMinutes = parseCustomLiveGapIntervalMinutes(rawInterval);
+  const interval = VALID_INTERVALS.has(rawInterval)
+    ? rawInterval
+    : customMinutes !== null
+      ? (buildCustomLiveGapInterval(customMinutes) ?? DEFAULT_CONFIG.interval)
+      : DEFAULT_CONFIG.interval;
 
   const rawGroupTargets = Array.isArray(candidate.groupTargets) ? candidate.groupTargets : [];
   const groupTargets = VALID_GROUP_TARGETS.filter((value) => rawGroupTargets.includes(value));

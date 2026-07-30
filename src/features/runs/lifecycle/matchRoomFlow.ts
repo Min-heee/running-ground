@@ -258,7 +258,7 @@ export function buildMatchRoomReadyActionState(
     canToggle: true,
     helperText: isReady
       ? '준비 완료 상태예요. 방장이 시작하면 카운트다운이 시작돼요.'
-      : '준비를 누르면 방장이 시작할 수 있는 조건에 포함돼요.',
+      : '',
   };
 }
 

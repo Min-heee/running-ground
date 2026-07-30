@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  buildCustomLiveGapInterval,
   findNonCheckpointAlignedIntervalOption,
   getLiveGapPushConfig,
   hydrateLiveGapPushConfig,
   LIVE_GAP_CHECKPOINT_STEP_SECONDS,
   LIVE_GAP_INTERVAL_OPTIONS,
   normalizeLiveGapPushConfig,
+  parseCustomIntervalMinutesInput,
   resetLiveGapPushConfigForTests,
   resolveLiveGapIntervalMs,
   setLiveGapDeliveryMode,
@@ -261,4 +263,39 @@ test('subscribers stop receiving updates after unsubscribe', () => {
   unsubscribe();
   setLiveGapInterval('3m');
   assert.equal(notifications, 1);
+});
+
+test('직접 입력 간격: 1분 이상 정수만 허용 (소수점·0·음수 거부)', () => {
+  // 오너 2026-07-31 조건.
+  assert.equal(parseCustomIntervalMinutesInput('7'), 7);
+  assert.equal(parseCustomIntervalMinutesInput('1'), 1);
+  assert.equal(parseCustomIntervalMinutesInput(' 12 '), 12);
+
+  assert.equal(parseCustomIntervalMinutesInput('0'), null);
+  assert.equal(parseCustomIntervalMinutesInput('0.5'), null);
+  assert.equal(parseCustomIntervalMinutesInput('1.5'), null);
+  assert.equal(parseCustomIntervalMinutesInput('-3'), null);
+  assert.equal(parseCustomIntervalMinutesInput(''), null);
+  assert.equal(parseCustomIntervalMinutesInput('abc'), null);
+  assert.equal(parseCustomIntervalMinutesInput('181'), null); // 상한 초과
+});
+
+test('직접 입력 간격은 밀리초로 풀리고 체크포인트(10초) 배수를 유지한다', () => {
+  const interval = buildCustomLiveGapInterval(7);
+  assert.equal(interval, 'custom:7');
+
+  const ms = resolveLiveGapIntervalMs(interval!);
+  assert.equal(ms, 420_000);
+  // 무손실 스냅 불변식: 항상 10초의 배수여야 한다.
+  assert.equal((ms! / 1000) % 10, 0);
+
+  assert.equal(buildCustomLiveGapInterval(0), null);
+  assert.equal(buildCustomLiveGapInterval(1.5), null);
+});
+
+test('저장된 직접 입력 값은 복원되고, 망가진 값은 기본값으로 떨어진다', () => {
+  assert.equal(normalizeLiveGapPushConfig({ interval: 'custom:9' }).interval, 'custom:9');
+  assert.equal(normalizeLiveGapPushConfig({ interval: 'custom:0' }).interval, 'off');
+  assert.equal(normalizeLiveGapPushConfig({ interval: 'custom:1.5' }).interval, 'off');
+  assert.equal(normalizeLiveGapPushConfig({ interval: 'custom:abc' }).interval, 'off');
 });

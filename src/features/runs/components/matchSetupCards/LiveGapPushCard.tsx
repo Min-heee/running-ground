@@ -1,8 +1,13 @@
-import { memo, useSyncExternalStore } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { memo, useEffect, useState, useSyncExternalStore } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import {
+  buildCustomLiveGapInterval,
   getLiveGapPushConfig,
+  LIVE_GAP_CUSTOM_INTERVAL_MAX_MINUTES,
+  LIVE_GAP_CUSTOM_INTERVAL_MIN_MINUTES,
+  parseCustomIntervalMinutesInput,
+  parseCustomLiveGapIntervalMinutes,
   LIVE_GAP_DELIVERY_MODE_OPTIONS,
   LIVE_GAP_GROUP_TARGET_OPTIONS,
   LIVE_GAP_INTERVAL_OPTIONS,
@@ -72,6 +77,31 @@ export function LiveGapPushCard({ mode }: LiveGapPushCardProps) {
   );
   const intervalEnabled = config.interval !== 'off';
   const voiceOn = config.deliveryMode === 'voice' || config.deliveryMode === 'both';
+  const customMinutes = parseCustomLiveGapIntervalMinutes(config.interval);
+  // 직접 입력 값은 스토어(config.interval)가 단일 진실 — 로컬 입력은 타이핑 중 임시 상태.
+  const [customInput, setCustomInput] = useState(customMinutes !== null ? String(customMinutes) : '');
+
+  useEffect(() => {
+    // 칩으로 프리셋을 고르면 직접 입력칸을 비운다 (두 값이 동시에 선택된 것처럼 보이지 않게).
+    if (customMinutes === null) {
+      setCustomInput('');
+    }
+  }, [customMinutes]);
+
+  const handleCustomInputChange = (raw: string) => {
+    // 숫자만 남긴다 — 소수점('.')은 입력 자체가 안 되게 (오너 2026-07-31: 소수점 불가).
+    const digitsOnly = raw.replace(/[^0-9]/g, '').slice(0, 3);
+    setCustomInput(digitsOnly);
+
+    const minutes = parseCustomIntervalMinutesInput(digitsOnly);
+    const nextInterval = minutes === null ? null : buildCustomLiveGapInterval(minutes);
+
+    if (nextInterval) {
+      setLiveGapInterval(nextInterval);
+    }
+  };
+
+  const customInputInvalid = customInput.length > 0 && parseCustomIntervalMinutesInput(customInput) === null;
 
   return (
     <View style={styles.card}>
@@ -87,6 +117,28 @@ export function LiveGapPushCard({ mode }: LiveGapPushCardProps) {
           />
         ))}
       </View>
+      <View style={styles.customRow}>
+        <Text style={styles.customLabel}>직접 입력</Text>
+        <TextInput
+          value={customInput}
+          onChangeText={handleCustomInputChange}
+          placeholder="예: 7"
+          placeholderTextColor={colors.darkSoft}
+          keyboardType="number-pad"
+          maxLength={3}
+          style={[
+            styles.customInput,
+            customMinutes !== null ? styles.customInputActive : null,
+            customInputInvalid ? styles.customInputInvalid : null,
+          ]}
+        />
+        <Text style={styles.customUnit}>분</Text>
+      </View>
+      <Text style={customInputInvalid ? styles.customHintInvalid : styles.hint}>
+        {customInputInvalid
+          ? `${LIVE_GAP_CUSTOM_INTERVAL_MIN_MINUTES}분 이상 ${LIVE_GAP_CUSTOM_INTERVAL_MAX_MINUTES}분 이하의 정수로 입력해주세요.`
+          : '1분 이상 정수로만 입력할 수 있어요 (소수점 불가).'}
+      </Text>
       {mode === 'group' && intervalEnabled ? (
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>누구와 비교할까요?</Text>
@@ -201,6 +253,47 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: spacing.xxs,
+    marginTop: spacing.xxs,
+  },
+  customRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xxl,
+    marginTop: spacing.lg,
+  },
+  customLabel: {
+    color: colors.white,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+  },
+  customInput: {
+    minWidth: 72,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.darkSoft,
+    backgroundColor: colors.darkMuted,
+    color: colors.white,
+    fontWeight: fontWeights.extraBold,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.xxl,
+    textAlign: 'center',
+  },
+  customInputActive: {
+    borderColor: colors.brandLight,
+    backgroundColor: colors.indigoDeep,
+  },
+  customInputInvalid: {
+    borderColor: colors.dangerAccent,
+  },
+  customUnit: {
+    color: colors.borderNeutral,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+  },
+  customHintInvalid: {
+    color: colors.dangerAccent,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.semibold,
     marginTop: spacing.xxs,
   },
   sectionLabel: {

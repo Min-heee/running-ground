@@ -174,7 +174,7 @@ test('ready action is explicit for guest ready, not-ready, and locked states', (
     visible: true,
     label: '준비',
     canToggle: true,
-    helperText: '준비를 누르면 방장이 시작할 수 있는 조건에 포함돼요.',
+    helperText: '',
   });
 
   assert.equal(
