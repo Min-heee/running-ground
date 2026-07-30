@@ -55,11 +55,19 @@ const FriendListRow = memo(function FriendListRow({
               {friend.isRunningNow ? <View style={styles.friendLiveDot} /> : null}
               <Text style={styles.requestName}>{friend.name}</Text>
               {friend.rankTier ? <Text style={styles.metaChip}>{friend.rankTier}</Text> : null}
-              {friend.districtName ? (
-                <Text style={styles.metaText} numberOfLines={1}>
-                  {friend.districtName}
-                </Text>
-              ) : null}
+              {(() => {
+                // 지역은 마지막 두 섹션만 (오너 2026-07-31): "경기도 고양시 주엽동" → "고양시 주엽동".
+                const regionTwoSections = (friend.regionLabel ?? friend.districtName ?? '')
+                  .split(' ')
+                  .filter(Boolean)
+                  .slice(-2)
+                  .join(' ');
+                return regionTwoSections ? (
+                  <Text style={styles.metaText} numberOfLines={1}>
+                    {regionTwoSections}
+                  </Text>
+                ) : null;
+              })()}
               {friend.statusMessage ? (
                 <Text style={styles.statusMessage} numberOfLines={1}>
                   {friend.statusMessage}
@@ -218,6 +226,8 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: fontSizes.sm,
     flexShrink: 1,
+    lineHeight: 20,
+    includeFontPadding: false,
   },
   metaChip: {
     color: colors.brandStrong,
@@ -228,11 +238,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.s10,
     paddingVertical: 2,
     overflow: 'hidden',
+    includeFontPadding: false,
   },
   metaText: {
     color: colors.textSecondary,
     fontSize: fontSizes.sm,
     flexShrink: 1,
+    lineHeight: 20,
+    includeFontPadding: false,
   },
   partyRunButton: {
     width: 34,
@@ -282,6 +295,8 @@ const styles = StyleSheet.create({
     // 오너 2026-07-29: 친구 이름을 한 급 키운다 (행의 앵커).
     fontSize: fontSizes.rank,
     fontWeight: fontWeights.extraBold,
+    lineHeight: 20,
+    includeFontPadding: false,
   },
   locationButton: {
     flexDirection: 'row',
