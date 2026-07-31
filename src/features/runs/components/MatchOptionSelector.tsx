@@ -4,6 +4,7 @@ import {
   buildMatchOptionSegments,
   resolveActiveMatchOptionSegment,
   resolveSegmentSelection,
+  shouldRenderMatchOptionCards,
 } from '@/features/runs/components/matchOptionSegments';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
 import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
@@ -53,22 +54,19 @@ const SegmentTab = memo(function SegmentTab({
 
 const MatchOptionButton = memo(function MatchOptionButton({
   isSelected,
-  isWide,
   onSelect,
   option,
   selectedMode,
 }: {
   isSelected: boolean;
-  isWide: boolean;
   onSelect: (option: MatchOptionItem) => void;
   option: MatchOptionItem;
   selectedMode: MatchOptionMode;
 }) {
   const optionStyle = useMemo(() => [
     styles.option,
-    isWide ? styles.optionWide : styles.optionHalf,
     isSelected ? styles.optionSelected : styles.optionIdle,
-  ], [isSelected, isWide]);
+  ], [isSelected]);
   const titleStyle = useMemo(() => [
     styles.optionTitle,
     isSelected ? styles.optionTitleSelected : undefined,
@@ -130,25 +128,28 @@ export function MatchOptionSelector({
     />
   )), [activeSegment?.id, handleSelectSegment, segments]);
 
-  const optionButtons = useMemo(() => (activeSegment?.options ?? []).map((option) => (
-    <MatchOptionButton
-      key={option.mode}
-      isSelected={option.mode === selectedMode}
-      isWide={(activeSegment?.options.length ?? 0) === 1}
-      onSelect={onSelect}
-      option={option}
-      selectedMode={selectedMode}
-    />
-  )), [activeSegment, onSelect, selectedMode]);
+  const optionButtons = useMemo(() => (shouldRenderMatchOptionCards(activeSegment)
+    ? (activeSegment?.options ?? []).map((option) => (
+      <MatchOptionButton
+        key={option.mode}
+        isSelected={option.mode === selectedMode}
+        onSelect={onSelect}
+        option={option}
+        selectedMode={selectedMode}
+      />
+    ))
+    : []), [activeSegment, onSelect, selectedMode]);
 
   return (
     <View style={styles.container}>
       <View style={styles.segmentRow} accessibilityRole="tablist">
         {segmentTabs}
       </View>
-      <View style={styles.row}>
-        {optionButtons}
-      </View>
+      {optionButtons.length ? (
+        <View style={styles.row}>
+          {optionButtons}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -190,6 +191,7 @@ const styles = StyleSheet.create({
     gap: spacing.s10,
   },
   option: {
+    width: '48%',
     gap: spacing.xxs,
     borderRadius: radii.lg,
     borderWidth: 1,
@@ -197,12 +199,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.s12,
     minHeight: 68,
     justifyContent: 'center',
-  },
-  optionHalf: {
-    width: '48%',
-  },
-  optionWide: {
-    width: '100%',
   },
   optionIdle: {
     borderColor: colors.darkSoft,

@@ -19,12 +19,12 @@ export type MatchOptionSegment = MatchOptionSegmentDefinition & {
 };
 
 //  혼자   — 상대가 없는 러닝. 경찰과 도둑도 혼자 뛰고 스친 사람에게서 포인트만 붙는다.
-//  겨루기 — 모르는 러너와 붙는다. 시간을 잡아야 해서 예약 패널이 이 묶음에서만 뜬다.
-//  친구랑 — 내가 방을 열고 친구를 부른다.
+//  매칭   — 모르는 러너와 붙는다. 시간을 잡아야 해서 예약 패널이 이 묶음에서만 뜬다.
+//  파티런 — 내가 방을 열고 친구를 부른다.
 export const MATCH_OPTION_SEGMENTS: MatchOptionSegmentDefinition[] = [
   { id: 'alone', label: '혼자', modes: ['solo', 'chase'] },
-  { id: 'compete', label: '겨루기', modes: ['duel', 'group'] },
-  { id: 'friends', label: '친구랑', modes: ['room'] },
+  { id: 'compete', label: '매칭', modes: ['duel', 'group'] },
+  { id: 'friends', label: '파티런', modes: ['room'] },
 ];
 
 // 정의된 순서를 지키되, 옵션이 하나도 없는 묶음은 만들지 않는다 — 모드가 플래그로 빠졌을 때
@@ -56,6 +56,12 @@ export function resolveActiveMatchOptionSegment(
 
 // 묶음을 누르면 그 묶음의 첫 모드를 고른다. 이미 그 묶음 안에 있으면 아무것도 바꾸지 않는다 —
 // 같은 탭을 다시 눌렀다고 고른 모드가 리셋되면 안 된다.
+// 모드가 하나뿐인 묶음은 카드를 그리지 않는다 — 탭 이름이 곧 그 모드라서(파티런 탭 아래
+// '파티런' 카드) 같은 말이 두 번 나오고, 고를 것도 없는 카드가 자리만 차지한다.
+export function shouldRenderMatchOptionCards(segment: MatchOptionSegment | null): boolean {
+  return (segment?.options.length ?? 0) > 1;
+}
+
 export function resolveSegmentSelection(
   segments: MatchOptionSegment[],
   segmentId: string,

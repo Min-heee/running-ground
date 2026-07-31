@@ -6,6 +6,7 @@ import {
   buildMatchOptionSegments,
   resolveActiveMatchOptionSegment,
   resolveSegmentSelection,
+  shouldRenderMatchOptionCards,
 } from './matchOptionSegments';
 
 const OPTIONS: MatchOptionItem[] = [
@@ -16,7 +17,7 @@ const OPTIONS: MatchOptionItem[] = [
   { mode: 'room', title: '파티런' },
 ];
 
-test('모드는 혼자 / 겨루기 / 친구랑 세 묶음으로 갈린다', () => {
+test('모드는 혼자 / 매칭 / 파티런 세 묶음으로 갈린다', () => {
   const segments = buildMatchOptionSegments(OPTIONS);
 
   assert.deepEqual(
@@ -54,7 +55,7 @@ test('묶음을 누르면 그 묶음의 첫 모드를 고른다', () => {
 test('이미 그 묶음 안이면 고른 모드를 리셋하지 않는다', () => {
   const segments = buildMatchOptionSegments(OPTIONS);
 
-  // 겨루기 안에서 그룹 대결을 고른 상태로 '겨루기'를 다시 눌러도 1대1로 돌아가면 안 된다.
+  // 매칭 안에서 그룹 대결을 고른 상태로 '매칭'을 다시 눌러도 1대1로 돌아가면 안 된다.
   assert.equal(resolveSegmentSelection(segments, 'compete', 'group'), null);
   assert.equal(resolveSegmentSelection(segments, 'alone', 'chase'), null);
 });
@@ -63,4 +64,15 @@ test('없는 묶음을 눌러도 아무 일도 일어나지 않는다', () => {
   const segments = buildMatchOptionSegments(OPTIONS);
 
   assert.equal(resolveSegmentSelection(segments, 'nope', 'solo'), null);
+});
+
+test('모드가 하나뿐인 묶음은 카드를 그리지 않는다', () => {
+  // 파티런 탭 아래 '파티런' 카드가 또 나오면 같은 말이 두 번이고, 고를 것도 없다.
+  const segments = buildMatchOptionSegments(OPTIONS);
+  const friends = segments.find((segment) => segment.id === 'friends') ?? null;
+  const compete = segments.find((segment) => segment.id === 'compete') ?? null;
+
+  assert.equal(shouldRenderMatchOptionCards(friends), false);
+  assert.equal(shouldRenderMatchOptionCards(compete), true);
+  assert.equal(shouldRenderMatchOptionCards(null), false);
 });
