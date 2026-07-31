@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Card } from '@/components/Card';
@@ -31,15 +31,8 @@ export function RunningReadyScreen({
   onReadyAction,
   showSoloCoachEntry = false,
 }: RunningReadyScreenProps) {
-  // 화면을 위쪽에만 몰아 쓰지 않게 (오너 2026-07-31): 준비 카드가 뷰포트 높이를 채우고,
-  // 아래 CTA 묶음은 스페이서로 바닥 쪽에 앉힌다. 내용이 길어지면(예약 패널이 열린 경우)
-  // 스페이서가 0으로 줄고 평소처럼 스크롤된다.
-  const { height: windowHeight } = useWindowDimensions();
   const readyCardStyle: ViewStyle = {
     paddingBottom: 18 + Math.max(bottomInset, 10),
-    // 헤더(탭 타이틀)·탭바·세이프에어리어가 먹는 높이를 뺀 값. 정확할 필요는 없다 —
-    // 조금 넘치면 스크롤되고, 조금 모자라면 그만큼만 여백이 남는다.
-    minHeight: Math.max(360, windowHeight - READY_CARD_CHROME_HEIGHT - Math.max(bottomInset, 10)),
   };
 
   return (
@@ -50,8 +43,6 @@ export function RunningReadyScreen({
       {/* 경찰과 도둑런의 시작 버튼은 경기장 지도 카드 안에 있다 — 기존 chase 시작
           플로우(입장→GPS 시작)를 그대로 태우기 위해 readyAction을 내려보낸다. */}
       <MatchSetupSection {...matchSetupProps} onChaseStart={onReadyAction} />
-
-      <View style={styles.flexSpacer} />
 
       {readyActionLabel ? (
         <PrimaryButton
@@ -101,9 +92,6 @@ function SoloFeatureRow({
   );
 }
 
-// 탭 헤더 + 하단 탭바 + Screen 패딩이 대략 먹는 높이.
-const READY_CARD_CHROME_HEIGHT = 268;
-
 const styles = StyleSheet.create({
   // 검은 배경 제거 (오너 2026-07-31): 러닝 준비 카드도 다른 탭과 같은 앱 카드 표면을 쓴다.
   // (Card 기본값 = colors.surface — 라이트 유리 / 다크 유리)
@@ -111,12 +99,6 @@ const styles = StyleSheet.create({
     gap: spacing.s16,
     paddingTop: spacing.s18,
     paddingBottom: spacing.s18,
-  },
-  // 모드 선택과 시작 버튼 사이를 밀어내 카드 아래쪽까지 쓰게 한다. 내용이 카드보다
-  // 길어지면 자연히 0이 된다.
-  flexSpacer: {
-    flexGrow: 1,
-    minHeight: spacing.s10,
   },
   // Vertical metrics mirror the base Button (paddingVertical s16 + radii.lg +
   // fontSizes.button) so these rows sit at the same height as 바로 러닝 시작.

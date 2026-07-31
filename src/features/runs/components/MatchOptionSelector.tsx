@@ -193,10 +193,9 @@ const styles = StyleSheet.create({
     gap: spacing.xxs,
     borderRadius: radii.lg,
     borderWidth: 1,
-    paddingHorizontal: spacing.s14,
-    paddingVertical: spacing.s14,
-    // 묶음당 카드가 1~2개뿐이라 예전 높이(68)로는 상단이 얇게 뜬다.
-    minHeight: 84,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.s12,
+    minHeight: 68,
     justifyContent: 'center',
   },
   optionHalf: {
