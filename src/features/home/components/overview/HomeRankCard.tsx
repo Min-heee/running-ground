@@ -14,10 +14,12 @@ import {
   RANK_TIER_SOFT_COLOR,
 } from '@/features/rank/rankDisplay';
 import { RANK_TIER_SYMBOL } from '@/features/rank/rankSymbols';
+import { formatDuelRecordLine, type DuelRecordSummary } from '@/features/runs/utils/duelRecordSummary';
 import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type HomeRankCardProps = {
   rankState?: RankState;
+  duelRecord: DuelRecordSummary;
   recordHref: Href;
 };
 
@@ -61,7 +63,7 @@ function RankGuidePanel({ currentTier }: { currentTier: string }) {
   );
 }
 
-export function HomeRankCard({ rankState, recordHref }: HomeRankCardProps) {
+export function HomeRankCard({ rankState, duelRecord, recordHref }: HomeRankCardProps) {
   const normalizedRankState = useMemo(() => normalizeRankStateForDisplay(rankState), [rankState]);
   const rankLabel = useMemo(() => formatRankLabel(normalizedRankState), [normalizedRankState]);
   const accentColor = RANK_TIER_COLOR[normalizedRankState.tier] ?? colors.brand;
@@ -133,6 +135,14 @@ export function HomeRankCard({ rankState, recordHref }: HomeRankCardProps) {
       <View style={styles.lpProgressTrack}>
         <View style={progressFillStyle} />
       </View>
+
+      {/* 1대1 전적 줄 (오너 2026-08-01 '라' 선택) — 그룹은 순위제라 승률에서 뺀다. */}
+      <Text style={styles.duelRecordLine}>
+        {formatDuelRecordLine(duelRecord)}
+        {duelRecord.winRatePercent !== null ? (
+          <Text style={styles.duelRecordRate}> · 승률 {duelRecord.winRatePercent}%</Text>
+        ) : null}
+      </Text>
 
       <Link href={recordHref} asChild>
         <Pressable accessibilityRole="button" accessibilityLabel="전적 보기" style={styles.recordFooter}>
@@ -270,6 +280,15 @@ const styles = StyleSheet.create({
   lpProgressFill: {
     borderRadius: radii.pill,
     height: '100%',
+  },
+  duelRecordLine: {
+    color: fixedColors.textSecondary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+  },
+  duelRecordRate: {
+    color: fixedColors.textPrimary,
+    fontWeight: fontWeights.extraBold,
   },
   recordFooter: {
     alignItems: 'center',
