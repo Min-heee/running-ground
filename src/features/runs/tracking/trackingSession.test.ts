@@ -73,8 +73,11 @@ test('buildOfficialStartBaseline interpolates official start inside an existing 
 });
 
 test('buildOfficialStartBaseline ignores pre-countdown distance before the official start', () => {
+  // 30초 간격 — 신호 소실 무적립 규칙(MAX_CREDITABLE_FIX_GAP_MS 초과 구간 제외)이 생기면서
+  // 60초 간격 픽스처는 갭으로 판정된다. 실제 기록은 1Hz라 이 간격이 나오면 진짜 갭이 맞다.
   const route = [
     point(37, 0),
+    point(37.0045, 30),
     point(37.009, 60),
     point(37.018, 120),
   ];
@@ -82,9 +85,26 @@ test('buildOfficialStartBaseline ignores pre-countdown distance before the offic
   const baseline = buildOfficialStartBaseline(snapshot(route), 'match-1', officialStartAt);
 
   assert.equal(baseline.elapsedSeconds, 60);
-  assert.equal(baseline.routeStartIndex, 1);
-  assert.equal(baseline.routeStartPoint?.timestamp, route[1].timestamp);
+  assert.equal(baseline.routeStartIndex, 2);
+  assert.equal(baseline.routeStartPoint?.timestamp, route[2].timestamp);
   assert.ok(Math.abs(baseline.distanceKm - 1) < 0.03);
+});
+
+// 웜업 중 신호 소실 갭의 직선도 기준선에서 제외된다 — 라이브 누적기와 같은 규칙이 아니면
+// 공식 시작 시점에 웜업 차감량이 라이브 거리와 어긋난다.
+test('buildOfficialStartBaseline excludes signal-loss chords from the warmup baseline', () => {
+  const route = [
+    point(37, 0),
+    point(37.0045, 30),
+    // 90초 갭 + 1km 점프 — 적립 대상이 아니다.
+    point(37.0135, 120),
+    point(37.018, 150),
+  ];
+  const officialStartAt = new Date(Date.UTC(2026, 4, 12, 0, 2, 30)).toISOString();
+  const baseline = buildOfficialStartBaseline(snapshot(route), 'match-1', officialStartAt);
+
+  // 0.5km(0→30s) + [갭 제외] + 0.5km(120→150s) = 1.0km
+  assert.ok(Math.abs(baseline.distanceKm - 1) < 0.03, `baseline ${baseline.distanceKm}`);
 });
 
 test('buildOfficialStartBaseline clamps to last known route when official start is after all points', () => {

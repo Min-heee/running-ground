@@ -2,6 +2,7 @@ import type * as Location from 'expo-location';
 import type { RunRoutePoint } from '@/domain';
 import type { BackgroundRunTrackingSnapshot } from '@/features/runs/tracking/background';
 import { calculateDistanceBetweenPoints } from '@/features/runs/tracking';
+import { isSignalLossGapMs } from '@/features/runs/tracking/background/locationDistance';
 
 export type OfficialStartBaseline = {
   matchId: string;
@@ -38,6 +39,15 @@ function calculateRouteDistanceMeters(route: RunRoutePoint[]) {
   let totalDistanceMeters = 0;
 
   for (let index = 1; index < route.length; index += 1) {
+    // 신호 소실 갭의 직선은 라이브 누적기와 동일하게 제외한다 — 여기서만 합치면 공식 시작
+    // 기준선(웜업 거리)이 라이브 값과 어긋난다.
+    const previousMs = new Date(route[index - 1].timestamp).getTime();
+    const nextMs = new Date(route[index].timestamp).getTime();
+
+    if (!Number.isNaN(previousMs) && !Number.isNaN(nextMs) && isSignalLossGapMs(nextMs - previousMs)) {
+      continue;
+    }
+
     totalDistanceMeters += calculateDistanceBetweenPoints(route[index - 1], route[index]);
   }
 

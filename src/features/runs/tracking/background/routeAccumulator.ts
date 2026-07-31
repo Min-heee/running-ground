@@ -23,6 +23,7 @@ import {
   MIN_LOCATION_TIME_DELTA_MS,
   MIN_REASONABLE_PACE_SECONDS_PER_KM,
   MIN_TELEPORT_FILTER_DISTANCE_METERS,
+  isSignalLossGapMs,
   normalizeAccuracyMeters,
   normalizeReliableSpeedMps,
   resolveDistanceGateMeters,
@@ -265,6 +266,25 @@ export function appendTrackedLocation(location: Location.LocationObject) {
     commitSnapshot({
       ...snapshotState,
       currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
+    });
+    return;
+  }
+
+  // 신호 소실 갭: 이 구간의 직선은 우리가 본 경로가 아니다 — 거리는 적립하지 않고 앵커만
+  // 새 위치로 옮겨 이후부터 다시 적립한다. 속도 필터보다 먼저 와야 한다: 끊긴 시간이 길수록
+  // 암묵 속도가 낮아져 아래 필터들은 이 구간을 정상 주행으로 오인한다.
+  if (isSignalLossGapMs(timeDelta)) {
+    const nextRoute = [...snapshotState.route, nextPoint];
+    lastCountedPoint = nextPoint;
+    accumulatedElevationGainMeters = calculateElevationGainM(nextRoute);
+    rgDiagLog(`[RG dist] GAP no-credit dt=${timeDelta} chord=${segmentDistanceMeters.toFixed(1)} total=${(accumulatedDistanceMeters / 1000).toFixed(3)}`);
+    commitSnapshot({
+      ...snapshotState,
+      route: nextRoute,
+      startedAt: snapshotState.startedAt ?? nextPoint.timestamp,
+      distanceKm: Number((accumulatedDistanceMeters / 1000).toFixed(2)),
+      elevationGainM: Math.round(accumulatedElevationGainMeters),
+      currentPace: buildSmoothedCurrentPace(nextRoute, reliableSpeedMps, locationTimestampMs),
     });
     return;
   }

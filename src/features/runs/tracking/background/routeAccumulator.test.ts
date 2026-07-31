@@ -477,3 +477,69 @@ test('route accumulator suppresses fabricated elevation from noisy altitude', ()
     Date.now = realDateNow;
   }
 });
+
+// 오너 2026-07-31 (나이키런 대조 사건): 고가 밑에서 GPS가 2분 죽었다 700m 떨어진 곳에서
+// 다시 잡히면 chord의 암묵 속도(≈5.8m/s 미만)가 순간이동 필터를 통과해 직선이 통째로
+// 적립됐다 — 같은 러닝이 나이키 3.0km vs 우리 3.8km로 갈린 원인.
+//
+// 픽스 나이 게이트(MAX_LOCATION_AGE_MS, 실제 Date.now() 기준)가 15초보다 오래된 픽스를
+// 버리므로 과거 타임스탬프로는 분 단위 갭을 재현할 수 없다 — 가짜 시계로 시간을 민다.
+function withFakeClock(run: (clock: { setNow: (ms: number) => void }) => void) {
+  const realNow = Date.now;
+  let virtualNowMs = realNow();
+  Date.now = () => virtualNowMs;
+
+  try {
+    run({ setNow: (ms: number) => { virtualNowMs = ms; } });
+  } finally {
+    Date.now = realNow;
+  }
+}
+
+test('route accumulator does not credit the chord across a signal-loss gap', () => {
+  withFakeClock(({ setNow }) => {
+    const baseMs = Date.now();
+    resetRunningSnapshot(baseMs);
+
+    for (const [metersEast, offsetMs] of [[0, 0], [4, 1_000], [8, 2_000], [20, 3_200]] as const) {
+      setNow(baseMs + offsetMs);
+      appendTrackedLocation(locationAt({ metersEast, timestampMs: baseMs + offsetMs, speedMps: 3 }));
+    }
+    const beforeGapMeters = getAccumulatedDistanceMeters();
+
+    // 2분간 픽스 없음 → 700m 떨어진 곳에서 재획득 (암묵 속도 5.8m/s: 기존 필터는 전부 통과시켰다).
+    setNow(baseMs + 123_200);
+    appendTrackedLocation(locationAt({ metersEast: 720, timestampMs: baseMs + 123_200, speedMps: 3 }));
+
+    const afterGapMeters = getAccumulatedDistanceMeters();
+    assert.ok(afterGapMeters - beforeGapMeters < 1, `gap chord credited: +${(afterGapMeters - beforeGapMeters).toFixed(1)}m`);
+    // 경로에는 점이 남는다 — 지도는 나이키처럼 직선으로 이어져 보이되 거리만 빠진다.
+    assert.equal(getSnapshotState().route.length, 5);
+
+    // 재획득 이후의 실제 주행은 새 앵커에서 정상 적립된다.
+    for (const [metersEast, offsetMs] of [[732, 124_400], [744, 125_600]] as const) {
+      setNow(baseMs + offsetMs);
+      appendTrackedLocation(locationAt({ metersEast, timestampMs: baseMs + offsetMs, speedMps: 3 }));
+    }
+    assert.ok(getAccumulatedDistanceMeters() - afterGapMeters >= 20);
+  });
+});
+
+test('route accumulator still credits short bridge dropouts as before', () => {
+  withFakeClock(({ setNow }) => {
+    const baseMs = Date.now();
+    resetRunningSnapshot(baseMs);
+
+    for (const [metersEast, offsetMs] of [[0, 0], [4, 1_000], [8, 2_000]] as const) {
+      setNow(baseMs + offsetMs);
+      appendTrackedLocation(locationAt({ metersEast, timestampMs: baseMs + offsetMs, speedMps: 3 }));
+    }
+    const beforeMeters = getAccumulatedDistanceMeters();
+
+    // 20초 끊김 + 60m 전진 (3m/s) — 다리/건물 밑 수준의 짧은 끊김은 실제 주행으로 적립.
+    setNow(baseMs + 22_000);
+    appendTrackedLocation(locationAt({ metersEast: 68, timestampMs: baseMs + 22_000, speedMps: 3 }));
+
+    assert.ok(getAccumulatedDistanceMeters() - beforeMeters >= 55, `credited only ${(getAccumulatedDistanceMeters() - beforeMeters).toFixed(1)}m`);
+  });
+});

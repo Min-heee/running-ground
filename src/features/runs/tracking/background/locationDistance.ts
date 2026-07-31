@@ -14,6 +14,19 @@ export const MIN_MOVEMENT_DISTANCE_METERS = 3.0;
 export const MAX_LOCATION_AGE_MS = 15000;
 export const MAX_FUTURE_LOCATION_MS = 3000;
 export const MIN_TELEPORT_FILTER_DISTANCE_METERS = 35;
+// 신호 소실 구간 무적립 (오너 2026-07-31, 나이키런 대조 3.0km vs 3.8km 사건).
+// 고가·터널에서 GPS가 죽었다 수백 m 떨어진 곳에서 다시 잡히면, 그 사이 직선(chord)의
+// 암묵 속도는 '거리 ÷ 끊긴 시간'이라 달리기 속도처럼 낮아져 순간이동 필터(속도 기준)를
+// 전부 통과하고 직선 거리가 통째로 적립됐다 — 지도의 쭉 뻗은 직선과 +0.8km의 정체.
+// 1Hz 샘플링에서 이 시간 넘게 유효 픽스가 없었다면 실제 신호 소실이다: 그 구간은 우리가
+// 보지 못한 길이므로 적립하지 않는다(나이키와 같은 정책). 짧은 다리/건물 밑 끊김(≤30s)은
+// 지금처럼 직선으로 적립된다 — 그 정도 chord는 거의 항상 실제 주행이다.
+// 부수 효과: GPS 차단된 차량 이동(느린 버스 등)이 '그럴듯한 속도'로 적립되던 치팅 구멍도 막힌다.
+export const MAX_CREDITABLE_FIX_GAP_MS = 30_000;
+
+export function isSignalLossGapMs(timeDeltaMs: number) {
+  return timeDeltaMs > MAX_CREDITABLE_FIX_GAP_MS;
+}
 export const STATIONARY_SPEED_MPS = 0.9;
 export const POOR_ACCURACY_METERS = 25;
 export const MIN_REASONABLE_PACE_SECONDS_PER_KM = 150;
