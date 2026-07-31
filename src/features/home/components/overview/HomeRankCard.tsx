@@ -18,11 +18,6 @@ import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/t
 
 type HomeRankCardProps = {
   rankState?: RankState;
-  matchRecord: {
-    totalCount: number;
-    duelCount: number;
-    groupCount: number;
-  };
   recordHref: Href;
 };
 
@@ -66,17 +61,13 @@ function RankGuidePanel({ currentTier }: { currentTier: string }) {
   );
 }
 
-export function HomeRankCard({ rankState, matchRecord, recordHref }: HomeRankCardProps) {
+export function HomeRankCard({ rankState, recordHref }: HomeRankCardProps) {
   const normalizedRankState = useMemo(() => normalizeRankStateForDisplay(rankState), [rankState]);
   const rankLabel = useMemo(() => formatRankLabel(normalizedRankState), [normalizedRankState]);
   const accentColor = RANK_TIER_COLOR[normalizedRankState.tier] ?? colors.brand;
   const softColor = RANK_TIER_SOFT_COLOR[normalizedRankState.tier] ?? fixedColors.surfaceSubtle;
   const tierSymbol = RANK_TIER_SYMBOL[normalizedRankState.tier];
   const progressPercent = Math.max(0, Math.min(100, (normalizedRankState.lp / LP_PER_TIER) * 100));
-  const tierIndex = RANK_TIERS.indexOf(normalizedRankState.tier as (typeof RANK_TIERS)[number]);
-  const isMaxTier = tierIndex === RANK_TIERS.length - 1;
-  const lpToNext = Math.max(0, LP_PER_TIER - normalizedRankState.lp);
-  const nextTierLabel = isMaxTier ? '최고 티어' : `다음 티어까지 ${lpToNext} LP`;
   const rankCardStyle = useMemo<StyleProp<ViewStyle>>(() => [
     styles.rankCard,
     {
@@ -142,16 +133,10 @@ export function HomeRankCard({ rankState, matchRecord, recordHref }: HomeRankCar
       <View style={styles.lpProgressTrack}>
         <View style={progressFillStyle} />
       </View>
-      <Text style={styles.nextTierLabel}>{nextTierLabel}</Text>
 
       <Link href={recordHref} asChild>
-        <Pressable accessibilityRole="button" style={styles.recordFooter}>
-          <View style={styles.recordCopy}>
-            <Text style={styles.recordTitle}>전적</Text>
-            <Text style={styles.recordDetail}>
-              {matchRecord.totalCount}번 대결 · 1대1 {matchRecord.duelCount} · 그룹 {matchRecord.groupCount}
-            </Text>
-          </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="전적 보기" style={styles.recordFooter}>
+          <Text style={styles.recordTitle}>전적</Text>
           <Text style={styles.recordChevron}>›</Text>
         </Pressable>
       </Link>
@@ -162,7 +147,8 @@ export function HomeRankCard({ rankState, matchRecord, recordHref }: HomeRankCar
 const styles = StyleSheet.create({
   rankCard: {
     borderWidth: 1,
-    gap: spacing.s12,
+    // 위아래로 낮게 (오너 2026-08-01) — 홈 첫 화면에서 기록 카드가 함께 보이게.
+    gap: spacing.s10,
   },
   guideChip: {
     flexDirection: 'row',
@@ -250,15 +236,15 @@ const styles = StyleSheet.create({
     gap: spacing.s10,
   },
   tierSymbol: {
-    height: 96,
-    width: 72,
+    height: 76,
+    width: 57,
   },
   tierBadge: {
     backgroundColor: fixedColors.white,
     borderRadius: radii.cardLarge,
     borderWidth: 2,
     paddingHorizontal: spacing.s16,
-    paddingVertical: spacing.s12,
+    paddingVertical: spacing.s10,
   },
   rankLabel: {
     fontSize: fontSizes.pageTitle,
@@ -285,33 +271,19 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     height: '100%',
   },
-  nextTierLabel: {
-    color: fixedColors.textSecondary,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.bold,
-  },
   recordFooter: {
     alignItems: 'center',
     borderTopColor: fixedColors.borderSoft,
     borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    gap: spacing.s12,
-    justifyContent: 'space-between',
-    paddingTop: spacing.s12,
-  },
-  recordCopy: {
-    flex: 1,
-    gap: spacing.xxs,
+    gap: spacing.xs,
+    justifyContent: 'flex-end',
+    paddingTop: spacing.s10,
   },
   recordTitle: {
-    color: fixedColors.textSecondary,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.bold,
-  },
-  recordDetail: {
     color: fixedColors.textPrimary,
+    fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
-    lineHeight: 20,
   },
   recordChevron: {
     color: fixedColors.textTertiary,

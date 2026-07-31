@@ -2,12 +2,13 @@
 //
 // 구성: y축 눈금 3줄(가로선 + 우측 km 라벨) + 기록 평균 점선(값 라벨) + 거리 막대.
 // 막대 위 값 라벨은 주(7칸) 모드에서만 — 일별 31칸/월별 12칸에선 겹쳐서 못 읽는다.
+// 대신 막대를 탭하면 말풍선으로 그 칸의 거리를 보여준다 (좁은 칸 모드의 값 읽기 수단).
 // 색은 우리 브랜드: 기록 칸 연보라, '지금' 칸 진보라, 지금인데 비었으면 워시 테두리.
 
-import { memo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { memo, useCallback, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { RunPeriodChartModel } from '@/features/home/utils/runPeriodBars';
-import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
+import { colors, fixedColors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
 
 const CHART_HEIGHT = 120;
 const LABEL_ROW_HEIGHT = 18;
@@ -24,6 +25,12 @@ function formatTickKm(valueKm: number) {
 
 export const RunPeriodBarChart = memo(function RunPeriodBarChart({ model }: RunPeriodBarChartProps) {
   const { bars, averageKm, tickStepKm } = model;
+  // 탭한 막대 — 말풍선으로 그 칸의 거리를 보여준다. 같은 막대를 다시 탭하면 닫힌다.
+  // 모드를 바꾸면 키 체계가 달라져 말풍선은 자연히 사라진다.
+  const [selectedBarKey, setSelectedBarKey] = useState<string | null>(null);
+  const toggleBar = useCallback((key: string) => {
+    setSelectedBarKey((current) => (current === key ? null : key));
+  }, []);
 
   if (!bars.length) {
     return null;
@@ -32,6 +39,11 @@ export const RunPeriodBarChart = memo(function RunPeriodBarChart({ model }: RunP
   const chartMaxKm = tickStepKm * 3;
   const showValueLabels = bars.length <= 7;
   const barAreaHeight = CHART_HEIGHT - VALUE_LABEL_HEIGHT;
+  const barHeightFor = (distanceKm: number) => (distanceKm > 0
+    ? Math.max(4, (Math.min(distanceKm, chartMaxKm) / chartMaxKm) * barAreaHeight)
+    : 0);
+  const selectedIndex = bars.findIndex((bar) => bar.key === selectedBarKey && bar.distanceKm > 0);
+  const selectedBar = selectedIndex >= 0 ? bars[selectedIndex] : null;
 
   return (
     <View style={styles.container}>
@@ -61,12 +73,17 @@ export const RunPeriodBarChart = memo(function RunPeriodBarChart({ model }: RunP
 
         <View style={styles.barRow}>
           {bars.map((bar) => {
-            const barHeight = bar.distanceKm > 0
-              ? Math.max(4, (Math.min(bar.distanceKm, chartMaxKm) / chartMaxKm) * barAreaHeight)
-              : 0;
+            const barHeight = barHeightFor(bar.distanceKm);
 
             return (
-              <View key={bar.key} style={styles.barColumn}>
+              <Pressable
+                key={bar.key}
+                style={styles.barColumn}
+                disabled={bar.distanceKm <= 0}
+                onPress={() => toggleBar(bar.key)}
+                accessibilityRole="button"
+                accessibilityLabel={`${bar.label ? `${bar.label} ` : ''}${bar.distanceKm.toFixed(1)}km`}
+              >
                 {showValueLabels && bar.distanceKm > 0 ? (
                   <Text style={styles.valueLabel} numberOfLines={1}>
                     {bar.distanceKm.toFixed(1)}
@@ -85,10 +102,30 @@ export const RunPeriodBarChart = memo(function RunPeriodBarChart({ model }: RunP
                   // 있으면 워시 스텁으로 '아직 안 뛰었다'를 보여준다 (H안의 신호 유지).
                   <View style={[styles.emptyStub, bar.isCurrent ? styles.emptyStubCurrent : null]} />
                 )}
-              </View>
+              </Pressable>
             );
           })}
         </View>
+
+        {/* 탭한 막대의 말풍선 — 막대 머리 위에 거리를 띄운다. */}
+        {selectedBar ? (
+          <View style={styles.bubbleLayer} pointerEvents="none">
+            <View
+              style={[
+                styles.bubbleAnchor,
+                {
+                  left: `${((selectedIndex + 0.5) / bars.length) * 100}%`,
+                  bottom: barHeightFor(selectedBar.distanceKm) + 4,
+                },
+              ]}
+            >
+              <View style={styles.bubble}>
+                <Text style={styles.bubbleText}>{selectedBar.distanceKm.toFixed(1)}km</Text>
+              </View>
+              <View style={styles.bubbleCaret} />
+            </View>
+          </View>
+        ) : null}
       </View>
 
       {/* x축 라벨: 칸 안에 가두면 월 모드(31칸)에서 칸 폭이 ~10px라 두 자리 수가 '1..'로
@@ -187,6 +224,42 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: fontSizes.xxs,
     fontWeight: fontWeights.bold,
+  },
+  bubbleLayer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    // 막대 영역과 같은 폭 (barRow paddingRight와 동일).
+    right: 26,
+  },
+  bubbleAnchor: {
+    position: 'absolute',
+    width: 72,
+    // left%가 칸 중앙을 가리키므로 절반을 되돌려 말풍선을 중앙 정렬한다.
+    marginLeft: -36,
+    alignItems: 'center',
+  },
+  bubble: {
+    backgroundColor: colors.brand,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+  },
+  bubbleText: {
+    color: fixedColors.white,
+    fontSize: fontSizes.xxs,
+    fontWeight: fontWeights.extraBold,
+  },
+  bubbleCaret: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderTopWidth: 5,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: colors.brand,
   },
   labelRow: {
     position: 'relative',

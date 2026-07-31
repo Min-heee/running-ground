@@ -9,7 +9,6 @@ import {
 } from '@/features/home/utils/homeOverview';
 import { buildWeeklyPointOverview, type WeeklyPointTrackId } from '@/features/points/pointSystem';
 import { buildCompetitivePointBasis } from '@/features/runs/utils/competitiveRuns';
-import { buildMatchRecordSummary } from '@/features/runs/utils/matchRecordSummary';
 
 type HomeOverviewProps = {
   rankState?: RankState;
@@ -52,11 +51,10 @@ export function HomeOverview({
   );
   const calendarRows = useMemo(() => buildHomeOverviewCalendarRows(selectedTrack), [selectedTrack]);
   const pointHeaderLabel = buildHomeOverviewPointHeaderLabel(selectedTrack);
-  const matchRecordSummary = useMemo(() => buildMatchRecordSummary(runs), [runs]);
 
   return (
     <>
-      <HomeRankCard rankState={rankState} matchRecord={matchRecordSummary} recordHref="/match-record" />
+      <HomeRankCard rankState={rankState} recordHref="/match-record" />
       <HomeActivityStatusCard runs={runs} />
       <HomePointGaugeCard
         tracks={pointOverview.tracks}
