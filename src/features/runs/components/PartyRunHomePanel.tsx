@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { type Href, router } from 'expo-router';
-import { Button } from '@/components/ui/Button';
 import { PartyRunInviteCard } from '@/features/runs/components/PartyRunInviteCard';
 import type {
   RunningMatchRoom,
@@ -92,34 +91,40 @@ export function PartyRunHomePanel({
         )
       ) : null}
 
-      {isSelected ? (
-        <View style={styles.roomCard}>
-          {!currentRoom ? (
-            <View style={styles.roomJoinBox}>
-              <Text style={styles.roomPickerTitle}>초대 코드로 입장</Text>
-              <TextInput
-                value={inviteTokenInput}
-                onChangeText={onInviteTokenChange}
-                placeholder="예: AB12CD"
-                placeholderTextColor={colors.textTertiary}
-                autoCapitalize="characters"
-                onFocus={() => {
-                  beginRgInputTrace('invite code input focus', {
-                    hasToken: inviteTokenInput.trim().length > 0,
-                    source: 'party run home panel',
-                  }).markFeedback('input focused');
-                }}
-                style={styles.roomInput}
-              />
-              {/* 보라 틴트: 버튼임을 드러내되, 아래 '방 만들기' 솔리드 CTA와 위계는 구분. */}
-              <Button
-                variant="tinted"
-                label={isJoining ? '입장 중...' : '방 입장'}
-                onPress={onJoinRoom}
-                disabled={isJoining}
-              />
-            </View>
-          ) : null}
+      {/* 오너 확정 2026-07-31 (파티런 '다'안, 순서 반전): 초대 코드 입장이 위의 보라 틴트
+          블록, 방 만들기(솔리드 CTA)는 이 패널 아래 readyAction이 그린다 — 혼자 탭과 같은
+          '진솔리드 / 보라틴트' 두 층 구조. 입력과 입장 버튼은 한 줄로 붙여 세로를 아낀다. */}
+      {isSelected && !currentRoom ? (
+        <View style={styles.joinBlock}>
+          <Text style={styles.joinBlockTitle}>초대 코드로 입장</Text>
+          <View style={styles.joinRow}>
+            <TextInput
+              value={inviteTokenInput}
+              onChangeText={onInviteTokenChange}
+              placeholder="예: AB12CD"
+              placeholderTextColor={colors.textTertiary}
+              autoCapitalize="characters"
+              onFocus={() => {
+                beginRgInputTrace('invite code input focus', {
+                  hasToken: inviteTokenInput.trim().length > 0,
+                  source: 'party run home panel',
+                }).markFeedback('input focused');
+              }}
+              style={styles.roomInput}
+            />
+            <Pressable
+              style={({ pressed }) => [
+                styles.joinButton,
+                isJoining ? styles.joinButtonDisabled : undefined,
+                pressed && !isJoining ? styles.joinButtonPressed : undefined,
+              ]}
+              onPress={onJoinRoom}
+              disabled={isJoining}
+              accessibilityRole="button"
+            >
+              <Text style={styles.joinButtonText}>{isJoining ? '입장 중' : '입장'}</Text>
+            </Pressable>
+          </View>
         </View>
       ) : null}
     </>
@@ -140,20 +145,28 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.button,
     fontWeight: fontWeights.black,
   },
-  roomCard: {
-    gap: spacing.s14,
-  },
-  roomJoinBox: {
+  // 혼자 탭에서 확정한 보라 유리 틴트(2fc0f25) 그대로 — 앱 전체가 같은 두 층 언어를 쓴다.
+  joinBlock: {
     gap: spacing.s10,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s14,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(142, 123, 255, 0.45)',
+    backgroundColor: 'rgba(109, 94, 247, 0.16)',
   },
-  // 배경 카드를 걷어낸 뒤 이 영역은 앱 페이지 위에 바로 놓인다 — 고정 다크 입력창과
-  // 연회색(테두리색) 제목은 밝은 배경에서 보이지 않는다. 테마 토큰으로 읽는다.
-  roomPickerTitle: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.base,
+  joinBlockTitle: {
+    color: colors.brandDeep,
+    fontSize: fontSizes.button,
     fontWeight: fontWeights.extraBold,
+    textAlign: 'center',
+  },
+  joinRow: {
+    flexDirection: 'row',
+    gap: spacing.xxl,
   },
   roomInput: {
+    flex: 1,
     borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.border,
@@ -162,6 +175,24 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.s12,
     color: colors.textPrimary,
     fontSize: fontSizes.rank,
+    fontWeight: fontWeights.extraBold,
+  },
+  joinButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.s18,
+    borderRadius: radii.lg,
+    backgroundColor: fixedColors.brand,
+  },
+  joinButtonPressed: {
+    backgroundColor: fixedColors.brandStrong,
+  },
+  joinButtonDisabled: {
+    opacity: 0.6,
+  },
+  joinButtonText: {
+    color: fixedColors.white,
+    fontSize: fontSizes.base,
     fontWeight: fontWeights.extraBold,
   },
 });
