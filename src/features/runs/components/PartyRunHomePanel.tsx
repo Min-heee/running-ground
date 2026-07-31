@@ -146,19 +146,21 @@ const styles = StyleSheet.create({
   roomJoinBox: {
     gap: spacing.s10,
   },
+  // 배경 카드를 걷어낸 뒤 이 영역은 앱 페이지 위에 바로 놓인다 — 고정 다크 입력창과
+  // 연회색(테두리색) 제목은 밝은 배경에서 보이지 않는다. 테마 토큰으로 읽는다.
   roomPickerTitle: {
-    color: fixedColors.borderMuted,
+    color: colors.textSecondary,
     fontSize: fontSizes.base,
     fontWeight: fontWeights.extraBold,
   },
   roomInput: {
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: colors.slateMuted,
-    backgroundColor: colors.slateDark,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     paddingHorizontal: spacing.s14,
     paddingVertical: spacing.s12,
-    color: colors.white,
+    color: colors.textPrimary,
     fontSize: fontSizes.rank,
     fontWeight: fontWeights.extraBold,
   },

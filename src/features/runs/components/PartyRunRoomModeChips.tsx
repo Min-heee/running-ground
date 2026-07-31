@@ -53,27 +53,34 @@ export const PartyRunRoomModeChips = memo(function PartyRunRoomModeChips({
   return <View style={styles.row}>{chips}</View>;
 });
 
+// 치수·색은 MatchOptionSelector의 모드 카드와 같은 값으로 맞춘다 — 매칭 탭의
+// '1대1 매치 / 그룹 대결' 카드와 파티런 탭의 이 칩은 같은 층(고르는 것)이라 크기가 다르면
+// 탭을 옮길 때마다 카드가 커졌다 작아졌다 한다.
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: spacing.s10,
   },
   chip: {
-    flex: 1,
-    alignItems: 'center',
+    width: '48%',
     borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: colors.slateMuted,
+    borderColor: colors.darkSoft,
     backgroundColor: fixedColors.textPrimary,
+    paddingHorizontal: spacing.s14,
     paddingVertical: spacing.s14,
+    minHeight: 84,
+    justifyContent: 'center',
   },
   chipSelected: {
     borderColor: colors.brandLight,
-    backgroundColor: colors.purpleInk,
+    backgroundColor: colors.indigoInk,
   },
   chipText: {
-    color: fixedColors.borderMuted,
-    fontSize: fontSizes.rank,
+    color: colors.white,
+    fontSize: fontSizes.button,
     fontWeight: fontWeights.extraBold,
   },
   chipTextSelected: {
