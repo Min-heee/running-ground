@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { type Href, router } from 'expo-router';
 import { Button } from '@/components/ui/Button';
@@ -28,11 +28,6 @@ type PartyRunHomePanelProps = {
   onDeclineInvite: () => void;
   onJoinRoom: () => Promise<void> | void;
 };
-
-const ROOM_MODE_OPTIONS = [
-  { key: 'duel' as const, label: '1대1 대결' },
-  { key: 'group' as const, label: '그룹 대결' },
-];
 
 export function PartyRunHomePanel({
   visibleRoom,
@@ -76,31 +71,6 @@ export function PartyRunHomePanel({
     endNavigationTrace({ success: true });
   }, [currentRoom, visibleRoom]);
 
-  const roomModeChips = useMemo(() => (
-    ROOM_MODE_OPTIONS.map((option) => {
-      const optionIsSelected = roomMode === option.key;
-
-      return (
-        <Pressable
-          key={option.key}
-          style={[styles.roomModeChip, optionIsSelected ? styles.roomModeChipSelected : undefined]}
-          onPress={() => {
-            const trace = beginRgInputTrace('run mode select', {
-              mode: option.key,
-              source: 'party run room mode',
-            });
-            onRoomModeChange(option.key);
-            trace.markFeedback('mode state dispatch');
-          }}
-        >
-          <Text style={[styles.roomModeChipText, optionIsSelected ? styles.roomModeChipTextSelected : undefined]}>
-            {option.label}
-          </Text>
-        </Pressable>
-      );
-    })
-  ), [onRoomModeChange, roomMode]);
-
   return (
     <>
       {visibleRoom ? (
@@ -125,35 +95,30 @@ export function PartyRunHomePanel({
       {isSelected ? (
         <View style={styles.roomCard}>
           {!currentRoom ? (
-            <>
-              <View style={styles.roomModeRow}>
-                {roomModeChips}
-              </View>
-              <View style={styles.roomJoinBox}>
-                <Text style={styles.roomPickerTitle}>초대 코드로 입장</Text>
-                <TextInput
-                  value={inviteTokenInput}
-                  onChangeText={onInviteTokenChange}
-                  placeholder="예: AB12CD"
-                  placeholderTextColor={colors.textTertiary}
-                  autoCapitalize="characters"
-                  onFocus={() => {
-                    beginRgInputTrace('invite code input focus', {
-                      hasToken: inviteTokenInput.trim().length > 0,
-                      source: 'party run home panel',
-                    }).markFeedback('input focused');
-                  }}
-                  style={styles.roomInput}
-                />
-                {/* 보라 틴트: 버튼임을 드러내되, 아래 '방 만들기' 솔리드 CTA와 위계는 구분. */}
-                <Button
-                  variant="tinted"
-                  label={isJoining ? '입장 중...' : '방 입장'}
-                  onPress={onJoinRoom}
-                  disabled={isJoining}
-                />
-              </View>
-            </>
+            <View style={styles.roomJoinBox}>
+              <Text style={styles.roomPickerTitle}>초대 코드로 입장</Text>
+              <TextInput
+                value={inviteTokenInput}
+                onChangeText={onInviteTokenChange}
+                placeholder="예: AB12CD"
+                placeholderTextColor={colors.textTertiary}
+                autoCapitalize="characters"
+                onFocus={() => {
+                  beginRgInputTrace('invite code input focus', {
+                    hasToken: inviteTokenInput.trim().length > 0,
+                    source: 'party run home panel',
+                  }).markFeedback('input focused');
+                }}
+                style={styles.roomInput}
+              />
+              {/* 보라 틴트: 버튼임을 드러내되, 아래 '방 만들기' 솔리드 CTA와 위계는 구분. */}
+              <Button
+                variant="tinted"
+                label={isJoining ? '입장 중...' : '방 입장'}
+                onPress={onJoinRoom}
+                disabled={isJoining}
+              />
+            </View>
           ) : null}
         </View>
       ) : null}
@@ -177,31 +142,6 @@ const styles = StyleSheet.create({
   },
   roomCard: {
     gap: spacing.s14,
-  },
-  roomModeRow: {
-    flexDirection: 'row',
-    gap: spacing.s10,
-  },
-  roomModeChip: {
-    flex: 1,
-    alignItems: 'center',
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.slateMuted,
-    backgroundColor: fixedColors.textPrimary,
-    paddingVertical: spacing.s14,
-  },
-  roomModeChipSelected: {
-    borderColor: colors.brandLight,
-    backgroundColor: colors.purpleInk,
-  },
-  roomModeChipText: {
-    color: fixedColors.borderMuted,
-    fontSize: fontSizes.rank,
-    fontWeight: fontWeights.black,
-  },
-  roomModeChipTextSelected: {
-    color: colors.white,
   },
   roomJoinBox: {
     gap: spacing.s10,

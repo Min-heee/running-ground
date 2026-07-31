@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { ChaseSetupCard } from '@/features/runs/chase/ChaseSetupCard';
 import { MatchOptionSelector } from '@/features/runs/components/MatchOptionSelector';
 import { PartyRunHomePanel } from '@/features/runs/components/PartyRunHomePanel';
+import { PartyRunRoomModeChips } from '@/features/runs/components/PartyRunRoomModeChips';
 import { colors, spacing, radii } from '@/theme/tokens';
 import {
   DuelMatchSetupCard,
@@ -18,6 +19,10 @@ type MatchSetupSectionProps = {
   onChaseStart?: () => void;
 };
 
+// 회색 박스 안에는 '고르는 것'만 둔다 (오너 2026-07-31): 묶음 탭 + 모드 카드, 그리고
+// 파티런 탭에서는 그 자리를 대신하는 방 종류 칩(1대1 대결 / 그룹 대결). 날짜·시간 예약
+// 패널, 초대 코드 입력, 경기장 카드 같은 설정·실행 UI는 전부 박스 밖에 놓는다 — 고르는
+// 층과 그 다음에 하는 일이 한 상자에 섞여 있으면 무엇이 선택이고 무엇이 설정인지 안 보인다.
 export function MatchSetupSection({
   matchOptionProps,
   partyRunProps,
@@ -26,9 +31,21 @@ export function MatchSetupSection({
   chaseSetupVisible,
   onChaseStart,
 }: MatchSetupSectionProps) {
+  // 이미 방에 들어가 있으면 방 종류를 고르는 단계가 아니다 (패널도 같은 조건으로 접힌다).
+  const showRoomModeChips = partyRunProps.isSelected && !partyRunProps.currentRoom;
+
   return (
-    <View style={styles.matchCard}>
-      <MatchOptionSelector {...matchOptionProps} />
+    <View style={styles.section}>
+      <View style={styles.pickerCard}>
+        <MatchOptionSelector {...matchOptionProps} />
+        {showRoomModeChips ? (
+          <PartyRunRoomModeChips
+            roomMode={partyRunProps.roomMode}
+            onRoomModeChange={partyRunProps.onRoomModeChange}
+          />
+        ) : null}
+      </View>
+
       <PartyRunHomePanel {...partyRunProps} />
       {duelSetupProps ? <DuelMatchSetupCard {...duelSetupProps} /> : null}
       {groupSetupProps ? <GroupMatchSetupCard {...groupSetupProps} /> : null}
@@ -41,7 +58,10 @@ export function MatchSetupSection({
 }
 
 const styles = StyleSheet.create({
-  matchCard: {
+  section: {
+    gap: spacing.s10,
+  },
+  pickerCard: {
     gap: spacing.s10,
     padding: spacing.s14,
     borderRadius: radii.xl,
