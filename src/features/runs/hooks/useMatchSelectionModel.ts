@@ -90,7 +90,7 @@ export function useMatchSelectionModel({
       },
       {
         mode: 'duel',
-        title: '1대1 매치',
+        title: '1대1 매칭',
         pickerSummary: '랜덤 러너 한 명과',
         summary: '비슷한 목표 러너 한 명과 바로 붙는 대결 모드예요.',
         meta: `${formatMatchTargetDistance(duelDistanceKm)} 기준 · 1시간 단위 주간 예약`,
@@ -100,7 +100,7 @@ export function useMatchSelectionModel({
       },
       {
         mode: 'group',
-        title: '그룹 대결',
+        title: '그룹 매칭',
         pickerSummary: '최대 30명 순위전',
         summary: '최대 30명까지 모아 순위 흐름을 보는 그룹전 모드예요.',
         meta: `${formatMatchTargetDistance(groupDistanceKm)} 기준 · 1시간 단위 주간 예약`,
