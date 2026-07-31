@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { ActivityIndicator, StyleSheet, Text } from 'react-native';
 
 import { Card } from '@/components/Card';
-import { HomeNoticeCard } from '@/features/home/components/HomeNoticeCard';
+import { NoticeCard } from '@/features/notifications/components/NoticeCard';
 import type { AppNotice } from '@/domain';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
@@ -37,7 +37,7 @@ export const AnnouncementList = memo(function AnnouncementList({
   return (
     <>
       {notices.map((notice) => (
-        <HomeNoticeCard key={notice.id} notice={notice} />
+        <NoticeCard key={notice.id} notice={notice} />
       ))}
     </>
   );

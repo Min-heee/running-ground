@@ -4,11 +4,13 @@ import { Card } from '@/components/Card';
 import type { AppNotice } from '@/domain';
 import { colors, fixedColors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
-type HomeNoticeCardProps = {
+type NoticeCardProps = {
   notice: AppNotice;
 };
 
-export function HomeNoticeCard({ notice }: HomeNoticeCardProps) {
+// 공지는 알림센터의 '공지사항' 탭에서만 보여준다 (오너 2026-07-31: 홈 랭크 카드 위에
+// 끼어들지 않게). 홈에서 쓰지 않으므로 카드도 알림센터 쪽에 둔다.
+export function NoticeCard({ notice }: NoticeCardProps) {
   return (
     <Card style={styles.noticeCard}>
       <Text style={styles.noticeLabel}>운영 공지</Text>

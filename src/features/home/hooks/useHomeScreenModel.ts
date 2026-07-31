@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { router } from 'expo-router';
-import type { AppNotice, UserProfile, WeeklySummary } from '@/domain';
+import type { UserProfile, WeeklySummary } from '@/domain';
 import { shouldHidePastUpcomingMatch } from '@/features/home/utils/homeUpcomingMatches';
 import {
   findNextStartingMatchedMatch,
@@ -10,7 +10,6 @@ import { getCurrentUserProfile } from '@/lib/session';
 import type { MyActivityResponse, UpcomingRunningMatchItem } from '@/lib/api/types';
 import {
   cancelRunningMatch,
-  fetchActiveNotices,
   fetchHomeSummary,
   fetchMyActivity,
   fetchMyProfile,
@@ -29,7 +28,6 @@ const HOME_TIMER_DEFER_MS = 120;
 
 export function useHomeScreenModel() {
   const [summary, setSummary] = useState<WeeklySummary | null>(null);
-  const [notices, setNotices] = useState<AppNotice[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(getCurrentUserProfile());
   const [activity, setActivity] = useState<MyActivityResponse | null>(null);
   const [upcomingMatches, setUpcomingMatches] = useState<UpcomingRunningMatchItem[]>([]);
@@ -53,26 +51,18 @@ export function useHomeScreenModel() {
         summaryResult,
         profileResult,
         activityResult,
-        noticesResult,
         upcomingMatchesResult,
         notificationSettingsResult,
       ] = await Promise.allSettled([
         fetchHomeSummary(),
         fetchMyProfile(),
         fetchMyActivity(),
-        fetchActiveNotices(),
         fetchUpcomingRunningMatches(),
         fetchNotificationSettings(),
       ]);
 
       if (!active) {
         return;
-      }
-
-      if (noticesResult.status === 'fulfilled') {
-        setNotices(noticesResult.value.items.slice(0, 2));
-      } else {
-        setNotices([]);
       }
 
       if (upcomingMatchesResult.status === 'fulfilled') {
@@ -201,7 +191,6 @@ export function useHomeScreenModel() {
     handleOpenRunningMatch,
     loading,
     nextStartingMatch,
-    notices,
     nowMs,
     profile,
     summary,

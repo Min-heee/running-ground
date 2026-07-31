@@ -1,10 +1,9 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { BrandLoadingView } from '@/components/BrandLoadingView';
 import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCountdownOverlay';
 import { Screen } from '@/components/Screen';
 import { HomeHeader } from '@/features/home/components/HomeHeader';
-import { HomeNoticeCard } from '@/features/home/components/HomeNoticeCard';
 import { HomeOtaUpdateCard } from '@/features/home/components/HomeOtaUpdateCard';
 import { HomeThemeTipBubble } from '@/features/home/components/HomeThemeTipBubble';
 import { HomeUpcomingMatchesCard } from '@/features/home/components/HomeUpcomingMatchesCard';
@@ -25,16 +24,12 @@ export default function HomeScreen() {
     handleOpenRunningMatch,
     loading,
     nextStartingMatch,
-    notices,
     nowMs,
     profile,
     summary,
     visibleUpcomingMatches,
   } = useHomeScreenModel();
   const { showUpdatePrompt, applyUpdate } = useOtaUpdatePrompt();
-  const noticeCards = useMemo(() => notices.map((notice) => (
-    <HomeNoticeCard key={notice.id} notice={notice} />
-  )), [notices]);
   const handleCancelMatch = useCallback((match: Parameters<typeof handleCancelUpcomingMatch>[0]) => {
     void handleCancelUpcomingMatch(match);
   }, [handleCancelUpcomingMatch]);
@@ -50,7 +45,6 @@ export default function HomeScreen() {
           <HomeHeader />
           <HomeThemeTipBubble />
           {showUpdatePrompt ? <HomeOtaUpdateCard onApply={applyUpdate} /> : null}
-          {noticeCards}
           {error ? <Text>{error}</Text> : null}
           <HomeUpcomingMatchesCard
             matches={visibleUpcomingMatches}
