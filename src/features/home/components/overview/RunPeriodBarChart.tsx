@@ -48,7 +48,8 @@ export const RunPeriodBarChart = memo(function RunPeriodBarChart({ model }: RunP
           );
         })}
 
-        {/* 기록 평균 점선 — 나이키의 그 선. 기록이 없으면 생략 */}
+        {/* 기록 평균 점선 — 나이키의 그 선. 라벨은 왼쪽: 오른쪽 눈금 라벨과 같은 높이에
+            오면(평균≈눈금값) 숫자 두 개가 겹쳐 보였다. 기록이 없으면 생략 */}
         {averageKm !== null && averageKm <= chartMaxKm ? (
           <View
             style={[styles.averageLine, { bottom: (averageKm / chartMaxKm) * barAreaHeight }]}
@@ -90,16 +91,19 @@ export const RunPeriodBarChart = memo(function RunPeriodBarChart({ model }: RunP
         </View>
       </View>
 
+      {/* x축 라벨: 칸 안에 가두면 월 모드(31칸)에서 칸 폭이 ~10px라 두 자리 수가 '1..'로
+          잘린다 — 칸 중앙 위치에 절대배치한 고정폭 라벨로 띄운다. */}
       <View style={styles.labelRow}>
-        {bars.map((bar) => (
-          <View key={`label-${bar.key}`} style={styles.labelColumn}>
-            {bar.label ? (
-              <Text style={bar.isCurrent ? styles.axisLabelCurrent : styles.axisLabel} numberOfLines={1}>
-                {bar.label}
-              </Text>
-            ) : null}
+        {bars.map((bar, index) => (bar.label ? (
+          <View
+            key={`label-${bar.key}`}
+            style={[styles.labelAnchor, { left: `${((index + 0.5) / bars.length) * 100}%` }]}
+          >
+            <Text style={bar.isCurrent ? styles.axisLabelCurrent : styles.axisLabel}>
+              {bar.label}
+            </Text>
           </View>
-        ))}
+        ) : null))}
       </View>
     </View>
   );
@@ -137,7 +141,7 @@ const styles = StyleSheet.create({
   },
   averageLabel: {
     position: 'absolute',
-    right: 0,
+    left: 0,
     top: -16,
     color: colors.brand,
     fontSize: fontSizes.xxs,
@@ -185,15 +189,18 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.bold,
   },
   labelRow: {
-    flexDirection: 'row',
-    gap: 2,
-    paddingRight: 26,
+    position: 'relative',
     height: LABEL_ROW_HEIGHT,
-    alignItems: 'flex-start',
-    paddingTop: spacing.xs,
+    // 막대 영역과 같은 폭이 되도록 눈금 라벨 여백만큼 오른쪽을 비운다.
+    marginRight: 26,
+    marginTop: spacing.xs,
   },
-  labelColumn: {
-    flex: 1,
+  labelAnchor: {
+    position: 'absolute',
+    top: 0,
+    width: 32,
+    // left%가 칸 중앙을 가리키므로 절반을 되돌려 라벨을 중앙 정렬한다.
+    marginLeft: -16,
     alignItems: 'center',
   },
   axisLabel: {
