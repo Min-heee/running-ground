@@ -81,6 +81,7 @@ export function useMatchSelectionModel({
       {
         mode: 'solo',
         title: '혼자 러닝',
+        pickerSummary: '기록에만 집중',
         summary: '기록에만 집중하는 기본 러닝 모드예요.',
         meta: '지금 페이스와 거리 흐름에만 집중',
         startLabel: '바로 런닝 시작',
@@ -90,6 +91,7 @@ export function useMatchSelectionModel({
       {
         mode: 'duel',
         title: '1대1 매치',
+        pickerSummary: '랜덤 러너 한 명과',
         summary: '비슷한 목표 러너 한 명과 바로 붙는 대결 모드예요.',
         meta: `${formatMatchTargetDistance(duelDistanceKm)} 기준 · 1시간 단위 주간 예약`,
         startLabel: '1대1 매치로 시작',
@@ -99,6 +101,7 @@ export function useMatchSelectionModel({
       {
         mode: 'group',
         title: '그룹 대결',
+        pickerSummary: '최대 30명 순위전',
         summary: '최대 30명까지 모아 순위 흐름을 보는 그룹전 모드예요.',
         meta: `${formatMatchTargetDistance(groupDistanceKm)} 기준 · 1시간 단위 주간 예약`,
         startLabel: '그룹 대결로 시작',
@@ -108,6 +111,7 @@ export function useMatchSelectionModel({
       {
         mode: 'chase',
         title: '경찰과 도둑',
+        pickerSummary: '공원에서 스치면 포인트',
         summary: '공원 경기장에서 러너를 따라잡고 마주치며 포인트를 모으는 모드예요.',
         meta: '따라잡기 +10P · 마주침 +5P · 종료 후 자동 정산',
         startLabel: '경기장 러닝 시작',
@@ -117,6 +121,7 @@ export function useMatchSelectionModel({
       {
         mode: 'room',
         title: '파티런',
+        pickerSummary: '친구 초대해서 방 만들기',
         summary: '친구 초대나 링크 공유로 직접 대결 방을 열 수 있어요.',
         meta: `${roomMatchMode === 'duel' ? '1대1 대결' : '그룹 대결'} · ${roomStartMode === 'scheduled' ? '예약 시작' : '방장 시작'}`,
         startLabel: visibleMatchRoom ? '방 입장' : '방 만들기',
