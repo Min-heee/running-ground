@@ -395,6 +395,9 @@ export const fontSizes = {
   hero: 30,
   heroLarge: 36,
   authTitle: 32,
+  // 기록 상세 히어로 거리 (오너 2026-08-01, 나이키식 탁 트인 상세) — 카드 없이 맨바닥에
+  // 놓이는 초대형 숫자라 heroLarge(36)보다 한 급 크다.
+  heroXL: 56,
 } as const;
 
 export const fontWeights = {

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { Screen } from '@/components/Screen';
-import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { ChaseResultCard } from '@/features/running/components/ChaseResultCard';
@@ -119,11 +118,17 @@ export default function RunDetailScreen() {
 
       {runDetail ? (
         <>
+          {/* 나이키식 '탁 트인' 상세 (오너 2026-08-01): 히어로·지표는 카드 없이 맨바닥,
+              지도는 화면 가장자리까지 풀폭 — 상자·순서 모두 답답하다는 피드백의 수술. */}
           <RunHeroCard
             startedLabel={formatRunStartLabel(runDetail.run)}
             distanceKm={runDetail.run.distanceKm}
           />
 
+          <RunDetailInfoCard run={runDetail.run} />
+
+          {/* 대결 기록은 결과 카드가 먼저다 — 400pt 지도 뒤에 두면 승패와 유일한 출구
+              (나가기)가 폴드 아래로 밀린다 (적대 리뷰 발견). 솔로는 지도 먼저. */}
           {matchResult ? (
             <View style={styles.recordDuoRow}>
               <View style={styles.recordDuoItem}>
@@ -139,27 +144,25 @@ export default function RunDetailScreen() {
                 />
               </View>
             </View>
-          ) : (
-            <RunPointBreakdownCard pointBreakdown={runDetail.pointBreakdown} matchBonusLabel={matchBonusLabel} />
-          )}
-
-          {runDetail.run.chase ? <ChaseResultCard chase={runDetail.run.chase} /> : null}
-
-          {mapRegion && Platform.OS !== 'android' ? (
-            <Card style={styles.mapCard}>
-              <View style={styles.mapWrap}>
-                <RunRouteMap
-                  actualCoordinates={routeCoordinates}
-                  latestCoordinate={latestCoordinate}
-                  initialRegion={mapRegion}
-                  emptyTitle="저장된 러닝 경로를 불러오는 중이에요."
-                  emptyText="이 기록에는 지도 경로가 함께 저장돼 있어요."
-                />
-              </View>
-            </Card>
           ) : null}
 
-          <RunDetailInfoCard run={runDetail.run} />
+          {mapRegion && Platform.OS !== 'android' ? (
+            <View style={styles.mapWrap}>
+              <RunRouteMap
+                actualCoordinates={routeCoordinates}
+                latestCoordinate={latestCoordinate}
+                initialRegion={mapRegion}
+                emptyTitle="저장된 러닝 경로를 불러오는 중이에요."
+                emptyText="이 기록에는 지도 경로가 함께 저장돼 있어요."
+              />
+            </View>
+          ) : null}
+
+          {!matchResult ? (
+            <RunPointBreakdownCard pointBreakdown={runDetail.pointBreakdown} matchBonusLabel={matchBonusLabel} />
+          ) : null}
+
+          {runDetail.run.chase ? <ChaseResultCard chase={runDetail.run.chase} /> : null}
 
           {showMatchResultExit ? (
             <SecondaryButton
@@ -197,12 +200,10 @@ const styles = StyleSheet.create({
   skeletonInfoCard: {
     height: 180,
   },
-  mapCard: {
-    gap: spacing.s12,
-  },
   mapWrap: {
-    height: 240,
-    borderRadius: radii.xl,
+    height: 400,
+    // Screen의 좌우 패딩(s16)을 뚫고 화면 가장자리까지 — 카드에 가두면 답답하다.
+    marginHorizontal: -spacing.s16,
     overflow: 'hidden',
     backgroundColor: colors.borderMuted,
   },
