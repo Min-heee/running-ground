@@ -7,7 +7,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { MatchSetupSection } from '@/features/runs/components/MatchSetupSection';
 import { UpcomingMatchList } from '@/features/runs/components/UpcomingMatchList';
 import { GhostSavePromptCard } from '@/features/runs/ghostRun/GhostSavePromptCard';
-import { fixedColors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
+import { colors, fixedColors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
 
 type RunningReadyScreenProps = {
   bottomInset: number;
@@ -93,16 +93,18 @@ function SoloFeatureRow({
 }
 
 const styles = StyleSheet.create({
+  // 검은 배경 제거 (오너 2026-07-31): 러닝 준비 카드도 다른 탭과 같은 앱 카드 표면을 쓴다.
+  // (Card 기본값 = colors.surface — 라이트 유리 / 다크 유리)
   readyCard: {
     gap: spacing.s16,
-    backgroundColor: fixedColors.textPrimary,
     paddingTop: spacing.s18,
     paddingBottom: spacing.s18,
   },
   // Vertical metrics mirror the base Button (paddingVertical s16 + radii.lg +
   // fontSizes.button) so these rows sit at the same height as 바로 러닝 시작.
   // Violet-tinted glass (오너 2026-07-27): plain white glass read as static
-  // text, not a button. Fixed rgba is safe — the ready card is always dark.
+  // text, not a button. 채움은 반투명 브랜드라 라이트/다크 양쪽에서 성립하지만, 글자색은
+  // 더 이상 '항상 어두운 카드' 전제를 쓸 수 없다 — 배경이 걷히면서 흰 글씨는 안 보인다.
   featureRow: {
     alignItems: 'center',
     backgroundColor: 'rgba(109, 94, 247, 0.20)',
@@ -125,7 +127,7 @@ const styles = StyleSheet.create({
     width: 3,
   },
   featureLabel: {
-    color: fixedColors.white,
+    color: colors.textPrimary,
     flex: 1,
     fontSize: fontSizes.button,
     fontWeight: fontWeights.extraBold,
