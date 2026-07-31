@@ -1,31 +1,17 @@
-// 혼자 러닝의 시작 영역 (오너 2026-07-31, 시안 L).
+// 혼자 러닝의 시작 영역 (오너 2026-07-31, 시안 P).
 //
-// 그냥 뛰기 / 페이스메이커 / 자신과 대결을 옆으로 넘기는 큰 카드 덱으로 둔다. 카드가 넓어서
-// 각 모드가 무엇인지 한 줄로 설명되고, 첫 카드에 시작 버튼이 있어 진입 즉시 뛸 수 있다.
+// 분할 필 하나: 왼쪽(넓은 쪽)은 바로 시작, 오른쪽 작은 칸을 누르면 달리기 방식 시트가
+// 올라온다(그냥 뛰기 / 페이스메이커 / 자신과 대결). 화면에는 버튼 하나만 남는 가장 컴팩트한
+// 구조 — 대신 두 기능이 숨으므로 필 아래 한 줄로 존재를 알려준다.
 //
-// 스냅: 카드 폭 + 간격 단위로 끊어 멈춘다. 폭을 화면에서 계산하는 이유는 기기 폭에 따라
-// 다음 카드가 살짝 보이는 정도(피킹)를 유지하기 위해서다 — 그게 '옆에 더 있다'는 유일한
-// 신호다. 인디케이터는 스크롤이 멈출 때만 갱신한다(프레임마다 setState 하면 이 탭 전체가
-// 매 프레임 리렌더된다).
+// 시트는 Modal이라 배경이 반드시 불투명해야 한다(colors.surfaceChrome) — 반투명 유리 표면을
+// 쓰면 밑에 깔린 화면이 비쳐 글자가 뭉개진다(토큰 주석의 네이티브 크롬 규칙).
 
-import { memo, useCallback, useMemo, useState } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
-} from 'react-native';
+import { memo, useCallback, useState } from 'react';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
 import { colors, fixedColors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
-
-// Screen의 좌우 여백(s16 × 2).
-const SCREEN_HORIZONTAL_PADDING = 32;
-const CARD_WIDTH_RATIO = 0.78;
-const CARD_GAP = spacing.s10;
 
 type SoloRunHeroPanelProps = {
   startLabel: string;
@@ -42,200 +28,200 @@ export const SoloRunHeroPanel = memo(function SoloRunHeroPanel({
   onOpenPacemaker,
   onOpenGhostRun,
 }: SoloRunHeroPanelProps) {
-  const { width: windowWidth } = useWindowDimensions();
-  const [activeIndex, setActiveIndex] = useState(0);
-
-  const cardWidth = useMemo(
-    () => Math.round((windowWidth - SCREEN_HORIZONTAL_PADDING) * CARD_WIDTH_RATIO),
-    [windowWidth],
-  );
-  const snapInterval = cardWidth + CARD_GAP;
+  const [sheetVisible, setSheetVisible] = useState(false);
 
   const handleStart = useCallback(() => {
-    const trace = beginRgInputTrace('solo run start press', { source: 'solo card deck' });
+    const trace = beginRgInputTrace('solo run start press', { source: 'solo split pill' });
     onStart();
     trace.markFeedback('start dispatch');
   }, [onStart]);
 
-  const handleMomentumEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offsetX = event.nativeEvent.contentOffset.x;
-    setActiveIndex(Math.max(0, Math.min(2, Math.round(offsetX / snapInterval))));
-  }, [snapInterval]);
-
-  const cards = useMemo(() => [
-    {
-      key: 'solo',
-      badge: '기본',
-      title: '그냥 뛰기',
-      description: '거리와 페이스만 기록해요',
-      actionLabel: startLabel,
-      disabled: startDisabled,
-      onPress: handleStart,
-    },
-    {
-      key: 'pacemaker',
-      badge: '음성 코칭',
-      title: '페이스메이커',
-      description: '목표 페이스를 귀로 알려줘요',
-      actionLabel: '목표 정하기',
-      disabled: false,
-      onPress: onOpenPacemaker,
-    },
-    {
-      key: 'ghost',
-      badge: '고스트',
-      title: '자신과 대결',
-      description: '지난 기록을 옆에 두고 달려요',
-      actionLabel: '기록 고르기',
-      disabled: false,
-      onPress: onOpenGhostRun,
-    },
-  ], [handleStart, onOpenGhostRun, onOpenPacemaker, startDisabled, startLabel]);
+  const openSheet = useCallback(() => setSheetVisible(true), []);
+  const closeSheet = useCallback(() => setSheetVisible(false), []);
+  const handlePickPacemaker = useCallback(() => {
+    setSheetVisible(false);
+    onOpenPacemaker();
+  }, [onOpenPacemaker]);
+  const handlePickGhost = useCallback(() => {
+    setSheetVisible(false);
+    onOpenGhostRun();
+  }, [onOpenGhostRun]);
 
   return (
     <View style={styles.panel}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        decelerationRate="fast"
-        snapToInterval={snapInterval}
-        snapToAlignment="start"
-        contentContainerStyle={styles.deck}
-        onMomentumScrollEnd={handleMomentumEnd}
-      >
-        {cards.map((card) => (
-          <SoloRunCard key={card.key} card={card} width={cardWidth} />
-        ))}
-      </ScrollView>
+      <View style={styles.pill}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.startSegment,
+            startDisabled ? styles.segmentDisabled : undefined,
+            pressed && !startDisabled ? styles.startSegmentPressed : undefined,
+          ]}
+          onPress={handleStart}
+          disabled={startDisabled}
+          accessibilityRole="button"
+          accessibilityLabel={startLabel}
+        >
+          <Text style={styles.startText}>{startLabel}</Text>
+        </Pressable>
 
-      <View style={styles.dots}>
-        {cards.map((card, index) => (
-          <View
-            key={card.key}
-            style={[styles.dot, index === activeIndex ? styles.dotActive : undefined]}
-          />
-        ))}
+        <View style={styles.segmentDivider} />
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.modeSegment,
+            pressed ? styles.modeSegmentPressed : undefined,
+          ]}
+          onPress={openSheet}
+          accessibilityRole="button"
+          accessibilityLabel="달리기 방식 선택 — 페이스메이커, 자신과 대결"
+        >
+          <Feather name="sliders" size={20} color={fixedColors.brandLighter} />
+        </Pressable>
       </View>
-    </View>
-  );
-});
 
-type SoloRunCardModel = {
-  key: string;
-  badge: string;
-  title: string;
-  description: string;
-  actionLabel: string;
-  disabled: boolean;
-  onPress: () => void;
-};
+      <Text style={styles.hint}>페이스메이커 · 자신과 대결은 오른쪽 버튼에서</Text>
 
-const SoloRunCard = memo(function SoloRunCard({
-  card,
-  width,
-}: {
-  card: SoloRunCardModel;
-  width: number;
-}) {
-  return (
-    <View style={[styles.card, { width }]}>
-      <View style={styles.badge}>
-        <Text style={styles.badgeText}>{card.badge}</Text>
-      </View>
-      <Text style={styles.cardTitle}>{card.title}</Text>
-      <Text style={styles.cardDescription}>{card.description}</Text>
-
-      <Pressable
-        style={({ pressed }) => [
-          styles.cardAction,
-          card.disabled ? styles.cardActionDisabled : undefined,
-          pressed && !card.disabled ? styles.cardActionPressed : undefined,
-        ]}
-        onPress={card.onPress}
-        disabled={card.disabled}
-        accessibilityRole="button"
-        accessibilityLabel={`${card.title} — ${card.actionLabel}`}
+      <Modal
+        visible={sheetVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeSheet}
       >
-        <Text style={styles.cardActionText}>{card.actionLabel}</Text>
-      </Pressable>
+        <Pressable style={styles.sheetBackdrop} onPress={closeSheet}>
+          {/* 시트 몸통 탭이 backdrop onPress로 새지 않게 이벤트를 삼킨다 */}
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>어떻게 달릴까요?</Text>
+
+            <Pressable style={styles.sheetRow} onPress={closeSheet} accessibilityRole="button">
+              <View style={styles.sheetRowBody}>
+                <Text style={styles.sheetRowTitle}>그냥 뛰기</Text>
+                <Text style={styles.sheetRowDescription}>거리와 페이스만 기록해요</Text>
+              </View>
+              <Feather name="check" size={18} color={colors.brand} />
+            </Pressable>
+
+            <Pressable style={styles.sheetRow} onPress={handlePickPacemaker} accessibilityRole="button">
+              <View style={styles.sheetRowBody}>
+                <Text style={styles.sheetRowTitle}>페이스메이커와 달리기</Text>
+                <Text style={styles.sheetRowDescription}>목표 페이스를 귀로 알려줘요</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.textTertiary} />
+            </Pressable>
+
+            <Pressable
+              style={[styles.sheetRow, styles.sheetRowLast]}
+              onPress={handlePickGhost}
+              accessibilityRole="button"
+            >
+              <View style={styles.sheetRowBody}>
+                <Text style={styles.sheetRowTitle}>자신과 대결</Text>
+                <Text style={styles.sheetRowDescription}>지난 기록을 옆에 두고 달려요</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.textTertiary} />
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 });
 
 const styles = StyleSheet.create({
   panel: {
-    gap: spacing.s12,
-  },
-  deck: {
-    gap: CARD_GAP,
-    // 마지막 카드도 끝까지 스냅되게 — 오른쪽 여백이 없으면 세 번째 카드가 화면 끝에 붙는다.
-    paddingRight: spacing.s24,
-  },
-  card: {
     gap: spacing.xxl,
-    padding: spacing.s16,
-    borderRadius: radii.cardLarge,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
   },
-  badge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.s10,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.pill,
-    backgroundColor: colors.surfaceMuted,
+  pill: {
+    flexDirection: 'row',
+    borderRadius: radii.xl,
+    overflow: 'hidden',
   },
-  badgeText: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.extraBold,
-  },
-  cardTitle: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.display,
-    fontWeight: fontWeights.extraBold,
-  },
-  cardDescription: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.md,
-    lineHeight: 20,
-  },
-  // 세 카드는 같은 층의 선택지다 — 배경·테두리·버튼을 한 벌로 통일한다 (오너 2026-07-31).
-  // 하나만 강조하면 나머지 둘이 '못 누르는 것'처럼 보였다.
-  cardAction: {
-    marginTop: spacing.sm,
+  startSegment: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.s16,
-    borderRadius: radii.lg,
+    paddingVertical: spacing.s20,
     backgroundColor: fixedColors.brand,
   },
-  cardActionPressed: {
+  startSegmentPressed: {
     backgroundColor: fixedColors.brandStrong,
   },
-  cardActionDisabled: {
+  segmentDisabled: {
     opacity: 0.6,
   },
-  cardActionText: {
+  startText: {
     color: fixedColors.white,
-    fontSize: fontSizes.base,
+    fontSize: fontSizes.large,
     fontWeight: fontWeights.extraBold,
   },
-  dots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+  segmentDivider: {
+    width: 1,
+    backgroundColor: fixedColors.brandLight,
+  },
+  // 오른쪽 방식 칸 — 같은 필 안이지만 한 톤 어둡게 눌러 '다른 동작'임을 알린다.
+  modeSegment: {
+    width: 76,
     alignItems: 'center',
-    gap: spacing.lg,
+    justifyContent: 'center',
+    backgroundColor: fixedColors.brandDeep,
   },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+  modeSegmentPressed: {
+    backgroundColor: fixedColors.brandStrong,
+  },
+  hint: {
+    color: colors.textTertiary,
+    fontSize: fontSizes.sm,
+    textAlign: 'center',
+  },
+  sheetBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(10, 14, 30, 0.55)',
+  },
+  sheet: {
+    paddingHorizontal: spacing.s16,
+    paddingTop: spacing.s10,
+    paddingBottom: spacing.s24,
+    borderTopLeftRadius: radii.cardLarge,
+    borderTopRightRadius: radii.cardLarge,
+    backgroundColor: colors.surfaceChrome,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
     backgroundColor: colors.borderMuted,
+    marginBottom: spacing.s12,
   },
-  dotActive: {
-    width: 18,
-    backgroundColor: colors.brand,
+  sheetTitle: {
+    color: colors.textPrimary,
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
+    marginBottom: spacing.xxl,
+  },
+  sheetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s10,
+    paddingVertical: spacing.s14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderSoft,
+  },
+  sheetRowLast: {
+    borderBottomWidth: 0,
+  },
+  sheetRowBody: {
+    flex: 1,
+    gap: spacing.xxs,
+  },
+  sheetRowTitle: {
+    color: colors.textPrimary,
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.extraBold,
+  },
+  sheetRowDescription: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
   },
 });
