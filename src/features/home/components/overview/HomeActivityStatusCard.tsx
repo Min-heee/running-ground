@@ -7,7 +7,6 @@ import type { MyRunRecord } from '@/domain';
 import { RunPeriodPickerSheet } from '@/features/home/components/overview/RunPeriodPickerSheet';
 import { RunPeriodBarChart } from '@/features/home/components/overview/RunPeriodBarChart';
 import { buildRunPeriodChartModel } from '@/features/home/utils/runPeriodBars';
-import { formatPaceFromSecondsPerKm } from '@/features/runs/tracking';
 import {
   buildRunPeriodOptions,
   formatRunPeriodDistanceKm,
@@ -46,10 +45,7 @@ function HomeActivityStatusCardImpl({ runs }: HomeActivityStatusCardProps) {
     () => buildRunPeriodChartModel(runs, mode, selectedOption, nowMs),
     [mode, nowMs, runs, selectedOption],
   );
-  // 나이키의 세 줄: N러닝 · 평균 페이스 · 시간. 평균 페이스는 합산에서 파생.
-  const averagePaceLabel = periodSummary.distanceKm > 0 && periodSummary.durationSeconds > 0
-    ? formatPaceFromSecondsPerKm(periodSummary.durationSeconds / periodSummary.distanceKm)
-    : '--:--/km';
+
   const handleOpenPicker = useCallback(() => {
     setPickerOpen(true);
   }, []);
@@ -96,25 +92,21 @@ function HomeActivityStatusCardImpl({ runs }: HomeActivityStatusCardProps) {
         <Text style={styles.periodChevron}>▾</Text>
       </Pressable>
 
-      {/* 나이키 활동 화면 배치 (오너 2026-08-01 확정): 큰 거리 숫자 → 작은 지표 줄 → 그래프 */}
-      <View style={styles.heroBlock}>
-        <Text style={styles.heroValue}>
-          {formatRunPeriodDistanceKm(periodSummary.distanceKm)}
-          <Text style={styles.heroUnit}> km</Text>
-        </Text>
-        <View style={styles.statRow}>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{periodSummary.runCount}</Text>
-            <Text style={styles.statLabel}>러닝</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{averagePaceLabel}</Text>
-            <Text style={styles.statLabel}>평균 페이스</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{formatRunPeriodDurationLabel(periodSummary.durationSeconds)}</Text>
-            <Text style={styles.statLabel}>시간</Text>
-          </View>
+      {/* 원래 요약 그대로 (오너 2026-08-01: 그래프만 나이키 느낌, 요약은 유지) */}
+      <View style={styles.metricRow}>
+        <View style={styles.metric}>
+          <Text style={styles.metricLabel}>거리</Text>
+          <Text style={styles.metricValue}>{formatRunPeriodDistanceKm(periodSummary.distanceKm)}km</Text>
+        </View>
+        <View style={styles.metricDivider} />
+        <View style={styles.metric}>
+          <Text style={styles.metricLabel}>횟수</Text>
+          <Text style={styles.metricValue}>{periodSummary.runCount}회</Text>
+        </View>
+        <View style={styles.metricDivider} />
+        <View style={styles.metric}>
+          <Text style={styles.metricLabel}>시간</Text>
+          <Text style={styles.metricValue}>{formatRunPeriodDurationLabel(periodSummary.durationSeconds)}</Text>
         </View>
       </View>
 
@@ -209,37 +201,30 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
   },
-  heroBlock: {
-    gap: spacing.s10,
-    paddingTop: spacing.sm,
-  },
-  heroValue: {
-    color: colors.textPrimary,
-    fontSize: 44,
-    fontWeight: fontWeights.black,
-    letterSpacing: -1,
-  },
-  heroUnit: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.title,
-    fontWeight: fontWeights.extraBold,
-    letterSpacing: 0,
-  },
-  statRow: {
+  metricRow: {
+    alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.s24,
+    paddingVertical: spacing.s10,
   },
-  stat: {
-    gap: spacing.xxs,
+  metric: {
+    alignItems: 'center',
+    flex: 1,
+    gap: spacing.sm,
   },
-  statValue: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.button,
-    fontWeight: fontWeights.extraBold,
-  },
-  statLabel: {
+  metricLabel: {
     color: colors.textSecondary,
     fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+  },
+  metricValue: {
+    color: colors.textPrimary,
+    fontSize: fontSizes.metric,
+    fontWeight: fontWeights.extraBold,
+  },
+  metricDivider: {
+    backgroundColor: colors.borderMuted,
+    height: 32,
+    width: 1,
   },
   recordButton: {
     alignItems: 'center',
