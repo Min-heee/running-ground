@@ -1,19 +1,23 @@
-// 혼자 러닝의 시작 영역 (오너 2026-07-31, 시안 B).
+// 혼자 러닝의 시작 영역 (오너 2026-07-31, 시안 H).
 //
-// 이 탭에 오는 사람의 목적은 십중팔구 '지금 뛰기'다. 그래서 시작을 화면 한가운데 원형으로
-// 두어 무게중심을 잡고, 페이스메이커·자신과 대결은 그 아래 곁가지로 내린다. 위쪽 요약은
-// 뛰기 전에 한 번 보게 되는 숫자(이번 주 거리/횟수)만 둔다.
+// 이번 주 요일별 막대 → 한 줄 요약 → 시작 버튼 → 페이스메이커/자신과 대결.
+// 막대를 맨 위에 두는 이유: 오늘 칸이 비어 있는 게 눈에 보이는 게 이 화면에서 가장 강한
+// 동기다. 시작 버튼 문구는 모드 모델이 주는 라벨을 그대로 쓴다(다른 모드와 같은 규칙).
 //
-// 요약은 있으면 좋고 없어도 그만인 정보라 실패하면 조용히 접는다 — 이것 때문에 시작 버튼이
-// 늦게 뜨거나 에러가 보이면 안 된다.
+// 기록 조회는 부가 정보라 실패해도 조용히 접는다 — 그것 때문에 시작 버튼이 늦게 뜨거나
+// 에러가 보이면 안 된다.
 
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import type { WeeklySummary } from '@/domain';
-import { fetchHomeSummary } from '@/services';
+import type { MyRunRecord } from '@/domain';
+import { fetchMyActivity } from '@/services';
+import { buildSoloWeekSummary } from '@/features/runs/utils/soloWeekSummary';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
 import { colors, fixedColors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
+
+const BAR_MAX_HEIGHT = 72;
+const BAR_EMPTY_HEIGHT = 8;
 
 type SoloRunHeroPanelProps = {
   startLabel: string;
@@ -34,19 +38,19 @@ export const SoloRunHeroPanel = memo(function SoloRunHeroPanel({
   onOpenPacemaker,
   onOpenGhostRun,
 }: SoloRunHeroPanelProps) {
-  const [summary, setSummary] = useState<WeeklySummary | null>(null);
+  const [runs, setRuns] = useState<MyRunRecord[] | null>(null);
 
   useEffect(() => {
     let active = true;
 
-    fetchHomeSummary()
+    fetchMyActivity()
       .then((response) => {
         if (active) {
-          setSummary(response);
+          setRuns(response.runs);
         }
       })
       .catch(() => {
-        // 요약은 부가 정보 — 실패하면 그냥 보여주지 않는다.
+        // 이번 주 흐름은 부가 정보 — 실패하면 그냥 보여주지 않는다.
       });
 
     return () => {
@@ -54,6 +58,7 @@ export const SoloRunHeroPanel = memo(function SoloRunHeroPanel({
     };
   }, []);
 
+  const week = useMemo(() => (runs ? buildSoloWeekSummary(runs) : null), [runs]);
   const handleStart = useCallback(() => {
     const trace = beginRgInputTrace('solo run start press', { source: 'solo hero' });
     onStart();
@@ -62,131 +67,207 @@ export const SoloRunHeroPanel = memo(function SoloRunHeroPanel({
 
   return (
     <View style={styles.panel}>
-      {summary ? (
-        <View style={styles.statsRow}>
-          <View style={styles.stat}>
-            <Text style={styles.statLabel}>이번 주</Text>
-            <Text style={styles.statValue}>{formatDistance(summary.totalDistanceKm)}</Text>
+      {week ? (
+        <View style={styles.weekBlock}>
+          <View style={styles.barRow}>
+            {week.bars.map((bar) => {
+              const ratio = week.maxDistanceKm > 0 ? bar.distanceKm / week.maxDistanceKm : 0;
+              const barHeight = bar.distanceKm > 0
+                ? Math.max(BAR_EMPTY_HEIGHT, Math.round(ratio * BAR_MAX_HEIGHT))
+                : BAR_EMPTY_HEIGHT;
+
+              return (
+                <View key={bar.key} style={styles.barColumn}>
+                  <View
+                    style={[
+                      styles.bar,
+                      { height: barHeight },
+                      bar.distanceKm > 0
+                        ? (bar.isToday ? styles.barToday : styles.barFilled)
+                        : (bar.isToday ? styles.barTodayEmpty : styles.barEmpty),
+                    ]}
+                  />
+                  <Text style={bar.isToday ? styles.barLabelToday : styles.barLabel}>
+                    {bar.isToday ? '오늘' : bar.label}
+                  </Text>
+                </View>
+              );
+            })}
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Text style={styles.statLabel}>러닝</Text>
-            <Text style={styles.statValue}>{summary.totalRuns}회</Text>
-          </View>
+          <Text style={styles.weekSummary}>
+            {week.runCount > 0
+              ? `이번 주 ${formatDistance(week.totalDistanceKm)} · ${week.runCount}회`
+              : '이번 주는 아직 기록이 없어요'}
+            {week.todayDistanceKm > 0 ? ` · 오늘 ${formatDistance(week.todayDistanceKm)}` : ''}
+          </Text>
         </View>
       ) : null}
 
       <Pressable
         style={({ pressed }) => [
-          styles.startCircle,
-          startDisabled ? styles.startCircleDisabled : undefined,
-          pressed && !startDisabled ? styles.startCirclePressed : undefined,
+          styles.startButton,
+          startDisabled ? styles.startButtonDisabled : undefined,
+          pressed && !startDisabled ? styles.startButtonPressed : undefined,
         ]}
         onPress={handleStart}
         disabled={startDisabled}
         accessibilityRole="button"
         accessibilityLabel={startLabel}
       >
-        <Feather name="play" size={30} color={fixedColors.white} />
-        <Text style={styles.startText}>시작</Text>
+        <Feather name="play" size={20} color={fixedColors.white} />
+        <Text style={styles.startText}>{startLabel}</Text>
       </Pressable>
 
       <View style={styles.sideRow}>
-        <SideButton label="페이스메이커" onPress={onOpenPacemaker} />
-        <SideButton label="자신과 대결" onPress={onOpenGhostRun} />
+        <SideCard
+          icon="headphones"
+          label="페이스메이커"
+          description="목표 페이스를 음성으로"
+          onPress={onOpenPacemaker}
+        />
+        <SideCard
+          icon="repeat"
+          label="자신과 대결"
+          description="지난 기록과 나란히"
+          onPress={onOpenGhostRun}
+        />
       </View>
     </View>
   );
 });
 
-const SideButton = memo(function SideButton({
+const SideCard = memo(function SideCard({
+  icon,
   label,
+  description,
   onPress,
 }: {
+  icon: 'headphones' | 'repeat';
   label: string;
+  description: string;
   onPress: () => void;
 }) {
   return (
     <Pressable
-      style={({ pressed }) => [styles.sideButton, pressed ? styles.sideButtonPressed : undefined]}
+      style={({ pressed }) => [styles.sideCard, pressed ? styles.sideCardPressed : undefined]}
       onPress={onPress}
       accessibilityRole="button"
+      accessibilityLabel={`${label} — ${description}`}
     >
-      <Text style={styles.sideButtonText}>{label}</Text>
+      <Feather name={icon} size={22} color={colors.brand} />
+      <Text style={styles.sideCardLabel}>{label}</Text>
+      <Text style={styles.sideCardDescription}>{description}</Text>
     </Pressable>
   );
 });
 
 const styles = StyleSheet.create({
   panel: {
-    alignItems: 'center',
-    gap: spacing.s18,
-    paddingVertical: spacing.s10,
+    gap: spacing.s14,
   },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.s20,
-  },
-  stat: {
-    alignItems: 'center',
-    gap: spacing.xxs,
-  },
-  statLabel: {
-    color: colors.textTertiary,
-    fontSize: fontSizes.sm,
-  },
-  statValue: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.title,
-    fontWeight: fontWeights.extraBold,
-  },
-  statDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: colors.border,
-  },
-  // 시작은 이 화면에서 가장 큰 목표물 — 지름은 손가락으로 대충 눌러도 맞는 크기로.
-  startCircle: {
-    width: 168,
-    height: 168,
-    borderRadius: 84,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xxs,
-    backgroundColor: fixedColors.brand,
-  },
-  startCirclePressed: {
-    backgroundColor: fixedColors.brandStrong,
-  },
-  startCircleDisabled: {
-    opacity: 0.6,
-  },
-  startText: {
-    color: fixedColors.white,
-    fontSize: fontSizes.button,
-    fontWeight: fontWeights.extraBold,
-  },
-  sideRow: {
-    flexDirection: 'row',
-    alignSelf: 'stretch',
+  weekBlock: {
     gap: spacing.s10,
-  },
-  sideButton: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: spacing.s14,
-    borderRadius: radii.lg,
+    paddingVertical: spacing.s12,
+    paddingHorizontal: spacing.s14,
+    borderRadius: radii.xl,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  sideButtonPressed: {
-    borderColor: colors.brandLight,
+  barRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.lg,
+    height: BAR_MAX_HEIGHT + 20,
   },
-  sideButtonText: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.base,
+  barColumn: {
+    flex: 1,
+    alignItems: 'center',
+    gap: spacing.xxs,
+  },
+  bar: {
+    width: '100%',
+    borderRadius: radii.xs,
+  },
+  barFilled: {
+    backgroundColor: colors.brandLight,
+  },
+  barToday: {
+    backgroundColor: colors.brand,
+  },
+  // 아직 안 뛴 날 — 자리는 잡되 존재감은 낮게.
+  barEmpty: {
+    backgroundColor: colors.borderMuted,
+  },
+  // 오늘인데 아직 안 뛴 상태를 한눈에: 비어 있지만 브랜드 색으로 표시된다.
+  barTodayEmpty: {
+    backgroundColor: colors.brandWash,
+    borderWidth: 1,
+    borderColor: colors.brandSoftBorder,
+  },
+  barLabel: {
+    color: colors.textTertiary,
+    fontSize: fontSizes.xs,
+  },
+  barLabelToday: {
+    color: colors.brand,
+    fontSize: fontSizes.xs,
     fontWeight: fontWeights.extraBold,
+  },
+  weekSummary: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.md,
+    textAlign: 'center',
+  },
+  startButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xxl,
+    paddingVertical: spacing.s18,
+    borderRadius: radii.xl,
+    backgroundColor: fixedColors.brand,
+  },
+  startButtonPressed: {
+    backgroundColor: fixedColors.brandStrong,
+  },
+  startButtonDisabled: {
+    opacity: 0.6,
+  },
+  startText: {
+    color: fixedColors.white,
+    fontSize: fontSizes.large,
+    fontWeight: fontWeights.extraBold,
+  },
+  sideRow: {
+    flexDirection: 'row',
+    gap: spacing.s10,
+  },
+  // 오너 요청 2026-07-31: 곁가지지만 눌러야 보이는 기능이라 충분히 크게 — 아이콘 + 제목 +
+  // 설명 한 줄을 담는 카드로, 위 시작 버튼과 함께 세로를 채운다.
+  sideCard: {
+    flex: 1,
+    gap: spacing.xs,
+    paddingVertical: spacing.s16,
+    paddingHorizontal: spacing.s14,
+    minHeight: 108,
+    justifyContent: 'center',
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  sideCardPressed: {
+    borderColor: colors.brandLight,
+    backgroundColor: colors.brandWash,
+  },
+  sideCardLabel: {
+    color: colors.textPrimary,
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.extraBold,
+  },
+  sideCardDescription: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
   },
 });
