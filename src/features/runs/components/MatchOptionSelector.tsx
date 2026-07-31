@@ -6,6 +6,7 @@ import {
   resolveSegmentSelection,
   shouldRenderMatchOptionCards,
 } from '@/features/runs/components/matchOptionSegments';
+import { matchPickerCardStyles } from '@/features/runs/components/matchPickerCardStyles';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
 import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
@@ -64,12 +65,8 @@ const MatchOptionButton = memo(function MatchOptionButton({
   selectedMode: MatchOptionMode;
 }) {
   const optionStyle = useMemo(() => [
-    styles.option,
-    isSelected ? styles.optionSelected : styles.optionIdle,
-  ], [isSelected]);
-  const titleStyle = useMemo(() => [
-    styles.optionTitle,
-    isSelected ? styles.optionTitleSelected : undefined,
+    matchPickerCardStyles.card,
+    isSelected ? matchPickerCardStyles.cardSelected : matchPickerCardStyles.cardIdle,
   ], [isSelected]);
   const handlePress = useCallback(() => {
     const trace = beginRgInputTrace('run mode select', {
@@ -87,9 +84,12 @@ const MatchOptionButton = memo(function MatchOptionButton({
       accessibilityRole="button"
       accessibilityState={{ selected: isSelected }}
     >
-      <Text style={titleStyle}>{option.title}</Text>
+      <Text style={matchPickerCardStyles.cardTitle}>{option.title}</Text>
       {option.pickerSummary ? (
-        <Text style={isSelected ? styles.optionSummarySelected : styles.optionSummary} numberOfLines={2}>
+        <Text
+          style={isSelected ? matchPickerCardStyles.cardSummarySelected : matchPickerCardStyles.cardSummary}
+          numberOfLines={2}
+        >
           {option.pickerSummary}
         </Text>
       ) : null}
@@ -146,7 +146,7 @@ export function MatchOptionSelector({
         {segmentTabs}
       </View>
       {optionButtons.length ? (
-        <View style={styles.row}>
+        <View style={matchPickerCardStyles.row}>
           {optionButtons}
         </View>
       ) : null}
@@ -183,45 +183,5 @@ const styles = StyleSheet.create({
   segmentLabelActive: {
     color: colors.white,
     fontWeight: fontWeights.extraBold,
-  },
-  row: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: spacing.s10,
-  },
-  option: {
-    width: '48%',
-    gap: spacing.xxs,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    paddingHorizontal: spacing.s12,
-    paddingVertical: spacing.s12,
-    minHeight: 68,
-    justifyContent: 'center',
-  },
-  optionIdle: {
-    borderColor: colors.darkSoft,
-    backgroundColor: fixedColors.textPrimary,
-  },
-  optionSelected: {
-    borderColor: colors.brandLight,
-    backgroundColor: colors.indigoInk,
-  },
-  optionTitle: {
-    color: colors.white,
-    fontSize: fontSizes.button,
-    fontWeight: fontWeights.extraBold,
-  },
-  optionTitleSelected: {
-    color: colors.white,
-  },
-  optionSummary: {
-    color: colors.textTertiary,
-    fontSize: fontSizes.sm,
-  },
-  optionSummarySelected: {
-    color: colors.brandLighter,
-    fontSize: fontSizes.sm,
   },
 });

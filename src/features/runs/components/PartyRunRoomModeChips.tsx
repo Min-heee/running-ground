@@ -6,10 +6,10 @@
 // 그 역할을 한다.
 
 import { memo, useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import type { RunningMatchRoomMode } from '@/lib/api/types';
+import { matchPickerCardStyles } from '@/features/runs/components/matchPickerCardStyles';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
-import { colors, fixedColors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
 
 const ROOM_MODE_OPTIONS = [
   { key: 'duel' as const, label: '1대1 대결' },
@@ -31,7 +31,10 @@ export const PartyRunRoomModeChips = memo(function PartyRunRoomModeChips({
     return (
       <Pressable
         key={option.key}
-        style={[styles.chip, optionIsSelected ? styles.chipSelected : undefined]}
+        style={[
+          matchPickerCardStyles.card,
+          optionIsSelected ? matchPickerCardStyles.cardSelected : matchPickerCardStyles.cardIdle,
+        ]}
         onPress={() => {
           const trace = beginRgInputTrace('run mode select', {
             mode: option.key,
@@ -43,47 +46,10 @@ export const PartyRunRoomModeChips = memo(function PartyRunRoomModeChips({
         accessibilityRole="button"
         accessibilityState={{ selected: optionIsSelected }}
       >
-        <Text style={[styles.chipText, optionIsSelected ? styles.chipTextSelected : undefined]}>
-          {option.label}
-        </Text>
+        <Text style={matchPickerCardStyles.cardTitle}>{option.label}</Text>
       </Pressable>
     );
   }), [onRoomModeChange, roomMode]);
 
-  return <View style={styles.row}>{chips}</View>;
-});
-
-// 치수·색은 MatchOptionSelector의 모드 카드와 같은 값으로 맞춘다 — 매칭 탭의
-// '1대1 매치 / 그룹 대결' 카드와 파티런 탭의 이 칩은 같은 층(고르는 것)이라 크기가 다르면
-// 탭을 옮길 때마다 카드가 커졌다 작아졌다 한다.
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: spacing.s10,
-  },
-  chip: {
-    width: '48%',
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.darkSoft,
-    backgroundColor: fixedColors.textPrimary,
-    paddingHorizontal: spacing.s14,
-    paddingVertical: spacing.s14,
-    minHeight: 84,
-    justifyContent: 'center',
-  },
-  chipSelected: {
-    borderColor: colors.brandLight,
-    backgroundColor: colors.indigoInk,
-  },
-  chipText: {
-    color: colors.white,
-    fontSize: fontSizes.button,
-    fontWeight: fontWeights.extraBold,
-  },
-  chipTextSelected: {
-    color: colors.white,
-  },
+  return <View style={matchPickerCardStyles.row}>{chips}</View>;
 });
