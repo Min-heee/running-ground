@@ -1,12 +1,12 @@
 import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { router } from 'expo-router';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { MatchSetupSection } from '@/features/runs/components/MatchSetupSection';
+import { SoloRunHeroPanel } from '@/features/runs/components/SoloRunHeroPanel';
 import { UpcomingMatchList } from '@/features/runs/components/UpcomingMatchList';
 import { GhostSavePromptCard } from '@/features/runs/ghostRun/GhostSavePromptCard';
-import { colors, fixedColors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
+import { spacing } from '@/theme/tokens';
 
 type RunningReadyScreenProps = {
   bottomInset: number;
@@ -43,51 +43,25 @@ export function RunningReadyScreen({
           플로우(입장→GPS 시작)를 그대로 태우기 위해 readyAction을 내려보낸다. */}
       <MatchSetupSection {...matchSetupProps} onChaseStart={onReadyAction} />
 
-      {readyActionLabel ? (
+      {/* 혼자 러닝은 시작이 이 화면의 목적 자체라 원형 히어로로 세운다 (시안 B). 나머지
+          모드는 설정 패널 아래에 일반 CTA가 붙는 기존 형태 그대로. 페이스메이커·자신과
+          대결은 솔로 전용이라 히어로 안에 함께 들어간다. */}
+      {showSoloCoachEntry && readyActionLabel ? (
+        <SoloRunHeroPanel
+          startLabel={readyActionLoadingLabel ?? readyActionLabel}
+          startDisabled={readyActionDisabled}
+          onStart={onReadyAction}
+          onOpenPacemaker={() => router.push('/solo-coach' as never)}
+          onOpenGhostRun={() => router.push('/ghost-run' as never)}
+        />
+      ) : readyActionLabel ? (
         <PrimaryButton
           label={readyActionLoadingLabel ?? readyActionLabel}
           onPress={onReadyAction}
           disabled={readyActionDisabled}
         />
       ) : null}
-
-      {/* 페이스메이커 대기방 진입 (오너 요청 2026-07-22): 목표 페이스/거리/시간을
-          정하고 음성 코칭과 함께 달리는 솔로 전용 흐름 — 혼자러닝 모드에서만 노출. */}
-      {showSoloCoachEntry ? (
-        <>
-          <SoloFeatureRow
-            label="페이스메이커와 달리기"
-            onPress={() => router.push('/solo-coach' as never)}
-          />
-          <SoloFeatureRow
-            label="자신과 대결"
-            onPress={() => router.push('/ghost-run' as never)}
-          />
-        </>
-      ) : null}
     </View>
-  );
-}
-
-// Modern-simple solo feature row: a thin brand accent bar · left label ·
-// chevron, on a glassy translucent fill over the fixed dark ready card.
-function SoloFeatureRow({
-  label,
-  onPress,
-}: {
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.featureRow, pressed && styles.featureRowPressed]}
-      onPress={onPress}
-      accessibilityRole="button"
-    >
-      <View style={styles.featureAccentBar} />
-      <Text style={styles.featureLabel}>{label}</Text>
-      <Feather name="chevron-right" size={18} color={colors.textSecondary} />
-    </Pressable>
   );
 }
 
@@ -99,37 +73,5 @@ const styles = StyleSheet.create({
     gap: spacing.s16,
     paddingTop: spacing.s12,
     paddingBottom: spacing.s18,
-  },
-  // Vertical metrics mirror the base Button (paddingVertical s16 + radii.lg +
-  // fontSizes.button) so these rows sit at the same height as 바로 러닝 시작.
-  // Violet-tinted glass (오너 2026-07-27): plain white glass read as static
-  // text, not a button. 채움은 반투명 브랜드라 라이트/다크 양쪽에서 성립하지만, 글자색은
-  // 더 이상 '항상 어두운 카드' 전제를 쓸 수 없다 — 배경이 걷히면서 흰 글씨는 안 보인다.
-  featureRow: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(109, 94, 247, 0.20)',
-    borderColor: 'rgba(142, 123, 255, 0.50)',
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: spacing.s12,
-    paddingHorizontal: spacing.s14,
-    paddingVertical: spacing.s16,
-  },
-  featureRowPressed: {
-    backgroundColor: 'rgba(109, 94, 247, 0.28)',
-    borderColor: fixedColors.brand,
-  },
-  featureAccentBar: {
-    backgroundColor: fixedColors.brand,
-    borderRadius: 2,
-    height: 18,
-    width: 3,
-  },
-  featureLabel: {
-    color: colors.textPrimary,
-    flex: 1,
-    fontSize: fontSizes.button,
-    fontWeight: fontWeights.extraBold,
   },
 });
