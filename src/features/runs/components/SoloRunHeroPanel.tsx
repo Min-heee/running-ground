@@ -72,14 +72,18 @@ const SubButton = memo(function SubButton({
 
 const styles = StyleSheet.create({
   panel: {
-    gap: spacing.xxl,
+    gap: spacing.s10,
   },
-  // 위계 규칙: 시작만 크고 진하게, 나머지는 낮고 연하게. 색은 테마 토큰이라 라이트에선
-  // 연보라 워시 + 진보라 글씨, 다크에선 반투명 보라 + 밝은 라벤더 글씨로 뒤집힌다.
+  // 위계는 색 농도로만: 시작은 진한 솔리드, 아래 둘은 보라 유리 틴트. 세 버튼의 높이·라운드·
+  // 간격은 동일하다 (오너 2026-07-31: "위아래 간격 세 버튼 맞춰줘").
+  //
+  // 틴트가 brandWash 토큰이 아닌 고정 rgba인 이유: 라이트 brandWash(#EEF2FF)는 앱 배경
+  // (#EFF0FA)과 거의 같은 색이라 버튼이 사라졌다. 반투명 브랜드는 밝은 배경에선 연보라,
+  // 다크 네이비 위에선 보라 유리로 앉아 양쪽 모드에서 성립한다(2026-07-27 승인된 그 톤).
   startButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.s22,
+    paddingVertical: spacing.s18,
     borderRadius: radii.xl,
     backgroundColor: fixedColors.brand,
   },
@@ -97,16 +101,18 @@ const styles = StyleSheet.create({
   subButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.s14,
-    borderRadius: radii.lg,
-    backgroundColor: colors.brandWash,
+    paddingVertical: spacing.s18,
+    borderRadius: radii.xl,
+    backgroundColor: 'rgba(109, 94, 247, 0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(142, 123, 255, 0.45)',
   },
   subButtonPressed: {
-    backgroundColor: colors.brandWashStrong,
+    backgroundColor: 'rgba(109, 94, 247, 0.26)',
   },
   subButtonText: {
     color: colors.brandDeep,
-    fontSize: fontSizes.base,
+    fontSize: fontSizes.button,
     fontWeight: fontWeights.extraBold,
   },
 });
