@@ -119,32 +119,20 @@ export const SoloRunHeroPanel = memo(function SoloRunHeroPanel({
       </Pressable>
 
       <View style={styles.sideRow}>
-        <SideCard
-          icon="headphones"
-          label="페이스메이커"
-          description="목표 페이스를 음성으로"
-          onPress={onOpenPacemaker}
-        />
-        <SideCard
-          icon="repeat"
-          label="자신과 대결"
-          description="지난 기록과 나란히"
-          onPress={onOpenGhostRun}
-        />
+        <SideCard badge="음성 코칭" label="페이스메이커" onPress={onOpenPacemaker} />
+        <SideCard badge="고스트" label="자신과 대결" onPress={onOpenGhostRun} />
       </View>
     </View>
   );
 });
 
 const SideCard = memo(function SideCard({
-  icon,
+  badge,
   label,
-  description,
   onPress,
 }: {
-  icon: 'headphones' | 'repeat';
+  badge: string;
   label: string;
-  description: string;
   onPress: () => void;
 }) {
   return (
@@ -152,11 +140,12 @@ const SideCard = memo(function SideCard({
       style={({ pressed }) => [styles.sideCard, pressed ? styles.sideCardPressed : undefined]}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${label} — ${description}`}
+      accessibilityLabel={label}
     >
-      <Feather name={icon} size={22} color={colors.brand} />
+      <View style={styles.sideCardBadge}>
+        <Text style={styles.sideCardBadgeText}>{badge}</Text>
+      </View>
       <Text style={styles.sideCardLabel}>{label}</Text>
-      <Text style={styles.sideCardDescription}>{description}</Text>
     </Pressable>
   );
 });
@@ -243,31 +232,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.s10,
   },
-  // 오너 요청 2026-07-31: 곁가지지만 눌러야 보이는 기능이라 충분히 크게 — 아이콘 + 제목 +
-  // 설명 한 줄을 담는 카드로, 위 시작 버튼과 함께 세로를 채운다.
+  // 오너 요청 2026-07-31: 아이콘 없이 배지 + 제목만, 카드 자체를 브랜드 톤으로 (시안 4).
+  // 곁가지지만 눌러야 존재를 아는 기능이라 크기는 크게 유지한다.
+  // 색은 전부 테마 토큰 — brandWash/brandSoftBorder/brandDeep은 라이트에선 연보라 배경 +
+  // 진한 보라 글씨, 다크에선 반투명 보라 + 밝은 라벤더 글씨로 뒤집힌다.
   sideCard: {
     flex: 1,
-    gap: spacing.xs,
+    gap: spacing.s10,
     paddingVertical: spacing.s16,
     paddingHorizontal: spacing.s14,
     minHeight: 108,
     justifyContent: 'center',
     borderRadius: radii.xl,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: colors.brandSoftBorder,
+    backgroundColor: colors.brandWash,
   },
   sideCardPressed: {
     borderColor: colors.brandLight,
-    backgroundColor: colors.brandWash,
+    backgroundColor: colors.brandWashStrong,
   },
-  sideCardLabel: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.button,
+  sideCardBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.xxl,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+  },
+  sideCardBadgeText: {
+    color: colors.brandDeep,
+    fontSize: fontSizes.xs,
     fontWeight: fontWeights.extraBold,
   },
-  sideCardDescription: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.sm,
+  sideCardLabel: {
+    color: colors.brandDeep,
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.extraBold,
   },
 });
