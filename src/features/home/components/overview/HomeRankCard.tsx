@@ -136,18 +136,18 @@ export function HomeRankCard({ rankState, duelRecord, recordHref }: HomeRankCard
         <View style={progressFillStyle} />
       </View>
 
-      {/* 1대1 전적 줄 (오너 2026-08-01 '라' 선택) — 그룹은 순위제라 승률에서 뺀다. */}
-      <Text style={styles.duelRecordLine}>
-        {formatDuelRecordLine(duelRecord)}
-        {duelRecord.winRatePercent !== null ? (
-          <Text style={styles.duelRecordRate}> · 승률 {duelRecord.winRatePercent}%</Text>
-        ) : null}
-      </Text>
-
+      {/* 푸터: 왼쪽 1대1 전적 줄(오너 '라' 선택 — 그룹은 순위제라 승률에서 뺀다),
+          오른쪽 전적 링크. 전적이 비어도 0으로 보여준다. */}
       <Link href={recordHref} asChild>
         <Pressable accessibilityRole="button" accessibilityLabel="전적 보기" style={styles.recordFooter}>
-          <Text style={styles.recordTitle}>전적</Text>
-          <Text style={styles.recordChevron}>›</Text>
+          <Text style={styles.duelRecordLine}>
+            {formatDuelRecordLine(duelRecord)}
+            <Text style={styles.duelRecordRate}> · 승률 {duelRecord.winRatePercent}%</Text>
+          </Text>
+          <View style={styles.recordLinkGroup}>
+            <Text style={styles.recordTitle}>전적</Text>
+            <Text style={styles.recordChevron}>›</Text>
+          </View>
         </Pressable>
       </Link>
     </Card>
@@ -295,9 +295,14 @@ const styles = StyleSheet.create({
     borderTopColor: fixedColors.borderSoft,
     borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    gap: spacing.xs,
-    justifyContent: 'flex-end',
+    gap: spacing.s12,
+    justifyContent: 'space-between',
     paddingTop: spacing.s10,
+  },
+  recordLinkGroup: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
   },
   recordTitle: {
     color: fixedColors.textPrimary,

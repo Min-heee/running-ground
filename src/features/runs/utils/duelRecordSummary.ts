@@ -9,8 +9,9 @@ export type DuelRecordSummary = {
   wins: number;
   losses: number;
   draws: number;
-  // 승률(%) = 승 ÷ (승+패), 반올림. 무승부는 분모에서 뺀다. 승패가 하나도 없으면 null.
-  winRatePercent: number | null;
+  // 승률(%) = 승 ÷ (승+패), 반올림. 무승부는 분모에서 뺀다. 승패가 없으면 0 —
+  // 카드는 전적이 비어도 '1대1 0승 0패 · 승률 0%'로 보여준다 (오너 2026-08-01).
+  winRatePercent: number;
 };
 
 export function buildDuelRecordSummary(
@@ -41,18 +42,13 @@ export function buildDuelRecordSummary(
     wins,
     losses,
     draws,
-    winRatePercent: decided > 0 ? Math.round((wins / decided) * 100) : null,
+    winRatePercent: decided > 0 ? Math.round((wins / decided) * 100) : 0,
   };
 }
 
-// 카드에 그대로 얹는 한 줄. 전적이 하나도 없으면 시작 유도 문구.
+// 카드에 그대로 얹는 한 줄. 전적이 비어도 0으로 보여준다.
 export function formatDuelRecordLine(summary: DuelRecordSummary): string {
   const { wins, losses, draws } = summary;
-
-  if (wins + losses + draws === 0) {
-    return '아직 1대1 대결 전적이 없어요';
-  }
-
   const drawPart = draws > 0 ? ` ${draws}무` : '';
   return `1대1 ${wins}승 ${losses}패${drawPart}`;
 }
