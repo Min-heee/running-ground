@@ -69,7 +69,6 @@ export const SoloRunHeroPanel = memo(function SoloRunHeroPanel({
       title: '그냥 뛰기',
       description: '거리와 페이스만 기록해요',
       actionLabel: startLabel,
-      isPrimary: true,
       disabled: startDisabled,
       onPress: handleStart,
     },
@@ -79,7 +78,6 @@ export const SoloRunHeroPanel = memo(function SoloRunHeroPanel({
       title: '페이스메이커',
       description: '목표 페이스를 귀로 알려줘요',
       actionLabel: '목표 정하기',
-      isPrimary: false,
       disabled: false,
       onPress: onOpenPacemaker,
     },
@@ -89,7 +87,6 @@ export const SoloRunHeroPanel = memo(function SoloRunHeroPanel({
       title: '자신과 대결',
       description: '지난 기록을 옆에 두고 달려요',
       actionLabel: '기록 고르기',
-      isPrimary: false,
       disabled: false,
       onPress: onOpenGhostRun,
     },
@@ -129,7 +126,6 @@ type SoloRunCardModel = {
   title: string;
   description: string;
   actionLabel: string;
-  isPrimary: boolean;
   disabled: boolean;
   onPress: () => void;
 };
@@ -142,7 +138,7 @@ const SoloRunCard = memo(function SoloRunCard({
   width: number;
 }) {
   return (
-    <View style={[styles.card, card.isPrimary ? styles.cardPrimary : undefined, { width }]}>
+    <View style={[styles.card, { width }]}>
       <View style={styles.badge}>
         <Text style={styles.badgeText}>{card.badge}</Text>
       </View>
@@ -152,7 +148,6 @@ const SoloRunCard = memo(function SoloRunCard({
       <Pressable
         style={({ pressed }) => [
           styles.cardAction,
-          card.isPrimary ? styles.cardActionPrimary : styles.cardActionSecondary,
           card.disabled ? styles.cardActionDisabled : undefined,
           pressed && !card.disabled ? styles.cardActionPressed : undefined,
         ]}
@@ -161,9 +156,7 @@ const SoloRunCard = memo(function SoloRunCard({
         accessibilityRole="button"
         accessibilityLabel={`${card.title} — ${card.actionLabel}`}
       >
-        <Text style={card.isPrimary ? styles.cardActionTextPrimary : styles.cardActionText}>
-          {card.actionLabel}
-        </Text>
+        <Text style={styles.cardActionText}>{card.actionLabel}</Text>
       </Pressable>
     </View>
   );
@@ -185,10 +178,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-  },
-  cardPrimary: {
-    borderColor: colors.brandSoftBorder,
-    backgroundColor: colors.brandWash,
   },
   badge: {
     alignSelf: 'flex-start',
@@ -212,33 +201,23 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     lineHeight: 20,
   },
+  // 세 카드는 같은 층의 선택지다 — 배경·테두리·버튼을 한 벌로 통일한다 (오너 2026-07-31).
+  // 하나만 강조하면 나머지 둘이 '못 누르는 것'처럼 보였다.
   cardAction: {
     marginTop: spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.s16,
     borderRadius: radii.lg,
-  },
-  cardActionPrimary: {
     backgroundColor: fixedColors.brand,
   },
-  cardActionSecondary: {
-    borderWidth: 1,
-    borderColor: colors.brandSoftBorder,
-    backgroundColor: colors.surface,
-  },
   cardActionPressed: {
-    opacity: 0.9,
+    backgroundColor: fixedColors.brandStrong,
   },
   cardActionDisabled: {
     opacity: 0.6,
   },
   cardActionText: {
-    color: colors.brandDeep,
-    fontSize: fontSizes.base,
-    fontWeight: fontWeights.extraBold,
-  },
-  cardActionTextPrimary: {
     color: fixedColors.white,
     fontSize: fontSizes.base,
     fontWeight: fontWeights.extraBold,
