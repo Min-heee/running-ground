@@ -2,7 +2,6 @@ import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { MatchSetupSection } from '@/features/runs/components/MatchSetupSection';
 import { UpcomingMatchList } from '@/features/runs/components/UpcomingMatchList';
@@ -36,7 +35,7 @@ export function RunningReadyScreen({
   };
 
   return (
-    <Card style={[styles.readyCard, readyCardStyle]}>
+    <View style={[styles.readyCard, readyCardStyle]}>
       {/* 방금 끝난 혼자러닝의 나와의 대결 저장 프롬프트 — 후보가 있을 때만 렌더. */}
       <GhostSavePromptCard />
       <UpcomingMatchList {...upcomingMatchesProps} />
@@ -66,7 +65,7 @@ export function RunningReadyScreen({
           />
         </>
       ) : null}
-    </Card>
+    </View>
   );
 }
 
@@ -87,17 +86,18 @@ function SoloFeatureRow({
     >
       <View style={styles.featureAccentBar} />
       <Text style={styles.featureLabel}>{label}</Text>
-      <Feather name="chevron-right" size={18} color="rgba(199, 210, 254, 0.85)" />
+      <Feather name="chevron-right" size={18} color={colors.textSecondary} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  // 검은 배경 제거 (오너 2026-07-31): 러닝 준비 카드도 다른 탭과 같은 앱 카드 표면을 쓴다.
-  // (Card 기본값 = colors.surface — 라이트 유리 / 다크 유리)
+  // 배경 카드 없음 (오너 2026-07-31): 검은 카드에 이어 흰 카드까지 걷어내고, 준비 화면
+  // 콘텐츠를 페이지 배경 위에 바로 놓는다. 가로 여백은 Screen이 이미 주므로 여기선 주지
+  // 않는다 — 카드가 있을 때처럼 안쪽으로 한 번 더 들여쓰면 화면이 좁아 보인다.
   readyCard: {
     gap: spacing.s16,
-    paddingTop: spacing.s18,
+    paddingTop: spacing.s12,
     paddingBottom: spacing.s18,
   },
   // Vertical metrics mirror the base Button (paddingVertical s16 + radii.lg +
