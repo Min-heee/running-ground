@@ -18,6 +18,71 @@ async function getSpeechModule() {
   }
 }
 
+type SpeechModule = NonNullable<Awaited<ReturnType<typeof getSpeechModule>>>;
+
+// 목소리 다듬기 (오너 2026-08-01: "너무 사이버 여자같아") — language만 주면 시스템 기본
+// compact 음성이 잡히는데 그게 기계음의 원인이다. 기기에 있는 한국어 음성 중 고품질을
+// 골라 쓴다: iOS는 Enhanced 품질(설정에서 받은 고품질 유나 등), Android(Google TTS)는
+// network 계열이 local보다 훨씬 자연스럽다. 좋은 후보가 없으면 시스템 기본 그대로.
+let voiceResolved = false;
+let voiceIdentifier: string | null = null;
+let voiceResolveInFlight: Promise<void> | null = null;
+
+function scoreKoreanVoice(voice: { identifier?: string; quality?: string }) {
+  const identifier = (voice.identifier ?? '').toLowerCase();
+  let score = 0;
+
+  if (voice.quality === 'Enhanced') {
+    score += 4;
+  }
+
+  if (identifier.includes('network')) {
+    score += 2;
+  }
+
+  return score;
+}
+
+async function ensureVoiceResolved(Speech: SpeechModule) {
+  if (voiceResolved) {
+    return;
+  }
+
+  if (!voiceResolveInFlight) {
+    voiceResolveInFlight = (async () => {
+      if (typeof Speech.getAvailableVoicesAsync !== 'function') {
+        voiceResolved = true;
+        return;
+      }
+
+      try {
+        const voices = await Speech.getAvailableVoicesAsync();
+
+        if (!Array.isArray(voices) || voices.length === 0) {
+          // Android TTS 엔진이 아직 안 깬 앱 초기엔 빈 목록이 온다 — 다음 발화 때 재시도.
+          return;
+        }
+
+        const korean = voices.filter((voice) =>
+          (voice.language ?? '').toLowerCase().replace('_', '-').startsWith('ko'));
+        const best = [...korean].sort((a, b) => scoreKoreanVoice(b) - scoreKoreanVoice(a))[0];
+
+        voiceIdentifier = best && scoreKoreanVoice(best) > 0 ? best.identifier : null;
+        voiceResolved = true;
+      } catch {
+        // 조회가 안 되는 바이너리면 시스템 기본으로 계속 — 재시도도 무의미하다.
+        voiceResolved = true;
+      }
+    })();
+  }
+
+  try {
+    await voiceResolveInFlight;
+  } finally {
+    voiceResolveInFlight = null;
+  }
+}
+
 async function getAudioModule() {
   try {
     return await import('expo-audio');
@@ -75,6 +140,7 @@ export async function speakLiveGapMessage(text: string): Promise<void> {
   }
 
   await ensureAudioModeConfigured();
+  await ensureVoiceResolved(Speech);
 
   try {
     // Drop any still-queued announcement so we always read the freshest gap, never a
@@ -85,6 +151,9 @@ export async function speakLiveGapMessage(text: string): Promise<void> {
 
     Speech.speak(trimmed, {
       language: 'ko-KR',
+      ...(voiceIdentifier ? { voice: voiceIdentifier } : {}),
+      // 기본보다 반 톤 낮춰서 쨍한 기계음 느낌을 줄인다.
+      pitch: 0.95,
       onError: () => undefined,
     });
   } catch {
