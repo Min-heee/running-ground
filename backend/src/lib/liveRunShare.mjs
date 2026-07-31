@@ -23,6 +23,14 @@ export const CHEER_PENDING_MAX = 20;
 // 저장소 파일을 import하지 않는다.)
 export const LIVE_RUN_SHARE_FRESH_MS = 2 * 60 * 1000;
 
+// 이 시간보다 오래된 엔트리는 '죽은 러닝'의 잔재다 — 앱 강제종료/배터리 사망으로
+// enabled:false가 끝내 안 온 경우. 다음 러닝이 이걸 이어받으면 며칠 전 응원이 새 러닝
+// 시작에 음성으로 재생되고, startedAt이 이어져 '달린 지 23시간째'가 된다(적대 검증 발견).
+export function isLiveShareEntryFresh(entry, nowMs) {
+  const updatedAtMs = Date.parse(entry?.updatedAt ?? '');
+  return Number.isFinite(updatedAtMs) && nowMs - updatedAtMs <= LIVE_RUN_SHARE_FRESH_MS;
+}
+
 function normalizeCoordinate(value) {
   return typeof value === 'number' && Number.isFinite(value) ? Number(value.toFixed(6)) : null;
 }

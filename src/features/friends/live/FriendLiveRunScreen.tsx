@@ -44,6 +44,9 @@ function formatElapsedLabel(startedAt?: string): string | null {
 export default function FriendLiveRunScreen() {
   const { friendId, friendName } = useLocalSearchParams<{ friendId?: string; friendName?: string }>();
   const [liveRun, setLiveRun] = useState<FriendLiveRunResponse | null>(null);
+  // 폴 도착 시각 — ageSeconds가 폴마다 다시 계산되게 한다 (updatedAt만 의존하면 러너 앱이
+  // 죽어도 마지막 값에 얼어붙어 '흐리게' 처리가 영영 안 된다).
+  const [lastPolledAtMs, setLastPolledAtMs] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [cheerText, setCheerText] = useState('');
   const [sending, setSending] = useState(false);
@@ -54,6 +57,8 @@ export default function FriendLiveRunScreen() {
 
   useEffect(() => {
     if (!normalizedFriendId) {
+      // 파라미터 없이 열리면(딥링크 등) 스피너가 영원히 돌지 않게 바로 에러를 띄운다.
+      setLoadError('친구 정보를 찾지 못했어요.');
       return undefined;
     }
 
@@ -65,6 +70,7 @@ export default function FriendLiveRunScreen() {
 
         if (active) {
           setLiveRun(payload);
+          setLastPolledAtMs(Date.now());
           setLoadError(null);
         }
       } catch (error) {
@@ -94,8 +100,9 @@ export default function FriendLiveRunScreen() {
   const displayName = liveRun?.name ?? (typeof friendName === 'string' ? friendName : '친구');
   const ageSeconds = useMemo(() => {
     const updatedMs = Date.parse(liveRun?.updatedAt ?? '');
-    return Number.isFinite(updatedMs) ? Math.max(0, Math.round((Date.now() - updatedMs) / 1000)) : 0;
-  }, [liveRun?.updatedAt]);
+    const referenceMs = lastPolledAtMs || Date.now();
+    return Number.isFinite(updatedMs) ? Math.max(0, Math.round((referenceMs - updatedMs) / 1000)) : 0;
+  }, [lastPolledAtMs, liveRun?.updatedAt]);
   const elapsedLabel = formatElapsedLabel(liveRun?.startedAt);
 
   const showCheerFeedback = useCallback((message: string) => {

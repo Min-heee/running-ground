@@ -7,6 +7,7 @@ import {
   buildFriendLiveRunPayload,
   buildNextLiveShareEntry,
   drainPendingCheers,
+  isLiveShareEntryFresh,
 } from '../lib/liveRunShare.mjs';
 import {
   buildFriendRank,
@@ -68,8 +69,10 @@ export function createPostgresFriendsRepository({
         const currentUser = await requireUserByToken(client, token, createError);
         const updatedAt = nowIso();
         const nextStatus = normalizeLiveShareStatus(status);
-        const liveRunShares = await loadLiveRunShares(client);
-        const previousEntry = liveRunShares[currentUser.id] ?? null;
+        const liveRunShares = await loadLiveRunShares(client, { forUpdate: true });
+        // 낡은 엔트리(죽은 러닝의 잔재)는 이어받지도, 그 응원을 전달하지도 않는다.
+        const rawPreviousEntry = liveRunShares[currentUser.id] ?? null;
+        const previousEntry = isLiveShareEntryFresh(rawPreviousEntry, Date.parse(updatedAt)) ? rawPreviousEntry : null;
 
         // 하트비트가 곧 응원 수령 채널: 이전 엔트리의 응원을 이번 응답에 실어 보내고 비운다.
         const { cheers } = drainPendingCheers(previousEntry);
@@ -116,7 +119,7 @@ export function createPostgresFriendsRepository({
           throw createError(403, '친구에게만 응원을 보낼 수 있어요.');
         }
 
-        const liveRunShares = await loadLiveRunShares(client);
+        const liveRunShares = await loadLiveRunShares(client, { forUpdate: true });
         const result = addCheerToEntry(liveRunShares[friendUser.id] ?? null, {
           cheerId: nextId('cheer'),
           fromUserId: currentUser.id,

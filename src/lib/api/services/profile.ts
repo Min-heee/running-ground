@@ -144,6 +144,10 @@ export async function updateNotificationSettings(
       districtAlerts: input.districtAlerts,
       marketAlerts: input.marketAlerts,
       matchReminders: input.matchReminders,
+      // 라이브 공개/응원 수신 — 실요청 본문에 반드시 실려야 한다. 목업 분기에만 넣고
+      // 여길 빠뜨려 토글이 저장되지 않던 사고(적대 검증 발견)의 재발 방지 지점.
+      liveRunPublic: input.liveRunPublic !== false,
+      cheerAlerts: input.cheerAlerts !== false,
     },
     {
       accessToken: await requireAccessToken(),

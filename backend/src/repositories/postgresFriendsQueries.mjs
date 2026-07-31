@@ -119,13 +119,29 @@ export async function loadRunsByUserIds(database, userIds) {
   return runsByUserId;
 }
 
-export async function loadLiveRunShares(database) {
+export async function loadLiveRunShares(database, { forUpdate = false } = {}) {
+  // 쓰기 경로는 행 잠금이 필수다: 모든 러너의 엔트리가 이 한 행에 살고, 하트비트(25초)와
+  // 응원 POST가 read-modify-write로 전체 맵을 다시 쓴다. 잠금 없인 나중에 커밋한 쪽이
+  // 통째로 이겨 응원이 사라지거나 두 번 재생된다(적대 검증 발견 — app_store 블롭이 쓰는
+  // FOR UPDATE 규율과 동일하게 맞춘다). 행이 없으면 먼저 심어야 잠글 대상이 생긴다.
+  if (forUpdate) {
+    await database.query(
+      `
+        insert into app_metadata (key, value, updated_at)
+        values ($1, '{}'::jsonb, now())
+        on conflict (key) do nothing
+      `,
+      [LIVE_RUN_SHARE_METADATA_KEY],
+    );
+  }
+
   const result = await database.query(
     `
       select value
       from app_metadata
       where key = $1
       limit 1
+      ${forUpdate ? 'for update' : ''}
     `,
     [LIVE_RUN_SHARE_METADATA_KEY],
   );

@@ -16,3 +16,13 @@ test('빈 목록/망가진 항목은 null', () => {
   assert.equal(buildCheerSpeech([]), null);
   assert.equal(buildCheerSpeech([{ id: 'c', fromName: '', message: 'x' } as never]), null);
 });
+
+test('응원이 많이 몰리면 3개까지만 원문, 나머지는 요약한다', () => {
+  const cheers = Array.from({ length: 7 }, (unused, index) => ({
+    id: `c${index}`, fromName: `친구${index}`, message: '힘내!',
+  }));
+
+  const speech = buildCheerSpeech(cheers);
+  assert.ok(speech?.endsWith('외 4명이 응원했어요.'), speech ?? 'null');
+  assert.equal((speech?.match(/님의 응원/g) ?? []).length, 3);
+});

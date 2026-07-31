@@ -9,6 +9,11 @@
 import type { LiveRunCheer } from '@/lib/api/types';
 import { speakLiveGapMessage } from '@/lib/liveMatchGapVoice';
 
+// 한 번에 읽는 응원 수 상한 — 서버 보관 상한(20)이 통째로 오면 발화가 25초 하트비트보다
+// 길어져 다음 드레인이 끊고, 러닝 내내 음성이 점거된다(적대 검증 발견). 3개까지 원문,
+// 나머지는 인원수 요약.
+export const CHEER_SPEECH_MAX_VERBATIM = 3;
+
 export function buildCheerSpeech(cheers: LiveRunCheer[]): string | null {
   const valid = (cheers ?? []).filter((cheer) => cheer?.fromName && cheer?.message);
 
@@ -16,9 +21,12 @@ export function buildCheerSpeech(cheers: LiveRunCheer[]): string | null {
     return null;
   }
 
-  return valid
+  const spoken = valid.slice(0, CHEER_SPEECH_MAX_VERBATIM)
     .map((cheer) => `${cheer.fromName}님의 응원. ${cheer.message}`)
     .join(' ');
+  const remaining = valid.length - CHEER_SPEECH_MAX_VERBATIM;
+
+  return remaining > 0 ? `${spoken} 외 ${remaining}명이 응원했어요.` : spoken;
 }
 
 export async function speakCheers(cheers: LiveRunCheer[]): Promise<void> {

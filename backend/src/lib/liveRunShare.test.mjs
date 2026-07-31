@@ -5,10 +5,12 @@ import assert from 'node:assert/strict';
 import {
   CHEER_PENDING_MAX,
   CHEER_SENDER_MIN_INTERVAL_MS,
+  LIVE_RUN_SHARE_FRESH_MS,
   addCheerToEntry,
   buildFriendLiveRunPayload,
   buildNextLiveShareEntry,
   drainPendingCheers,
+  isLiveShareEntryFresh,
 } from './liveRunShare.mjs';
 
 function runTest(name, testFn) {
@@ -170,4 +172,17 @@ runTest('친구 페이로드: 뛰는 중이면 좌표/지표, 아니면 isRunnin
   );
   assert.equal(stale.isRunningNow, false);
   assert.equal(stale.latitude, undefined);
+});
+
+// 적대 검증 발견: 죽은 러닝의 잔재 엔트리를 다음 러닝이 이어받으면 며칠 전 응원이 새 러닝
+// 시작에 재생되고 startedAt이 이어져 '달린 지 23시간째'가 된다. 저장소들은 이 판정으로
+// 낡은 previousEntry를 버린다.
+runTest('신선도 판정: 2분 넘게 소식 없는 엔트리는 잔재다', () => {
+  assert.equal(isLiveShareEntryFresh(buildRunningEntry(), NOW.getTime()), true);
+  assert.equal(isLiveShareEntryFresh(
+    buildRunningEntry({ updatedAt: new Date(NOW.getTime() - LIVE_RUN_SHARE_FRESH_MS - 1_000).toISOString() }),
+    NOW.getTime(),
+  ), false);
+  assert.equal(isLiveShareEntryFresh(null, NOW.getTime()), false);
+  assert.equal(isLiveShareEntryFresh({ updatedAt: 'garbage' }, NOW.getTime()), false);
 });

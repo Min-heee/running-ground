@@ -5,6 +5,7 @@ export async function routeSocialRequest({
   pathname,
   url,
   request,
+  loadStore,
   response,
   sendJson,
   parseJsonBody,
@@ -35,10 +36,20 @@ export async function routeSocialRequest({
   // 달리는 친구에게 응원 보내기 — 러너의 라이브 엔트리에 쌓이고 하트비트가 가져간다.
   if (pathname === '/api/friends/cheer' && method === 'POST') {
     const body = await parseJsonBody(request);
+    const friendId = validateRequiredString(body.friendId, '응원할 친구를 선택해주세요.');
+    // 수신 설정의 최종 저장처는 store 블롭 — 엔트리의 allowCheers(러너 기기가 실어 보낸 값)
+    // 가 낡았을 수 있으니 저장된 설정을 백스톱으로 한 번 더 본다.
+    const settingsStore = await loadStore();
+    const runnerUser = (settingsStore.users ?? []).find((entry) => entry.id === friendId);
+
+    if (runnerUser && runnerUser.notificationSettings?.cheerAlerts === false) {
+      throw new ApiError(403, '응원 메시지를 받지 않는 친구예요.');
+    }
+
     const repository = getPostgresFriendsRepository() ?? getFriendsRepository();
     const payload = await repository.sendCheer({
       token: getAccessToken(request),
-      friendId: validateRequiredString(body.friendId, '응원할 친구를 선택해주세요.'),
+      friendId,
       message: validateRequiredString(body.message, '응원 메시지를 입력해주세요.'),
     });
     sendJson(response, 201, payload);

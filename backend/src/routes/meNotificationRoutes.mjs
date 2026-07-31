@@ -81,9 +81,11 @@ export async function routeMeNotificationRequest({
       getAccessToken,
       getFriendsRepository,
       getPostgresFriendsRepository,
+      loadStore,
       normalizeOptionalString,
       parseJsonBody,
       request,
+      requireUser,
       response,
       sendJson,
       validateBoolean,
@@ -161,10 +163,15 @@ async function handlePatchMyNotifications({
       districtAlerts: validateBoolean(body.districtAlerts, '지역 알림 설정값이 올바르지 않아요.'),
       marketAlerts: validateBoolean(body.marketAlerts, '마켓 알림 설정값이 올바르지 않아요.'),
       matchReminders: validateBoolean(body.matchReminders, '매치 알림 설정값이 올바르지 않아요.'),
-      // 라이브 러닝 공개 + 응원 메시지 (오너 2026-07-31). 구버전 앱은 이 키를 안 보내므로
-      // 기본 true — 값을 요구(validateBoolean)하면 구버전 저장이 전부 깨진다.
-      liveRunPublic: body.liveRunPublic !== false,
-      cheerAlerts: body.cheerAlerts !== false,
+      // 라이브 러닝 공개 + 응원 메시지 (오너 2026-07-31). 구버전 앱은 이 키를 안 보낸다 —
+      // 그때는 저장된 값을 보존해야 한다. 기본 true로 덮으면 구버전 기기에서 아무 설정이나
+      // 저장하는 순간 비공개 선택이 소리 없이 풀린다(적대 검증 발견).
+      liveRunPublic: typeof body.liveRunPublic === 'boolean'
+        ? body.liveRunPublic
+        : user.notificationSettings?.liveRunPublic !== false,
+      cheerAlerts: typeof body.cheerAlerts === 'boolean'
+        ? body.cheerAlerts
+        : user.notificationSettings?.cheerAlerts !== false,
     };
 
     return buildNotificationSettings(user);
@@ -177,16 +184,24 @@ async function handlePatchMyLiveSharing({
   getAccessToken,
   getFriendsRepository,
   getPostgresFriendsRepository,
+  loadStore,
   normalizeOptionalString,
   parseJsonBody,
   request,
+  requireUser,
   response,
   sendJson,
   validateBoolean,
 }) {
   const body = await parseJsonBody(request);
   const token = getAccessToken(request);
-  const enabled = validateBoolean(body.enabled, '위치 공유 설정값이 올바르지 않아요.');
+  const requestedEnabled = validateBoolean(body.enabled, '위치 공유 설정값이 올바르지 않아요.');
+  // 비공개는 서버가 최종 게이트다 (적대 검증: 클라 게이트는 설정 조회 실패/타이밍으로
+  // fail-open 한다). 설정의 저장처는 store 블롭이라 두 드라이버 모두 여기서 읽는 게 맞다.
+  const settingsStore = await loadStore();
+  const settingsUser = requireUser(settingsStore, request);
+  const liveRunPublic = settingsUser.notificationSettings?.liveRunPublic !== false;
+  const enabled = requestedEnabled && liveRunPublic;
   const status = ['idle', 'paused', 'running'].includes(body.status)
     ? body.status
     : 'idle';

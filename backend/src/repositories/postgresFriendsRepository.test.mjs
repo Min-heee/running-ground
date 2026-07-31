@@ -94,6 +94,15 @@ class FakePostgresDatabase {
       };
     }
 
+    // 쓰기 경로의 행 잠금 심기(FOR UPDATE 전 seed) — 페이크에선 존재 보장만 흉내낸다.
+    if (normalizedSql.startsWith("insert into app_metadata (key, value, updated_at) values ($1, '{}'::jsonb, now()) on conflict (key) do nothing")) {
+      if (typeof this.appMetadata[params[0]] === 'undefined') {
+        this.appMetadata[params[0]] = {};
+      }
+      return { rows: [] };
+    }
+
+    // limit 1 뒤에 'for update'가 붙어도 같은 읽기로 취급 (페이크는 단일 스레드).
     if (normalizedSql.startsWith('select value from app_metadata where key = $1 limit 1')) {
       const value = this.appMetadata[params[0]];
       return {
