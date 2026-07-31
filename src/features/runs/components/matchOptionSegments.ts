@@ -18,13 +18,13 @@ export type MatchOptionSegment = MatchOptionSegmentDefinition & {
   options: MatchOptionItem[];
 };
 
-//  혼자   — 상대가 없는 러닝. 경찰과 도둑도 혼자 뛰고 스친 사람에게서 포인트만 붙는다.
-//  겨루기 — 모르는 러너와 붙는다. 시간을 잡아야 해서 예약 패널이 이 묶음에서만 뜬다.
-//  친구랑 — 내가 방을 열고 친구를 부른다.
+//  혼자 — 상대가 없는 러닝. 경찰과 도둑도 혼자 뛰고 스친 사람에게서 포인트만 붙는다.
+//  매치 — 모르는 러너와 붙는다. 시간을 잡아야 해서 예약 패널이 이 묶음에서만 뜬다.
+//  같이 — 내가 방을 열고 친구를 부른다. '혼자'와 짝이 되는 말이라 파티런과 겹쳐 읽히지 않는다.
 export const MATCH_OPTION_SEGMENTS: MatchOptionSegmentDefinition[] = [
   { id: 'alone', label: '혼자', modes: ['solo', 'chase'] },
-  { id: 'compete', label: '겨루기', modes: ['duel', 'group'] },
-  { id: 'friends', label: '친구랑', modes: ['room'] },
+  { id: 'compete', label: '매치', modes: ['duel', 'group'] },
+  { id: 'friends', label: '같이', modes: ['room'] },
 ];
 
 // 정의된 순서를 지키되, 옵션이 하나도 없는 묶음은 만들지 않는다 — 모드가 플래그로 빠졌을 때

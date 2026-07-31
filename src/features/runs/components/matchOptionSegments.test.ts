@@ -16,7 +16,7 @@ const OPTIONS: MatchOptionItem[] = [
   { mode: 'room', title: '파티런' },
 ];
 
-test('모드는 혼자 / 겨루기 / 친구랑 세 묶음으로 갈린다', () => {
+test('모드는 혼자 / 매치 / 같이 세 묶음으로 갈린다', () => {
   const segments = buildMatchOptionSegments(OPTIONS);
 
   assert.deepEqual(
@@ -54,7 +54,7 @@ test('묶음을 누르면 그 묶음의 첫 모드를 고른다', () => {
 test('이미 그 묶음 안이면 고른 모드를 리셋하지 않는다', () => {
   const segments = buildMatchOptionSegments(OPTIONS);
 
-  // 겨루기 안에서 그룹 대결을 고른 상태로 '겨루기'를 다시 눌러도 1대1로 돌아가면 안 된다.
+  // 매치 안에서 그룹 대결을 고른 상태로 '매치'를 다시 눌러도 1대1로 돌아가면 안 된다.
   assert.equal(resolveSegmentSelection(segments, 'compete', 'group'), null);
   assert.equal(resolveSegmentSelection(segments, 'alone', 'chase'), null);
 });
