@@ -6,18 +6,31 @@ import { matchSetupCardStyles as styles } from '@/features/runs/components/match
 export const TIME_SECTIONS = [{ key: 'am' as const, label: '오전' }, { key: 'pm' as const, label: '오후' }];
 export type TimeSectionKey = (typeof TIME_SECTIONS)[number]['key'];
 
-export const TabPill = memo(function TabPill({ active, label, onPress }: {
+// 값 타일 (오너 2026-07-31, 매칭 하단 '가'안): 탭 이름만 보여주던 TabPill을 대체한다.
+// 라벨(날짜/시간/거리) 아래에 '지금 고른 값'이 항상 떠 있어, 어느 탭에 있든 예약 내용
+// 전체가 한눈에 보인다 — 탭을 옮겨야 값이 보이던 것이 이전 구조의 문제였다.
+export const ValueTile = memo(function ValueTile({ active, label, value, onPress }: {
   active: boolean;
   label: string;
+  value: string;
   onPress: () => void;
 }) {
   return (
     <Pressable
-      style={[styles.tabPill, active ? styles.tabPillActive : undefined]}
+      style={[styles.valueTile, active ? styles.valueTileActive : undefined]}
       onPress={onPress}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={`${label} ${value}`}
     >
-      <Text style={[styles.tabPillLabel, active ? styles.tabPillLabelActive : undefined]}>
+      <Text style={[styles.valueTileLabel, active ? styles.valueTileLabelActive : undefined]}>
         {label}
+      </Text>
+      <Text
+        style={[styles.valueTileValue, active ? styles.valueTileValueActive : undefined]}
+        numberOfLines={1}
+      >
+        {value}
       </Text>
     </Pressable>
   );

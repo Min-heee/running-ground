@@ -6,8 +6,8 @@ import {
   MatchDistanceChip,
   MatchSlotChip,
   TIME_SECTIONS,
-  TabPill,
   TimeSectionChip,
+  ValueTile,
 } from '@/features/runs/components/matchSetupCards/matchSetupSelectorChips';
 import { useHorizontalChipScrollMetrics } from '@/features/runs/components/matchSetupCards/useHorizontalChipScrollMetrics';
 import {
@@ -102,6 +102,16 @@ export function MatchSetupTabbedSelector({
     />
   )), [onSelectTimeSection, sectionKeyPrefix, selectedTimeSection]);
 
+  // 타일에 띄우는 '지금 고른 값'. 시간은 slotOptions가 날짜/오전·오후로 필터된 목록이라
+  // 선택 슬롯이 목록 밖일 수 있다 — 그때는 아직 고르는 중이라는 뜻으로 '선택'을 띄운다.
+  const selectedDateOption = dateOptions.find((option) => option.key === selectedDateKey) ?? null;
+  const dateValueLabel = selectedDateOption
+    ? `${selectedDateOption.label} ${selectedDateOption.subtitle}`.trim()
+    : '선택';
+  const selectedSlot = slotOptions.find((slot) => slot.startsAt === selectedSlotStartAt) ?? null;
+  const timeValueLabel = selectedSlot?.label ?? '선택';
+  const distanceValueLabel = `${distanceKm}km`;
+
   const slotChips = useMemo(() => slotOptions.map((slot) => (
     <MatchSlotChip
       key={slot.startsAt}
@@ -119,9 +129,9 @@ export function MatchSetupTabbedSelector({
     <View style={styles.duelSection}>
       <View style={styles.tabBarWrapper}>
         <View style={styles.tabBar}>
-          <TabPill label="날짜" active={activeTab === 'date'} onPress={handleSelectDateTab} />
-          <TabPill label="시간" active={activeTab === 'time'} onPress={handleSelectTimeTab} />
-          <TabPill label="거리" active={activeTab === 'distance'} onPress={handleSelectDistanceTab} />
+          <ValueTile label="날짜" value={dateValueLabel} active={activeTab === 'date'} onPress={handleSelectDateTab} />
+          <ValueTile label="시간" value={timeValueLabel} active={activeTab === 'time'} onPress={handleSelectTimeTab} />
+          <ValueTile label="거리" value={distanceValueLabel} active={activeTab === 'distance'} onPress={handleSelectDistanceTab} />
         </View>
       </View>
 

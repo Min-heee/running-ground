@@ -21,26 +21,35 @@ export const matchSetupCardStyles = StyleSheet.create({
     gap: spacing.xxl,
     paddingBottom: spacing.xxl,
   },
-  tabPill: {
+  valueTile: {
     flex: 1,
-    borderRadius: radii.cardLarge,
+    borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.darkSoft,
     backgroundColor: colors.darkMuted,
-    paddingHorizontal: spacing.s12,
+    paddingHorizontal: spacing.s10,
     paddingVertical: spacing.s10,
     alignItems: 'center',
+    gap: spacing.xxs,
   },
-  tabPillActive: {
+  valueTileActive: {
     borderColor: colors.brandLight,
     backgroundColor: colors.indigoDeep,
   },
-  tabPillLabel: {
+  valueTileLabel: {
     color: colors.borderNeutral,
-    fontSize: fontSizes.sm,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
+  },
+  valueTileLabelActive: {
+    color: colors.brandLighter,
+  },
+  valueTileValue: {
+    color: colors.white,
+    fontSize: fontSizes.rank,
     fontWeight: fontWeights.extraBold,
   },
-  tabPillLabelActive: {
+  valueTileValueActive: {
     color: colors.white,
   },
   distanceInputToggleChip: {
