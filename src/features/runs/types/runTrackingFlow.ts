@@ -29,6 +29,11 @@ export type SyncLiveSharingInput = {
   enabled: boolean;
   status: 'idle' | 'paused' | 'running';
   locationLabel?: string | null;
+  // 친구 라이브 지도 재료 — 하트비트(25초)가 현재 위치/지표를 실어 보낸다.
+  latitude?: number;
+  longitude?: number;
+  distanceKm?: number;
+  paceLabel?: string;
 };
 
 export type UseRunTrackingFlowInput = {

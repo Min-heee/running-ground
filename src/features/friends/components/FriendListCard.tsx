@@ -1,4 +1,5 @@
 import { memo, useCallback } from 'react';
+import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -10,10 +11,8 @@ type FriendRankItem = FriendLeaderboardResponse['ranks'][number];
 
 type FriendListCardProps = {
   friends: FriendRankItem[];
-  expandedLiveFriendId: string | null;
   creatingPartyRunFriendId: string | null;
   receivedRequestCount: number;
-  onToggleLiveFriend: (friendId: string) => void;
   onOpenFriend: (friendId: string) => void;
   onStartPartyRun: (friendId: string) => void;
   onOpenRequests: () => void;
@@ -21,30 +20,26 @@ type FriendListCardProps = {
 
 type FriendListRowProps = {
   friend: FriendRankItem;
-  expanded: boolean;
   isCreatingPartyRun: boolean;
-  onToggleLiveFriend: (friendId: string) => void;
   onOpenFriend: (friendId: string) => void;
   onStartPartyRun: (friendId: string) => void;
 };
 
 const FriendListRow = memo(function FriendListRow({
   friend,
-  expanded,
   isCreatingPartyRun,
-  onToggleLiveFriend,
   onOpenFriend,
   onStartPartyRun,
 }: FriendListRowProps) {
   const handleOpen = useCallback(() => {
     onOpenFriend(friend.id);
   }, [friend.id, onOpenFriend]);
-  const handleToggleLiveFriend = useCallback(() => {
-    onToggleLiveFriend(friend.id);
-  }, [friend.id, onToggleLiveFriend]);
   const handleStartPartyRun = useCallback(() => {
     onStartPartyRun(friend.id);
   }, [friend.id, onStartPartyRun]);
+  const handleOpenLiveRun = useCallback(() => {
+    router.push({ pathname: '/friend-live', params: { friendId: friend.id, friendName: friend.name } } as never);
+  }, [friend.id, friend.name]);
 
   return (
     <View style={styles.friendItem}>
@@ -75,26 +70,6 @@ const FriendListRow = memo(function FriendListRow({
         </Pressable>
 
         <View style={styles.friendRowActions}>
-          {friend.isRunningNow && friend.liveLocationLabel ? (
-            <Pressable
-              style={[
-                styles.locationButton,
-                expanded ? styles.locationButtonActive : null,
-              ]}
-              onPress={handleToggleLiveFriend}
-            >
-              <View style={styles.locationButtonDot} />
-              <Text
-                style={[
-                  styles.locationButtonText,
-                  expanded ? styles.locationButtonTextActive : null,
-                ]}
-              >
-                {expanded ? '닫기' : '위치'}
-              </Text>
-            </Pressable>
-          ) : null}
-
           {/* 이 친구와 파티런 1대1 — 방을 만들고 초대 알림까지 한 번에. */}
           <Pressable
             style={[styles.partyRunButton, isCreatingPartyRun ? styles.partyRunButtonBusy : null]}
@@ -104,30 +79,36 @@ const FriendListRow = memo(function FriendListRow({
             accessibilityLabel={`${friend.name}님과 파티런 1대1`}
             hitSlop={6}
           >
-            <MaterialCommunityIcons name="run" size={20} color={colors.white} />
+            <MaterialCommunityIcons name="run" size={16} color={colors.white} />
+          </Pressable>
+
+          {/* 라이브 러닝 (오너 2026-07-31): 색이 곧 상태 — 켜져 있으면(달리는 중) 초록,
+              아니면 회색. 켜져 있을 때 누르면 실시간 지도 + 응원 화면으로. */}
+          <Pressable
+            style={[styles.liveButton, friend.isRunningNow ? styles.liveButtonOn : styles.liveButtonOff]}
+            onPress={friend.isRunningNow ? handleOpenLiveRun : undefined}
+            disabled={!friend.isRunningNow}
+            accessibilityRole="button"
+            accessibilityLabel={friend.isRunningNow ? `${friend.name}님의 라이브 러닝 보기` : `${friend.name}님은 지금 달리지 않아요`}
+            hitSlop={6}
+          >
+            <MaterialCommunityIcons
+              name="map-marker-radius"
+              size={16}
+              color={friend.isRunningNow ? colors.white : colors.textTertiary}
+            />
           </Pressable>
         </View>
       </View>
 
-      {expanded && friend.liveLocationLabel ? (
-        <View style={styles.liveLocationPanel}>
-          <View style={styles.liveLocationHeader}>
-            <View style={styles.liveLocationDot} />
-            <Text style={styles.liveLocationTitle}>{friend.name}님이 지금 뛰는 곳</Text>
-          </View>
-          <Text style={styles.liveLocationText}>{friend.liveLocationLabel}</Text>
-        </View>
-      ) : null}
     </View>
   );
 });
 
 export function FriendListCard({
   friends,
-  expandedLiveFriendId,
   creatingPartyRunFriendId,
   receivedRequestCount,
-  onToggleLiveFriend,
   onOpenFriend,
   onStartPartyRun,
   onOpenRequests,
@@ -150,9 +131,7 @@ export function FriendListCard({
         <FriendListRow
           key={friend.id}
           friend={friend}
-          expanded={expandedLiveFriendId === friend.id}
           isCreatingPartyRun={creatingPartyRunFriendId === friend.id}
-          onToggleLiveFriend={onToggleLiveFriend}
           onOpenFriend={onOpenFriend}
           onStartPartyRun={onStartPartyRun}
         />
@@ -241,13 +220,30 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     includeFontPadding: false,
   },
+  // 오너 2026-07-31: 러닝 신청 버튼을 조금 줄이고, 같은 크기의 라이브 버튼과 나란히.
   partyRunButton: {
-    width: 34,
-    height: 34,
+    width: 28,
+    height: 28,
     borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.brand,
+  },
+  liveButton: {
+    width: 28,
+    height: 28,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // ON = 달리는 중 (초록), OFF = 회색.
+  liveButtonOn: {
+    backgroundColor: colors.successStrong,
+  },
+  liveButtonOff: {
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.borderMuted,
   },
   partyRunButtonBusy: {
     opacity: 0.5,
@@ -291,69 +287,6 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
     lineHeight: 20,
     includeFontPadding: false,
-  },
-  locationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.lg,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.s12,
-    paddingVertical: 9,
-    backgroundColor: colors.surface,
-  },
-  locationButtonActive: {
-    borderColor: colors.successCardBorder,
-    backgroundColor: colors.successCard,
-  },
-  locationButtonDot: {
-    width: 7,
-    height: 7,
-    borderRadius: radii.pill,
-    backgroundColor: colors.success,
-  },
-  locationButtonText: {
-    color: colors.textStrongMuted,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.bold,
-    includeFontPadding: false,
-  },
-  locationButtonTextActive: {
-    color: colors.successText,
-  },
-  liveLocationPanel: {
-    marginBottom: spacing.s14,
-    marginTop: -2,
-    marginLeft: spacing.xxs,
-    borderRadius: radii.md,
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.indigoBorder,
-    paddingHorizontal: spacing.s14,
-    paddingVertical: spacing.s12,
-    gap: spacing.md,
-  },
-  liveLocationHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xxl,
-  },
-  liveLocationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: radii.pill,
-    backgroundColor: colors.success,
-  },
-  liveLocationTitle: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.bold,
-    includeFontPadding: false,
-  },
-  liveLocationText: {
-    color: colors.textMuted,
-    lineHeight: 20,
   },
   emptyText: {
     color: colors.textSecondary,

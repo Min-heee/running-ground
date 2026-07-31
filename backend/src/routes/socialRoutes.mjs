@@ -3,6 +3,7 @@ import { partitionImportRunsByLaunchCutoff } from '../lib/integrationImportCutof
 export async function routeSocialRequest({
   method,
   pathname,
+  url,
   request,
   response,
   sendJson,
@@ -22,11 +23,37 @@ export async function routeSocialRequest({
   validateRequiredString,
   getRunsRepository,
   getFriendsRepository,
+  getPostgresFriendsRepository,
   getAccessToken,
   ApiError,
 }) {
   if (pathname === '/api/friends/leaderboard' && method === 'GET') {
     sendJson(response, 200, await buildFriendLeaderboardReadPayload(request));
+    return true;
+  }
+
+  // 달리는 친구에게 응원 보내기 — 러너의 라이브 엔트리에 쌓이고 하트비트가 가져간다.
+  if (pathname === '/api/friends/cheer' && method === 'POST') {
+    const body = await parseJsonBody(request);
+    const repository = getPostgresFriendsRepository() ?? getFriendsRepository();
+    const payload = await repository.sendCheer({
+      token: getAccessToken(request),
+      friendId: validateRequiredString(body.friendId, '응원할 친구를 선택해주세요.'),
+      message: validateRequiredString(body.message, '응원 메시지를 입력해주세요.'),
+    });
+    sendJson(response, 201, payload);
+    return true;
+  }
+
+  // 친구 라이브 러닝 조회 — 실시간 지도 화면이 폴링한다.
+  if (pathname === '/api/friends/live-run' && method === 'GET') {
+    const friendId = url.searchParams.get('friendId') ?? '';
+    const repository = getPostgresFriendsRepository() ?? getFriendsRepository();
+    const payload = await repository.getFriendLiveRun({
+      token: getAccessToken(request),
+      friendId: validateRequiredString(friendId, '친구를 선택해주세요.'),
+    });
+    sendJson(response, 200, payload);
     return true;
   }
 

@@ -38,10 +38,25 @@ export type UpdateRunningLiveShareInput = {
   enabled: boolean;
   status: 'idle' | 'paused' | 'running';
   locationLabel?: string;
+  // 친구 라이브 지도 재료 (오너 2026-07-31) — 하트비트가 현재 위치/지표를 실어 보낸다.
+  latitude?: number;
+  longitude?: number;
+  distanceKm?: number;
+  paceLabel?: string;
+  // 응원 수신 허용 (마이탭 설정값) — false면 친구의 응원 전송이 서버에서 거절된다.
+  allowCheers?: boolean;
+};
+
+// 하트비트 응답에 실려오는 응원 — 서버는 전달 즉시 비운다(한 번만 온다).
+export type LiveRunCheer = {
+  id: string;
+  fromName: string;
+  message: string;
 };
 
 export type UpdateRunningLiveShareResponse = {
   success: boolean;
+  cheers?: LiveRunCheer[];
   liveSharingEnabled: boolean;
   isRunningNow: boolean;
   locationLabel?: string;

@@ -161,6 +161,10 @@ async function handlePatchMyNotifications({
       districtAlerts: validateBoolean(body.districtAlerts, '지역 알림 설정값이 올바르지 않아요.'),
       marketAlerts: validateBoolean(body.marketAlerts, '마켓 알림 설정값이 올바르지 않아요.'),
       matchReminders: validateBoolean(body.matchReminders, '매치 알림 설정값이 올바르지 않아요.'),
+      // 라이브 러닝 공개 + 응원 메시지 (오너 2026-07-31). 구버전 앱은 이 키를 안 보내므로
+      // 기본 true — 값을 요구(validateBoolean)하면 구버전 저장이 전부 깨진다.
+      liveRunPublic: body.liveRunPublic !== false,
+      cheerAlerts: body.cheerAlerts !== false,
     };
 
     return buildNotificationSettings(user);
@@ -194,6 +198,13 @@ async function handlePatchMyLiveSharing({
     enabled,
     status,
     locationLabel,
+    // 친구 라이브 지도 재료 — 러너 하트비트가 25초마다 현재 위치/지표를 실어 보낸다.
+    latitude: typeof body.latitude === 'number' ? body.latitude : null,
+    longitude: typeof body.longitude === 'number' ? body.longitude : null,
+    distanceKm: typeof body.distanceKm === 'number' ? body.distanceKm : null,
+    paceLabel: normalizeOptionalString(body.paceLabel),
+    // 응원 수신 허용 — 러너 기기의 설정값이 하트비트로 실려온다 (기본 허용).
+    allowCheers: body.allowCheers !== false,
   });
 
   sendJson(response, 200, payload);

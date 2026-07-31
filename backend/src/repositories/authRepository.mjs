@@ -72,6 +72,9 @@ export function createDefaultNotificationSettings() {
     districtAlerts: true,
     marketAlerts: false,
     matchReminders: true,
+    // 라이브 러닝 공개(친구가 내 달리는 중 상태/지도를 봄) + 응원 메시지 수신 — 기본 켬.
+    liveRunPublic: true,
+    cheerAlerts: true,
   };
 }
 

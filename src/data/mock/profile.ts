@@ -14,4 +14,6 @@ export const myNotificationSettings = {
   districtAlerts: true,
   marketAlerts: false,
   matchReminders: true,
+  liveRunPublic: true,
+  cheerAlerts: true,
 };

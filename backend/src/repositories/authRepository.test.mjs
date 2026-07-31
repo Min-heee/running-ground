@@ -245,6 +245,9 @@ await runTest('registers a user, hashes password, and creates a session', async 
     districtAlerts: true,
     marketAlerts: false,
     matchReminders: true,
+    // 라이브 러닝 공개 + 응원 수신 (2026-07-31) — 기본 켬.
+    liveRunPublic: true,
+    cheerAlerts: true,
   });
 });
 

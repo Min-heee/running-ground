@@ -23,7 +23,6 @@ export function useFriendsScreen() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [requestActionId, setRequestActionId] = useState<string | null>(null);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
-  const [expandedLiveFriendId, setExpandedLiveFriendId] = useState<string | null>(null);
   const hasLoadedRef = useRef(false);
 
   const syncFriends = useCallback(async () => {
@@ -32,17 +31,6 @@ export function useFriendsScreen() {
     setLeaderboard(leaderboardData);
     setProfile(profileData);
     setRequests(leaderboardData.requests);
-    setExpandedLiveFriendId((current) => {
-      if (!current) {
-        return null;
-      }
-
-      const visibleLiveFriend = leaderboardData.ranks.find(
-        (friend) => friend.id === current && friend.isRunningNow && friend.liveLocationLabel,
-      );
-
-      return visibleLiveFriend ? current : null;
-    });
   }, []);
 
   const loadFriends = useCallback(() => {
@@ -139,7 +127,6 @@ export function useFriendsScreen() {
     compareTargets,
     copyMessage,
     error,
-    expandedLiveFriendId,
     handleAccept,
     handleCancel,
     handleCopyTag,
@@ -151,6 +138,5 @@ export function useFriendsScreen() {
     profile,
     received,
     requestActionId,
-    setExpandedLiveFriendId,
   };
 }

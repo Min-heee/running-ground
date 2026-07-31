@@ -1,8 +1,13 @@
 import {
   createNowIso,
-  normalizeLiveShareLabel,
   normalizeLiveShareStatus,
 } from './postgresFriendsHelpers.mjs';
+import {
+  addCheerToEntry,
+  buildFriendLiveRunPayload,
+  buildNextLiveShareEntry,
+  drainPendingCheers,
+} from '../lib/liveRunShare.mjs';
 import {
   buildFriendRank,
   buildLiveRunSharePresentation,
@@ -58,23 +63,33 @@ export function createPostgresFriendsRepository({
       });
     },
 
-    async updateLiveSharing({ token, enabled, status, locationLabel }) {
+    async updateLiveSharing({ token, enabled, status, locationLabel, latitude, longitude, distanceKm, paceLabel, allowCheers }) {
       return runWriteOperation(database, async (client) => {
         const currentUser = await requireUserByToken(client, token, createError);
         const updatedAt = nowIso();
         const nextStatus = normalizeLiveShareStatus(status);
-        const normalizedLocationLabel = normalizeLiveShareLabel(locationLabel);
         const liveRunShares = await loadLiveRunShares(client);
+        const previousEntry = liveRunShares[currentUser.id] ?? null;
+
+        // 하트비트가 곧 응원 수령 채널: 이전 엔트리의 응원을 이번 응답에 실어 보내고 비운다.
+        const { cheers } = drainPendingCheers(previousEntry);
+        const nextEntry = buildNextLiveShareEntry({
+          previousEntry,
+          enabled,
+          status: nextStatus,
+          locationLabel,
+          latitude,
+          longitude,
+          distanceKm,
+          paceLabel,
+          allowCheers,
+          nowIso: () => updatedAt,
+        });
 
         delete liveRunShares[currentUser.id];
 
-        if (enabled && (nextStatus === 'running' || nextStatus === 'paused')) {
-          liveRunShares[currentUser.id] = {
-            enabled: true,
-            status: nextStatus,
-            ...(normalizedLocationLabel ? { locationLabel: normalizedLocationLabel } : {}),
-            updatedAt,
-          };
+        if (nextEntry) {
+          liveRunShares[currentUser.id] = { ...nextEntry, cheers: [] };
         }
 
         await saveLiveRunShares(client, liveRunShares);
@@ -86,8 +101,57 @@ export function createPostgresFriendsRepository({
           isRunningNow: presentation.isRunningNow,
           ...(presentation.liveLocationLabel ? { locationLabel: presentation.liveLocationLabel } : {}),
           updatedAt,
+          ...(cheers.length ? { cheers } : {}),
         };
       });
+    },
+
+    // 친구에게 응원 보내기 — 러너의 라이브 엔트리에 쌓아 두면 하트비트가 가져간다.
+    async sendCheer({ token, friendId, message }) {
+      return runWriteOperation(database, async (client) => {
+        const currentUser = await requireUserByToken(client, token, createError);
+        const friendUser = await findUserById(client, friendId, createError);
+
+        if (!(await hasFriendship(client, currentUser.id, friendUser.id))) {
+          throw createError(403, '친구에게만 응원을 보낼 수 있어요.');
+        }
+
+        const liveRunShares = await loadLiveRunShares(client);
+        const result = addCheerToEntry(liveRunShares[friendUser.id] ?? null, {
+          cheerId: nextId('cheer'),
+          fromUserId: currentUser.id,
+          fromName: currentUser.name,
+          message,
+          nowMs: Date.parse(nowIso()),
+        });
+
+        if (!result.ok) {
+          throw createError(result.statusCode, result.message);
+        }
+
+        liveRunShares[friendUser.id] = result.entry;
+        await saveLiveRunShares(client, liveRunShares);
+
+        return { success: true };
+      });
+    },
+
+    // 친구 라이브 러닝 조회 — 지도 화면이 폴링한다.
+    async getFriendLiveRun({ token, friendId }) {
+      const currentUser = await requireUserByToken(database, token, createError);
+      const friendUser = await findUserById(database, friendId, createError);
+
+      if (!(await hasFriendship(database, currentUser.id, friendUser.id))) {
+        throw createError(403, '친구의 러닝만 볼 수 있어요.');
+      }
+
+      const liveRunShares = await loadLiveRunShares(database);
+
+      return buildFriendLiveRunPayload(
+        liveRunShares[friendUser.id] ?? null,
+        friendUser.name,
+        Date.parse(nowIso()),
+      );
     },
 
     async createRequest({ token, tag }) {

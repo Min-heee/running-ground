@@ -130,6 +130,8 @@ export async function updateNotificationSettings(
       districtAlerts: input.districtAlerts,
       marketAlerts: input.marketAlerts,
       matchReminders: input.matchReminders,
+      liveRunPublic: input.liveRunPublic !== false,
+      cheerAlerts: input.cheerAlerts !== false,
     };
 
     return { ...mockApiState.notificationPreferences };

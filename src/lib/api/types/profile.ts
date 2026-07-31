@@ -82,6 +82,10 @@ export type NotificationSettingsResponse = {
   districtAlerts: boolean;
   marketAlerts: boolean;
   matchReminders: boolean;
+  // 라이브 러닝 공개 + 응원 메시지 수신 (오너 2026-07-31). 구버전 서버 응답에는 없을 수
+  // 있어 optional — 없으면 켬으로 취급한다(서버 기본값과 동일).
+  liveRunPublic?: boolean;
+  cheerAlerts?: boolean;
 };
 
 // 원격 푸시 토큰 등록 — 공지 푸시 대상 저장용.

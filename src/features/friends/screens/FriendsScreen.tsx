@@ -19,13 +19,11 @@ export default function FriendsScreen() {
   const {
     compareTargets,
     error,
-    expandedLiveFriendId,
     leaderboard,
     loadFriends,
     loading,
     profile,
     received,
-    setExpandedLiveFriendId,
   } = useFriendsScreen();
   // 친구 행의 러너 버튼 → 그 친구를 초대한 파티런 1대1 방을 바로 만든다. 거리(기본 5km)는
   // 방장 대기실에서 조정 가능. 이미 참여 중인 방/매칭이 있으면 서버가 막고 메시지를 준다.
@@ -93,12 +91,8 @@ export default function FriendsScreen() {
 
           <FriendListCard
             friends={compareTargets}
-            expandedLiveFriendId={expandedLiveFriendId}
             creatingPartyRunFriendId={creatingPartyRunFriendId}
             receivedRequestCount={received.length}
-            onToggleLiveFriend={(friendId) => {
-              setExpandedLiveFriendId((current) => (current === friendId ? null : friendId));
-            }}
             onOpenFriend={(friendId) => router.push({ pathname: '/friend-detail', params: { friendId } })}
             onStartPartyRun={handleStartPartyRun}
             onOpenRequests={() => router.push('/friend-requests')}

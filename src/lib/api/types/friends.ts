@@ -38,3 +38,22 @@ export type FriendRelationResponse = {
   name: string;
   relation: FriendRelation;
 };
+
+// GET /friends/live-run?friendId= — 친구 실시간 지도 화면이 폴링한다 (오너 2026-07-31).
+export type FriendLiveRunResponse = {
+  isRunningNow: boolean;
+  name: string;
+  latitude?: number;
+  longitude?: number;
+  distanceKm?: number;
+  paceLabel?: string;
+  locationLabel?: string;
+  startedAt?: string;
+  updatedAt?: string;
+  allowCheers?: boolean;
+};
+
+export type SendFriendCheerInput = {
+  friendId: string;
+  message: string;
+};

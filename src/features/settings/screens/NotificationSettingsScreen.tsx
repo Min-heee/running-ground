@@ -11,17 +11,21 @@ import { colors, fixedColors, spacing, fontWeights, radii } from '@/theme/tokens
 
 export default function NotificationSettingsScreen() {
   const {
+    cheerAlerts,
     districtAlerts,
     error,
     friendAlerts,
     handleSave,
+    liveRunPublic,
     loading,
     marketAlerts,
     matchReminders,
     saved,
     saving,
+    setCheerAlerts,
     setDistrictAlerts,
     setFriendAlerts,
+    setLiveRunPublic,
     setMarketAlerts,
     setMatchReminders,
   } = useNotificationSettings();
@@ -38,6 +42,12 @@ export default function NotificationSettingsScreen() {
   const handleToggleMatchReminders = useCallback(() => {
     setMatchReminders((prev) => !prev);
   }, [setMatchReminders]);
+  const handleToggleLiveRunPublic = useCallback(() => {
+    setLiveRunPublic((prev) => !prev);
+  }, [setLiveRunPublic]);
+  const handleToggleCheerAlerts = useCallback(() => {
+    setCheerAlerts((prev) => !prev);
+  }, [setCheerAlerts]);
   const handleGoBackToMyPage = useCallback(() => {
     router.replace('/(tabs)/mypage');
   }, []);
@@ -61,6 +71,10 @@ export default function NotificationSettingsScreen() {
               <ToggleRow label="지역 경쟁 순위 변동 알림" active={districtAlerts} disabled={saving} onPress={handleToggleDistrictAlerts} />
               <ToggleRow label="마켓/리워드 소식 알림" active={marketAlerts} disabled={saving} onPress={handleToggleMarketAlerts} />
               <ToggleRow label="예약 매치 시작 알림" active={matchReminders} disabled={saving} onPress={handleToggleMatchReminders} />
+              {/* 라이브 러닝 (오너 2026-07-31): 공개를 끄면 친구에게 '달리는 중'과 실시간
+                  지도가 보이지 않고, 응원을 끄면 친구가 응원을 보낼 수 없다(음성도 없음). */}
+              <ToggleRow label="라이브 러닝 공개 (친구에게 달리는 중 표시)" active={liveRunPublic} disabled={saving} onPress={handleToggleLiveRunPublic} />
+              <ToggleRow label="응원 메시지 받기 (러닝 중 음성으로)" active={cheerAlerts} disabled={saving} onPress={handleToggleCheerAlerts} />
             </View>
           </Card>
 

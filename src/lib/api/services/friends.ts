@@ -13,6 +13,8 @@ import {
   FriendLeaderboardResponse,
   FriendRelationResponse,
   FriendRequestActionResponse,
+  FriendLiveRunResponse,
+  SendFriendCheerInput,
 } from '../types';
 
 import {
@@ -201,6 +203,47 @@ export async function cancelFriendRequest(requestId: string): Promise<FriendRequ
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '보낸 친구 요청 취소에 실패했어요.',
+    },
+  );
+}
+
+// 달리는 친구에게 응원 보내기 (오너 2026-07-31). 목업 모드에선 즉시 성공 처리.
+export async function sendFriendCheer(input: SendFriendCheerInput): Promise<{ success: boolean }> {
+  if (USE_MOCK_API) {
+    return { success: true };
+  }
+
+  return apiPost<{ success: boolean }>(
+    '/friends/cheer',
+    input,
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '응원을 보내지 못했어요.',
+    },
+  );
+}
+
+// 친구 라이브 러닝 조회 — 실시간 지도 화면이 폴링한다.
+export async function fetchFriendLiveRun(friendId: string): Promise<FriendLiveRunResponse> {
+  if (USE_MOCK_API) {
+    return {
+      isRunningNow: true,
+      name: '목업 친구',
+      latitude: 37.6584,
+      longitude: 126.7698,
+      distanceKm: 2.4,
+      paceLabel: '05:42/km',
+      startedAt: new Date(Date.now() - 14 * 60 * 1000).toISOString(),
+      updatedAt: new Date().toISOString(),
+      allowCheers: true,
+    };
+  }
+
+  return apiGet<FriendLiveRunResponse>(
+    `/friends/live-run?friendId=${encodeURIComponent(friendId)}`,
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '친구의 러닝을 불러오지 못했어요.',
     },
   );
 }

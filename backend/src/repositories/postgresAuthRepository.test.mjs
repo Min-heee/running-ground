@@ -447,6 +447,8 @@ await runTest('registers a user, hashes password, and creates a session', async 
     districtAlerts: true,
     marketAlerts: false,
     matchReminders: true,
+    liveRunPublic: true,
+    cheerAlerts: true,
   });
   assert.equal(database.transactions, 1);
 });
