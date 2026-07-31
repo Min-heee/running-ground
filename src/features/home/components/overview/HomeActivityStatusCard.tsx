@@ -5,7 +5,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import type { MyRunRecord } from '@/domain';
 import { RunPeriodPickerSheet } from '@/features/home/components/overview/RunPeriodPickerSheet';
-import { buildRunPeriodBars, type RunPeriodBar } from '@/features/home/utils/runPeriodBars';
+import { RunPeriodBarChart } from '@/features/home/components/overview/RunPeriodBarChart';
+import { buildRunPeriodChartModel } from '@/features/home/utils/runPeriodBars';
+import { formatPaceFromSecondsPerKm } from '@/features/runs/tracking';
 import {
   buildRunPeriodOptions,
   formatRunPeriodDistanceKm,
@@ -39,11 +41,15 @@ function HomeActivityStatusCardImpl({ runs }: HomeActivityStatusCardProps) {
     () => summarizeRunsForPeriod(runs, selectedOption),
     [runs, selectedOption],
   );
-  // 기간 그래프 (오너 2026-08-01): 주=요일별, 월=1~12월, 년=연도별 거리 막대.
-  const periodBars = useMemo(
-    () => buildRunPeriodBars(runs, mode, selectedOption, nowMs),
+  // 기간 그래프 (오너 2026-08-01, 나이키 스타일): 주=요일별, 월=일별, 년=월별.
+  const chartModel = useMemo(
+    () => buildRunPeriodChartModel(runs, mode, selectedOption, nowMs),
     [mode, nowMs, runs, selectedOption],
   );
+  // 나이키의 세 줄: N러닝 · 평균 페이스 · 시간. 평균 페이스는 합산에서 파생.
+  const averagePaceLabel = periodSummary.distanceKm > 0 && periodSummary.durationSeconds > 0
+    ? formatPaceFromSecondsPerKm(periodSummary.durationSeconds / periodSummary.distanceKm)
+    : '--:--/km';
   const handleOpenPicker = useCallback(() => {
     setPickerOpen(true);
   }, []);
@@ -90,24 +96,29 @@ function HomeActivityStatusCardImpl({ runs }: HomeActivityStatusCardProps) {
         <Text style={styles.periodChevron}>▾</Text>
       </Pressable>
 
-      <RunPeriodBarChart bars={periodBars} />
-
-      <View style={styles.metricRow}>
-        <View style={styles.metric}>
-          <Text style={styles.metricLabel}>거리</Text>
-          <Text style={styles.metricValue}>{formatRunPeriodDistanceKm(periodSummary.distanceKm)}km</Text>
-        </View>
-        <View style={styles.metricDivider} />
-        <View style={styles.metric}>
-          <Text style={styles.metricLabel}>횟수</Text>
-          <Text style={styles.metricValue}>{periodSummary.runCount}회</Text>
-        </View>
-        <View style={styles.metricDivider} />
-        <View style={styles.metric}>
-          <Text style={styles.metricLabel}>시간</Text>
-          <Text style={styles.metricValue}>{formatRunPeriodDurationLabel(periodSummary.durationSeconds)}</Text>
+      {/* 나이키 활동 화면 배치 (오너 2026-08-01 확정): 큰 거리 숫자 → 작은 지표 줄 → 그래프 */}
+      <View style={styles.heroBlock}>
+        <Text style={styles.heroValue}>
+          {formatRunPeriodDistanceKm(periodSummary.distanceKm)}
+          <Text style={styles.heroUnit}> km</Text>
+        </Text>
+        <View style={styles.statRow}>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{periodSummary.runCount}</Text>
+            <Text style={styles.statLabel}>러닝</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{averagePaceLabel}</Text>
+            <Text style={styles.statLabel}>평균 페이스</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{formatRunPeriodDurationLabel(periodSummary.durationSeconds)}</Text>
+            <Text style={styles.statLabel}>시간</Text>
+          </View>
         </View>
       </View>
+
+      <RunPeriodBarChart model={chartModel} />
 
       <Link href="/my-activity" asChild>
         <Pressable accessibilityRole="button" style={styles.recordButton}>
@@ -124,48 +135,6 @@ function HomeActivityStatusCardImpl({ runs }: HomeActivityStatusCardProps) {
     </Card>
   );
 }
-
-// 혼자 탭 H안에서 확정했던 막대 스타일 그대로: 기록 있는 칸은 브랜드 라이트, '지금' 칸은
-// 브랜드 진하게, 지금인데 비어 있으면 브랜드 워시 테두리(오늘 아직 안 뛰었다는 신호),
-// 나머지 빈 칸은 낮은 회색. 최대 막대를 기준으로 상대 높이.
-const BAR_MAX_HEIGHT = 64;
-const BAR_EMPTY_HEIGHT = 6;
-
-const RunPeriodBarChart = memo(function RunPeriodBarChart({ bars }: { bars: RunPeriodBar[] }) {
-  if (!bars.length) {
-    return null;
-  }
-
-  const maxDistanceKm = Math.max(...bars.map((bar) => bar.distanceKm));
-
-  return (
-    <View style={styles.barRow}>
-      {bars.map((bar) => {
-        const ratio = maxDistanceKm > 0 ? bar.distanceKm / maxDistanceKm : 0;
-        const barHeight = bar.distanceKm > 0
-          ? Math.max(BAR_EMPTY_HEIGHT, Math.round(ratio * BAR_MAX_HEIGHT))
-          : BAR_EMPTY_HEIGHT;
-
-        return (
-          <View key={bar.key} style={styles.barColumn}>
-            <View
-              style={[
-                styles.bar,
-                { height: barHeight },
-                bar.distanceKm > 0
-                  ? (bar.isCurrent ? styles.barCurrent : styles.barFilled)
-                  : (bar.isCurrent ? styles.barCurrentEmpty : styles.barEmpty),
-              ]}
-            />
-            <Text style={bar.isCurrent ? styles.barLabelCurrent : styles.barLabel} numberOfLines={1}>
-              {bar.label}
-            </Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-});
 
 export const HomeActivityStatusCard = memo(HomeActivityStatusCardImpl);
 
@@ -240,69 +209,37 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
   },
-  barRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: spacing.sm,
-    height: BAR_MAX_HEIGHT + 22,
-    paddingTop: spacing.xxl,
+  heroBlock: {
+    gap: spacing.s10,
+    paddingTop: spacing.sm,
   },
-  barColumn: {
-    flex: 1,
-    alignItems: 'center',
+  heroValue: {
+    color: colors.textPrimary,
+    fontSize: 44,
+    fontWeight: fontWeights.black,
+    letterSpacing: -1,
+  },
+  heroUnit: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
+    letterSpacing: 0,
+  },
+  statRow: {
+    flexDirection: 'row',
+    gap: spacing.s24,
+  },
+  stat: {
     gap: spacing.xxs,
   },
-  bar: {
-    width: '100%',
-    borderRadius: radii.xs,
-  },
-  barFilled: {
-    backgroundColor: colors.brandLight,
-  },
-  barCurrent: {
-    backgroundColor: colors.brand,
-  },
-  barEmpty: {
-    backgroundColor: colors.borderMuted,
-  },
-  barCurrentEmpty: {
-    backgroundColor: colors.brandWash,
-    borderWidth: 1,
-    borderColor: colors.brandSoftBorder,
-  },
-  barLabel: {
-    color: colors.textTertiary,
-    fontSize: fontSizes.xxs,
-  },
-  barLabelCurrent: {
-    color: colors.brand,
-    fontSize: fontSizes.xxs,
+  statValue: {
+    color: colors.textPrimary,
+    fontSize: fontSizes.button,
     fontWeight: fontWeights.extraBold,
   },
-  metricRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    paddingVertical: spacing.s10,
-  },
-  metric: {
-    alignItems: 'center',
-    flex: 1,
-    gap: spacing.sm,
-  },
-  metricLabel: {
+  statLabel: {
     color: colors.textSecondary,
     fontSize: fontSizes.sm,
-    fontWeight: fontWeights.semibold,
-  },
-  metricValue: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.metric,
-    fontWeight: fontWeights.extraBold,
-  },
-  metricDivider: {
-    backgroundColor: colors.borderMuted,
-    height: 32,
-    width: 1,
   },
   recordButton: {
     alignItems: 'center',
