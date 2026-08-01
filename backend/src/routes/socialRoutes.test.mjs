@@ -9,6 +9,11 @@ import { routeSocialRequest } from './socialRoutes.mjs';
 // route partitions the NORMALIZED entries (this marker proves normalization ran
 // before the cutoff filter) and only then hands survivors to the repository.
 function normalizeImportedRunStub(sourceType, rawRun) {
+  // 실물처럼 거리 0/음수는 던진다 — 레코드별 스킵 경로 검증에 쓰인다.
+  if (!(Number(rawRun.distanceKm) > 0)) {
+    throw new TestApiError(400, '연동 기록 거리를 입력해주세요.');
+  }
+
   return {
     sourceType,
     date: rawRun.date,
@@ -131,7 +136,7 @@ await runTest('on/after-launch imports pass through untouched with skippedPreLau
   assert.equal(payload.skippedPreLaunch, 0);
 });
 
-await runTest('existing response fields stay intact alongside the additive skip count', async () => {
+await runTest('existing response fields stay intact alongside the additive skip counts', async () => {
   const { payload } = await postImport([importRun('2026-07-15')]);
 
   assert.equal(payload.success, true);
@@ -139,6 +144,21 @@ await runTest('existing response fields stay intact alongside the additive skip 
   assert.equal(payload.pendingRuns, 1);
   assert.deepEqual(
     Object.keys(payload).sort(),
-    ['pendingRuns', 'queuedRuns', 'skippedPreLaunch', 'source', 'success'],
+    ['pendingRuns', 'queuedRuns', 'skippedInvalid', 'skippedPreLaunch', 'source', 'success'],
   );
+});
+
+await runTest('invalid record is skipped alone — the rest of the batch still imports', async () => {
+  // 오너 2026-08-02 실증: 워치를 잘못 켰다 끈 0m 운동 하나가 배치 전체를 400으로
+  // 죽여 진짜 5.74km 기록까지 못 들어왔다. 이제 불량 레코드만 버려진다.
+  const { response, captured, payload } = await postImport([
+    { date: '2026-07-27', distanceKm: 0, pace: '07:55/km' },
+    importRun('2026-07-27'),
+  ]);
+
+  assert.equal(response.statusCode, 202);
+  assert.equal(captured.normalizedRuns.length, 1);
+  assert.equal(payload.queuedRuns, 1);
+  assert.equal(payload.skippedInvalid, 1);
+  assert.equal(payload.skippedPreLaunch, 0);
 });

@@ -296,75 +296,82 @@ function formatPaceFromMinutesPerKm(minutesPerKm: number) {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}/km`;
 }
 
-function normalizeIsoDateTime(value: string, label: string, index: number) {
+function toIsoOrNull(value: string): string | null {
   const parsedTime = new Date(value);
-
-  if (Number.isNaN(parsedTime.getTime())) {
-    throw new Error(`기기 기록 ${index + 1}번의 ${label} 형식이 올바르지 않아요.`);
-  }
-
-  return parsedTime.toISOString();
+  return Number.isNaN(parsedTime.getTime()) ? null : parsedTime.toISOString();
 }
 
-function normalizeBridgeRun(run: NativeHealthBridgeRun, index: number): NormalizedProviderRun {
-  const dateValue = typeof run.date === 'string' && run.date.trim()
-    ? run.date
-    : typeof run.startedAt === 'string' && run.startedAt.trim()
-      ? run.startedAt
-      : '';
+// 쓸 수 없는 레코드는 null로 건너뛴다 — 예전엔 한 레코드라도 이상하면 throw로 가져오기
+// 전체가 죽었다. 워치를 잘못 켰다 끈 0m 운동(거리가 반올림 후 0.0) 하나가 배치를
+// 영영 막던 포이즈닝의 클라이언트 절반 (오너 2026-08-02 실증; 서버도 개별 스킵한다).
+function normalizeBridgeRun(run: NativeHealthBridgeRun): NormalizedProviderRun | null {
+  try {
+    const dateValue = typeof run.date === 'string' && run.date.trim()
+      ? run.date
+      : typeof run.startedAt === 'string' && run.startedAt.trim()
+        ? run.startedAt
+        : '';
 
-  if (!dateValue) {
-    throw new Error(`기기 기록 ${index + 1}번에 날짜가 없어요.`);
-  }
+    if (!dateValue) {
+      return null;
+    }
 
-  const distanceKm = typeof run.distanceKm === 'number'
-    ? run.distanceKm
-    : typeof run.distanceMeters === 'number'
-      ? run.distanceMeters / 1000
-      : NaN;
+    const distanceKm = typeof run.distanceKm === 'number'
+      ? run.distanceKm
+      : typeof run.distanceMeters === 'number'
+        ? run.distanceMeters / 1000
+        : NaN;
+    // 서버 검증과 같은 반올림(소수 1자리) 후에도 0보다 커야 한다 — 0.04km는 0.0으로
+    // 떨어져 서버에서 "거리를 입력해주세요"로 거절된다.
+    const roundedDistanceKm = Number.isFinite(distanceKm) ? Number(distanceKm.toFixed(1)) : NaN;
 
-  if (!Number.isFinite(distanceKm) || distanceKm <= 0) {
-    throw new Error(`기기 기록 ${index + 1}번의 거리가 올바르지 않아요.`);
-  }
+    if (!Number.isFinite(roundedDistanceKm) || roundedDistanceKm <= 0) {
+      return null;
+    }
 
-  const pace = typeof run.pace === 'string' && run.pace.trim()
-    ? run.pace.trim()
-    : typeof run.paceMinutesPerKm === 'number' && Number.isFinite(run.paceMinutesPerKm)
-      ? formatPaceFromMinutesPerKm(run.paceMinutesPerKm)
-      : typeof run.paceSecondsPerKm === 'number' && Number.isFinite(run.paceSecondsPerKm)
-        ? formatPaceFromMinutesPerKm(run.paceSecondsPerKm / 60)
-        : typeof run.durationSeconds === 'number' && Number.isFinite(run.durationSeconds)
-          ? formatPaceFromMinutesPerKm(run.durationSeconds / 60 / distanceKm)
-          : '';
+    const pace = typeof run.pace === 'string' && run.pace.trim()
+      ? run.pace.trim()
+      : typeof run.paceMinutesPerKm === 'number' && Number.isFinite(run.paceMinutesPerKm)
+        ? formatPaceFromMinutesPerKm(run.paceMinutesPerKm)
+        : typeof run.paceSecondsPerKm === 'number' && Number.isFinite(run.paceSecondsPerKm)
+          ? formatPaceFromMinutesPerKm(run.paceSecondsPerKm / 60)
+          : typeof run.durationSeconds === 'number' && Number.isFinite(run.durationSeconds)
+            ? formatPaceFromMinutesPerKm(run.durationSeconds / 60 / distanceKm)
+            : '';
 
-  if (!pace) {
-    throw new Error(`기기 기록 ${index + 1}번의 페이스를 계산할 수 없어요.`);
-  }
+    if (!pace) {
+      return null;
+    }
 
-  const startedAt = typeof run.startedAt === 'string' && run.startedAt.trim()
-    ? normalizeIsoDateTime(run.startedAt, '시작 시각', index)
-    : undefined;
-  const durationSeconds = typeof run.durationSeconds === 'number' && Number.isFinite(run.durationSeconds) && run.durationSeconds > 0
-    ? Math.round(run.durationSeconds)
-    : undefined;
-  const endedAt = typeof run.endedAt === 'string' && run.endedAt.trim()
-    ? normalizeIsoDateTime(run.endedAt, '종료 시각', index)
-    : startedAt && durationSeconds
-      ? new Date(new Date(startedAt).getTime() + durationSeconds * 1000).toISOString()
+    // 시각 필드는 없어도 기록 자체는 살린다 — 파싱 실패는 필드만 버린다.
+    const startedAt = typeof run.startedAt === 'string' && run.startedAt.trim()
+      ? toIsoOrNull(run.startedAt) ?? undefined
       : undefined;
+    const durationSeconds = typeof run.durationSeconds === 'number' && Number.isFinite(run.durationSeconds) && run.durationSeconds > 0
+      ? Math.round(run.durationSeconds)
+      : undefined;
+    const endedAt = typeof run.endedAt === 'string' && run.endedAt.trim()
+      ? toIsoOrNull(run.endedAt) ?? undefined
+      : startedAt && durationSeconds
+        ? new Date(new Date(startedAt).getTime() + durationSeconds * 1000).toISOString()
+        : undefined;
 
-  return {
-    ...(run.externalId ? { externalId: String(run.externalId).trim() } : {}),
-    ...(typeof run.sourceLabel === 'string' && run.sourceLabel.trim()
-      ? { sourceLabel: run.sourceLabel.trim() }
-      : {}),
-    date: toDateOnly(dateValue),
-    distanceKm: Number(distanceKm.toFixed(1)),
-    pace,
-    ...(startedAt ? { startedAt } : {}),
-    ...(endedAt ? { endedAt } : {}),
-    ...(typeof durationSeconds === 'number' ? { durationSeconds } : {}),
-  };
+    return {
+      ...(run.externalId ? { externalId: String(run.externalId).trim() } : {}),
+      ...(typeof run.sourceLabel === 'string' && run.sourceLabel.trim()
+        ? { sourceLabel: run.sourceLabel.trim() }
+        : {}),
+      date: toDateOnly(dateValue),
+      distanceKm: roundedDistanceKm,
+      pace,
+      ...(startedAt ? { startedAt } : {}),
+      ...(endedAt ? { endedAt } : {}),
+      ...(typeof durationSeconds === 'number' ? { durationSeconds } : {}),
+    };
+  } catch {
+    // toDateOnly 등 구조적으로 깨진 레코드 — 이 레코드만 버린다.
+    return null;
+  }
 }
 
 export async function readRunsFromNativeHealthSource(
@@ -393,7 +400,9 @@ export async function readRunsFromNativeHealthSource(
     throw new Error(`${getSourceLabel(sourceType)} reader 응답 형식이 올바르지 않아요.`);
   }
 
-  return runs.map((run, index) => normalizeBridgeRun(run, index));
+  return runs
+    .map((run) => normalizeBridgeRun(run))
+    .filter((run): run is NormalizedProviderRun => run !== null);
 }
 
 // Guided-connect step 2: surface the OS read-permission prompt WITHOUT importing.

@@ -314,15 +314,28 @@ async function handleQueueIntegrationImports({
     throw new ApiError(400, '한 번에 가져오는 기록은 500개 이하로 제한해주세요.');
   }
 
+  // 레코드별 검증 스킵 (오너 2026-08-02): 배치를 통째로 normalize하다 하나라도 던지면
+  // 전체가 400으로 죽는다 — 워치를 잘못 켰다 끈 0m 운동(거리 반올림 0.0)이 하나 껴
+  // 있으면 진짜 기록까지 영영 못 들어오는 포이즈닝이었다. 쓸 수 없는 레코드는 개별로
+  // 버리고 나머지를 정상 진행한다.
+  const normalizedRuns = [];
+  let skippedInvalid = 0;
+
+  for (const run of rawRuns) {
+    try {
+      normalizedRuns.push(normalizeImportedRun(sourceType, run));
+    } catch {
+      skippedInvalid += 1;
+    }
+  }
+
   // Launch-date cutoff (authoritative, lib/integrationImportCutoff.mjs): drop
   // pre-launch-dated entries right where each entry's date is normalized/validated,
   // BEFORE anything reaches the import queue — old app versions that skip the
   // client-side mirror still cannot push historical records past this point.
   // When every entry is pre-launch we still queue the empty set (auth + source
   // checks run as usual) and answer with queuedRuns: 0 + the skip count.
-  const { importableRuns, skippedPreLaunch } = partitionImportRunsByLaunchCutoff(
-    rawRuns.map((run) => normalizeImportedRun(sourceType, run)),
-  );
+  const { importableRuns, skippedPreLaunch } = partitionImportRunsByLaunchCutoff(normalizedRuns);
 
   const payload = await getRunsRepository().queueIntegrationImports({
     token: getAccessToken(request),
@@ -330,7 +343,7 @@ async function handleQueueIntegrationImports({
     normalizedRuns: importableRuns,
   });
 
-  // Additive optional field — existing consumers only read success/source/
-  // queuedRuns/pendingRuns, so tacking the skip count on is backward compatible.
-  sendJson(response, 202, { ...payload, skippedPreLaunch });
+  // Additive optional fields — existing consumers only read success/source/
+  // queuedRuns/pendingRuns, so tacking the skip counts on is backward compatible.
+  sendJson(response, 202, { ...payload, skippedPreLaunch, skippedInvalid });
 }
