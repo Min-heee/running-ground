@@ -1,5 +1,6 @@
 import { isSessionExpired } from '../auth.mjs';
 import { buildUserRunMetrics } from '../lib/points.mjs';
+import { compareRunsLatestFirst } from '../lib/userStoreHelpers.mjs';
 import {
   INITIAL_RANK,
   RANK_TIERS,
@@ -149,7 +150,7 @@ function findJsonUserById(store, userId, createError) {
 function getJsonRunsForUser(store, userId) {
   return store.runs
     .filter((entry) => entry.userId === userId)
-    .sort((left, right) => right.date.localeCompare(left.date));
+    .sort(compareRunsLatestFirst);
 }
 
 function assertDatabase(database, featureName) {

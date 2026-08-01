@@ -1,4 +1,5 @@
 import { attachRouteToRunPayload, attachStoredRunRoute } from '../lib/runHelpers.mjs';
+import { compareRunsLatestFirst } from '../lib/userStoreHelpers.mjs';
 import { applyRunIntegrityCheck } from '../lib/runIntegrity.mjs';
 import { findChaseArena } from '../lib/chase/chaseArenas.mjs';
 import { releaseChasePresenceForUser } from '../lib/chase/chasePresence.mjs';
@@ -183,7 +184,7 @@ function requireSyncableConnectedSource(user, sourceType, createError) {
 function getRunsForUser(store, userId) {
   return store.runs
     .filter((entry) => entry.userId === userId)
-    .sort((left, right) => right.date.localeCompare(left.date));
+    .sort(compareRunsLatestFirst);
 }
 
 function getRunForUser(store, userId, runId, createError) {

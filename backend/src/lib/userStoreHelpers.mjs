@@ -24,10 +24,37 @@ export function findUserById(store, userId) {
   return user;
 }
 
+// 최근 기록이 먼저 오는 정렬. date는 일 단위 문자열이라 같은 날 두 번 달리면 순서를 못
+// 가른다 (오너 2026-08-02: 같은 날 10km/5km가 뒤집혀 보임) — 같은 날짜는 startedAt
+// (시각)으로 가르고, 시각 없는 기록(수동 추가)은 그 날짜 안에서 뒤로 보낸다.
+// postgres 쿼리들의 `run_date desc, created_at desc`와 같은 의미의 json 저장소 판.
+export function compareRunsLatestFirst(left, right) {
+  const dateOrder = String(right?.date ?? '').localeCompare(String(left?.date ?? ''));
+
+  if (dateOrder !== 0) {
+    return dateOrder;
+  }
+
+  const leftStartedMs = Date.parse(left?.startedAt ?? '');
+  const rightStartedMs = Date.parse(right?.startedAt ?? '');
+  const leftHasTime = Number.isFinite(leftStartedMs);
+  const rightHasTime = Number.isFinite(rightStartedMs);
+
+  if (leftHasTime && rightHasTime) {
+    return rightStartedMs - leftStartedMs;
+  }
+
+  if (leftHasTime !== rightHasTime) {
+    return leftHasTime ? -1 : 1;
+  }
+
+  return 0;
+}
+
 export function getRunsForUser(store, userId) {
   return store.runs
     .filter((entry) => entry.userId === userId)
-    .sort((left, right) => right.date.localeCompare(left.date));
+    .sort(compareRunsLatestFirst);
 }
 
 export function getTotalDistance(runs) {

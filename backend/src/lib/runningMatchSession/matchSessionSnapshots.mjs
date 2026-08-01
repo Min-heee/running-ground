@@ -1,5 +1,6 @@
 import { parsePaceToMinutes } from '../points.mjs';
 import { filterCompetitiveRuns } from '../competitiveRuns.mjs';
+import { compareRunsLatestFirst } from '../userStoreHelpers.mjs';
 import {
   buildLevelLabel,
   buildProgressAveragePaceLabel,
@@ -79,7 +80,7 @@ function buildRunsByUserId(store) {
   }
 
   for (const runs of runsByUserId.values()) {
-    runs.sort((left, right) => right.date.localeCompare(left.date));
+    runs.sort(compareRunsLatestFirst);
   }
 
   return runsByUserId;
