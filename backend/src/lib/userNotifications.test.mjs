@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   MAX_USER_NOTIFICATIONS,
   appendUserNotification,
+  countUnreadUserNotifications,
   listUserNotifications,
   markUserNotificationsRead,
 } from './userNotifications.mjs';
@@ -131,4 +132,20 @@ runTest('returns unread count from the pruned store', () => {
   }
 
   assert.equal(markUserNotificationsRead(store, 'user-1', [], { nowIso }).unreadCount, MAX_USER_NOTIFICATIONS);
+});
+
+runTest('countUnread: readAt 없는 내 알림만 센다 (아이콘 배지 진실값)', () => {
+  const store = {};
+  const nowIso = createNowIso();
+
+  appendUserNotification(store, { userId: 'user-1', type: 'friend_request', title: '친구 신청', body: 'a', nowIso });
+  appendUserNotification(store, { userId: 'user-1', type: 'match_result', title: '결과', body: 'b', nowIso });
+  appendUserNotification(store, { userId: 'user-2', type: 'match_result', title: '남의 것', body: 'c', nowIso });
+
+  assert.equal(countUnreadUserNotifications(store, 'user-1'), 2);
+  assert.equal(countUnreadUserNotifications(store, 'user-2'), 1);
+  assert.equal(countUnreadUserNotifications(store, 'user-3'), 0);
+
+  markUserNotificationsRead(store, 'user-1', null, { nowIso });
+  assert.equal(countUnreadUserNotifications(store, 'user-1'), 0);
 });

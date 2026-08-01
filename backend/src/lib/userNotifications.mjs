@@ -50,6 +50,12 @@ function buildNotificationPayload(notification) {
   };
 }
 
+// 안 읽은 알림 수 — 앱 아이콘 배지(카카오톡식 쌓임)의 진실값.
+export function countUnreadUserNotifications(store, userId) {
+  return ensureUserNotificationsStore(store)
+    .filter((item) => item?.userId === userId && !item.readAt).length;
+}
+
 export function pruneUserNotifications(store, userId, maxItems = MAX_USER_NOTIFICATIONS) {
   const notifications = ensureUserNotificationsStore(store);
   const userNotifications = notifications.filter((item) => item?.userId === userId);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'expo-router';
 import { getIsSignedIn, hydrateSession } from '@/lib/session';
+import { startAppIconBadgeSync, syncAppIconBadgeFromServer } from '@/lib/push/appBadge';
 import { syncPushRegistration } from '@/lib/push/pushRegistration';
 import { isAdminRouteEnabled } from '@/utils/rgEnvTrace';
 
@@ -32,8 +33,19 @@ export function useRootAuthGate() {
       setReady(true);
       // 공지 푸시 대상 등록 — 실패는 내부에서 삼킨다 (권한 거절/자격증명 없는 빌드).
       void syncPushRegistration();
+      // 앱 아이콘 배지: 포그라운드 전환마다 서버 unreadCount로 재동기화하는 리스너.
+      startAppIconBadgeSync();
     });
   }, []);
+
+  // 로그인 상태가 켜지는 순간(부팅 복원 + 세션 내 로그인 모두) 아이콘 배지를 맞춘다.
+  const signedInNow = ready && getIsSignedIn();
+
+  useEffect(() => {
+    if (signedInNow) {
+      void syncAppIconBadgeFromServer();
+    }
+  }, [signedInNow]);
 
   if (!ready) {
     return {

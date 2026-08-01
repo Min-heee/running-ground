@@ -1,6 +1,7 @@
 import { routeAdminReadRequest } from './adminReadRoutes.mjs';
 import { sendExpoPushNotifications } from '../lib/expoPushSender.mjs';
-import { collectPushTargets, removePushToken } from '../lib/pushTokens.mjs';
+import { collectPushTargetEntries, removePushToken } from '../lib/pushTokens.mjs';
+import { countUnreadUserNotifications } from '../lib/userNotifications.mjs';
 import { buildAdminInquiriesPayload, replyToInquiry } from '../lib/inquiries.mjs';
 import {
   isAppleRevocationConfigured,
@@ -323,7 +324,13 @@ async function handleCreateAdminNotice({
 
 // 공지 푸시 — 마켓/친구 알림 설정과 무관한 '서비스 공지'라 설정 게이트 없이 전원 발송.
 async function sendNoticePushNotification({ loadStore, mutateStore, notice }) {
-  const tokens = collectPushTargets(await loadStore());
+  const store = await loadStore();
+  // 아이콘 배지 (오너 2026-08-01, 카카오톡식 쌓임): 수신자의 안 읽은 알림 + 방금 온 이
+  // 공지 1. 앱을 열면 클라가 서버 unreadCount로 재동기화한다.
+  const tokens = collectPushTargetEntries(store).map((entry) => ({
+    token: entry.token,
+    badge: countUnreadUserNotifications(store, entry.userId) + 1,
+  }));
 
   if (tokens.length === 0) {
     return;

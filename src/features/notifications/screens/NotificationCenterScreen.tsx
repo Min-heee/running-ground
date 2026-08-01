@@ -21,6 +21,7 @@ import {
   markInboxRead,
   type InboxNotification,
 } from '@/services';
+import { setAppIconBadge } from '@/lib/push/appBadge';
 import type { AppNotice } from '@/domain';
 
 export default function NotificationCenterScreen() {
@@ -37,6 +38,12 @@ export default function NotificationCenterScreen() {
   useEffect(() => {
     setActiveTab(normalizeInitialTab(tab));
   }, [tab]);
+
+  // 안 읽은 수가 바뀔 때마다 앱 아이콘 배지(카카오톡식 숫자)도 함께 맞춘다.
+  const applyUnreadCount = useCallback((count: number) => {
+    setUnreadCount(count);
+    void setAppIconBadge(count);
+  }, []);
 
   const loadNotices = useCallback(() => {
     setNoticesLoading(true);
@@ -55,11 +62,11 @@ export default function NotificationCenterScreen() {
     fetchInbox()
       .then((payload) => {
         setInboxItems(payload.items);
-        setUnreadCount(payload.unreadCount);
+        applyUnreadCount(payload.unreadCount);
       })
       .catch((error) => setInboxError(getApiErrorMessage(error, '알림을 불러오지 못했어요.')))
       .finally(() => setInboxLoading(false));
-  }, []);
+  }, [applyUnreadCount]);
 
   useEffect(() => {
     if (activeTab === 'announcements') {
@@ -74,10 +81,10 @@ export default function NotificationCenterScreen() {
     deleteInbox([item.id])
       .then((payload) => {
         setInboxItems((currentItems) => currentItems.filter((current) => current.id !== item.id));
-        setUnreadCount(payload.unreadCount);
+        applyUnreadCount(payload.unreadCount);
       })
       .catch((error) => setInboxError(getApiErrorMessage(error, '알림 삭제에 실패했어요.')));
-  }, []);
+  }, [applyUnreadCount]);
 
   const handleDeleteAll = useCallback(() => {
     Alert.alert('알림 모두 삭제', '받은 알림을 모두 삭제할까요?', [
@@ -89,13 +96,13 @@ export default function NotificationCenterScreen() {
           deleteInbox()
             .then((payload) => {
               setInboxItems([]);
-              setUnreadCount(payload.unreadCount);
+              applyUnreadCount(payload.unreadCount);
             })
             .catch((error) => setInboxError(getApiErrorMessage(error, '알림 삭제에 실패했어요.')));
         },
       },
     ]);
-  }, []);
+  }, [applyUnreadCount]);
 
   const handleMarkAllRead = useCallback(() => {
     markInboxRead()
@@ -104,10 +111,10 @@ export default function NotificationCenterScreen() {
         setInboxItems((currentItems) => currentItems.map((item) => (
           item.readAt ? item : { ...item, readAt }
         )));
-        setUnreadCount(payload.unreadCount);
+        applyUnreadCount(payload.unreadCount);
       })
       .catch((error) => setInboxError(getApiErrorMessage(error, '알림 읽음 처리에 실패했어요.')));
-  }, []);
+  }, [applyUnreadCount]);
 
   const handlePressNotification = useCallback((item: InboxNotification) => {
     markInboxRead([item.id])
@@ -116,7 +123,7 @@ export default function NotificationCenterScreen() {
         setInboxItems((currentItems) => currentItems.map((currentItem) => (
           currentItem.id === item.id ? { ...currentItem, readAt: currentItem.readAt ?? readAt } : currentItem
         )));
-        setUnreadCount(payload.unreadCount);
+        applyUnreadCount(payload.unreadCount);
 
         const href = resolveNotificationHref(item);
         if (href) {
@@ -124,7 +131,7 @@ export default function NotificationCenterScreen() {
         }
       })
       .catch((error) => setInboxError(getApiErrorMessage(error, '알림 읽음 처리에 실패했어요.')));
-  }, []);
+  }, [applyUnreadCount]);
 
   const headerSubtitle = useMemo(
     () => activeTab === 'announcements'

@@ -23,13 +23,30 @@ function chunk(items, size) {
   return chunks;
 }
 
-// tokens: Expo 푸시 토큰 배열. message: { title, body, data }.
+// tokens: Expo 푸시 토큰 배열 — 문자열, 또는 { token, badge } (수신자별 아이콘 배지 숫자,
+// 카카오톡식 쌓임 — iOS가 이 값을 앱 아이콘에 찍는다). message: { title, body, data }.
 // deps: { fetchImpl, onInvalidTokens } — 테스트에서 주입.
 export async function sendExpoPushNotifications(tokens, message, {
   fetchImpl = globalThis.fetch,
   onInvalidTokens = null,
 } = {}) {
-  const targets = [...new Set((tokens ?? []).filter((token) => typeof token === 'string' && token.trim()))];
+  const seenTokens = new Set();
+  const targets = [];
+
+  for (const raw of tokens ?? []) {
+    const entry = typeof raw === 'string' ? { token: raw } : raw;
+    const token = typeof entry?.token === 'string' ? entry.token.trim() : '';
+
+    if (!token || seenTokens.has(token)) {
+      continue;
+    }
+
+    seenTokens.add(token);
+    targets.push({
+      token,
+      ...(Number.isInteger(entry?.badge) && entry.badge >= 0 ? { badge: entry.badge } : {}),
+    });
+  }
 
   if (targets.length === 0 || typeof fetchImpl !== 'function') {
     return { sent: 0, failed: 0, invalidTokens: [] };
@@ -47,11 +64,12 @@ export async function sendExpoPushNotifications(tokens, message, {
   let failed = 0;
 
   for (const batch of chunk(targets, PUSH_CHUNK_SIZE)) {
-    const payload = batch.map((token) => ({
-      to: token,
+    const payload = batch.map((entry) => ({
+      to: entry.token,
       title,
       body,
       sound: 'default',
+      ...(typeof entry.badge === 'number' ? { badge: entry.badge } : {}),
       // 앱이 알림을 눌렀을 때 어디로 갈지 등의 라우팅 재료.
       ...(message?.data ? { data: message.data } : {}),
     }));
@@ -85,7 +103,7 @@ export async function sendExpoPushNotifications(tokens, message, {
 
         // 앱을 지웠거나 토큰이 만료된 기기 — 다시 보내봐야 계속 실패한다.
         if (ticket?.details?.error === 'DeviceNotRegistered' && batch[index]) {
-          invalidTokens.push(batch[index]);
+          invalidTokens.push(batch[index].token);
         }
       });
     } catch {

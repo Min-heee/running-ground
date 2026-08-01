@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { sendExpoPushNotifications } from './expoPushSender.mjs';
 import {
+  collectPushTargetEntries,
   collectPushTargets,
   registerPushToken,
   removeOwnPushToken,
@@ -145,4 +146,39 @@ test('해제는 내 토큰만 — 남의 기기 알림을 끌 수 없다', () =>
   // 주인은 지울 수 있다.
   removeOwnPushToken(store, 'user-a', TOKEN_A);
   assert.deepEqual(collectPushTargets(store), []);
+});
+
+test('발송 대상 entries: 토큰 주인(userId)을 함께 준다 — 수신자별 아이콘 배지용', () => {
+  const store = buildStore();
+  registerPushToken(store, { id: 'user-a' }, { token: TOKEN_A }, NOW);
+  registerPushToken(store, { id: 'user-b' }, { token: TOKEN_B }, NOW);
+
+  assert.deepEqual(
+    collectPushTargetEntries(store).toSorted((left, right) => left.userId.localeCompare(right.userId)),
+    [
+      { token: TOKEN_A, userId: 'user-a' },
+      { token: TOKEN_B, userId: 'user-b' },
+    ],
+  );
+});
+
+test('푸시 발송: 수신자별 badge가 페이로드에 실린다 (없으면 필드 생략)', async () => {
+  const payloads = [];
+
+  const result = await sendExpoPushNotifications(
+    [{ token: TOKEN_A, badge: 3 }, TOKEN_B],
+    { title: '공지', body: '내용' },
+    {
+      fetchImpl: async (url, options) => {
+        payloads.push(...JSON.parse(options.body));
+        return { ok: true, json: async () => ({ data: [{ status: 'ok' }, { status: 'ok' }] }) };
+      },
+    },
+  );
+
+  assert.equal(result.sent, 2);
+  assert.equal(payloads[0].to, TOKEN_A);
+  assert.equal(payloads[0].badge, 3);
+  assert.equal(payloads[1].to, TOKEN_B);
+  assert.equal('badge' in payloads[1], false);
 });

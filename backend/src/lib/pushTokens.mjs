@@ -84,8 +84,9 @@ export function removeUserPushTokens(store, userId) {
   return store.pushTokens;
 }
 
-// 발송 대상 — 알림 설정을 존중한다. settingKey가 주어지면 그 설정이 꺼진 유저는 제외.
-export function collectPushTargets(store, { settingKey = null, userIds = null } = {}) {
+// 발송 대상 { token, userId } — 알림 설정을 존중한다. settingKey가 주어지면 그 설정이
+// 꺼진 유저는 제외. 수신자별 아이콘 배지처럼 토큰 주인이 필요한 발송에 쓴다.
+export function collectPushTargetEntries(store, { settingKey = null, userIds = null } = {}) {
   const usersById = new Map((store.users ?? []).map((entry) => [entry.id, entry]));
   const allowedUserIds = userIds ? new Set(userIds) : null;
 
@@ -109,5 +110,9 @@ export function collectPushTargets(store, { settingKey = null, userIds = null } 
 
       return true;
     })
-    .map((entry) => entry.token);
+    .map((entry) => ({ token: entry.token, userId: entry.userId }));
+}
+
+export function collectPushTargets(store, options = {}) {
+  return collectPushTargetEntries(store, options).map((entry) => entry.token);
 }

@@ -1,4 +1,5 @@
 import * as Linking from 'expo-linking';
+import { setAppIconBadge } from '@/lib/push/appBadge';
 import { clearPushRegistration } from '@/lib/push/pushRegistration';
 import * as WebBrowser from 'expo-web-browser';
 import type {
@@ -122,6 +123,8 @@ export async function signOut() {
 
   // 이 기기로 더는 공지 푸시가 가지 않게 서버에서 토큰을 지운다 (실패는 무시).
   await clearPushRegistration();
+  // 아이콘 배지도 걷어낸다 — 로그아웃한 기기에 남의 안 읽은 수가 남으면 안 된다.
+  void setAppIconBadge(0);
 
   if (USE_MOCK_API) {
     await clearSession();
