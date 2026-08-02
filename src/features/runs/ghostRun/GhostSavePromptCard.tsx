@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+
 import {
   formatGhostDate,
   formatGhostDistance,
@@ -123,81 +125,84 @@ export function GhostSavePromptCard() {
   );
 }
 
-// The ready card sits on the fixed dark chrome — style with fixed colors.
+// 러닝 탭 개편 전에는 어두운 크롬 위에 떠서 고정 흰색이었지만, 지금은 밝은 앱 배경 위라
+// 흰 글씨가 안 보였다 (오너 2026-08-02) — 테마 토큰 서피스 카드로 재도색.
 const styles = StyleSheet.create({
   card: {
-    borderColor: 'rgba(255, 255, 255, 0.28)',
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderColor: colors.cardEdge,
+    borderRadius: radii.xl,
     borderWidth: 1,
-    gap: 8,
-    padding: 12,
+    gap: spacing.s10,
+    padding: spacing.s16,
   },
   title: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
+    color: colors.textPrimary,
+    fontSize: fontSizes.rank,
+    fontWeight: fontWeights.extraBold,
   },
   summary: {
-    color: 'rgba(255, 255, 255, 0.75)',
-    fontSize: 13,
-    fontWeight: '600',
+    color: colors.textSecondary,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.semibold,
   },
   savedText: {
-    color: '#7BD88F',
-    fontSize: 14,
-    fontWeight: '700',
+    color: colors.successStrong,
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.bold,
     textAlign: 'center',
   },
   slotList: {
-    gap: 6,
+    gap: spacing.sm,
   },
   slotHint: {
-    color: 'rgba(255, 255, 255, 0.65)',
-    fontSize: 12,
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
   },
   slotRow: {
     alignItems: 'center',
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radii.md,
     borderWidth: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.sm,
   },
   slotRowText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
+    color: colors.textPrimary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
   },
   slotRowAction: {
-    color: '#A6B7FF',
-    fontSize: 12,
-    fontWeight: '800',
+    color: colors.brand,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
   actions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: spacing.sm,
   },
   actionButton: {
     alignItems: 'center',
-    borderColor: 'rgba(255, 255, 255, 0.28)',
-    borderRadius: 999,
+    borderColor: colors.border,
+    borderRadius: radii.pill,
     borderWidth: 1,
     flexGrow: 1,
-    paddingVertical: 9,
+    paddingVertical: spacing.s10,
   },
   saveButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: colors.brand,
+    borderColor: colors.brand,
   },
   saveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
+    color: fixedColors.white,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.extraBold,
   },
   skipButtonText: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 13,
-    fontWeight: '700',
+    color: colors.textSecondary,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
   },
 });
