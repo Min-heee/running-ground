@@ -75,6 +75,11 @@ export type RegionCatalogResponse = {
 
 export type MyProfileResponse = UserProfile & {
   rankState: RankState;
+  // 마이탭 포인트 카드 (오너 2026-08-02). 구서버 응답에는 없을 수 있어 optional.
+  // availablePoints = 마켓과 같은 기준의 보유(적립 − 사용), totalPoints = 누적 적립.
+  totalPoints?: number;
+  currentMonthPoints?: number;
+  availablePoints?: number;
 };
 
 export type NotificationSettingsResponse = {

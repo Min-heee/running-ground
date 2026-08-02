@@ -5,6 +5,7 @@ import { Screen } from '@/components/Screen';
 import { TabHeader } from '@/components/ui/TabHeader';
 import { AccountActionsCard } from '@/features/profile/components/AccountActionsCard';
 import { ProfileEnvironmentDebugCard } from '@/features/profile/components/ProfileEnvironmentDebugCard';
+import { ProfilePointsCard } from '@/features/profile/components/ProfilePointsCard';
 import { ProfileSettingsCard } from '@/features/profile/components/ProfileSettingsCard';
 import { ProfileSummaryCard } from '@/features/profile/components/ProfileSummaryCard';
 import { useMyPageScreen } from '@/features/profile/hooks/useMyPageScreen';
@@ -63,6 +64,8 @@ export default function MyPageScreen() {
             tagShared={tagShared}
             onShareTag={handleShareTag}
           />
+
+          <ProfilePointsCard profile={profile} />
 
           <ProfileSettingsCard onDebugUnlockPress={handleEnvironmentDebugUnlock} />
 

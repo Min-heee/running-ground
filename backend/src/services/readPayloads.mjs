@@ -1,5 +1,6 @@
 import { buildNotificationSettings } from '../lib/notificationSettings.mjs';
-import { buildProfileWithMetrics } from '../lib/userStoreHelpers.mjs';
+import { getAvailableRewardPoints } from '../lib/points.mjs';
+import { buildProfileWithMetrics, getRedeemedPointCost } from '../lib/userStoreHelpers.mjs';
 import { buildUpcomingRunningMatchesResponse } from '../lib/runningMatchStoreHelpers.mjs';
 import { buildIntegrationSources } from '../lib/integrationSources.mjs';
 import { buildHomeSummaryWithMetrics, buildMyActivityWithRunsAndMetrics } from '../lib/homeBuilders.mjs';
@@ -18,11 +19,15 @@ export function createReadPayloadBuilders({
   getStoredRunRoute = async () => null,
 }) {
   async function buildProfileReadPayload(request) {
-    const { user, metrics } = await loadCurrentUserReadContext(request, {
+    const { store, user, metrics } = await loadCurrentUserReadContext(request, {
       includeMetrics: true,
     });
 
-    return buildProfileWithMetrics(user, metrics);
+    return buildProfileWithMetrics(user, metrics, {
+      // 마이탭 보유 포인트 — 마켓 currentPoints와 같은 기준(적립 − 사용 리워드 비용).
+      // 리워드 교환 내역은 드라이버와 무관하게 blob store에 있다.
+      availablePoints: getAvailableRewardPoints(metrics, getRedeemedPointCost(store, user.id)),
+    });
   }
 
   async function buildNotificationSettingsReadPayload(request) {

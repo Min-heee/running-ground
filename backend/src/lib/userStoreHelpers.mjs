@@ -1,5 +1,5 @@
 import { createDefaultConnectedSources } from '../repositories/authRepository.mjs';
-import { buildUserRunMetrics } from './points.mjs';
+import { buildUserRunMetrics, getAvailableRewardPoints } from './points.mjs';
 import { ApiError } from '../response/httpResponse.mjs';
 import { isActiveRewardRedemption } from './adminNormalizers.mjs';
 import {
@@ -101,10 +101,14 @@ export function getRedeemedPointCost(store, userId) {
 export function buildProfile(store, user) {
   ensureUserConnectedSources(user);
   ensureUserRankState(user);
-  return buildProfileWithMetrics(user, getUserMetrics(store, user.id));
+  const metrics = getUserMetrics(store, user.id);
+
+  return buildProfileWithMetrics(user, metrics, {
+    availablePoints: getAvailableRewardPoints(metrics, getRedeemedPointCost(store, user.id)),
+  });
 }
 
-export function buildProfileWithMetrics(user, metrics) {
+export function buildProfileWithMetrics(user, metrics, { availablePoints } = {}) {
   return {
     name: user.name,
     ...(typeof user.provinceName === 'string' && user.provinceName ? { provinceName: user.provinceName } : {}),
@@ -115,6 +119,12 @@ export function buildProfileWithMetrics(user, metrics) {
     ...(typeof user.statusMessage === 'string' && user.statusMessage ? { statusMessage: user.statusMessage } : {}),
     rankState: { ...ensureUserRankState(user) },
     lifetimeDistanceKm: metrics.lifetimeDistanceKm,
+    // 마이탭 포인트 카드 (오너 2026-08-02: "포인트를 주는데 어디에도 안 보인다").
+    // availablePoints는 마켓 currentPoints와 같은 기준(적립 − 사용) — 호출자가 store를
+    // 들고 있을 때만 계산해서 넘긴다.
+    totalPoints: metrics.totalEarnedPoints ?? 0,
+    currentMonthPoints: metrics.currentMonthPoints ?? 0,
+    ...(typeof availablePoints === 'number' ? { availablePoints } : {}),
   };
 }
 
