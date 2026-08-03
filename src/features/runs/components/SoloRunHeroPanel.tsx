@@ -1,8 +1,8 @@
-// 혼자 러닝의 시작 영역 (오너 2026-07-31, 시안 Q 확정).
+// 혼자 러닝의 시작 영역 (오너 2026-08-03, 시안 D+다 확정).
 //
-// 풀폭 버튼 세 개 — 장식 없이 높이와 색 농도로만 위계를 준다. 시작은 크고 진한 브랜드
-// 솔리드, 페이스메이커·자신과 대결은 낮고 연한 브랜드 워시. 셋 다 전체 폭이라 무엇이든
-// 한 번에 눌리고, 두 부가 기능도 항상 눈에 보인다(시트/스와이프 뒤에 숨지 않는다).
+// RUN 세로 히어로 블록(브랜드 솔리드, 센터 타이포)이 화면의 주인공이고, 아래 두 부가
+// 기능은 RUN과 같은 센터 타이포 결의 미니 히어로 타일(PACE / VS ME 오버라인 + 한글
+// 제목)로 반반. 장식 아이콘 없이 타이포만으로 무게를 준다.
 
 import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -25,7 +25,7 @@ export const SoloRunHeroPanel = memo(function SoloRunHeroPanel({
   onOpenGhostRun,
 }: SoloRunHeroPanelProps) {
   const handleStart = useCallback(() => {
-    const trace = beginRgInputTrace('solo run start press', { source: 'solo stacked buttons' });
+    const trace = beginRgInputTrace('solo run start press', { source: 'solo hero block' });
     onStart();
     trace.markFeedback('start dispatch');
   }, [onStart]);
@@ -43,29 +43,36 @@ export const SoloRunHeroPanel = memo(function SoloRunHeroPanel({
         accessibilityRole="button"
         accessibilityLabel={startLabel}
       >
+        <Text style={styles.startOverline}>RUN</Text>
         <Text style={styles.startText}>{startLabel}</Text>
       </Pressable>
 
-      <SubButton label="페이스메이커와 달리기" onPress={onOpenPacemaker} />
-      <SubButton label="자신과 대결" onPress={onOpenGhostRun} />
+      <View style={styles.subRow}>
+        <SubTile overline="PACE" label="페이스메이커와 달리기" onPress={onOpenPacemaker} />
+        <SubTile overline="VS ME" label="자신과 대결" onPress={onOpenGhostRun} />
+      </View>
     </View>
   );
 });
 
-const SubButton = memo(function SubButton({
+const SubTile = memo(function SubTile({
+  overline,
   label,
   onPress,
 }: {
+  overline: string;
   label: string;
   onPress: () => void;
 }) {
   return (
     <Pressable
-      style={({ pressed }) => [styles.subButton, pressed ? styles.subButtonPressed : undefined]}
+      style={({ pressed }) => [styles.subTile, pressed ? styles.subTilePressed : undefined]}
       onPress={onPress}
       accessibilityRole="button"
+      accessibilityLabel={label}
     >
-      <Text style={styles.subButtonText}>{label}</Text>
+      <Text style={styles.subTileOverline}>{overline}</Text>
+      <Text style={styles.subTileLabel}>{label}</Text>
     </Pressable>
   );
 });
@@ -74,18 +81,17 @@ const styles = StyleSheet.create({
   panel: {
     gap: spacing.s10,
   },
-  // 위계는 색 농도로만: 시작은 진한 솔리드, 아래 둘은 보라 유리 틴트. 세 버튼의 높이·라운드·
-  // 간격은 동일하다 (오너 2026-07-31: "위아래 간격 세 버튼 맞춰줘").
-  //
   // 틴트가 brandWash 토큰이 아닌 고정 rgba인 이유: 라이트 brandWash(#EEF2FF)는 앱 배경
   // (#EFF0FA)과 거의 같은 색이라 버튼이 사라졌다. 반투명 브랜드는 밝은 배경에선 연보라,
   // 다크 네이비 위에선 보라 유리로 앉아 양쪽 모드에서 성립한다(2026-07-27 승인된 그 톤).
   startButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.s18,
-    borderRadius: radii.xl,
+    // 세로 히어로 — 시안 D의 두툼한 블록 (paddingVertical 24 + 오버라인/서브 두 줄).
+    paddingVertical: spacing.s24,
+    borderRadius: radii.cardLarge,
     backgroundColor: fixedColors.brand,
+    gap: spacing.xs,
   },
   startButtonPressed: {
     backgroundColor: fixedColors.brandStrong,
@@ -93,26 +99,46 @@ const styles = StyleSheet.create({
   startButtonDisabled: {
     opacity: 0.6,
   },
-  startText: {
+  startOverline: {
     color: fixedColors.white,
-    fontSize: fontSizes.large,
-    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.summaryValue,
+    fontWeight: fontWeights.black,
+    letterSpacing: 2,
   },
-  subButton: {
+  startText: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
+  },
+  subRow: {
+    flexDirection: 'row',
+    gap: spacing.s10,
+  },
+  subTile: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.s18,
-    borderRadius: radii.xl,
-    backgroundColor: 'rgba(109, 94, 247, 0.16)',
-    borderWidth: 1,
-    borderColor: 'rgba(142, 123, 255, 0.45)',
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.cardLarge,
+    backgroundColor: 'rgba(109, 94, 247, 0.13)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(142, 123, 255, 0.5)',
+    gap: spacing.xxs,
   },
-  subButtonPressed: {
+  subTilePressed: {
     backgroundColor: 'rgba(109, 94, 247, 0.26)',
   },
-  subButtonText: {
+  subTileOverline: {
     color: colors.brandDeep,
-    fontSize: fontSizes.button,
-    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.rank,
+    fontWeight: fontWeights.black,
+    letterSpacing: 0.5,
+  },
+  subTileLabel: {
+    color: colors.brandMuted,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+    textAlign: 'center',
   },
 });
