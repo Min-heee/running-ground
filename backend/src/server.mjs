@@ -42,6 +42,7 @@ import {
 import { createApiRouteHandler } from './routes/index.mjs';
 import { createBackendStatusService } from './services/backendStatusService.mjs';
 import { startStaleMatchStateSweeper } from './services/staleMatchStateSweeper.mjs';
+import { startUserNotificationPushPump } from './lib/notificationPushPump.mjs';
 import { createLeagueReadService } from './services/leagueReadService.mjs';
 import { createReadPayloadBuilders } from './services/readPayloads.mjs';
 import {
@@ -437,6 +438,14 @@ startStaleMatchStateSweeper({
   mutateStore,
   onSwept: (swept) => logBackendInfo('stale_match_state_swept', swept),
   onError: (error) => logBackendError('stale_match_state_sweep_failed', error),
+});
+
+// 인앱 알림별 원격 푸시 펌프 (오너 2026-08-03) — appendUserNotification이 쌓은 인텐트를
+// 트랜잭션 밖에서 3초 주기로 발송한다.
+startUserNotificationPushPump({
+  loadStore,
+  mutateStore,
+  onError: (error) => logBackendError('user_notification_push_pump_failed', error),
 });
 
 let isShuttingDown = false;

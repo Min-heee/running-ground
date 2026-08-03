@@ -14,6 +14,7 @@ import {
   type NotificationTraceDetail,
   type MatchReminderNotificationPhase,
 } from '@/navigation/matchReminderNotificationRouting';
+import { resolveUserNotificationPushHref } from '@/navigation/userNotificationPushRouting';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 async function recoverMatchReminderByMatchId(
@@ -168,7 +169,18 @@ export function useConfigureNotificationHandler() {
           handleMatchReminderReceived(buildNotificationTraceDetail(notification.request.content.data));
         });
         responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
-          const detail = buildNotificationTraceDetail(response.notification.request.content.data);
+          const data = response.notification.request.content.data;
+
+          // 서버발 알림 푸시(공지/친구/대결 결과 등, data.type 체계) → 알림센터로.
+          // 매치 리마인더 로컬 알림(data.kind 체계)은 아래 기존 라우팅이 처리한다.
+          const userNotificationHref = resolveUserNotificationPushHref(data);
+          if (userNotificationHref) {
+            rgPerfMark('notification tap open center', { type: (data as { type?: string })?.type });
+            router.push(userNotificationHref);
+            return;
+          }
+
+          const detail = buildNotificationTraceDetail(data);
           rgPerfMark('notification tap open room', detail);
           void handleMatchReminderTap(detail);
         });

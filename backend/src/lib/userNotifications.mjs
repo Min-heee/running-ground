@@ -1,4 +1,5 @@
 import { nextId } from './idHelpers.mjs';
+import { enqueueUserNotificationPush } from './notificationPushQueue.mjs';
 
 export const USER_NOTIFICATION_TYPES = new Set([
   'match_invite',
@@ -121,6 +122,15 @@ export function appendUserNotification(store, {
 
   ensureUserNotificationsStore(store).push(notification);
   pruneUserNotifications(store, userId);
+
+  // 알림별 원격 푸시 (오너 2026-08-03): 커밋 경로에서는 알림 id 인텐트만 쌓고, 발송은
+  // 펌프가 트랜잭션 밖에서 '커밋된 스토어에 이 id가 실존하는지' 확인한 뒤에 한다
+  // (notificationPushPump — 롤백 팬텀/조기 발송 방지). 모든 append 지점을 자동으로 덮는다.
+  enqueueUserNotificationPush({
+    notificationId: notification.id,
+    userId,
+    type,
+  });
 
   return buildNotificationPayload(notification);
 }
