@@ -15,9 +15,9 @@ import {
 import { useSoloRunGoalKm } from '@/features/runs/soloGoal/soloRunGoalStore';
 import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
 
-const RING_SIZE = 264;
+const RING_SIZE = 292;
 const TICK_WIDTH = 5;
-const TICK_HEIGHT = 16;
+const TICK_HEIGHT = 18;
 // 틱 중심이 도는 반지름 — 링 상자 안쪽에 딱 붙게.
 const TICK_RADIUS = (RING_SIZE - TICK_HEIGHT) / 2;
 

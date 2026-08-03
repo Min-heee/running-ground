@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'flex-start',
-    gap: spacing.s24,
+    gap: spacing.s42,
     paddingVertical: spacing.sm,
   },
   controlItem: {
