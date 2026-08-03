@@ -25,33 +25,6 @@ export const friendsRankingStyles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
     includeFontPadding: false,
   },
-  // 토스식 세그먼트: 회색 트랙 + 활성은 흰 필 + 보라 글씨.
-  modeSwitch: {
-    flexDirection: 'row',
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radii.md,
-    padding: spacing.sm,
-    gap: spacing.lg,
-  },
-  modeButton: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: spacing.s10,
-    alignItems: 'center',
-  },
-  modeButtonActive: {
-    backgroundColor: colors.surface,
-  },
-  modeButtonText: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.bold,
-    includeFontPadding: false,
-  },
-  modeButtonTextActive: {
-    color: colors.brand,
-    fontWeight: fontWeights.extraBold,
-  },
   countBadge: {
     backgroundColor: colors.surfaceMuted,
     borderRadius: radii.pill,

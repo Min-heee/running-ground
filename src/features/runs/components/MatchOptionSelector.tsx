@@ -1,5 +1,6 @@
 import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { SegmentSwitch } from '@/components/ui/SegmentSwitch';
 import {
   buildMatchOptionSegments,
   resolveActiveMatchOptionSegment,
@@ -8,7 +9,7 @@ import {
 } from '@/features/runs/components/matchOptionSegments';
 import { matchPickerCardStyles } from '@/features/runs/components/matchPickerCardStyles';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
-import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { spacing } from '@/theme/tokens';
 
 export type MatchOptionMode = 'solo' | 'duel' | 'group' | 'room' | 'chase';
 
@@ -24,34 +25,6 @@ type MatchOptionSelectorProps = {
   selectedMode: MatchOptionMode;
   onSelect: (option: MatchOptionItem) => void;
 };
-
-const SegmentTab = memo(function SegmentTab({
-  isActive,
-  label,
-  onPress,
-  segmentId,
-}: {
-  isActive: boolean;
-  label: string;
-  onPress: (segmentId: string) => void;
-  segmentId: string;
-}) {
-  const tabStyle = useMemo(() => [
-    styles.segmentTab,
-    isActive ? styles.segmentTabActive : undefined,
-  ], [isActive]);
-  const labelStyle = useMemo(() => [
-    styles.segmentLabel,
-    isActive ? styles.segmentLabelActive : undefined,
-  ], [isActive]);
-  const handlePress = useCallback(() => onPress(segmentId), [onPress, segmentId]);
-
-  return (
-    <Pressable style={tabStyle} onPress={handlePress} accessibilityRole="tab" accessibilityState={{ selected: isActive }}>
-      <Text style={labelStyle}>{label}</Text>
-    </Pressable>
-  );
-});
 
 const MatchOptionButton = memo(function MatchOptionButton({
   isSelected,
@@ -118,15 +91,10 @@ export function MatchOptionSelector({
     }
   }, [onSelect, segments, selectedMode]);
 
-  const segmentTabs = useMemo(() => segments.map((segment) => (
-    <SegmentTab
-      key={segment.id}
-      isActive={segment.id === activeSegment?.id}
-      label={segment.label}
-      onPress={handleSelectSegment}
-      segmentId={segment.id}
-    />
-  )), [activeSegment?.id, handleSelectSegment, segments]);
+  const segmentItems = useMemo(
+    () => segments.map((segment) => ({ id: segment.id, label: segment.label })),
+    [segments],
+  );
 
   const optionButtons = useMemo(() => (shouldRenderMatchOptionCards(activeSegment)
     ? (activeSegment?.options ?? []).map((option) => (
@@ -142,9 +110,11 @@ export function MatchOptionSelector({
 
   return (
     <View style={styles.container}>
-      <View style={styles.segmentRow} accessibilityRole="tablist">
-        {segmentTabs}
-      </View>
+      <SegmentSwitch
+        items={segmentItems}
+        activeId={activeSegment?.id ?? ''}
+        onSelect={handleSelectSegment}
+      />
       {optionButtons.length ? (
         <View style={matchPickerCardStyles.row}>
           {optionButtons}
@@ -157,33 +127,5 @@ export function MatchOptionSelector({
 const styles = StyleSheet.create({
   container: {
     gap: spacing.s12,
-  },
-  segmentRow: {
-    flexDirection: 'row',
-    padding: spacing.sm,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.cardEdge,
-    backgroundColor: colors.surface,
-  },
-  segmentTab: {
-    flex: 1,
-    paddingVertical: spacing.s10,
-    // 바깥 라운드(18) - 인셋(4) = 14. 안쪽 모서리가 바깥과 어긋나 보이지 않게.
-    borderRadius: radii.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  segmentTabActive: {
-    backgroundColor: fixedColors.brand,
-  },
-  segmentLabel: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.button,
-    fontWeight: fontWeights.bold,
-  },
-  segmentLabelActive: {
-    color: fixedColors.white,
-    fontWeight: fontWeights.extraBold,
   },
 });

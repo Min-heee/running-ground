@@ -1,6 +1,7 @@
-import { memo, useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { Text, View } from 'react-native';
 import { Card } from '@/components/Card';
+import { SegmentSwitch } from '@/components/ui/SegmentSwitch';
 import type { FriendRank } from '@/domain';
 import { FriendRankRow } from './components/FriendRankRow';
 import { friendsRankingStyles as styles } from './components/friendsRankingStyles';
@@ -17,6 +18,9 @@ type FriendsRankingProps = {
 
 export const FriendsRanking = memo(function FriendsRanking({ ranks, highlightTag }: FriendsRankingProps) {
   const [rankingWindow, setRankingWindow] = useState<FriendRankingWindow>('week');
+  const handleSelectWindow = useCallback((id: string) => {
+    setRankingWindow(id as FriendRankingWindow);
+  }, []);
   const displayedRanks = useMemo(
     () => buildFriendRankingWindowRanks(ranks, rankingWindow),
     [rankingWindow, ranks],
@@ -39,23 +43,14 @@ export const FriendsRanking = memo(function FriendsRanking({ ranks, highlightTag
         </View>
       </View>
 
-      <View style={styles.modeSwitch}>
-        <RankingWindowButton
-          active={rankingWindow === 'today'}
-          label="오늘 랭킹"
-          onPress={() => setRankingWindow('today')}
-        />
-        <RankingWindowButton
-          active={rankingWindow === 'week'}
-          label="이번 주 랭킹"
-          onPress={() => setRankingWindow('week')}
-        />
-        <RankingWindowButton
-          active={rankingWindow === 'month'}
-          label="이번 달 랭킹"
-          onPress={() => setRankingWindow('month')}
-        />
-      </View>
+      {/* 러닝탭 혼자/매칭/파티런과 같은 공용 세그먼트 (오너 2026-08-04 일괄 통일).
+          풀 라벨("이번 주 랭킹")은 아래 요약바가 제공하므로 탭은 간결하게. */}
+      <SegmentSwitch
+        items={RANKING_WINDOW_ITEMS}
+        activeId={rankingWindow}
+        onSelect={handleSelectWindow}
+        variant="card"
+      />
 
       {myRank ? (
         <View style={styles.summaryBar}>
@@ -84,21 +79,8 @@ export const FriendsRanking = memo(function FriendsRanking({ ranks, highlightTag
   );
 });
 
-function RankingWindowButton({
-  active,
-  label,
-  onPress,
-}: {
-  active: boolean;
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      style={[styles.modeButton, active && styles.modeButtonActive]}
-      onPress={onPress}
-    >
-      <Text style={[styles.modeButtonText, active && styles.modeButtonTextActive]}>{label}</Text>
-    </Pressable>
-  );
-}
+const RANKING_WINDOW_ITEMS = [
+  { id: 'today', label: '오늘' },
+  { id: 'week', label: '이번 주' },
+  { id: 'month', label: '이번 달' },
+] as const;
