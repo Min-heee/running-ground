@@ -4,13 +4,14 @@
 // 기능은 RUN과 같은 센터 타이포 결의 미니 히어로 타일(PACE / VS ME 오버라인 + 한글
 // 제목)로 반반. 장식 아이콘 없이 타이포만으로 무게를 준다.
 
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
   formatGoalInputKm,
   getSoloRunGoalKm,
   parseGoalInputKm,
   setSoloRunGoalKm,
+  useSoloRunGoalKm,
 } from '@/features/runs/soloGoal/soloRunGoalStore';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
 import { colors, fixedColors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
@@ -72,7 +73,17 @@ export const SoloRunHeroPanel = memo(function SoloRunHeroPanel({
 // 반영 — 키보드를 안 닫고 RUN을 눌러도 목표가 이미 저장돼 있게. 못 읽는 입력은 blur
 // 때 마지막 유효값으로 되돌린다.
 const GoalInput = memo(function GoalInput() {
+  const storeGoalKm = useSoloRunGoalKm();
   const [goalText, setGoalText] = useState(() => formatGoalInputKm(getSoloRunGoalKm()));
+  const isFocusedRef = useRef(false);
+
+  // 페이스메이커/자신과 대결이 자기 목표로 스토어를 바꾸면 입력창도 따라간다 —
+  // 단, 타이핑 중('7.' 입력 중 '7'로 되돌아가는 문제)에는 건드리지 않는다.
+  useEffect(() => {
+    if (!isFocusedRef.current) {
+      setGoalText(formatGoalInputKm(storeGoalKm));
+    }
+  }, [storeGoalKm]);
 
   const handleChangeText = useCallback((nextText: string) => {
     setGoalText(nextText);
@@ -83,7 +94,12 @@ const GoalInput = memo(function GoalInput() {
     }
   }, []);
 
+  const handleFocus = useCallback(() => {
+    isFocusedRef.current = true;
+  }, []);
+
   const handleCommit = useCallback(() => {
+    isFocusedRef.current = false;
     setGoalText(formatGoalInputKm(getSoloRunGoalKm()));
     Keyboard.dismiss();
   }, []);
@@ -95,6 +111,7 @@ const GoalInput = memo(function GoalInput() {
         style={styles.goalInput}
         value={goalText}
         onChangeText={handleChangeText}
+        onFocus={handleFocus}
         onBlur={handleCommit}
         onSubmitEditing={handleCommit}
         keyboardType="decimal-pad"
