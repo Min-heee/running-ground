@@ -26,24 +26,24 @@ export const matchPickerCardStyles = StyleSheet.create({
     justifyContent: 'center',
   },
   cardIdle: {
-    borderColor: colors.darkSoft,
-    backgroundColor: fixedColors.textPrimary,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   cardSelected: {
-    borderColor: colors.brandLight,
-    backgroundColor: colors.indigoInk,
+    borderColor: fixedColors.brand,
+    backgroundColor: colors.surface,
   },
   cardTitle: {
-    color: colors.white,
+    color: colors.textPrimary,
     fontSize: fontSizes.button,
     fontWeight: fontWeights.extraBold,
   },
   cardSummary: {
-    color: colors.textTertiary,
+    color: colors.textSecondary,
     fontSize: fontSizes.sm,
   },
   cardSummarySelected: {
-    color: colors.brandLighter,
+    color: colors.brand,
     fontSize: fontSizes.sm,
   },
 });

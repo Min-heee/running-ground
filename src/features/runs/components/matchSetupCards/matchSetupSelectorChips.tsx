@@ -147,7 +147,11 @@ export const MatchSlotChip = memo(function MatchSlotChip({
       <Text style={[styles.duelSlotLabel, selected ? styles.duelSlotLabelSelected : undefined]}>
         {slot.label}
       </Text>
-      {count > 0 ? <Text style={styles.duelSlotWaitingCount}>{count}명 대기</Text> : null}
+      {count > 0 ? (
+        <Text style={[styles.duelSlotWaitingCount, selected ? styles.duelSlotWaitingCountSelected : undefined]}>
+          {count}명 대기
+        </Text>
+      ) : null}
       {slot.isClosed ? <Text style={styles.duelSlotClosedText}>마감</Text> : null}
     </Pressable>
   );

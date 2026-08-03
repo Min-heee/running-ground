@@ -8,7 +8,7 @@ import {
 } from '@/lib/matchCountdown';
 import { resolveUpcomingMatchInteraction } from '@/features/runs/components/upcomingMatchInteraction';
 import type { UpcomingRunningMatchItem } from '@/lib/api/types';
-import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 // A matched 1:1 (duel) opens the full-screen reservation waiting room (modeled on
 // the party room). The room itself renders the countdown + hands off to the arena
@@ -170,11 +170,11 @@ const styles = StyleSheet.create({
     padding: spacing.s14,
     borderRadius: radii.xl,
     borderWidth: 1,
-    borderColor: colors.darkSoft,
-    backgroundColor: colors.darkMuted,
+    borderColor: colors.cardEdge,
+    backgroundColor: colors.surface,
   },
   eyebrow: {
-    color: colors.brandLighter,
+    color: colors.brand,
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extraBold,
     letterSpacing: 0.4,
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.s12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopColor: colors.borderSoft,
     paddingTop: spacing.s10,
   },
   copy: {
@@ -193,26 +193,26 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   title: {
-    color: colors.white,
+    color: colors.textPrimary,
     fontSize: fontSizes.base,
     fontWeight: fontWeights.extraBold,
   },
   meta: {
-    color: fixedColors.border,
+    color: colors.textSecondary,
     lineHeight: 18,
   },
   countdownPill: {
     alignSelf: 'flex-start',
     marginTop: spacing.sm,
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(129, 140, 248, 0.16)',
+    backgroundColor: 'rgba(109, 94, 247, 0.13)',
     borderWidth: 1,
-    borderColor: 'rgba(129, 140, 248, 0.32)',
+    borderColor: 'rgba(142, 123, 255, 0.45)',
     paddingHorizontal: spacing.s10,
     paddingVertical: spacing.lg,
   },
   countdownText: {
-    color: colors.brandWashStrong,
+    color: colors.brandDeep,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
   },
@@ -222,23 +222,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.s10,
     paddingVertical: spacing.lg,
     borderRadius: radii.pill,
-    backgroundColor: fixedColors.textPrimary,
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: colors.border,
   },
   cancelText: {
-    color: colors.white,
+    color: colors.textPrimary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
   },
   helperText: {
-    color: colors.brandTint,
+    color: colors.textSecondary,
     fontSize: fontSizes.sm,
     lineHeight: 18,
     marginTop: spacing.sm,
   },
   state: {
-    color: colors.brandTint,
+    color: colors.textSecondary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
   },

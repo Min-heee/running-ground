@@ -23,7 +23,7 @@ import {
   type LiveGapInterval,
   type LiveGapMetric,
 } from '@/features/runs/liveGap/liveGapPushConfig';
-import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
+import { colors, fixedColors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
 
 type LiveGapPushCardProps = {
   mode: 'duel' | 'group';
@@ -123,7 +123,7 @@ export function LiveGapPushCard({ mode }: LiveGapPushCardProps) {
           value={customInput}
           onChangeText={handleCustomInputChange}
           placeholder="예: 7"
-          placeholderTextColor={colors.darkSoft}
+          placeholderTextColor={colors.textTertiary}
           keyboardType="number-pad"
           maxLength={3}
           style={[
@@ -212,16 +212,16 @@ const styles = StyleSheet.create({
     padding: spacing.s12,
     borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: colors.darkSoft,
-    backgroundColor: colors.darkInk,
+    borderColor: colors.cardEdge,
+    backgroundColor: colors.surface,
   },
   title: {
-    color: colors.white,
+    color: colors.textPrimary,
     fontSize: fontSizes.button,
     fontWeight: fontWeights.extraBold,
   },
   subtitle: {
-    color: colors.borderNeutral,
+    color: colors.textSecondary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
   },
@@ -234,22 +234,22 @@ const styles = StyleSheet.create({
   chip: {
     borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: colors.darkSoft,
-    backgroundColor: colors.darkMuted,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: spacing.s12,
     paddingVertical: spacing.xxl,
   },
   chipSelected: {
-    borderColor: colors.brandLight,
-    backgroundColor: colors.indigoDeep,
+    borderColor: fixedColors.brand,
+    backgroundColor: fixedColors.brand,
   },
   chipText: {
-    color: colors.borderNeutral,
+    color: colors.textSecondary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
   },
   chipTextSelected: {
-    color: colors.white,
+    color: fixedColors.white,
   },
   section: {
     gap: spacing.xxs,
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   customLabel: {
-    color: colors.white,
+    color: colors.textPrimary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
   },
@@ -270,23 +270,23 @@ const styles = StyleSheet.create({
     minWidth: 72,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.darkSoft,
-    backgroundColor: colors.darkMuted,
-    color: colors.white,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceMuted,
+    color: colors.textPrimary,
     fontWeight: fontWeights.extraBold,
     paddingHorizontal: spacing.s12,
     paddingVertical: spacing.xxl,
     textAlign: 'center',
   },
   customInputActive: {
-    borderColor: colors.brandLight,
-    backgroundColor: colors.indigoDeep,
+    borderColor: fixedColors.brand,
+    backgroundColor: colors.surface,
   },
   customInputInvalid: {
     borderColor: colors.dangerAccent,
   },
   customUnit: {
-    color: colors.borderNeutral,
+    color: colors.textSecondary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
   },
@@ -297,12 +297,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.xxs,
   },
   sectionLabel: {
-    color: colors.white,
+    color: colors.textPrimary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
   },
   hint: {
-    color: colors.brandLight,
+    color: colors.textSecondary,
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.semibold,
     marginTop: spacing.xxs,
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     paddingTop: spacing.s12,
     borderTopWidth: 1,
-    borderTopColor: colors.darkSoft,
+    borderTopColor: colors.borderSoft,
   },
   checkboxRow: {
     flexDirection: 'row',
@@ -324,22 +324,22 @@ const styles = StyleSheet.create({
     height: spacing.s20,
     borderRadius: radii.xs,
     borderWidth: 1,
-    borderColor: colors.darkSoft,
-    backgroundColor: colors.darkMuted,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxChecked: {
-    borderColor: colors.brandLight,
-    backgroundColor: colors.indigoDeep,
+    borderColor: fixedColors.brand,
+    backgroundColor: fixedColors.brand,
   },
   checkboxMark: {
-    color: colors.white,
+    color: fixedColors.white,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
   },
   checkboxLabel: {
-    color: colors.white,
+    color: colors.textPrimary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
   },

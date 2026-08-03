@@ -162,7 +162,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: spacing.sm,
     borderRadius: radii.lg,
-    backgroundColor: fixedColors.textPrimary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   segmentTab: {
     flex: 1,
@@ -173,15 +175,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   segmentTabActive: {
-    backgroundColor: colors.indigoInk,
+    backgroundColor: fixedColors.brand,
   },
   segmentLabel: {
-    color: colors.textTertiary,
+    color: colors.textSecondary,
     fontSize: fontSizes.button,
     fontWeight: fontWeights.bold,
   },
   segmentLabelActive: {
-    color: colors.white,
+    color: fixedColors.white,
     fontWeight: fontWeights.extraBold,
   },
 });

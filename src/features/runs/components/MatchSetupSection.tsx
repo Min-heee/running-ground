@@ -61,12 +61,9 @@ const styles = StyleSheet.create({
   section: {
     gap: spacing.s10,
   },
+  // 시안 '가'(2026-08-03): 다크 래퍼 상자 제거 — 세그먼트·카드가 각자 흰 서피스로
+  // 맨바닥에 앉는다.
   pickerCard: {
     gap: spacing.s10,
-    padding: spacing.s14,
-    borderRadius: radii.xl,
-    borderWidth: 1,
-    borderColor: colors.darkSoft,
-    backgroundColor: colors.darkMuted,
   },
 });

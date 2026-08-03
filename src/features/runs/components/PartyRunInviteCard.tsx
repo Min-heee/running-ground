@@ -84,8 +84,8 @@ const styles = StyleSheet.create({
   code: {
     overflow: 'hidden',
     borderRadius: radii.pill,
-    backgroundColor: colors.indigoInk,
-    color: fixedColors.brandWash,
+    backgroundColor: colors.brand,
+    color: fixedColors.white,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.black,
     paddingHorizontal: spacing.s10,
