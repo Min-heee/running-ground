@@ -170,8 +170,8 @@ const styles = StyleSheet.create({
     padding: spacing.s14,
     borderRadius: radii.xl,
     borderWidth: 1,
-    borderColor: colors.cardEdge,
-    backgroundColor: colors.surface,
+    borderColor: 'rgba(142, 123, 255, 0.30)',
+    backgroundColor: 'rgba(109, 94, 247, 0.07)',
   },
   eyebrow: {
     color: colors.brand,
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.s12,
     borderTopWidth: 1,
-    borderTopColor: colors.borderSoft,
+    borderTopColor: 'rgba(142, 123, 255, 0.30)',
     paddingTop: spacing.s10,
   },
   copy: {

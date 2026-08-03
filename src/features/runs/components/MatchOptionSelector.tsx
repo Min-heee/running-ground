@@ -163,8 +163,8 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: 'rgba(142, 123, 255, 0.35)',
+    backgroundColor: 'rgba(109, 94, 247, 0.10)',
   },
   segmentTab: {
     flex: 1,
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
     backgroundColor: fixedColors.brand,
   },
   segmentLabel: {
-    color: colors.textSecondary,
+    color: colors.brandMuted,
     fontSize: fontSizes.button,
     fontWeight: fontWeights.bold,
   },
