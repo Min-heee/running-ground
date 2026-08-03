@@ -15,9 +15,9 @@ import {
 import { useSoloRunGoalKm } from '@/features/runs/soloGoal/soloRunGoalStore';
 import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
 
-const RING_SIZE = 220;
-const TICK_WIDTH = 4;
-const TICK_HEIGHT = 14;
+const RING_SIZE = 264;
+const TICK_WIDTH = 5;
+const TICK_HEIGHT = 16;
 // 틱 중심이 도는 반지름 — 링 상자 안쪽에 딱 붙게.
 const TICK_RADIUS = (RING_SIZE - TICK_HEIGHT) / 2;
 
@@ -85,21 +85,20 @@ export function RunningMetricGrid({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.elapsed}>
-        <Text style={styles.elapsedLabel}>시간 </Text>
-        {elapsedLabel}
-      </Text>
+      <Text style={styles.elapsed}>{elapsedLabel}</Text>
 
-      <View style={styles.ring}>
+      {/* 남은 거리 문구는 화면에서 뺐지만(오너 2026-08-03) 보조기술에는 statusLine으로
+          목표 대비 상황을 읽어준다. 거리 숫자의 자동 축소(adjustsFontSizeToFit)는 iOS에서
+          lineHeight와 엮여 좁쌀만 하게 과축소되는 버그가 있어 고정 크기로 뒀다 — 실사용
+          거리(≤99.99km)는 링 안에 안전하게 들어간다. */}
+      <View style={styles.ring} accessibilityLabel={ring.statusLine}>
         <GoalRingTicks filledTicks={ring.filledTicks} />
-        <Text style={styles.heroDistance} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+        <Text style={styles.heroDistance} numberOfLines={1}>
           {distance.number}
         </Text>
         <Text style={styles.heroUnit}>{distance.unit || 'km'}</Text>
         <Text style={styles.heroPace}>{currentPaceLabel}</Text>
       </View>
-
-      <Text style={styles.statusLine}>{ring.statusLine}</Text>
 
       <View style={styles.metricRow}>
         <Metric label="평균 페이스" value={averagePaceLabel} />
@@ -118,13 +117,8 @@ const styles = StyleSheet.create({
   },
   elapsed: {
     color: colors.textPrimary,
-    fontSize: fontSizes.pageTitle,
+    fontSize: fontSizes.heroLarge,
     fontWeight: fontWeights.black,
-  },
-  elapsedLabel: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.rank,
-    fontWeight: fontWeights.bold,
   },
   ring: {
     width: RING_SIZE,
@@ -146,26 +140,19 @@ const styles = StyleSheet.create({
   },
   heroDistance: {
     color: colors.textPrimary,
-    fontSize: 52,
+    fontSize: 64,
     fontWeight: fontWeights.black,
-    lineHeight: 56,
-    maxWidth: RING_SIZE - TICK_HEIGHT * 2 - spacing.s16 * 2,
   },
   heroUnit: {
     color: colors.textSecondary,
-    fontSize: fontSizes.md,
+    fontSize: fontSizes.large,
     fontWeight: fontWeights.extraBold,
   },
   heroPace: {
     color: colors.brand,
-    fontSize: fontSizes.large,
+    fontSize: fontSizes.comingSoon,
     fontWeight: fontWeights.extraBold,
     marginTop: spacing.xs,
-  },
-  statusLine: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.base,
-    fontWeight: fontWeights.bold,
   },
   metricRow: {
     flexDirection: 'row',
@@ -179,12 +166,12 @@ const styles = StyleSheet.create({
   },
   metricValue: {
     color: colors.textPrimary,
-    fontSize: fontSizes.summaryValue,
+    fontSize: fontSizes.pageTitle,
     fontWeight: fontWeights.extraBold,
   },
   metricLabel: {
     color: colors.textSecondary,
-    fontSize: fontSizes.md,
+    fontSize: fontSizes.base,
     fontWeight: fontWeights.bold,
   },
 });
