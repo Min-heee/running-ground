@@ -115,17 +115,14 @@ export const friendsRankingStyles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.s10,
   },
-  rankBadge: {
-    minWidth: 52,
-    borderRadius: radii.pill,
-    backgroundColor: fixedColors.brand,
+  // 순위 칸 — 1~3위 왕관 배지와 4위+ 맨 텍스트가 같은 폭에 앉아 이름 줄이 정렬된다.
+  rankSlot: {
+    width: 58,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing.s12,
-    paddingVertical: spacing.s10,
   },
-  rankBadgeText: {
-    color: fixedColors.white,
+  rankPlain: {
+    color: colors.textSecondary,
     fontSize: fontSizes.md,
     fontWeight: fontWeights.extraBold,
     includeFontPadding: false,
