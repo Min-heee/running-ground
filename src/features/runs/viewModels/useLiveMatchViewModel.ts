@@ -231,6 +231,13 @@ export function useLiveMatchViewModel({
 
   const trackingPageProps = useLiveMatchTrackingViewProps({
     matchMode,
+    // 매치 러닝의 링 목표 = 매치 목표 거리 (적대 리뷰: 솔로 목표 스토어가 매치 화면으로
+    // 새서 3km 듀얼에 '목표 5km' 문구가 떴다). 솔로/체이스는 undefined → 솔로 스토어.
+    goalKmOverride: matchMode === 'duel'
+      ? duelDistanceKm
+      : matchMode === 'group'
+        ? groupDistanceKm
+        : undefined,
     liveMatchTitle,
     liveMatchText,
     effectiveDuelOpponent,

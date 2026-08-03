@@ -47,6 +47,7 @@ export function buildLiveMatchTrackingViewProps({
 }): LiveMatchTrackingViewProps {
   return {
     matchMode: input.matchMode,
+    goalKmOverride: input.goalKmOverride,
     liveMatchTitle: input.liveMatchTitle,
     liveMatchText: input.liveMatchText,
     effectiveDuelOpponent: input.effectiveDuelOpponent,

@@ -21,6 +21,8 @@ export type LiveMatchTrackingPageProps = LiveMatchProgressSectionProps & {
   elevationGainM: number;
   metricLabels: LiveMatchMetricLabels;
   useLiveTrackingMetrics?: boolean;
+  // 목표 링의 목표 거리 — 매치는 매치 목표, 없으면(솔로) 솔로 목표 스토어를 쓴다.
+  goalKmOverride?: number;
 };
 
 export const LiveMatchTrackingPage = memo(function LiveMatchTrackingPage({
@@ -45,6 +47,7 @@ export const LiveMatchTrackingPage = memo(function LiveMatchTrackingPage({
   currentGroupLeader,
   metricLabels,
   useLiveTrackingMetrics,
+  goalKmOverride,
   onContinueSoloFromMatch,
 }: LiveMatchTrackingPageProps) {
   useDevRenderCounter(`LiveMatchTrackingPage:${matchMode}`);
@@ -76,6 +79,7 @@ export const LiveMatchTrackingPage = memo(function LiveMatchTrackingPage({
       <LiveMatchStatsSection
         metricLabels={metricLabels}
         useLiveTrackingMetrics={useLiveTrackingMetrics}
+        goalKmOverride={goalKmOverride}
       />
     </>
   );

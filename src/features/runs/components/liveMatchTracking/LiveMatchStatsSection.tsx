@@ -12,18 +12,24 @@ import {
 export const LiveMatchStatsSection = memo(function LiveMatchStatsSection({
   metricLabels,
   useLiveTrackingMetrics = false,
+  goalKmOverride,
 }: {
   metricLabels: LiveMatchMetricLabels;
   useLiveTrackingMetrics?: boolean;
+  goalKmOverride?: number;
 }) {
   if (useLiveTrackingMetrics) {
-    return <LiveMatchStatsSectionFromStore />;
+    return <LiveMatchStatsSectionFromStore goalKmOverride={goalKmOverride} />;
   }
 
-  return <LiveMatchStatsGrid metricLabels={metricLabels} />;
+  return <LiveMatchStatsGrid metricLabels={metricLabels} goalKmOverride={goalKmOverride} />;
 });
 
-const LiveMatchStatsSectionFromStore = memo(function LiveMatchStatsSectionFromStore() {
+const LiveMatchStatsSectionFromStore = memo(function LiveMatchStatsSectionFromStore({
+  goalKmOverride,
+}: {
+  goalKmOverride?: number;
+}) {
   const liveMetricFrame = useLiveTrackingMetricFrame();
   const liveMetricLabels = useMemo<LiveMatchMetricLabels>(() => ({
     elapsedLabel: formatDuration(liveMetricFrame.elapsedSeconds),
@@ -34,13 +40,15 @@ const LiveMatchStatsSectionFromStore = memo(function LiveMatchStatsSectionFromSt
     elevationLabel: formatElevation(liveMetricFrame.elevationGainM),
   }), [liveMetricFrame]);
 
-  return <LiveMatchStatsGrid metricLabels={liveMetricLabels} />;
+  return <LiveMatchStatsGrid metricLabels={liveMetricLabels} goalKmOverride={goalKmOverride} />;
 });
 
 const LiveMatchStatsGrid = memo(function LiveMatchStatsGrid({
   metricLabels,
+  goalKmOverride,
 }: {
   metricLabels: LiveMatchMetricLabels;
+  goalKmOverride?: number;
 }) {
   return (
     <RunningMetricGrid
@@ -50,6 +58,7 @@ const LiveMatchStatsGrid = memo(function LiveMatchStatsGrid({
       currentPaceLabel={metricLabels.currentPaceLabel}
       cadenceLabel={metricLabels.cadenceLabel}
       elevationLabel={metricLabels.elevationLabel}
+      goalKmOverride={goalKmOverride}
     />
   );
 });

@@ -1,8 +1,6 @@
 import { memo } from 'react';
 import type { ComponentProps, ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { LiveMatchPages } from '@/features/runs/components/LiveMatchPages';
 import { LiveMatchTrackingPage } from '@/features/runs/components/LiveMatchTrackingPage';
 import {
@@ -10,7 +8,7 @@ import {
   shouldShowPausedTrackingActions,
 } from '@/features/runs/components/liveMatchPager/liveMatchPagePropsComparator';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
-import { colors, spacing, fontWeights } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type LiveMatchContainerProps = {
   showLiveArena: boolean;
@@ -57,10 +55,7 @@ export const LiveMatchContainer = memo(function LiveMatchContainer({
       <LiveMatchSavingIndicator isSaving={isSaving} />
 
       {isRunningSolo ? (
-        <LiveMatchSoloActions
-          onSaveTracking={onSaveTracking}
-          onPauseTracking={onPauseTracking}
-        />
+        <LiveMatchSoloActions onPauseTracking={onPauseTracking} />
       ) : null}
 
       {showPausedActions ? (
@@ -82,19 +77,27 @@ const LiveMatchSavingIndicator = memo(function LiveMatchSavingIndicator({
   return isSaving ? <ActivityIndicator size="small" color={colors.brand} /> : null;
 });
 
+// 미디어 컨트롤 (오너 2026-08-03): 텍스트 버튼 대신 ⏸/▶/■ 원형 버튼.
+// 뛰는 중엔 ⏸ 하나 — 누르면 일시정지되고, 일시정지 화면에서 ▶(재개)와 ■(종료·저장)이
+// 나온다. 종료가 일시정지를 거쳐야만 나오므로 실수 종료가 구조적으로 불가능하다.
 const LiveMatchSoloActions = memo(function LiveMatchSoloActions({
-  onSaveTracking,
   onPauseTracking,
 }: {
-  onSaveTracking: () => void;
   onPauseTracking: () => void;
 }) {
-  // 시안 A+D (오너 2026-08-02): 뛰는 중 가장 흔한 행동인 일시정지가 솔리드, 종료는
-  // 보더 — 실수로 종료를 눌러 러닝이 끊기는 사고를 줄인다.
   return (
-    <View style={styles.actionColumn}>
-      <PrimaryButton label="일시정지" onPress={onPauseTracking} />
-      <SecondaryButton label="러닝 종료하고 저장" onPress={onSaveTracking} />
+    <View style={styles.controlRow}>
+      <Pressable
+        style={({ pressed }) => [styles.controlCircle, pressed ? styles.controlCirclePressed : null]}
+        onPress={onPauseTracking}
+        accessibilityRole="button"
+        accessibilityLabel="일시정지"
+      >
+        <View style={styles.pauseBars}>
+          <View style={styles.pauseBar} />
+          <View style={styles.pauseBar} />
+        </View>
+      </Pressable>
     </View>
   );
 });
@@ -110,8 +113,34 @@ const LiveMatchPausedActions = memo(function LiveMatchPausedActions({
 }) {
   return (
     <View style={styles.actionColumn}>
-      <PrimaryButton label="이 기록 저장하기" onPress={onSaveTracking} />
-      <SecondaryButton label="측정 다시 시작" onPress={onResumeTracking} />
+      <View style={styles.controlRow}>
+        <View style={styles.controlItem}>
+          <Pressable
+            style={({ pressed }) => [styles.controlCircle, pressed ? styles.controlCirclePressed : null]}
+            onPress={onResumeTracking}
+            accessibilityRole="button"
+            accessibilityLabel="측정 다시 시작"
+          >
+            <View style={styles.playTriangle} />
+          </Pressable>
+          <Text style={styles.controlLabel}>재개</Text>
+        </View>
+        <View style={styles.controlItem}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.controlCircle,
+              styles.stopCircle,
+              pressed ? styles.stopCirclePressed : null,
+            ]}
+            onPress={onSaveTracking}
+            accessibilityRole="button"
+            accessibilityLabel="러닝 종료하고 저장"
+          >
+            <View style={styles.stopSquare} />
+          </Pressable>
+          <Text style={styles.controlLabel}>종료하고 저장</Text>
+        </View>
+      </View>
       <Pressable style={styles.discardButton} onPress={onDiscardTracking}>
         <Text style={styles.discardButtonText}>이 기록 버리기</Text>
       </Pressable>
@@ -122,6 +151,67 @@ const LiveMatchPausedActions = memo(function LiveMatchPausedActions({
 const styles = StyleSheet.create({
   actionColumn: {
     gap: spacing.s10,
+  },
+  controlRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    gap: spacing.s24,
+    paddingVertical: spacing.sm,
+  },
+  controlItem: {
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  controlCircle: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: fixedColors.brand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  controlCirclePressed: {
+    backgroundColor: fixedColors.brandStrong,
+  },
+  stopCircle: {
+    backgroundColor: fixedColors.textPrimary,
+  },
+  stopCirclePressed: {
+    opacity: 0.85,
+  },
+  controlLabel: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+  },
+  pauseBars: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  pauseBar: {
+    width: 7,
+    height: 26,
+    borderRadius: 3,
+    backgroundColor: fixedColors.white,
+  },
+  // 재생 삼각형 — 보더 트릭. 시각 중심을 맞추려 살짝 오른쪽으로.
+  playTriangle: {
+    width: 0,
+    height: 0,
+    borderTopWidth: 14,
+    borderBottomWidth: 14,
+    borderLeftWidth: 22,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderLeftColor: fixedColors.white,
+    marginLeft: 6,
+  },
+  stopSquare: {
+    width: 24,
+    height: 24,
+    borderRadius: 5,
+    backgroundColor: fixedColors.white,
   },
   discardButton: {
     alignSelf: 'center',

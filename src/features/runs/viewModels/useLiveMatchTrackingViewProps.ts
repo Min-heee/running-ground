@@ -20,6 +20,7 @@ export function useLiveMatchTrackingViewProps({
   elevationGainM,
   useLiveTrackingMetrics,
   matchMode,
+  goalKmOverride,
   liveMatchTitle,
   liveMatchText,
   effectiveDuelOpponent,
@@ -56,6 +57,7 @@ export function useLiveMatchTrackingViewProps({
 
   const input = useMemo<LiveMatchTrackingInputProps>(() => ({
     matchMode,
+    goalKmOverride,
     liveMatchTitle,
     liveMatchText,
     effectiveDuelOpponent,
@@ -95,6 +97,7 @@ export function useLiveMatchTrackingViewProps({
     effectiveGroupParticipantCount,
     elapsedSeconds,
     elevationGainM,
+    goalKmOverride,
     groupAheadParticipant,
     groupBehindParticipant,
     groupLiveStandings,

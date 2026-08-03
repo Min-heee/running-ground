@@ -1,19 +1,19 @@
-// 러닝 중 지표 (오너 2026-08-02, 시안 A+D 확정: 히어로 거리 + 페이스 링).
+// 러닝 중 지표 (오너 2026-08-03 재해석: 링 둘레 = 목표 거리).
 //
-// 어두운 카드 6장 그리드가 난잡하다는 피드백으로 걷어냈다. 구성:
-//   시간(위) → 페이스 링(20칸 틱, 평균 대비 현재 페이스만큼 채움) 안에 거리 히어로 +
-//   현재 페이스 → 상태 문구 → 맨바닥 3열(평균 페이스/케이던스/고도).
+// 구성: 시간(크게) → 목표 링(20칸 틱, 뛴 거리 ÷ 목표만큼 12시부터 시계방향으로 채움)
+// 안에 거리 히어로 + 현재 페이스 → 목표 상태 문구 → 맨바닥 3열(평균 페이스/케이던스/
+// 고도, 크게). 목표는 혼자 탭 RUN 블록에서 고른 값(soloRunGoalStore).
 // SVG 없이 뷰 20개를 원 둘레에 돌려 배치한다 — 1초 갱신에도 가볍다.
-// 솔로·매치 트래킹이 같은 컴포넌트를 쓰므로 양쪽 다 이 모습이 된다.
 
 import { memo, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import {
-  PACE_RING_TICK_COUNT,
-  buildPaceRingModel,
+  GOAL_RING_TICK_COUNT,
+  buildGoalRingModel,
   splitDistanceLabel,
-} from '@/features/runs/components/paceRingModel';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+} from '@/features/runs/components/runGoalRing';
+import { useSoloRunGoalKm } from '@/features/runs/soloGoal/soloRunGoalStore';
+import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
 
 const RING_SIZE = 220;
 const TICK_WIDTH = 4;
@@ -28,14 +28,17 @@ type RunningMetricGridProps = {
   currentPaceLabel: string;
   cadenceLabel: string;
   elevationLabel: string;
+  // 매치 러닝은 매치 목표 거리를 내려보낸다 — 솔로 목표 스토어가 매치 화면으로 새서
+  // 3km 듀얼에 '목표 5km'가 뜨던 충돌 방지 (적대 리뷰 발견).
+  goalKmOverride?: number;
 };
 
 const TICK_ANGLES = Array.from(
-  { length: PACE_RING_TICK_COUNT },
-  (unused, index) => (index / PACE_RING_TICK_COUNT) * 360,
+  { length: GOAL_RING_TICK_COUNT },
+  (unused, index) => (index / GOAL_RING_TICK_COUNT) * 360,
 );
 
-const PaceRingTicks = memo(function PaceRingTicks({ filledTicks }: { filledTicks: number }) {
+const GoalRingTicks = memo(function GoalRingTicks({ filledTicks }: { filledTicks: number }) {
   return (
     <>
       {TICK_ANGLES.map((angle, index) => (
@@ -55,7 +58,7 @@ const PaceRingTicks = memo(function PaceRingTicks({ filledTicks }: { filledTicks
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.metric}>
-      <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+      <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
         {value}
       </Text>
       <Text style={styles.metricLabel}>{label}</Text>
@@ -70,12 +73,15 @@ export function RunningMetricGrid({
   currentPaceLabel,
   cadenceLabel,
   elevationLabel,
+  goalKmOverride,
 }: RunningMetricGridProps) {
-  const ring = useMemo(
-    () => buildPaceRingModel(averagePaceLabel, currentPaceLabel),
-    [averagePaceLabel, currentPaceLabel],
-  );
+  const soloGoalKm = useSoloRunGoalKm();
+  const goalKm = typeof goalKmOverride === 'number' && goalKmOverride > 0 ? goalKmOverride : soloGoalKm;
   const distance = useMemo(() => splitDistanceLabel(distanceLabel), [distanceLabel]);
+  const ring = useMemo(
+    () => buildGoalRingModel(Number(distance.number), goalKm),
+    [distance.number, goalKm],
+  );
 
   return (
     <View style={styles.container}>
@@ -85,7 +91,7 @@ export function RunningMetricGrid({
       </Text>
 
       <View style={styles.ring}>
-        <PaceRingTicks filledTicks={ring.filledTicks} />
+        <GoalRingTicks filledTicks={ring.filledTicks} />
         <Text style={styles.heroDistance} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
           {distance.number}
         </Text>
@@ -112,12 +118,12 @@ const styles = StyleSheet.create({
   },
   elapsed: {
     color: colors.textPrimary,
-    fontSize: fontSizes.large,
-    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.pageTitle,
+    fontWeight: fontWeights.black,
   },
   elapsedLabel: {
     color: colors.textSecondary,
-    fontSize: fontSizes.md,
+    fontSize: fontSizes.rank,
     fontWeight: fontWeights.bold,
   },
   ring: {
@@ -158,7 +164,7 @@ const styles = StyleSheet.create({
   },
   statusLine: {
     color: colors.textSecondary,
-    fontSize: fontSizes.sm,
+    fontSize: fontSizes.base,
     fontWeight: fontWeights.bold,
   },
   metricRow: {
@@ -173,12 +179,12 @@ const styles = StyleSheet.create({
   },
   metricValue: {
     color: colors.textPrimary,
-    fontSize: fontSizes.metric,
+    fontSize: fontSizes.summaryValue,
     fontWeight: fontWeights.extraBold,
   },
   metricLabel: {
     color: colors.textSecondary,
-    fontSize: fontSizes.sm,
+    fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
   },
 });
