@@ -89,13 +89,12 @@ const LiveMatchSoloActions = memo(function LiveMatchSoloActions({
   onSaveTracking: () => void;
   onPauseTracking: () => void;
 }) {
+  // 시안 A+D (오너 2026-08-02): 뛰는 중 가장 흔한 행동인 일시정지가 솔리드, 종료는
+  // 보더 — 실수로 종료를 눌러 러닝이 끊기는 사고를 줄인다.
   return (
     <View style={styles.actionColumn}>
-      <PrimaryButton
-        label="러닝 종료하고 저장"
-        onPress={onSaveTracking}
-      />
-      <SecondaryButton label="일시정지" onPress={onPauseTracking} />
+      <PrimaryButton label="일시정지" onPress={onPauseTracking} />
+      <SecondaryButton label="러닝 종료하고 저장" onPress={onSaveTracking} />
     </View>
   );
 });
