@@ -8,20 +8,23 @@ const LEGACY_TIER_ALIASES: Record<string, (typeof RANK_TIERS)[number]> = {
   조거: '러너',
 };
 
+// ⚠️ 이 모듈은 _layout의 백그라운드 트래킹 체인(liveActivityController → liveCardTierColor)을
+// 타고 테마 하이드레이션 **전에** 평가된다. 값으로 캡처하면 라이트 팔레트가 굳어 다크에서
+// 파스텔 배경+밝은 글씨(숫자 소실)가 되므로, getter로 접근 시점의 colors를 읽는다.
 export const RANK_TIER_COLOR: Record<string, string> = {
-  입문: colors.rankIntroAccent,
-  러너: colors.rankRunnerAccent,
-  페이서: colors.rankPacerAccent,
-  레이서: colors.rankRacerAccent,
-  엘리트: colors.rankEliteAccent,
+  get 입문() { return colors.rankIntroAccent; },
+  get 러너() { return colors.rankRunnerAccent; },
+  get 페이서() { return colors.rankPacerAccent; },
+  get 레이서() { return colors.rankRacerAccent; },
+  get 엘리트() { return colors.rankEliteAccent; },
 };
 
 export const RANK_TIER_SOFT_COLOR: Record<string, string> = {
-  입문: colors.rankIntroSoft,
-  러너: colors.rankRunnerSoft,
-  페이서: colors.rankPacerSoft,
-  레이서: colors.rankRacerSoft,
-  엘리트: colors.rankEliteSoft,
+  get 입문() { return colors.rankIntroSoft; },
+  get 러너() { return colors.rankRunnerSoft; },
+  get 페이서() { return colors.rankPacerSoft; },
+  get 레이서() { return colors.rankRacerSoft; },
+  get 엘리트() { return colors.rankEliteSoft; },
 };
 
 function isRankTier(value: unknown): value is (typeof RANK_TIERS)[number] {

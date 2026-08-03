@@ -38,14 +38,26 @@ export function RouteErrorBoundary({ error, retry }: ErrorBoundaryProps) {
       <Screen>
         <View style={styles.container}>
           <View style={styles.copy}>
-            <Text style={styles.title}>앗, 화면을 표시하는 중 문제가 생겼어요</Text>
-            <Text style={styles.subtitle}>
+            {/* 테마 색은 렌더 시점에 읽는다 (Screen/Button과 같은 이유): 이 모듈은
+                _layout의 재수출로 테마 하이드레이션 전에 평가되어, StyleSheet에 넣으면
+                라이트 값이 굳어 다크에서 어두운 글씨×어두운 배경이 된다. */}
+            <Text style={[styles.title, { color: colors.textPrimary }]}>
+              앗, 화면을 표시하는 중 문제가 생겼어요
+            </Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
               이 정보를 캡쳐해서 개발자에게 보내주면 빠르게 고칠 수 있어요.
             </Text>
           </View>
 
-          <View style={styles.diagnosticBox}>
-            <Text selectable style={styles.diagnosticText}>{diagnosticText}</Text>
+          <View
+            style={[
+              styles.diagnosticBox,
+              { borderColor: colors.border, backgroundColor: colors.surfaceMuted },
+            ]}
+          >
+            <Text selectable style={[styles.diagnosticText, { color: colors.textMuted }]}>
+              {diagnosticText}
+            </Text>
           </View>
 
           <View style={styles.actions}>
@@ -72,26 +84,21 @@ const styles = StyleSheet.create({
     gap: spacing.s10,
   },
   title: {
-    color: colors.textPrimary,
     fontSize: fontSizes.pageTitle,
     fontWeight: fontWeights.black,
   },
   subtitle: {
-    color: colors.textSecondary,
     fontSize: fontSizes.base,
     fontWeight: fontWeights.semibold,
     lineHeight: fontSizes.base + spacing.s10,
   },
   diagnosticBox: {
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radii.lg,
-    backgroundColor: colors.surfaceMuted,
     padding: spacing.s14,
     gap: spacing.s10,
   },
   diagnosticText: {
-    color: colors.textMuted,
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.semibold,
     lineHeight: fontSizes.xs + spacing.xxl,
