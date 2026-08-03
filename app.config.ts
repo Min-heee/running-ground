@@ -227,6 +227,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       package: androidPackage,
       versionCode: readPositiveInteger(process.env.ANDROID_VERSION_CODE, baseConfig.android?.versionCode ?? 1),
       edgeToEdgeEnabled: true,
+      // FCM (오너 2026-08-03): Firebase 콘솔에서 받은 google-services.json이 리포 루트에
+      // 있으면 싣는다 — 파일이 도착하기 전의 빌드도 깨지지 않게 조건부. 안드로이드
+      // 원격 푸시(공지·알림별 푸시·배지)는 이 파일 + EAS의 FCM V1 서비스 계정 키가
+      // 모두 있어야 산다.
+      ...(existsSync(resolve(__dirname, 'google-services.json'))
+        ? { googleServicesFile: './google-services.json' }
+        : {}),
     },
     extra: {
       ...(baseConfig.extra ?? {}),
