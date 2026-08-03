@@ -67,7 +67,7 @@ export function HomeRankCard({ rankState, duelRecord, recordHref }: HomeRankCard
   const normalizedRankState = useMemo(() => normalizeRankStateForDisplay(rankState), [rankState]);
   const rankLabel = useMemo(() => formatRankLabel(normalizedRankState), [normalizedRankState]);
   const accentColor = RANK_TIER_COLOR[normalizedRankState.tier] ?? colors.brand;
-  const softColor = RANK_TIER_SOFT_COLOR[normalizedRankState.tier] ?? fixedColors.surfaceSubtle;
+  const softColor = RANK_TIER_SOFT_COLOR[normalizedRankState.tier] ?? colors.surfaceSubtle;
   const tierSymbol = RANK_TIER_SYMBOL[normalizedRankState.tier];
   const progressPercent = Math.max(0, Math.min(100, (normalizedRankState.lp / LP_PER_TIER) * 100));
   const rankCardStyle = useMemo<StyleProp<ViewStyle>>(() => [
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
     padding: spacing.s12,
     borderRadius: radii.lg,
-    backgroundColor: fixedColors.surfaceSubtleAlt,
+    backgroundColor: colors.surfaceSubtleAlt,
   },
   guideHeadline: {
     color: colors.textPrimary,
@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
   },
   guideRowCurrent: {
-    backgroundColor: fixedColors.brandWash,
+    backgroundColor: colors.brandWash,
   },
   guideSymbol: {
     width: 26,
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   sectionEyebrow: {
-    color: fixedColors.textSecondary,
+    color: colors.textSecondary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
   },
@@ -261,18 +261,18 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   lpText: {
-    color: fixedColors.textPrimary,
+    color: colors.textPrimary,
     fontSize: fontSizes.heroLarge,
     fontWeight: fontWeights.black,
     paddingBottom: spacing.sm,
   },
   lpUnit: {
-    color: fixedColors.textSecondary,
+    color: colors.textSecondary,
     fontSize: fontSizes.rank,
     fontWeight: fontWeights.bold,
   },
   lpProgressTrack: {
-    backgroundColor: fixedColors.borderMuted,
+    backgroundColor: colors.borderMuted,
     borderRadius: radii.pill,
     height: spacing.s10,
     overflow: 'hidden',
@@ -282,17 +282,17 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   duelRecordLine: {
-    color: fixedColors.textSecondary,
+    color: colors.textSecondary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
   },
   duelRecordRate: {
-    color: fixedColors.textPrimary,
+    color: colors.textPrimary,
     fontWeight: fontWeights.extraBold,
   },
   recordFooter: {
     alignItems: 'center',
-    borderTopColor: fixedColors.borderSoft,
+    borderTopColor: colors.borderSoft,
     borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     gap: spacing.s12,
@@ -305,12 +305,12 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   recordTitle: {
-    color: fixedColors.textPrimary,
+    color: colors.textPrimary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
   },
   recordChevron: {
-    color: fixedColors.textTertiary,
+    color: colors.textTertiary,
     fontSize: fontSizes.metric,
     fontWeight: fontWeights.extraBold,
   },

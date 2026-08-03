@@ -84,7 +84,6 @@ test('deliberately constant tokens are identical across palettes', () => {
     'podiumGoldSoft',
     'podiumSilverSoft',
     'podiumBronzeSoft',
-    'rankEliteSoft',
     'raceBoardRowBg',
   ] as const;
 
@@ -107,6 +106,9 @@ test('themed surface/text tokens actually differ between palettes', () => {
     'borderMuted',
     'brandWash',
     'brandDeep',
+    // 티어 카드 바탕 — 다크에서 티어색 딥 네이비 (오너 2026-08-03)
+    'rankEliteSoft',
+    'rankIntroSoft',
     'successText',
     'danger',
     'inkPill',

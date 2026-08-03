@@ -286,6 +286,13 @@ const DARK_COLORS: ThemeColors = {
   // Semantic: blue — 오로라의 시안 기운.
   blueAccent: '#6BA6FF',
   blueStrong: '#96B7FF',
+  // 내 랭크 카드 티어 바탕 (오너 2026-08-03): 라이트 파스텔이 다크에서 혼자 쨍해서
+  // 티어 색조를 머금은 딥 네이비로 — 메달 액센트/흰 배지(티어 아이덴티티)는 불변.
+  rankIntroSoft: '#14261C',
+  rankRunnerSoft: '#282113',
+  rankPacerSoft: '#251B31',
+  rankRacerSoft: '#2A1614',
+  rankEliteSoft: '#241F18',
   blueWashSoft: 'rgba(78,201,245,0.12)',
   bluePale: 'rgba(78,201,245,0.16)',
 };
