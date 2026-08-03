@@ -6,7 +6,7 @@
 // 치수를 고칠 일이 있으면 여기만 고치면 양쪽이 함께 움직인다.
 
 import { StyleSheet } from 'react-native';
-import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
+import { colors, fixedColors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
 
 export const matchPickerCardStyles = StyleSheet.create({
   row: {
@@ -26,20 +26,20 @@ export const matchPickerCardStyles = StyleSheet.create({
     justifyContent: 'center',
   },
   cardIdle: {
-    borderColor: 'rgba(142, 123, 255, 0.30)',
-    backgroundColor: 'rgba(109, 94, 247, 0.07)',
+    borderColor: colors.cardEdge,
+    backgroundColor: colors.surface,
   },
   cardSelected: {
-    borderColor: 'rgba(142, 123, 255, 0.60)',
-    backgroundColor: 'rgba(109, 94, 247, 0.16)',
+    borderColor: fixedColors.brand,
+    backgroundColor: colors.surface,
   },
   cardTitle: {
-    color: colors.brandDeep,
+    color: colors.textPrimary,
     fontSize: fontSizes.button,
     fontWeight: fontWeights.extraBold,
   },
   cardSummary: {
-    color: colors.brandMuted,
+    color: colors.textSecondary,
     fontSize: fontSizes.sm,
   },
   cardSummarySelected: {

@@ -4,7 +4,7 @@ import { ChaseSetupCard } from '@/features/runs/chase/ChaseSetupCard';
 import { MatchOptionSelector } from '@/features/runs/components/MatchOptionSelector';
 import { PartyRunHomePanel } from '@/features/runs/components/PartyRunHomePanel';
 import { PartyRunRoomModeChips } from '@/features/runs/components/PartyRunRoomModeChips';
-import { colors, spacing, radii } from '@/theme/tokens';
+import { spacing } from '@/theme/tokens';
 import {
   DuelMatchSetupCard,
   GroupMatchSetupCard,

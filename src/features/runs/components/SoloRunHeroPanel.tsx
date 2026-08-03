@@ -153,9 +153,6 @@ const styles = StyleSheet.create({
   panel: {
     gap: spacing.s10,
   },
-  // 틴트가 brandWash 토큰이 아닌 고정 rgba인 이유: 라이트 brandWash(#EEF2FF)는 앱 배경
-  // (#EFF0FA)과 거의 같은 색이라 버튼이 사라졌다. 반투명 브랜드는 밝은 배경에선 연보라,
-  // 다크 네이비 위에선 보라 유리로 앉아 양쪽 모드에서 성립한다(2026-07-27 승인된 그 톤).
   // 세로 히어로 — 시안 D의 두툼한 블록. 블록(배경)과 Pressable(RUN 영역)을 분리해
   // 목표 칩 줄이 시작 히트영역 밖에 있게 한다.
   startBlock: {
@@ -232,13 +229,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.s18,
     paddingHorizontal: spacing.sm,
     borderRadius: radii.cardLarge,
-    backgroundColor: 'rgba(109, 94, 247, 0.13)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(142, 123, 255, 0.5)',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.cardEdge,
     gap: spacing.xxs,
   },
   subTilePressed: {
-    backgroundColor: 'rgba(109, 94, 247, 0.26)',
+    backgroundColor: 'rgba(109, 94, 247, 0.12)',
   },
   subTileOverline: {
     color: colors.brandDeep,
@@ -247,7 +244,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   subTileLabel: {
-    color: colors.brandMuted,
+    color: colors.textSecondary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
     textAlign: 'center',

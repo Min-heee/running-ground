@@ -152,8 +152,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.s14,
     borderRadius: radii.xl,
     borderWidth: 1,
-    borderColor: 'rgba(142, 123, 255, 0.45)',
-    backgroundColor: 'rgba(109, 94, 247, 0.16)',
+    borderColor: colors.cardEdge,
+    backgroundColor: colors.surface,
   },
   joinBlockTitle: {
     color: colors.brandDeep,
