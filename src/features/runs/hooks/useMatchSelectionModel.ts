@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
+import { CHASE_MODE_ENABLED } from '@/config/featureFlags';
 import type { MatchOptionItem } from '@/features/runs/components/MatchOptionSelector';
 import type { RoomStartMode } from '@/features/runs/hooks/usePartyRunRoom';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
@@ -77,7 +78,7 @@ export function useMatchSelectionModel({
 }: UseMatchSelectionModelInput) {
   const lastDuelOpponentRenderedKeyRef = useRef<string | null>(null);
   const matchOptions = useMemo<MatchSelectionOption[]>(
-    () => [
+    () => ([
       {
         mode: 'solo',
         title: '혼자 러닝',
@@ -128,7 +129,9 @@ export function useMatchSelectionModel({
         liveTitle: '친구 방 대기 중',
         liveText: '친구를 모아 직접 대결을 열고 시작할 수 있어요.',
       },
-    ],
+      // 경찰과 도둑은 플래그 뒤로 (오너 2026-08-03) — 카탈로그에서 빠지면 혼자 묶음이
+      // solo 단일이 되어 카드 없이 히어로 패널만 남는다. 재활성은 featureFlags에서.
+    ] satisfies MatchSelectionOption[]).filter((option) => option.mode !== 'chase' || CHASE_MODE_ENABLED),
     [duelDistanceKm, groupDistanceKm, roomMatchMode, roomStartMode, visibleMatchRoom],
   );
 
