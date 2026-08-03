@@ -5,8 +5,24 @@
 
 import { useSyncExternalStore } from 'react';
 
-export const SOLO_RUN_GOAL_OPTIONS_KM = [3, 5, 10] as const;
 export const DEFAULT_SOLO_RUN_GOAL_KM = 5;
+
+// 직접 입력 정규화 (오너 2026-08-03: 칩 → 직접 입력). 쉼표 소수점 허용, 0.5~99.9km로
+// 클램프, 소수 한 자리 반올림. 못 읽는 입력은 null — 호출자가 이전 값을 유지한다.
+export function parseGoalInputKm(raw: string): number | null {
+  const parsed = Number(String(raw ?? '').trim().replace(',', '.'));
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return Math.min(99.9, Math.max(0.5, Math.round(parsed * 10) / 10));
+}
+
+// 입력창 표시용 — 정수는 '5', 소수는 '5.5'.
+export function formatGoalInputKm(valueKm: number): string {
+  return Number.isInteger(valueKm) ? String(valueKm) : valueKm.toFixed(1);
+}
 
 let goalKm: number = DEFAULT_SOLO_RUN_GOAL_KM;
 const listeners = new Set<() => void>();

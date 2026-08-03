@@ -4,12 +4,13 @@
 // 기능은 RUN과 같은 센터 타이포 결의 미니 히어로 타일(PACE / VS ME 오버라인 + 한글
 // 제목)로 반반. 장식 아이콘 없이 타이포만으로 무게를 준다.
 
-import { memo, useCallback } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { memo, useCallback, useState } from 'react';
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
-  SOLO_RUN_GOAL_OPTIONS_KM,
+  formatGoalInputKm,
+  getSoloRunGoalKm,
+  parseGoalInputKm,
   setSoloRunGoalKm,
-  useSoloRunGoalKm,
 } from '@/features/runs/soloGoal/soloRunGoalStore';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
 import { colors, fixedColors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
@@ -56,7 +57,7 @@ export const SoloRunHeroPanel = memo(function SoloRunHeroPanel({
           <Text style={styles.startOverline}>RUN</Text>
           <Text style={styles.startText}>{startLabel}</Text>
         </Pressable>
-        <GoalChips />
+        <GoalInput />
       </View>
 
       <View style={styles.subRow}>
@@ -67,31 +68,44 @@ export const SoloRunHeroPanel = memo(function SoloRunHeroPanel({
   );
 });
 
-const GoalChips = memo(function GoalChips() {
-  const goalKm = useSoloRunGoalKm();
+// 목표 직접 입력 (오너 2026-08-03: 칩 → 입력창). 타이핑 중에도 유효하면 바로 스토어에
+// 반영 — 키보드를 안 닫고 RUN을 눌러도 목표가 이미 저장돼 있게. 못 읽는 입력은 blur
+// 때 마지막 유효값으로 되돌린다.
+const GoalInput = memo(function GoalInput() {
+  const [goalText, setGoalText] = useState(() => formatGoalInputKm(getSoloRunGoalKm()));
+
+  const handleChangeText = useCallback((nextText: string) => {
+    setGoalText(nextText);
+    const parsedKm = parseGoalInputKm(nextText);
+
+    if (parsedKm !== null) {
+      setSoloRunGoalKm(parsedKm);
+    }
+  }, []);
+
+  const handleCommit = useCallback(() => {
+    setGoalText(formatGoalInputKm(getSoloRunGoalKm()));
+    Keyboard.dismiss();
+  }, []);
 
   return (
     <View style={styles.goalRow}>
       <Text style={styles.goalLabel}>목표</Text>
-      {SOLO_RUN_GOAL_OPTIONS_KM.map((optionKm) => {
-        const active = goalKm === optionKm;
-
-        return (
-          <Pressable
-            key={optionKm}
-            style={[styles.goalChip, active ? styles.goalChipActive : null]}
-            onPress={() => setSoloRunGoalKm(optionKm)}
-            accessibilityRole="button"
-            accessibilityLabel={`목표 ${optionKm}km`}
-            accessibilityState={{ selected: active }}
-            hitSlop={8}
-          >
-            <Text style={[styles.goalChipText, active ? styles.goalChipTextActive : null]}>
-              {optionKm}km
-            </Text>
-          </Pressable>
-        );
-      })}
+      <TextInput
+        style={styles.goalInput}
+        value={goalText}
+        onChangeText={handleChangeText}
+        onBlur={handleCommit}
+        onSubmitEditing={handleCommit}
+        keyboardType="decimal-pad"
+        returnKeyType="done"
+        maxLength={4}
+        selectTextOnFocus
+        placeholder="5"
+        placeholderTextColor="rgba(255, 255, 255, 0.5)"
+        accessibilityLabel="목표 거리 입력 (킬로미터)"
+      />
+      <Text style={styles.goalUnit}>km</Text>
     </View>
   );
 });
@@ -173,24 +187,22 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.bold,
     marginRight: spacing.xxs,
   },
-  goalChip: {
+  goalInput: {
+    minWidth: 76,
+    textAlign: 'center',
+    color: fixedColors.white,
+    fontSize: fontSizes.rank,
+    fontWeight: fontWeights.extraBold,
     paddingHorizontal: spacing.s14,
     paddingVertical: spacing.s10,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.45)',
   },
-  goalChipActive: {
-    backgroundColor: fixedColors.white,
-    borderColor: fixedColors.white,
-  },
-  goalChipText: {
+  goalUnit: {
     color: 'rgba(255, 255, 255, 0.85)',
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
-  },
-  goalChipTextActive: {
-    color: fixedColors.brand,
   },
   subRow: {
     flexDirection: 'row',
