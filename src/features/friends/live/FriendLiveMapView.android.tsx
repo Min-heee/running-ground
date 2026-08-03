@@ -1,8 +1,10 @@
-// Android용 — Google Maps API 키가 아직 없어(백로그) 지도 대신 위치 라벨 카드로 대체한다.
-// 키가 생기면 .native.tsx를 공용으로 승격하고 이 파일을 지운다.
+// Android용 — Google Maps 키가 박힌 바이너리(versionCode 41+)에서는 iOS와 같은 실제
+// 지도를 그리고, 키 없는 옛 빌드(38~40)에서는 위치 라벨 카드로 폴백한다.
 
 import { StyleSheet, Text, View } from 'react-native';
+import { isAndroidMapsReady } from '@/integrations/androidMapsAvailability';
 import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
+import { FriendLiveMapView as NativeFriendLiveMapView } from './FriendLiveMapView.native';
 
 type FriendLiveMapViewProps = {
   latitude: number;
@@ -11,12 +13,16 @@ type FriendLiveMapViewProps = {
   ageSeconds: number;
 };
 
-export function FriendLiveMapView({ friendName, ageSeconds }: FriendLiveMapViewProps) {
+export function FriendLiveMapView(props: FriendLiveMapViewProps) {
+  if (isAndroidMapsReady()) {
+    return <NativeFriendLiveMapView {...props} />;
+  }
+
   return (
     <View style={styles.placeholder}>
-      <View style={[styles.dot, ageSeconds > 60 ? styles.dotStale : undefined]} />
-      <Text style={styles.title}>{friendName}님이 달리는 중</Text>
-      <Text style={styles.caption}>안드로이드 지도는 준비 중이에요. 아래 현황으로 응원해주세요.</Text>
+      <View style={[styles.dot, props.ageSeconds > 60 ? styles.dotStale : undefined]} />
+      <Text style={styles.title}>{props.friendName}님이 달리는 중</Text>
+      <Text style={styles.caption}>지도는 앱 업데이트 후 볼 수 있어요. 아래 현황으로 응원해주세요.</Text>
     </View>
   );
 }

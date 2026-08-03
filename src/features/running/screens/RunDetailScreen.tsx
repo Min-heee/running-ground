@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { AuthHeader } from '@/components/ui/AuthHeader';
@@ -146,7 +146,9 @@ export default function RunDetailScreen() {
             </View>
           ) : null}
 
-          {mapRegion && Platform.OS !== 'android' ? (
+          {/* Android는 RunRouteMap.android가 바이너리 버전으로 가른다 — Maps 키가 박힌
+              versionCode 41+면 실제 지도, 옛 빌드면 상태 카드 (2026-08-03 키 도입). */}
+          {mapRegion ? (
             <View style={styles.mapWrap}>
               <RunRouteMap
                 actualCoordinates={routeCoordinates}

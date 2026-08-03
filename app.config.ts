@@ -234,6 +234,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ...(existsSync(resolve(__dirname, 'google-services.json'))
         ? { googleServicesFile: './google-services.json' }
         : {}),
+      // Google Maps (오너 2026-08-03, versionCode 41+): 안드로이드 지도 키. Maps SDK for
+      // Android 전용 + 패키지/SHA-1 제한이 걸린 키라 리포에 있어도 악용 불가(APK에
+      // 어차피 내장되는 값이고, 진짜 보호는 구글 콘솔의 키 제한이다).
+      config: {
+        ...(baseConfig.android?.config ?? {}),
+        googleMaps: {
+          apiKey: '<GOOGLE_MAPS_ANDROID_API_KEY>',
+        },
+      },
     },
     extra: {
       ...(baseConfig.extra ?? {}),
