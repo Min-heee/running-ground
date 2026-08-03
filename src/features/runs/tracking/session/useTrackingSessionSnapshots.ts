@@ -28,6 +28,7 @@ import { LIVE_MATCH_UI_DISPLAY_INTERVAL_MS } from '@/features/runs/sync/liveMatc
 import { rgDiagLog } from '@/utils/rgPerfTrace';
 import {
   resolveActiveMatchSlotStartAt,
+  resolveDisplayElapsedTick,
   resolveSlotElapsedTickerDelayMs,
   shouldRunSlotElapsedTicker,
 } from './trackingSessionMatchSlot';
@@ -416,6 +417,29 @@ export function useTrackingSessionSnapshots({
       currentPace: normalizeMatchProgressPace(displayedSnapshot.currentPace, displayedAveragePace),
     };
   }, [elapsedSecondsRef, getDisplayedTrackingSnapshot]);
+
+  // 표시 시간 티커 (오너 2026-08-03: 솔로 러닝 시간이 '멈췄다 점프'). 솔로는 elapsed가
+  // GPS 스냅샷 이벤트에만 실려서, 초반 정확도 게이트로 샘플이 뜸하면 시간이 멈췄다가
+  // 다음 프레임에 한꺼번에 따라잡았다. 1초마다 스냅샷의 표시 elapsed를 다시 읽어 앞으로만
+  // 민다 — 매치는 슬롯 티커가 시간을 소유하므로 그때는 건드리지 않고, 일시정지·미시작
+  // 구간은 스냅샷 elapsed가 멈춰 있어 자연히 no-op이다.
+  useEffect(() => {
+    const displayTicker = setInterval(() => {
+      const snapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
+      const nextElapsedSeconds = resolveDisplayElapsedTick({
+        slotTickerActive: slotElapsedTickerActiveRef.current,
+        snapshotStatus: snapshot.status,
+        nextElapsedSeconds: getDisplayedTrackingSnapshot(snapshot).elapsedSeconds,
+        currentElapsedSeconds: elapsedSecondsRef.current,
+      });
+
+      if (nextElapsedSeconds !== null) {
+        syncElapsedSeconds(nextElapsedSeconds, { source: 'display-ticker' });
+      }
+    }, 1000);
+
+    return () => clearInterval(displayTicker);
+  }, [elapsedSecondsRef, getDisplayedTrackingSnapshot, syncElapsedSeconds]);
 
   const syncFromBackgroundTracking = useCallback((
     snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false }),

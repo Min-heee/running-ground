@@ -7,6 +7,7 @@ import type {
 } from '@/features/runs/lifecycle/matchLifecycleController';
 import {
   resolveActiveMatchSlotStartAt,
+  resolveDisplayElapsedTick,
   resolveSlotElapsedTickerDelayMs,
   shouldRunSlotElapsedTicker,
 } from './trackingSessionMatchSlot';
@@ -119,4 +120,31 @@ test('slot elapsed ticker delay aligns to the next slot-relative second boundary
     slotStartMs,
     syncedNowMs: slotStartMs + 999,
   }), 50);
+});
+
+test('표시 시간 티커: 측정 중이고 값이 전진할 때만 커밋한다', () => {
+  assert.equal(resolveDisplayElapsedTick({
+    slotTickerActive: false, snapshotStatus: 'running', nextElapsedSeconds: 5, currentElapsedSeconds: 2,
+  }), 5);
+  assert.equal(resolveDisplayElapsedTick({
+    slotTickerActive: false, snapshotStatus: 'running', nextElapsedSeconds: 2, currentElapsedSeconds: 2,
+  }), null);
+  assert.equal(resolveDisplayElapsedTick({
+    slotTickerActive: false, snapshotStatus: 'running', nextElapsedSeconds: 1, currentElapsedSeconds: 2,
+  }), null);
+});
+
+test('표시 시간 티커: 슬롯 티커 소유 중이거나 측정 중이 아니면 건드리지 않는다', () => {
+  assert.equal(resolveDisplayElapsedTick({
+    slotTickerActive: true, snapshotStatus: 'running', nextElapsedSeconds: 5, currentElapsedSeconds: 2,
+  }), null);
+  assert.equal(resolveDisplayElapsedTick({
+    slotTickerActive: false, snapshotStatus: 'paused', nextElapsedSeconds: 5, currentElapsedSeconds: 2,
+  }), null);
+  assert.equal(resolveDisplayElapsedTick({
+    slotTickerActive: false, snapshotStatus: 'idle', nextElapsedSeconds: 5, currentElapsedSeconds: 0,
+  }), null);
+  assert.equal(resolveDisplayElapsedTick({
+    slotTickerActive: false, snapshotStatus: 'running', nextElapsedSeconds: Number.NaN, currentElapsedSeconds: 2,
+  }), null);
 });
