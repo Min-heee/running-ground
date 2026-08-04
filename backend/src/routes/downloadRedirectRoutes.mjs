@@ -3,8 +3,10 @@
 // 태그 공유 메시지의 apps.apple.com 링크는 카톡 등 메신저의 인앱 브라우저에서
 // 웹 스토어 페이지를 먼저 띄워 "바로 안 열리는" 경험이 된다. 우리 도메인을
 // 링크로 쓰고 iOS UA에는 itms-apps:// 스킴으로 302를 쏘면 인앱 브라우저도
-// App Store 앱으로 즉시 넘어간다 (국내 서비스 공통 패턴). 그 외 UA(데스크톱,
-// 안드로이드)는 https 스토어 페이지로. 안드로이드 정식 출시 후 Play 분기 추가.
+// App Store 앱으로 즉시 넘어간다 (국내 서비스 공통 패턴). Android UA는 Play
+// 스토어로(2026-08-04 인스타 프로필 링크용 추가 — v39 승인 전까지는 Play가
+// "찾을 수 없음"을 보여주지만 승인 순간부터 자동으로 정상). 그 외(데스크톱)는
+// App Store 웹 페이지로.
 //
 // ?tag=CODE 가 붙으면 (태그 공유 링크): 302 대신 스마트 랜딩 HTML을 서빙한다 —
 // 설치된 폰에서는 runningground:// 딥링크로 앱의 친구 추가 화면(태그 자동 입력 +
@@ -12,6 +14,7 @@
 // 바이너리(iOS 빌드 52 / Android vc39)에 등록돼 있어 재빌드 없이 동작한다.
 const APP_STORE_WEB_URL = 'https://apps.apple.com/kr/app/id6762328694';
 const APP_STORE_SCHEME_URL = 'itms-apps://apps.apple.com/kr/app/id6762328694';
+const PLAY_STORE_WEB_URL = 'https://play.google.com/store/apps/details?id=com.minheee.runnigapp';
 
 // publicTag 코드 형식(#뒤 3~8자 영숫자)만 통과 — HTML/URL에 박아 넣으므로 화이트리스트로 XSS 차단.
 function sanitizeTagCode(rawTag) {
@@ -67,12 +70,18 @@ export async function routeDownloadRedirectRequest({ method, pathname, request, 
 
   const userAgent = String(request.headers['user-agent'] ?? '');
   const isIos = /iPhone|iPad|iPod/i.test(userAgent);
+  const isAndroid = !isIos && /Android/i.test(userAgent);
+  const storeUrl = isIos
+    ? APP_STORE_SCHEME_URL
+    : isAndroid
+      ? PLAY_STORE_WEB_URL
+      : APP_STORE_WEB_URL;
   const tagCode = sanitizeTagCode(url?.searchParams?.get('tag'));
 
   if (tagCode && method === 'GET') {
     const html = buildFriendLandingHtml({
       tagCode,
-      storeUrl: isIos ? APP_STORE_SCHEME_URL : APP_STORE_WEB_URL,
+      storeUrl,
     });
     response.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
@@ -83,7 +92,7 @@ export async function routeDownloadRedirectRequest({ method, pathname, request, 
   }
 
   response.writeHead(302, {
-    Location: isIos ? APP_STORE_SCHEME_URL : APP_STORE_WEB_URL,
+    Location: storeUrl,
     'Cache-Control': 'no-store',
   });
   response.end();

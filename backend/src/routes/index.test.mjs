@@ -473,7 +473,12 @@ await test('download redirect sends iOS to the App Store scheme and others to th
     await ask('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15'),
     'itms-apps://apps.apple.com/kr/app/id6762328694',
   );
-  // 그 외(데스크톱 등) → https 스토어 페이지.
+  // Android → Play 스토어 페이지 (인스타 프로필 링크 등 외부 공유 대응).
+  assert.equal(
+    await ask('Mozilla/5.0 (Linux; Android 14; SM-S921N) AppleWebKit/537.36 Chrome/124.0 Mobile'),
+    'https://play.google.com/store/apps/details?id=com.minheee.runnigapp',
+  );
+  // 그 외(데스크톱 등) → App Store 웹 페이지.
   assert.equal(
     await ask('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'),
     'https://apps.apple.com/kr/app/id6762328694',
