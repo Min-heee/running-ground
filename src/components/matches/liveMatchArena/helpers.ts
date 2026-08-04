@@ -7,20 +7,13 @@ export const ROAD_HEIGHT_DUEL = 432;
 export const ROAD_HEIGHT_GROUP = 432;
 export const ROAD_STRIPE_HEIGHT = 34;
 export const ROAD_STRIPE_SPACING = 88;
-export const GROUP_ROW_HEIGHT = 78;
-// Top padding that keeps the first group row (and its runner marker) clear of the
-// absolutely-positioned FINISH banner. It must be reflected in getItemLayout offsets
-// so that initialScrollIndex/scrollToIndex land row 0 *below* the banner on Android,
-// which (unlike iOS) does not preserve contentContainerStyle.paddingTop when scrolling
-// to a getItemLayout offset.
-export const GROUP_LIST_TOP_INSET = 56;
-export const GROUP_LIST_BOTTOM_INSET = 72;
+// F1 타이밍 타워 행 규격 (오너 2026-08-05): 리스트 상하 패딩과 getItemLayout이 공유한다.
+export const TOWER_ROW_HEIGHT = 52;
+export const TOWER_LIST_VERTICAL_INSET = 6;
 export const SHOULD_ANIMATE_ROAD = !USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI;
 export const DUEL_STRIPE_COUNT = USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 4 : 12;
-export const GROUP_STRIPE_COUNT = USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 5 : 14;
 export const ANDROID_GROUP_LIGHT_MODE_THRESHOLD = 12;
 export const DUEL_STRIPES = Array.from({ length: DUEL_STRIPE_COUNT });
-export const GROUP_STRIPES = Array.from({ length: GROUP_STRIPE_COUNT });
 const ANDROID_RENDER_DISTANCE_PRECISION = 2;
 
 export function clamp(value: number, min: number, max: number) {

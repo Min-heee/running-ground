@@ -3,7 +3,6 @@ import type { ReactNode } from 'react';
 import { Animated, Easing, Text, View } from 'react-native';
 import {
   DUEL_STRIPES,
-  GROUP_STRIPES,
   ROAD_STRIPE_SPACING,
   SHOULD_ANIMATE_ROAD,
 } from '@/components/matches/liveMatchArena/helpers';
@@ -11,6 +10,9 @@ import { USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI } from '@/components/matches/live
 import { liveMatchArenaStyles as styles } from '@/components/matches/liveMatchArena/styles';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
+
+// 듀얼로드 전용 도로 배경. 그룹 분기(GroupRoadBaseLayer/GroupRoadMarkings)는
+// 그룹로드가 F1 타이밍 타워로 바뀌면서(2026-08-05) 소비처가 사라져 제거됐다.
 
 type RoadMotionWrapComponent = typeof Animated.View | typeof View;
 type RoadMotionTransformStyle = { transform: { translateY: Animated.AnimatedInterpolation<string | number> }[] };
@@ -35,17 +37,9 @@ const DuelRoadBaseLayer = memo(function DuelRoadBaseLayer() {
   );
 });
 
-const GroupRoadBaseLayer = memo(function GroupRoadBaseLayer() {
-  return <View style={styles.groupRoadBase} />;
-});
-
-const FinishRibbon = memo(function FinishRibbon({
-  laneMode,
-}: {
-  laneMode: 'duel' | 'group';
-}) {
+const FinishRibbon = memo(function FinishRibbon() {
   return (
-    <View style={[styles.finishRibbon, laneMode === 'group' ? styles.finishRibbonGroup : undefined]}>
+    <View style={styles.finishRibbon}>
       <Text style={styles.finishRibbonText}>FINISH</Text>
     </View>
   );
@@ -73,99 +67,47 @@ const DuelRoadMarkings = memo(function DuelRoadMarkings({
   );
 });
 
-const GroupRoadMarkings = memo(function GroupRoadMarkings({
-  MotionWrap,
-  roadMotionStyle,
-  stripeItems,
-}: {
-  MotionWrap: RoadMotionWrapComponent;
-  roadMotionStyle?: RoadMotionTransformStyle;
-  stripeItems: ReactNode;
-}) {
-  return (
-    <MotionWrap
-      pointerEvents="none"
-      style={[
-        styles.groupCenterMarkingsWrap,
-        SHOULD_ANIMATE_ROAD ? roadMotionStyle : undefined,
-      ]}
-    >
-      {stripeItems}
-    </MotionWrap>
-  );
-});
-
-export const RoadMotion = memo(function RoadMotion({
-  laneMode,
-}: {
-  laneMode: 'duel' | 'group';
-}) {
-  useDevRenderCounter(`RoadMotion:${laneMode}`);
+export const RoadMotion = memo(function RoadMotion() {
+  useDevRenderCounter('RoadMotion:duel');
   useEffect(() => {
     rgPerfMark('RoadMotion mount', {
       animated: SHOULD_ANIMATE_ROAD,
-      laneMode,
       lightweight: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI,
     });
 
     return () => {
-      rgPerfMark('RoadMotion unmount', {
-        laneMode,
-      });
+      rgPerfMark('RoadMotion unmount', {});
     };
-  }, [laneMode]);
+  }, []);
 
   if (!SHOULD_ANIMATE_ROAD) {
-    return <StaticRoadMotion laneMode={laneMode} />;
+    return <StaticRoadMotion />;
   }
 
-  return <AnimatedRoadMotion laneMode={laneMode} />;
+  return <AnimatedRoadMotion />;
 });
 
-const StaticRoadMotion = memo(function StaticRoadMotion({
-  laneMode,
-}: {
-  laneMode: 'duel' | 'group';
-}) {
+const StaticRoadMotion = memo(function StaticRoadMotion() {
   const duelStripeItems = useMemo(() => DUEL_STRIPES.map((_, index) => (
     <View key={`duel-stripe-${index}`} style={styles.duelStripeRow}>
       <View style={styles.duelStripe} />
       <View style={styles.duelStripe} />
     </View>
   )), []);
-  const groupStripeItems = useMemo(() => GROUP_STRIPES.map((_, index) => (
-    <View key={`group-stripe-${index}`} style={styles.groupStripe} />
-  )), []);
 
   return (
     <View style={styles.roadBackground}>
-      {laneMode === 'duel' ? (
-        <>
-          <DuelRoadBaseLayer />
-          <DuelRoadMarkings
-            MotionWrap={View}
-            stripeItems={duelStripeItems}
-          />
-        </>
-      ) : (
-        <>
-          <GroupRoadBaseLayer />
-          <GroupRoadMarkings
-            MotionWrap={View}
-            stripeItems={groupStripeItems}
-          />
-        </>
-      )}
-      <FinishRibbon laneMode={laneMode} />
+      <DuelRoadBaseLayer />
+      <DuelRoadMarkings
+        MotionWrap={View}
+        stripeItems={duelStripeItems}
+      />
+      <FinishRibbon />
     </View>
   );
 });
 
-const AnimatedRoadMotion = memo(function AnimatedRoadMotion({
-  laneMode,
-}: {
-  laneMode: 'duel' | 'group';
-}) {
+const AnimatedRoadMotion = memo(function AnimatedRoadMotion() {
   const shift = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -197,32 +139,16 @@ const AnimatedRoadMotion = memo(function AnimatedRoadMotion({
       <View style={styles.duelStripe} />
     </View>
   )), []);
-  const groupStripeItems = useMemo(() => GROUP_STRIPES.map((_, index) => (
-    <View key={`group-stripe-${index}`} style={styles.groupStripe} />
-  )), []);
 
   return (
     <View style={styles.roadBackground}>
-      {laneMode === 'duel' ? (
-        <>
-          <DuelRoadBaseLayer />
-          <DuelRoadMarkings
-            MotionWrap={Animated.View}
-            roadMotionStyle={roadMotionStyle}
-            stripeItems={duelStripeItems}
-          />
-        </>
-      ) : (
-        <>
-          <GroupRoadBaseLayer />
-          <GroupRoadMarkings
-            MotionWrap={Animated.View}
-            roadMotionStyle={roadMotionStyle}
-            stripeItems={groupStripeItems}
-          />
-        </>
-      )}
-      <FinishRibbon laneMode={laneMode} />
+      <DuelRoadBaseLayer />
+      <DuelRoadMarkings
+        MotionWrap={Animated.View}
+        roadMotionStyle={roadMotionStyle}
+        stripeItems={duelStripeItems}
+      />
+      <FinishRibbon />
     </View>
   );
 });

@@ -283,7 +283,7 @@ export function buildRoomLinkedGroupPlaceholderParticipants({
     return [];
   }
 
-  return room.participants.map((participant, index) => {
+  const placeholderParticipants = room.participants.map((participant, index) => {
     const isCurrentUser = participant.userId === currentUserId || participant.tag === currentUserId;
     const statusParticipant = effectiveGroupParticipants.find((groupParticipant) => (
       isSameRemoteParticipant(groupParticipant, participant)
@@ -307,7 +307,6 @@ export function buildRoomLinkedGroupPlaceholderParticipants({
       progressPaceLabel: participantPaceLabel,
       distanceKm: participantDistanceKm,
       elapsedSeconds: progressModel.displayProgress.elapsedSeconds,
-      rankLabel: String(index + 1),
       finishedAt: participantFinishedAt,
       isCurrentUser,
       isLeader: index === 0,
@@ -316,4 +315,24 @@ export function buildRoomLinkedGroupPlaceholderParticipants({
       emphasis: 'featured' as const,
     };
   });
+
+  // rankLabel은 로스터 순서가 아니라 라이브 거리 순위로 붙인다 (적대 리뷰 2026-08-05):
+  // 활성 구간에서 아레나가 거리로 재정렬한 줄 위에 로스터 고정 번호가 얹히면
+  // 순위 열이 뒤죽박죽으로 보이고(2,1,3), 타워의 ▲▼ 상태머신도 이 라벨을 파싱하므로
+  // 진짜 순위여야 표준 standings 도착 시 가짜 화살표 폭발이 없다. 배열 순서 자체는
+  // 로스터 순서를 유지해 다른 소비처(레이스보드 정렬 입력 등)에 영향을 주지 않는다.
+  const rankOrdered = [...placeholderParticipants].sort((left, right) => {
+    const leftForfeited = left.liveStatus === 'forfeited';
+    const rightForfeited = right.liveStatus === 'forfeited';
+    if (leftForfeited !== rightForfeited) {
+      return leftForfeited ? 1 : -1;
+    }
+    return right.distanceKm - left.distanceKm;
+  });
+  const rankByParticipantId = new Map(rankOrdered.map((participant, rankIndex) => [participant.id, rankIndex + 1]));
+
+  return placeholderParticipants.map((participant) => ({
+    ...participant,
+    rankLabel: String(rankByParticipantId.get(participant.id)),
+  }));
 }

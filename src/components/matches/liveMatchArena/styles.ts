@@ -2,11 +2,10 @@ import { StyleSheet } from 'react-native';
 import { USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI } from '@/components/matches/liveMatchArena/config';
 import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 import {
-  GROUP_LIST_BOTTOM_INSET,
-  GROUP_LIST_TOP_INSET,
-  GROUP_ROW_HEIGHT,
   ROAD_STRIPE_HEIGHT,
   ROAD_STRIPE_SPACING,
+  TOWER_LIST_VERTICAL_INSET,
+  TOWER_ROW_HEIGHT,
 } from '@/components/matches/liveMatchArena/helpers';
 
 export const liveMatchArenaStyles = StyleSheet.create({
@@ -118,30 +117,6 @@ export const liveMatchArenaStyles = StyleSheet.create({
     borderRadius: radii.pill,
     backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.slateSoft : 'rgba(255,255,255,0.18)',
   },
-  groupRoadBase: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderRadius: 28,
-    backgroundColor: colors.navySurface,
-    borderWidth: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 0 : 1,
-    borderColor: 'rgba(199,210,254,0.14)',
-  },
-  groupCenterMarkingsWrap: {
-    position: 'absolute',
-    top: -ROAD_STRIPE_SPACING,
-    left: '49%',
-    marginLeft: -4,
-  },
-  groupStripe: {
-    width: 8,
-    height: ROAD_STRIPE_HEIGHT,
-    marginBottom: ROAD_STRIPE_SPACING - ROAD_STRIPE_HEIGHT,
-    borderRadius: radii.pill,
-    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.slateMutedDeep : 'rgba(255,255,255,0.16)',
-  },
   finishRibbon: {
     position: 'absolute',
     top: spacing.s14,
@@ -153,9 +128,6 @@ export const liveMatchArenaStyles = StyleSheet.create({
     borderColor: 'rgba(224,231,255,0.18)',
     paddingVertical: spacing.xxl,
     alignItems: 'center',
-  },
-  finishRibbonGroup: {
-    top: spacing.s10,
   },
   finishRibbonText: {
     color: colors.white,
@@ -273,78 +245,103 @@ export const liveMatchArenaStyles = StyleSheet.create({
   groupScroll: {
     flex: 1,
   },
-  groupScrollContent: {
-    paddingTop: GROUP_LIST_TOP_INSET,
-    paddingBottom: GROUP_LIST_BOTTOM_INSET,
-  },
-  groupRow: {
-    height: GROUP_ROW_HEIGHT,
+  towerHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.s10,
-    gap: spacing.lg,
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.s16,
+    paddingTop: spacing.s14,
+    paddingBottom: spacing.sm,
   },
-  groupRowCurrent: {
-    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.lightweightMatchBlue : 'rgba(109,94,247,0.14)',
-  },
-  groupRowForfeited: {
-    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.lightweightMatchRed : 'rgba(220,38,38,0.12)',
-  },
-  groupRankColumn: {
-    width: '16%',
-    gap: spacing.xxs,
-  },
-  groupRankColumnCurrentFinished: {
-    borderRadius: radii.sm,
-    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.purpleDeep : 'rgba(109,94,247,0.24)',
-  },
-  groupRankText: {
-    color: colors.white,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.extraBold,
-  },
-  groupRankTextCurrentFinished: {
-    color: colors.warningBright,
-  },
-  groupNameText: {
-    color: colors.brandLighter,
+  towerHeaderLabel: {
+    color: colors.lavenderSoft,
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.bold,
   },
-  groupRoadLane: {
-    width: '54%',
+  towerToggle: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: spacing.md,
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.lightweightMatchBlue : 'rgba(255,255,255,0.08)',
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.sm,
   },
-  groupRunnerMarker: {
-    width: 34,
-    height: 34,
-    borderRadius: radii.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 1 : 2,
+  towerToggleLabel: {
+    color: colors.lavenderSoft,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
   },
-  groupRunnerMarkerText: {
-    color: colors.white,
+  towerToggleLabelActive: {
+    color: colors.brandLighter,
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extraBold,
   },
-  groupRunnerMarkerForfeitedText: {
-    fontSize: 9,
-    letterSpacing: -0.4,
+  towerScrollContent: {
+    paddingVertical: TOWER_LIST_VERTICAL_INSET,
+    paddingHorizontal: spacing.s10,
   },
-  groupMetaColumn: {
-    width: '20%',
-    alignItems: 'flex-end',
-    gap: spacing.xxs,
+  towerRow: {
+    height: TOWER_ROW_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s10,
+    paddingHorizontal: spacing.s12,
+    borderRadius: radii.md,
   },
-  groupMetaText: {
+  towerRowCurrent: {
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.lightweightMatchBlue : 'rgba(109,94,247,0.2)',
+  },
+  towerRowForfeited: {
+    opacity: 0.55,
+  },
+  towerRank: {
+    width: 26,
     color: colors.white,
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.black,
+    textAlign: 'center',
   },
-  groupMetaForfeitedText: {
+  towerShiftSlot: {
+    width: 14,
+    alignItems: 'center',
+  },
+  towerShiftUp: {
+    color: colors.successBright,
+    fontSize: fontSizes.xs,
+  },
+  towerShiftDown: {
     color: colors.dangerBorder,
+    fontSize: fontSizes.xs,
+  },
+  towerColorBar: {
+    width: 4,
+    height: 26,
+    borderRadius: radii.pill,
+  },
+  towerName: {
+    flex: 1,
+    color: colors.white,
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.bold,
+  },
+  towerNameCurrent: {
+    flex: 1,
+    color: colors.brandLighter,
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.extraBold,
+  },
+  towerGap: {
+    color: colors.white,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+    fontVariant: ['tabular-nums'],
+  },
+  towerGapCurrent: {
+    color: colors.brandLighter,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+    fontVariant: ['tabular-nums'],
   },
   footer: {
     color: fixedColors.textTertiary,

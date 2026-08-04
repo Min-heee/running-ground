@@ -202,7 +202,7 @@ export const DuelRoad = memo(function DuelRoad({
 
   return (
     <View style={roadCardStyle}>
-      <RoadMotion laneMode="duel" />
+      <RoadMotion />
       <DuelRunner participant={opponent} top={opponentTop} side="left" />
       <DuelRunner participant={currentUser} top={userTop} side="right" />
     </View>
