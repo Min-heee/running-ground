@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link } from 'expo-router';
 
@@ -8,31 +8,59 @@ import {
   MATCH_REVISED_NOTICE_LABEL,
 } from '@/features/runs/viewModels/matchResultModel';
 import {
+  buildDuelBoardRows,
+  buildGroupBoardRows,
   buildRunMatchResultCardModel,
+  type MatchBoardRow,
   type RunMatchResultCardModelInput,
 } from '@/features/running/viewModels/runMatchResultCardModel';
+import { fetchMatchResult } from '@/services';
 import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+
+// 대결 기록 결과 보드 (오너 2026-08-06, 시안 나 확정): F1 타워 문법의 밝은 버전.
+// 1대1 = WIN/LOSE 두 행(로컬 데이터만으로), 그룹 = /result 를 불러 톱3 행(+내가
+// 톱3 밖이면 내 행 추가). 전체 명단·상세는 카드 탭 → 전용 결과 화면 몫.
 
 type RunMatchResultCardProps = RunMatchResultCardModelInput;
 
-function RunnerColumn({
-  name,
-  paceLabel,
-  durationLabel,
-  highlight,
-}: {
-  name: string;
-  paceLabel: string | null;
-  durationLabel: string | null;
-  highlight: boolean;
-}) {
+const RANK_LEAD_COLOR: Record<number, string> = {
+  1: colors.podiumGold,
+  2: colors.podiumSilver,
+  3: colors.podiumBronze,
+};
+
+function BoardRow({ row }: { row: MatchBoardRow }) {
+  const rankColor = row.rankNumber ? RANK_LEAD_COLOR[row.rankNumber] : undefined;
+
   return (
-    <View style={styles.runnerColumn}>
-      <Text style={[styles.runnerName, highlight ? styles.runnerNameMe : null]} numberOfLines={1}>
-        {name}
+    <View style={[styles.row, row.isMe ? styles.rowMe : null]}>
+      {row.leadTone === 'rank' ? (
+        <Text style={[styles.rankLead, rankColor ? { color: rankColor } : null]}>{row.leadLabel}</Text>
+      ) : (
+        <View
+          style={[
+            styles.outcomeBadge,
+            row.leadTone === 'win'
+              ? styles.outcomeBadgeWin
+              : row.leadTone === 'lose'
+                ? styles.outcomeBadgeLose
+                : styles.outcomeBadgeDraw,
+          ]}
+        >
+          <Text
+            style={[
+              styles.outcomeBadgeText,
+              row.leadTone !== 'win' ? styles.outcomeBadgeTextMuted : null,
+            ]}
+          >
+            {row.leadLabel}
+          </Text>
+        </View>
+      )}
+      <Text style={[styles.rowName, row.isMe ? styles.rowNameMe : null]} numberOfLines={1}>
+        {row.name}
       </Text>
-      {paceLabel ? <Text style={styles.runnerMetric}>{paceLabel}</Text> : null}
-      {durationLabel ? <Text style={styles.runnerMetric}>{durationLabel}</Text> : null}
+      {row.metricLabel ? <Text style={styles.rowMetric}>{row.metricLabel}</Text> : null}
     </View>
   );
 }
@@ -61,24 +89,50 @@ function RunMatchResultCardBase({
     gapText,
     groupRankText,
   } = buildRunMatchResultCardModel({ matchResult, myPaceLabel, myDurationSeconds, matchId, mode });
-  const lpPillStyle = isLpGain ? matchResultLpGainPillStyle : matchResultLpLossPillStyle;
-  const lpPillTextStyle = isLpGain ? matchResultLpGainPillTextStyle : matchResultLpLossPillTextStyle;
-  const badgeStyle = [
-    styles.matchResultBadge,
-    matchResult.resultTone === 'win'
-      ? styles.matchResultBadgeWin
-      : matchResult.resultTone === 'lose'
-        ? styles.matchResultBadgeLose
-        : matchResult.resultTone === 'draw'
-          ? styles.matchResultBadgeDraw
-          : null,
-  ];
+
+  const duelRows = useMemo(
+    () => (showDuelComparison
+      ? buildDuelBoardRows({ matchResult, myDisplayPaceLabel, myDurationLabel, opponentDurationLabel })
+      : []),
+    [matchResult, myDisplayPaceLabel, myDurationLabel, opponentDurationLabel, showDuelComparison],
+  );
+
+  // 그룹 톱3 명단은 기록 blob 에 저장돼 있지 않아 결과 화면과 같은 /result 로 불러온다.
+  // 로딩/실패 동안은 "N명 중 R위" 요약이 자리를 지킨다 — 보드가 막히는 일은 없다.
+  const [groupRows, setGroupRows] = useState<MatchBoardRow[] | null>(null);
+  const isGroup = matchResult.mode === 'group';
+  useEffect(() => {
+    if (!isGroup || !resultMatchId) {
+      return undefined;
+    }
+    let cancelled = false;
+    fetchMatchResult(resultMatchId)
+      .then((result) => {
+        if (!cancelled) {
+          setGroupRows(buildGroupBoardRows(result.participants));
+        }
+      })
+      .catch(() => {
+        // 요약 폴백 유지 — 결과 미확정(집계 중)이나 네트워크 실패 모두 조용히.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isGroup, resultMatchId]);
+
   const card = (
-    <Card style={styles.matchResultCard}>
-      <Text style={styles.matchResultLabel}>{typeLabel}</Text>
-      <View style={badgeStyle}>
-        <Text style={styles.matchResultBadgeText}>{matchResult.badgeLabel}</Text>
+    <Card style={styles.boardCard}>
+      <View style={styles.headerRow}>
+        <Text style={styles.typeLabel}>{typeLabel}</Text>
+        {showLp ? (
+          <View style={[styles.lpPill, isLpGain ? styles.lpPillGain : styles.lpPillLoss]}>
+            <Text style={[styles.lpPillText, isLpGain ? styles.lpPillTextGain : styles.lpPillTextLoss]}>
+              랭크 {isLpGain ? '+' : ''}{lpDelta} LP
+            </Text>
+          </View>
+        ) : null}
       </View>
+
       {/* §3-⑨ fair-verdict notices — display-only flags set ONLY on the run-detail reconcile
           overlay (never persisted); absent everywhere else, so nothing renders then. */}
       {matchResult.provisional ? (
@@ -87,47 +141,31 @@ function RunMatchResultCardBase({
       {matchResult.revised ? (
         <Text style={styles.revisedNotice}>{MATCH_REVISED_NOTICE_LABEL}</Text>
       ) : null}
+
       {showDuelComparison ? (
-        <>
-          <View style={styles.duelComparisonRow}>
-            <RunnerColumn
-              name="나"
-              paceLabel={myDisplayPaceLabel}
-              durationLabel={myDurationLabel}
-              highlight
-            />
-            <Text style={styles.duelVersus}>vs</Text>
-            <RunnerColumn
-              name={matchResult.opponentName ?? '상대'}
-              paceLabel={matchResult.opponentPaceLabel ?? null}
-              durationLabel={opponentDurationLabel}
-              highlight={false}
-            />
-          </View>
-          {gapText ? <Text style={styles.matchResultMeta}>{gapText}</Text> : null}
-        </>
-      ) : (
-        <>
-          {matchResult.opponentName ? (
-            <Text style={styles.matchResultOpponent}>vs {matchResult.opponentName}</Text>
-          ) : null}
-          {gapText ?? groupRankText ? (
-            <Text style={styles.matchResultMeta}>{gapText ?? groupRankText}</Text>
-          ) : null}
-        </>
-      )}
-      {showLp ? (
-        <View style={lpPillStyle}>
-          <Text style={lpPillTextStyle}>
-            랭크 {isLpGain ? '+' : ''}{lpDelta} LP
-          </Text>
+        <View style={styles.rowList}>
+          {duelRows.map((row) => <BoardRow key={row.key} row={row} />)}
         </View>
       ) : null}
-      {canOpenResult ? <Text style={styles.profileLinkText}>결과 보기 ›</Text> : null}
+
+      {isGroup ? (
+        groupRows && groupRows.length ? (
+          <View style={styles.rowList}>
+            {groupRows.map((row) => <BoardRow key={row.key} row={row} />)}
+          </View>
+        ) : (
+          groupRankText ? <Text style={styles.meta}>{groupRankText}</Text> : null
+        )
+      ) : null}
+
+      <View style={styles.footerRow}>
+        {gapText ? <Text style={styles.meta}>{gapText}</Text> : <View />}
+        {canOpenResult ? <Text style={styles.resultLinkText}>결과 자세히 보기 ›</Text> : null}
+      </View>
     </Card>
   );
 
-  // Preserve a way to reach the opponent profile for duels. The whole card now opens the
+  // Preserve a way to reach the opponent profile for duels. The whole card opens the
   // dedicated match-result screen, so the opponent-profile link is a SEPARATE secondary
   // affordance rendered as a sibling below the card (never nested inside the card's own
   // Pressable, which would make a profile tap ambiguous with the card tap).
@@ -143,21 +181,20 @@ function RunMatchResultCardBase({
       asChild
     >
       <Pressable accessibilityRole="button" hitSlop={spacing.xs} style={styles.opponentProfileLink}>
-        <Text style={styles.profileLinkText}>상대 프로필 ›</Text>
+        <Text style={styles.resultLinkText}>상대 프로필 ›</Text>
       </Pressable>
     </Link>
   ) : null;
 
   // The whole card opens the dedicated match-result screen, fetched by matchId from the
-  // backend (works for both duel and group, official and party). Group records — which have
-  // no opponentId — are now tappable too. Falls back to a static card only when matchId is
-  // absent (e.g. an old record saved before the backend persisted run.matchResult.matchId).
+  // backend (works for both duel and group, official and party). Falls back to a static
+  // card only when matchId is absent (old records without run.matchResult.matchId).
   if (!canOpenResult || !resultMatchId) {
     if (!opponentProfileLink) {
       return card;
     }
     return (
-      <View style={styles.matchResultWrap}>
+      <View style={styles.wrap}>
         {card}
         {opponentProfileLink}
       </View>
@@ -175,7 +212,7 @@ function RunMatchResultCardBase({
       }}
       asChild
     >
-      <Pressable accessibilityRole="button" style={styles.matchResultPressable}>
+      <Pressable accessibilityRole="button" style={styles.pressable}>
         {card}
       </Pressable>
     </Link>
@@ -186,7 +223,7 @@ function RunMatchResultCardBase({
   }
 
   return (
-    <View style={styles.matchResultWrap}>
+    <View style={styles.wrap}>
       {tappableCard}
       {opponentProfileLink}
     </View>
@@ -196,146 +233,136 @@ function RunMatchResultCardBase({
 export const RunMatchResultCard = memo(RunMatchResultCardBase);
 
 const styles = StyleSheet.create({
-  matchResultWrap: {
-    flex: 1,
-    gap: spacing.xxs,
-  },
-  matchResultPressable: {
-    flex: 1,
-  },
-  opponentProfileLink: {
-    alignSelf: 'flex-start',
-    paddingVertical: spacing.xxs,
-  },
-  matchResultCard: {
-    backgroundColor: colors.brandSoft,
-    borderWidth: 1,
-    borderColor: colors.purpleSoft,
-    flex: 1,
+  wrap: {
     gap: spacing.s10,
-    justifyContent: 'space-between',
   },
-  matchResultLabel: {
-    color: colors.brand,
-    fontSize: fontSizes.rank,
-    fontWeight: fontWeights.extraBold,
+  pressable: {
+    width: '100%',
   },
-  matchResultBadge: {
-    alignSelf: 'flex-start',
-    minWidth: 64,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radii.pill,
-    paddingHorizontal: spacing.s12,
-    paddingVertical: spacing.s10,
-    backgroundColor: colors.inkPill,
+  boardCard: {
+    gap: spacing.s12,
   },
-  matchResultBadgeWin: {
-    backgroundColor: colors.successGoogle,
-  },
-  matchResultBadgeLose: {
-    backgroundColor: colors.orange,
-  },
-  matchResultBadgeDraw: {
-    backgroundColor: fixedColors.textNeutral,
-  },
-  matchResultBadgeText: {
-    color: colors.white,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.extraBold,
-  },
-  duelComparisonRow: {
-    alignItems: 'flex-start',
+  headerRow: {
     flexDirection: 'row',
-    gap: spacing.xs,
-  },
-  duelVersus: {
-    color: colors.textMuted,
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.extraBold,
-    // Line up 'vs' with the name row (both columns are centered), so it reads
-    // 나  vs  상대 with vs sitting between the two names.
-    lineHeight: fontSizes.md + spacing.xs,
-  },
-  runnerColumn: {
-    flex: 1,
-    gap: spacing.xxs,
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.s12,
   },
-  runnerName: {
+  typeLabel: {
     color: colors.textPrimary,
-    fontSize: fontSizes.md,
+    fontSize: fontSizes.button,
     fontWeight: fontWeights.extraBold,
-    textAlign: 'center',
   },
-  runnerNameMe: {
-    color: colors.brandStrong,
-  },
-  runnerMetric: {
-    color: colors.textMuted,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.bold,
-    textAlign: 'center',
-  },
-  matchResultOpponent: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.bold,
-  },
-  matchResultLpPill: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.s12,
-    paddingVertical: spacing.xxl,
+  lpPill: {
     borderRadius: radii.pill,
-    borderWidth: 1,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.sm,
   },
-  matchResultLpPillGain: {
-    backgroundColor: colors.successSoft,
-    borderColor: colors.successCardBorder,
+  lpPillGain: {
+    backgroundColor: fixedColors.successCard,
   },
-  matchResultLpPillLoss: {
-    backgroundColor: colors.dangerWash,
-    borderColor: colors.dangerBorder,
+  lpPillLoss: {
+    backgroundColor: fixedColors.dangerSurface,
   },
-  matchResultLpPillText: {
+  lpPillText: {
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
   },
-  matchResultLpPillTextGain: {
-    color: colors.successStrong,
+  lpPillTextGain: {
+    color: fixedColors.successText,
   },
-  matchResultLpPillTextLoss: {
-    color: colors.danger,
-  },
-  matchResultMeta: {
-    color: colors.textMuted,
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.bold,
+  lpPillTextLoss: {
+    color: fixedColors.dangerDeep,
   },
   provisionalNotice: {
-    color: colors.orangeText,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.extraBold,
-  },
-  revisedNotice: {
-    color: colors.brand,
+    color: colors.textSecondary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
   },
-  profileLinkText: {
-    color: colors.brand,
+  revisedNotice: {
+    color: fixedColors.dangerDeep,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+  },
+  rowList: {
+    gap: spacing.sm,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s10,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.s10,
+  },
+  rowMe: {
+    backgroundColor: fixedColors.brandWashStrong,
+  },
+  rankLead: {
+    width: 22,
+    color: colors.textSecondary,
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.black,
+    textAlign: 'center',
+  },
+  outcomeBadge: {
+    minWidth: 56,
+    alignItems: 'center',
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.xs,
+  },
+  outcomeBadgeWin: {
+    backgroundColor: fixedColors.success,
+  },
+  outcomeBadgeLose: {
+    backgroundColor: fixedColors.borderMuted,
+  },
+  outcomeBadgeDraw: {
+    backgroundColor: fixedColors.borderMuted,
+  },
+  outcomeBadgeText: {
+    color: fixedColors.white,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.black,
+  },
+  outcomeBadgeTextMuted: {
+    color: fixedColors.textSecondary,
+  },
+  rowName: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.bold,
+  },
+  rowNameMe: {
+    color: fixedColors.brandDeep,
+    fontWeight: fontWeights.extraBold,
+  },
+  rowMetric: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+    fontVariant: ['tabular-nums'],
+  },
+  footerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.s12,
+  },
+  meta: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+  },
+  resultLinkText: {
+    color: fixedColors.brand,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
   },
+  opponentProfileLink: {
+    alignSelf: 'flex-end',
+  },
 });
-
-const matchResultLpGainPillStyle = [styles.matchResultLpPill, styles.matchResultLpPillGain];
-const matchResultLpLossPillStyle = [styles.matchResultLpPill, styles.matchResultLpPillLoss];
-const matchResultLpGainPillTextStyle = [
-  styles.matchResultLpPillText,
-  styles.matchResultLpPillTextGain,
-];
-const matchResultLpLossPillTextStyle = [
-  styles.matchResultLpPillText,
-  styles.matchResultLpPillTextLoss,
-];

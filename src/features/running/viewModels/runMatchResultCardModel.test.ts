@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { RunMatchResult } from '@/domain';
-import { buildRunMatchResultCardModel } from './runMatchResultCardModel';
+import { buildDuelBoardRows, buildGroupBoardRows, buildRunMatchResultCardModel, formatPaceLabelFromSeconds } from './runMatchResultCardModel';
 
 function matchResult(overrides: Partial<RunMatchResult> = {}): RunMatchResult {
   return {
@@ -135,4 +135,78 @@ test('card model: my pace/duration prefer the matchResult then the run-record fa
   assert.equal(fromRunRecord.myDisplayPaceLabel, "6'00\"");
   assert.equal(fromRunRecord.myDurationLabel, '10:00');
   assert.equal(fromRunRecord.opponentDurationLabel, null);
+});
+
+test('duel board rows: winner first with WIN/LOSE leads, draw shows 무', () => {
+  const winRows = buildDuelBoardRows({
+    matchResult: { resultTone: 'win', opponentName: '준호', opponentPaceLabel: '10:00/km' },
+    myDisplayPaceLabel: '12:30/km',
+    myDurationLabel: '00:15',
+    opponentDurationLabel: '00:14',
+  });
+  assert.deepEqual(winRows.map((row) => [row.leadLabel, row.name, row.isMe]), [
+    ['WIN', '나', true],
+    ['LOSE', '준호', false],
+  ]);
+  assert.equal(winRows[0].metricLabel, '12:30/km · 00:15');
+
+  const loseRows = buildDuelBoardRows({
+    matchResult: { resultTone: 'lose', opponentName: '준호', opponentPaceLabel: undefined },
+    myDisplayPaceLabel: null,
+    myDurationLabel: null,
+    opponentDurationLabel: null,
+  });
+  assert.deepEqual(loseRows.map((row) => [row.leadLabel, row.isMe]), [['WIN', false], ['LOSE', true]]);
+
+  const drawRows = buildDuelBoardRows({
+    matchResult: { resultTone: 'draw', opponentName: '준호', opponentPaceLabel: undefined },
+    myDisplayPaceLabel: null,
+    myDurationLabel: null,
+    opponentDurationLabel: null,
+  });
+  assert.deepEqual(drawRows.map((row) => row.leadLabel), ['무', '무']);
+});
+
+test('group board rows: top 3 only, my row appended when outside the podium', () => {
+  const participant = (rank: number, isMe = false, forfeited = false) => ({
+    name: `러너${rank}`,
+    paceSecondsPerKm: 360 + rank,
+    finishElapsedSeconds: 1200 + rank,
+    rank,
+    forfeited,
+    isMe,
+  });
+
+  const meInTop = buildGroupBoardRows([participant(1, true), participant(2), participant(3), participant(4)]);
+  assert.deepEqual(meInTop.map((row) => [row.leadLabel, row.isMe]), [['1', true], ['2', false], ['3', false]]);
+  assert.equal(meInTop[0].name, '나');
+  assert.equal(meInTop[0].rankNumber, 1);
+
+  const meOutside = buildGroupBoardRows([
+    participant(1), participant(2), participant(3), participant(4), participant(5, true),
+  ]);
+  assert.deepEqual(meOutside.map((row) => [row.leadLabel, row.isMe]), [
+    ['1', false], ['2', false], ['3', false], ['5', true],
+  ]);
+
+  // 기권자는 순위가 있으면 행에 남고 지표 대신 '기권'.
+  const withForfeit = buildGroupBoardRows([participant(1), participant(2, false, true), participant(3, true)]);
+  assert.equal(withForfeit[1].metricLabel, '기권');
+});
+
+test('formatPaceLabelFromSeconds renders mm:ss/km and rejects invalid input', () => {
+  assert.equal(formatPaceLabelFromSeconds(393), '06:33/km');
+  assert.equal(formatPaceLabelFromSeconds(600), '10:00/km');
+  assert.equal(formatPaceLabelFromSeconds(null), null);
+  assert.equal(formatPaceLabelFromSeconds(0), null);
+});
+
+test('duel board rows: missing tone (집계 중) shows — not 무', () => {
+  const rows = buildDuelBoardRows({
+    matchResult: { opponentName: '준호', opponentPaceLabel: undefined },
+    myDisplayPaceLabel: null,
+    myDurationLabel: null,
+    opponentDurationLabel: null,
+  });
+  assert.deepEqual(rows.map((row) => row.leadLabel), ['—', '—']);
 });

@@ -108,3 +108,113 @@ export function buildRunMatchResultCardModel({
     groupRankText,
   };
 }
+
+// ---------------------------------------------------------------------------
+// 결과 보드 행 (오너 2026-08-06, 시안 나 확정: 밝은 타워 결) — 1대1은 WIN/LOSE,
+// 그룹은 톱3(+내가 밖이면 내 행 추가). 그룹 행은 /result 응답에서 만든다.
+// ---------------------------------------------------------------------------
+
+export type MatchBoardRowTone = 'win' | 'lose' | 'draw' | 'rank';
+
+export type MatchBoardRow = {
+  key: string;
+  leadLabel: string;
+  leadTone: MatchBoardRowTone;
+  // 그룹 순위 행에서 1·2·3위 금은동 색을 입힐 때 사용 (rank 톤일 때만 의미).
+  rankNumber: number | null;
+  name: string;
+  metricLabel: string | null;
+  isMe: boolean;
+};
+
+function joinMetric(paceLabel: string | null, durationLabel: string | null): string | null {
+  const parts = [paceLabel, durationLabel].filter((part): part is string => Boolean(part));
+  return parts.length ? parts.join(' · ') : null;
+}
+
+// 1대1 행: 로컬 matchResult 만으로 만든다 (승자 먼저 — 타워 문법).
+export function buildDuelBoardRows(input: {
+  matchResult: Pick<MatchResult, 'resultTone' | 'opponentName' | 'opponentPaceLabel'>;
+  myDisplayPaceLabel: string | null;
+  myDurationLabel: string | null;
+  opponentDurationLabel: string | null;
+}): MatchBoardRow[] {
+  const tone = input.matchResult.resultTone;
+  // 판정 전(집계 중)의 tone 부재를 '무'로 보여주면 무승부로 오해한다 — '—' 대기 표기.
+  const pendingLabel = '—';
+  const myRow: MatchBoardRow = {
+    key: 'me',
+    leadLabel: tone === 'win' ? 'WIN' : tone === 'lose' ? 'LOSE' : tone === 'draw' ? '무' : pendingLabel,
+    leadTone: tone === 'win' ? 'win' : tone === 'lose' ? 'lose' : 'draw',
+    rankNumber: null,
+    name: '나',
+    metricLabel: joinMetric(input.myDisplayPaceLabel, input.myDurationLabel),
+    isMe: true,
+  };
+  const opponentRow: MatchBoardRow = {
+    key: 'opponent',
+    leadLabel: tone === 'win' ? 'LOSE' : tone === 'lose' ? 'WIN' : tone === 'draw' ? '무' : pendingLabel,
+    leadTone: tone === 'win' ? 'lose' : tone === 'lose' ? 'win' : 'draw',
+    rankNumber: null,
+    name: input.matchResult.opponentName ?? '상대',
+    metricLabel: joinMetric(input.matchResult.opponentPaceLabel ?? null, input.opponentDurationLabel),
+    isMe: false,
+  };
+  // 승자 먼저. 무승부/판정 전이면 내가 먼저.
+  return tone === 'lose' ? [opponentRow, myRow] : [myRow, opponentRow];
+}
+
+export function formatPaceLabelFromSeconds(paceSecondsPerKm: number | null): string | null {
+  if (typeof paceSecondsPerKm !== 'number' || !Number.isFinite(paceSecondsPerKm) || paceSecondsPerKm <= 0) {
+    return null;
+  }
+  const total = Math.round(paceSecondsPerKm);
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}/km`;
+}
+
+export const GROUP_BOARD_TOP_COUNT = 3;
+
+type GroupBoardParticipant = {
+  name: string;
+  paceSecondsPerKm: number | null;
+  finishElapsedSeconds: number | null;
+  rank: number | null;
+  forfeited: boolean;
+  isMe: boolean;
+};
+
+// 그룹 행: /result 참가자(순위 오름차순)에서 톱3만. 내가 톱3 밖이면 내 행을 끝에
+// 덧붙인다 — 내 결과가 안 보이는 기록 화면은 반쪽이라서. 전체 명단은 결과 화면 몫.
+export function buildGroupBoardRows(
+  participants: readonly GroupBoardParticipant[],
+): MatchBoardRow[] {
+  const ranked = participants.filter((participant) => typeof participant.rank === 'number');
+  const top = ranked.slice(0, GROUP_BOARD_TOP_COUNT);
+  const rows = top.map((participant) => toGroupRow(participant));
+  const meInTop = top.some((participant) => participant.isMe);
+  if (!meInTop) {
+    const me = ranked.find((participant) => participant.isMe);
+    if (me) {
+      rows.push(toGroupRow(me));
+    }
+  }
+  return rows;
+}
+
+function toGroupRow(participant: GroupBoardParticipant): MatchBoardRow {
+  const durationLabel = formatDurationLabel(participant.finishElapsedSeconds ?? undefined);
+  return {
+    key: `rank-${participant.rank}-${participant.name}`,
+    leadLabel: `${participant.rank}`,
+    leadTone: 'rank',
+    rankNumber: participant.rank,
+    name: participant.isMe ? '나' : participant.name,
+    metricLabel: participant.forfeited
+      ? '기권'
+      : joinMetric(formatPaceLabelFromSeconds(participant.paceSecondsPerKm), durationLabel),
+    isMe: participant.isMe,
+  };
+}
+
