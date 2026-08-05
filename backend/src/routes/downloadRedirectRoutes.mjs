@@ -38,8 +38,12 @@ function buildDownloadLandingHtml({ iosFirst, autoUrl, iosInAppBrowser }) {
     : APP_STORE_SCHEME_URL;
   const appStoreButton = `<a class="button" href="${appStoreHref}">App Store에서 받기</a>`;
   const playButton = `<a class="button" href="${PLAY_STORE_WEB_URL}">Google Play에서 받기</a>`;
-  const inAppHint = iosInAppBrowser
-    ? `<div class="hint2">버튼이 안 되면 오른쪽 위 ⋯ 메뉴에서<br>'외부 브라우저로 열기'를 눌러 주세요</div>`
+  // 인스타 iOS 웹뷰는 App Store 핸드오프를 전부 차단하고 우회 스킴도 패치한다.
+  // 인스타가 유일하게 못 막는 공식 메뉴(⋯ → 외부 브라우저에서 열기)를 1순위 안내로.
+  const inAppGuide = iosInAppBrowser
+    ? `<div class="guide"><div class="guide-arrow">오른쪽 위 ⋯ 메뉴 ↗</div>
+<div class="guide-title">인스타그램에서는 앱스토어가 바로 안 열려요</div>
+<div class="guide-steps"><b>오른쪽 위 ⋯</b> 를 누르고<br><b>'외부 브라우저에서 열기'</b>를 선택해 주세요</div></div>`
     : '';
 
   return `<!doctype html>
@@ -61,15 +65,21 @@ function buildDownloadLandingHtml({ iosFirst, autoUrl, iosInAppBrowser }) {
   a.button + a.button { background: rgba(109, 94, 247, 0.14); color: #4338CA; }
   a.fallback { color: #667085; font-size: 13px; text-decoration: underline; }
   .hint2 { color: #98A2B3; font-size: 13px; line-height: 1.5; margin-top: 4px; }
+  .guide { background: #fff; border: 2px solid #6D5EF7; border-radius: 16px; padding: 18px 22px;
+           max-width: 340px; margin-bottom: 6px; }
+  .guide-arrow { color: #6D5EF7; font-size: 13px; font-weight: 800; text-align: right; margin-bottom: 8px; }
+  .guide-title { font-size: 15px; font-weight: 800; color: #111827; margin-bottom: 8px; }
+  .guide-steps { font-size: 14px; color: #4B5563; line-height: 1.6; }
+  .guide-steps b { color: #6D5EF7; }
 </style>
 </head>
 <body>
 <div class="logo">R</div>
 <div class="name">러닝그라운드</div>
 <p class="hint">뛸수록 랭크가 오르는 러닝 대결 앱</p>
+${inAppGuide}
 ${iosFirst ? appStoreButton + '\n' + playButton : playButton + '\n' + appStoreButton}
 <a class="fallback" href="${APP_STORE_WEB_URL}">App Store 버튼이 안 되면 여기를 눌러 주세요</a>
-${inAppHint}
 ${autoUrl ? `<script>
   setTimeout(function () {
     if (!document.hidden) {

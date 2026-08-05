@@ -487,7 +487,8 @@ await test('download redirect sends iOS to the App Store scheme and others to th
   assert.ok(iosLanding.includes('x-safari-https://apps.apple.com/kr/app/id6762328694'));
   assert.ok(iosLanding.includes('App Store에서 받기'));
   assert.ok(iosLanding.includes('Google Play에서 받기'));
-  assert.ok(iosLanding.includes('외부 브라우저로 열기'));
+  assert.ok(iosLanding.includes('외부 브라우저에서 열기'));
+  assert.ok(iosLanding.includes('인스타그램에서는 앱스토어가 바로 안 열려요'));
   // 인앱 브라우저에는 자동 이동 스크립트를 넣지 않는다(조용히 막혀 의미 없음).
   assert.ok(!iosLanding.includes('setTimeout'));
 
