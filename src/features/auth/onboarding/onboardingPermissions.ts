@@ -19,6 +19,7 @@
 
 import { Platform } from 'react-native';
 import * as Location from 'expo-location';
+import { ensureLocationDisclosureConsent } from '@/features/permissions/locationDisclosure';
 import { Pedometer } from 'expo-sensors';
 import {
   getPreferredNativeHealthSource,
@@ -202,6 +203,19 @@ export async function getOnboardingPermissionStatuses(): Promise<{
 
 export async function requestForegroundLocation(): Promise<boolean> {
   try {
+    const current = await Location.getForegroundPermissionsAsync();
+    if (isGranted(current)) {
+      return true;
+    }
+    // 하드 거부 상태면 OS 요청이 무음 no-op — 공개 알림만 띄우고 아무 팝업도 못 여는
+    // 이상한 흐름이 되므로, 기존 계약대로 조용히 false (호출부가 설정으로 안내).
+    if (!canAskAgain(current)) {
+      return false;
+    }
+    // Play 명시적 공개 (2026-08-05 정책 거절 대응): OS 위치 팝업 직전에 공개+동의.
+    if (!(await ensureLocationDisclosureConsent())) {
+      return false;
+    }
     return isGranted(await Location.requestForegroundPermissionsAsync());
   } catch {
     return false;
@@ -213,6 +227,18 @@ export async function requestForegroundLocation(): Promise<boolean> {
 export async function requestBackgroundLocation(): Promise<boolean> {
   try {
     if (!isGranted(await Location.getForegroundPermissionsAsync())) {
+      return false;
+    }
+    const currentBackground = await Location.getBackgroundPermissionsAsync();
+    if (isGranted(currentBackground)) {
+      return true;
+    }
+    if (!canAskAgain(currentBackground)) {
+      return false;
+    }
+    // Play 명시적 공개: 보통 포그라운드 동의 때 저장돼 있어 조용히 통과하지만,
+    // 이 함수 단독 경로도 공개 없이 OS 팝업이 뜨는 일이 없도록 이중 잠금.
+    if (!(await ensureLocationDisclosureConsent())) {
       return false;
     }
     return isGranted(await Location.requestBackgroundPermissionsAsync());

@@ -227,3 +227,15 @@ test('a battery block after passing location+motion carries its reason (Android 
     { block: { kind: 'battery', reason: 'battery-denied' }, ok: false },
   );
 });
+
+test('in-app disclosure consent declined blocks silently as foreground-consent-declined', () => {
+  assert.deepEqual(
+    resolveCompetitiveLocationGate({
+      backgroundCanAsk: true,
+      backgroundGranted: false,
+      foregroundGranted: false,
+      foregroundConsentDeclined: true,
+    }),
+    { ok: false, reason: 'foreground-consent-declined' },
+  );
+});

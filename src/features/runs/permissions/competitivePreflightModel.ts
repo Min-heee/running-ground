@@ -18,6 +18,9 @@ import type {
 // --- location gate (BLOCKING) -----------------------------------------------------------------
 
 export type CompetitiveLocationGateReason =
+  // The user declined OUR in-app prominent-disclosure consent before any OS dialog — block
+  // silently (they just answered an alert). Next press re-offers the disclosure.
+  | 'foreground-consent-declined'
   // Foreground location missing and the single OS dialog didn't grant it.
   | 'foreground-denied'
   // The user cancelled OUR background-location disclosure alert — block silently (they just
@@ -44,6 +47,8 @@ export type CompetitiveLocationGateReading = {
 };
 
 export type CompetitiveLocationGateDecisionInput = CompetitiveLocationGateReading & {
+  // true = the user declined the in-app prominent-disclosure consent (no OS dialog ever fired).
+  foregroundConsentDeclined?: boolean;
   // Fresh backgroundGranted re-read AFTER a background request attempt. iOS may under-report the
   // request result (provisional / settings-route grants), so only a re-read — where anything
   // short of "always" reads as not-granted — decides. undefined = no attempt was made.
@@ -64,6 +69,11 @@ export function resolveCompetitiveLocationGate(
 ): CompetitiveLocationGateResult {
   const foregroundOk = input.foregroundGranted || input.requestedForeground === true;
   if (!foregroundOk) {
+    if (input.foregroundConsentDeclined === true) {
+      // OS 팝업은 뜬 적도 없다 — 방금 우리 공개 알림에 답한 사용자에게 설정 알림을
+      // 겹쳐 보내지 않는다.
+      return { ok: false, reason: 'foreground-consent-declined' };
+    }
     // Background can't even be requested without foreground — this is the terminal reason.
     return { ok: false, reason: 'foreground-denied' };
   }

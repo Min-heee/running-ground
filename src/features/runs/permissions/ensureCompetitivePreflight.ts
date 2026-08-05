@@ -35,6 +35,11 @@ import {
   requestMotion,
   requestNotifications,
 } from '@/features/auth/onboarding/onboardingPermissions';
+import {
+  ensureLocationDisclosureConsent,
+  markLocationDisclosureConsented,
+} from '@/features/permissions/locationDisclosure';
+import { LOCATION_DISCLOSURE_MESSAGE } from '@/features/permissions/locationDisclosureCopy';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import {
   resolveCompetitiveMotionGate,
@@ -65,10 +70,10 @@ function showBackgroundLocationDisclosure(): Promise<boolean> {
   return new Promise((resolve) => {
     Alert.alert(
       BACKGROUND_LOCATION_ALERT_TITLE,
-      '대결 중에는 화면을 꺼도 기록이 측정돼요. 그러려면 위치 권한을 "항상 허용"으로 설정해야 해요.',
+      `${LOCATION_DISCLOSURE_MESSAGE}\n\n대결 중 화면을 꺼도 측정하려면 위치 권한을 "항상 허용"으로 설정해 주세요.`,
       [
         { onPress: () => resolve(false), style: 'cancel', text: '취소' },
-        { onPress: () => resolve(true), text: '허용하러 가기' },
+        { onPress: () => resolve(true), text: '동의하고 계속' },
       ],
       { cancelable: true, onDismiss: () => resolve(false) },
     );
@@ -84,6 +89,12 @@ async function ensureCompetitiveLocationPermission(
 
   let requestedForeground: boolean | undefined;
   if (!reading.foregroundGranted) {
+    // Play 명시적 공개 동의를 여기서 직접 받아 "동의 거절"과 "OS 거부"를 구분한다 —
+    // 거절 직후 설정 알림이 겹치면 잔소리라 침묵 차단으로 보내야 한다. 동의하면
+    // requestForegroundLocation 내부 게이트는 메모이즈로 조용히 통과한다.
+    if (!(await ensureLocationDisclosureConsent())) {
+      return resolveCompetitiveLocationGate({ ...reading, foregroundConsentDeclined: true });
+    }
     // Single OS dialog. requestForegroundLocation() no-ops to false on a hard-denied permission,
     // so this cannot double-prompt.
     requestedForeground = await requestForegroundLocation();
@@ -98,6 +109,12 @@ async function ensureCompetitiveLocationPermission(
   }
 
   const disclosureAccepted = await showBackgroundLocationDisclosure();
+  if (disclosureAccepted) {
+    // 이 알림이 요건 카피 + 명시적 수락 버튼을 이미 보여줬다 — 동의를 기록해
+    // requestBackgroundLocation 내부 게이트가 같은 문구를 연달아 또 띄우지 않게 한다
+    // (업그레이드 사용자: 포그라운드는 이미 허용이라 게이트를 처음 만나는 지점이 여기다).
+    await markLocationDisclosureConsented();
+  }
   if (!disclosureAccepted || !reading.backgroundCanAsk) {
     // Declined → silent block (the user just answered our alert). Accepted-but-OS-locked →
     // 'background-request-locked': requestBackgroundLocation() would silently no-op, so the block
@@ -261,6 +278,9 @@ function showCompetitivePreflightBlockedAlert(block: CompetitivePreflightBlock):
   }
 
   switch (block.reason) {
+    case 'foreground-consent-declined':
+      // 방금 우리 공개 알림에서 거절했다 — 이어지는 알림은 잔소리. 다음 눌림이 재제안.
+      return;
     case 'background-declined':
       // The user just cancelled the disclosure alert we showed — a second alert would be a nag.
       // The next competitive press re-offers the disclosure.
