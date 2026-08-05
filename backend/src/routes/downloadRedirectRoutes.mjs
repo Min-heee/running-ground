@@ -25,7 +25,10 @@ function sanitizeTagCode(rawTag) {
 // 모바일 공통 다운로드 랜딩 (2026-08-05): 인앱 브라우저(인스타 등)는 302 자동
 // 점프를 조용히 막는 경우가 있어 "안 열림"이 된다. 자동 이동을 시도하되, 실패해도
 // 큰 버튼이 남아 사용자가 무조건 스토어로 갈 수 있는 방탄 구조.
-function buildDownloadLandingHtml({ storeUrl, storeLabel }) {
+// 버튼(primaryUrl)은 iOS에서 itms-apps 스킴: 302 스킴은 인앱 브라우저가 차단하지만
+// 사용자 탭 제스처의 스킴 이동은 허용된다(인스타 실기기에서 https 탭이 무반응이던
+// 사고의 우회). fallbackUrl은 스킴마저 안 먹는 환경용 보조 https 링크.
+function buildDownloadLandingHtml({ primaryUrl, storeLabel, fallbackUrl, autoUrl }) {
   return `<!doctype html>
 <html lang="ko">
 <head>
@@ -42,17 +45,19 @@ function buildDownloadLandingHtml({ storeUrl, storeLabel }) {
   .hint { color: #667085; font-size: 14px; line-height: 1.5; }
   a.button { display: block; width: 100%; max-width: 320px; padding: 15px 0; border-radius: 12px;
              text-decoration: none; font-weight: 700; background: #6D5EF7; color: #fff; font-size: 16px; }
+  a.fallback { color: #667085; font-size: 13px; text-decoration: underline; }
 </style>
 </head>
 <body>
 <div class="logo">R</div>
 <div class="name">러닝그라운드</div>
 <p class="hint">뛸수록 랭크가 오르는 러닝 대결 앱</p>
-<a class="button" href="${storeUrl}">${storeLabel}</a>
+<a class="button" href="${primaryUrl}">${storeLabel}</a>
+${fallbackUrl ? `<a class="fallback" href="${fallbackUrl}">버튼이 안 되면 여기를 눌러 주세요</a>` : ''}
 <script>
   setTimeout(function () {
     if (!document.hidden) {
-      location.href = ${JSON.stringify(storeUrl)};
+      location.href = ${JSON.stringify(autoUrl)};
     }
   }, 600);
 </script>
@@ -142,7 +147,9 @@ export async function routeDownloadRedirectRequest({ method, pathname, request, 
       'Cache-Control': 'no-store',
     });
     response.end(buildDownloadLandingHtml({
-      storeUrl,
+      primaryUrl: isAndroid ? PLAY_STORE_WEB_URL : APP_STORE_SCHEME_URL,
+      fallbackUrl: isAndroid ? null : APP_STORE_WEB_URL,
+      autoUrl: isAndroid ? PLAY_STORE_WEB_URL : APP_STORE_WEB_URL,
       storeLabel: isAndroid ? 'Google Play에서 받기' : 'App Store에서 열기',
     }));
     return true;

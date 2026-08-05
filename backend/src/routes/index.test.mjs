@@ -481,6 +481,8 @@ await test('download redirect sends iOS to the App Store scheme and others to th
   };
 
   const iosLanding = await askLanding('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Instagram 334.0.0.0');
+  // 버튼 = itms-apps 스킴(탭 제스처는 인앱 브라우저가 허용) + https 보조 링크.
+  assert.ok(iosLanding.includes('itms-apps://apps.apple.com/kr/app/id6762328694'));
   assert.ok(iosLanding.includes('https://apps.apple.com/kr/app/id6762328694'));
   assert.ok(iosLanding.includes('App Store에서 열기'));
 
