@@ -1,4 +1,5 @@
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
+import { resolveSaveTotalSteps } from '@/features/runs/tracking/stepCountRecovery';
 import { router } from 'expo-router';
 import {
   clearActiveChaseArena,
@@ -209,6 +210,19 @@ export function useRunSaveCommand({
       const goalFreeze = activeMatchId ? getLocalGoalFreeze(activeMatchId) : null;
       const clampedDisplayedSnapshot = applyGoalFreezeToDisplayedSnapshot(displayedSnapshot, goalFreeze);
 
+      // iOS 케이던스 복원 (오너 2026-08-06 파티런 '--' 사고): 라이브 스텝 이벤트가
+      // 끊겨 totalStepsRef 가 저평가돼도, 모션 코프로세서의 구간 재조회로 진짜 걸음
+      // 수를 되찾는다. 실패/안드로이드는 기존 워치 카운트 그대로.
+      const lastRoutePoint = clampedDisplayedSnapshot.route.length >= 2
+        ? clampedDisplayedSnapshot.route[clampedDisplayedSnapshot.route.length - 1]
+        : null;
+      const resolvedTotalSteps = await resolveSaveTotalSteps({
+        watchedTotalSteps: totalStepsRef.current,
+        startIso: clampedDisplayedSnapshot.startedAt ?? clampedDisplayedSnapshot.route[0]?.timestamp ?? null,
+        endIso: lastRoutePoint?.timestamp ?? null,
+        platformOs: Platform.OS,
+      });
+
       const saveSnapshot = buildRunSaveResultSnapshot({
         allowShortDistanceSave: Boolean(options.allowShortDistanceSave),
         // A run that carries a match result is a decided competition — it must save even
@@ -226,7 +240,7 @@ export function useRunSaveCommand({
         // matchId via nav params). The backend stores whatever the blob carries.
         matchId: activeMatchId,
         matchSource,
-        totalSteps: totalStepsRef.current,
+        totalSteps: resolvedTotalSteps,
         trackedMatchResult: resolvedMatchResult,
       });
       syncElapsedSeconds(saveSnapshot.finalElapsedSeconds);
