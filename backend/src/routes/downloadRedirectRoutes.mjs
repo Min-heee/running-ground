@@ -33,10 +33,7 @@ function buildDownloadLandingHtml({ iosFirst, autoUrl, iosInAppBrowser }) {
   // itms-apps도 무반응이 된다(2026-08-06 실기기 다수 확인). x-safari-https 스킴은
   // 탭 제스처로 사파리를 "밖에서" 열게 하는 공개된 우회 — 사파리로 나가면 앱스토어
   // 핸드오프가 정상 작동한다. 일반 브라우저에서는 기존 itms-apps가 최단 경로.
-  const appStoreHref = iosInAppBrowser
-    ? `x-safari-${APP_STORE_WEB_URL}`
-    : APP_STORE_SCHEME_URL;
-  const appStoreButton = `<a class="button" href="${appStoreHref}">App Store에서 받기</a>`;
+  const appStoreButton = `<a class="button" href="${APP_STORE_SCHEME_URL}">App Store에서 받기</a>`;
   const playButton = `<a class="button" href="${PLAY_STORE_WEB_URL}">Google Play에서 받기</a>`;
   // 인스타 iOS 웹뷰는 App Store 핸드오프를 전부 차단하고 우회 스킴도 패치한다.
   // 인스타가 유일하게 못 막는 공식 메뉴(⋯ → 외부 브라우저에서 열기)를 1순위 안내로.
@@ -77,9 +74,10 @@ function buildDownloadLandingHtml({ iosFirst, autoUrl, iosInAppBrowser }) {
 <div class="logo">R</div>
 <div class="name">러닝그라운드</div>
 <p class="hint">뛸수록 랭크가 오르는 러닝 대결 앱</p>
-${inAppGuide}
-${iosFirst ? appStoreButton + '\n' + playButton : playButton + '\n' + appStoreButton}
-<a class="fallback" href="${APP_STORE_WEB_URL}">App Store 버튼이 안 되면 여기를 눌러 주세요</a>
+${iosInAppBrowser
+    ? inAppGuide
+    : `${iosFirst ? appStoreButton + '\n' + playButton : playButton + '\n' + appStoreButton}
+<a class="fallback" href="${APP_STORE_WEB_URL}">App Store 버튼이 안 되면 여기를 눌러 주세요</a>`}
 ${autoUrl ? `<script>
   setTimeout(function () {
     if (!document.hidden) {
