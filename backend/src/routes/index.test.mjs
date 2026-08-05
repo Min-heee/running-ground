@@ -468,9 +468,20 @@ await test('download redirect sends iOS to the App Store scheme and others to th
     return response.headers.Location;
   };
 
-  // iOS(아이폰) → itms-apps 스킴: 카톡 인앱 브라우저에서도 App Store 앱이 바로 열린다.
+  // iOS 기본(사파리·인스타 등) → https 유니버설 링크: 커스텀 스킴을 차단하는
+  // 인앱 브라우저에서도 항상 열린다.
   assert.equal(
     await ask('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15'),
+    'https://apps.apple.com/kr/app/id6762328694',
+  );
+  assert.equal(
+    await ask('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Instagram 334.0.0.0'),
+    'https://apps.apple.com/kr/app/id6762328694',
+  );
+  // 카톡 인앱 브라우저만 itms-apps 스킴: 웹 스토어에서 멈추는 문제를 우회해
+  // App Store 앱을 바로 연다 (실기기 검증된 기존 동작 유지).
+  assert.equal(
+    await ask('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 KAKAOTALK 10.4.0'),
     'itms-apps://apps.apple.com/kr/app/id6762328694',
   );
   // Android → Play 스토어 페이지 (인스타 프로필 링크 등 외부 공유 대응).

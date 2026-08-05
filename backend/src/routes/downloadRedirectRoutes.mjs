@@ -71,8 +71,13 @@ export async function routeDownloadRedirectRequest({ method, pathname, request, 
   const userAgent = String(request.headers['user-agent'] ?? '');
   const isIos = /iPhone|iPad|iPod/i.test(userAgent);
   const isAndroid = !isIos && /Android/i.test(userAgent);
+  // itms-apps 스킴은 카톡 인앱 브라우저 전용(웹 스토어를 띄우고 멈추는 문제의 우회).
+  // 인스타그램 등 다른 인앱 브라우저는 커스텀 스킴 302를 차단해 "페이지를 열 수
+  // 없음"이 된다(2026-08-05 인스타 프로필 링크 실사고) — 그 외 iOS는 전부 https
+  // 유니버설 링크로 보내면 사파리/인앱 어디서든 App Store로 자연스럽게 넘어간다.
+  const isKakaoInAppBrowser = /KAKAOTALK/i.test(userAgent);
   const storeUrl = isIos
-    ? APP_STORE_SCHEME_URL
+    ? (isKakaoInAppBrowser ? APP_STORE_SCHEME_URL : APP_STORE_WEB_URL)
     : isAndroid
       ? PLAY_STORE_WEB_URL
       : APP_STORE_WEB_URL;
