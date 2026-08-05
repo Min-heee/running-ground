@@ -129,19 +129,23 @@ export default function RunDetailScreen() {
 
           {/* 대결 기록은 결과 카드가 먼저다 — 400pt 지도 뒤에 두면 승패와 유일한 출구
               (나가기)가 폴드 아래로 밀린다 (적대 리뷰 발견). 솔로는 지도 먼저. */}
-          {/* 결과 보드(타워 결) 풀폭 먼저, 포인트는 그 아래 풀폭 — 좁은 반반 카드가
-              이름·숫자를 구겨 넣던 문제의 수술 (오너 2026-08-06, 시안 나). */}
+          {/* 포인트·결과 보드 나란히 (오너 2026-08-06 확정) — 보드 행은 반폭에 맞춘
+              컴팩트 배치(이름 아래 지표)라 구겨지지 않는다. */}
           {matchResult ? (
-            <>
-              <RunMatchResultCard
-                matchResult={matchResult}
-                myPaceLabel={runDetail.run.pace}
-                myDurationSeconds={runDetail.run.durationSeconds}
-                matchId={matchId}
-                mode={matchMode === 'duel' || matchMode === 'group' ? matchMode : null}
-              />
-              <RunPointBreakdownCard pointBreakdown={runDetail.pointBreakdown} matchBonusLabel={matchBonusLabel} />
-            </>
+            <View style={styles.recordDuoRow}>
+              <View style={styles.recordDuoItem}>
+                <RunPointBreakdownCard pointBreakdown={runDetail.pointBreakdown} matchBonusLabel={matchBonusLabel} />
+              </View>
+              <View style={styles.recordDuoItem}>
+                <RunMatchResultCard
+                  matchResult={matchResult}
+                  myPaceLabel={runDetail.run.pace}
+                  myDurationSeconds={runDetail.run.durationSeconds}
+                  matchId={matchId}
+                  mode={matchMode === 'duel' || matchMode === 'group' ? matchMode : null}
+                />
+              </View>
+            </View>
           ) : null}
 
           {/* Android는 RunRouteMap.android가 바이너리 버전으로 가른다 — Maps 키가 박힌

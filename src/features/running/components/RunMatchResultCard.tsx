@@ -31,6 +31,11 @@ const RANK_LEAD_COLOR: Record<number, string> = {
 
 function BoardRow({ row }: { row: MatchBoardRow }) {
   const rankColor = row.rankNumber ? RANK_LEAD_COLOR[row.rankNumber] : undefined;
+  const nameText = (
+    <Text style={[styles.rowName, row.isMe ? styles.rowNameMe : null]} numberOfLines={1}>
+      {row.name}
+    </Text>
+  );
 
   return (
     <View style={[styles.row, row.isMe ? styles.rowMe : null]}>
@@ -57,10 +62,27 @@ function BoardRow({ row }: { row: MatchBoardRow }) {
           </Text>
         </View>
       )}
-      <Text style={[styles.rowName, row.isMe ? styles.rowNameMe : null]} numberOfLines={1}>
-        {row.name}
-      </Text>
-      {row.metricLabel ? <Text style={styles.rowMetric}>{row.metricLabel}</Text> : null}
+      <View style={styles.rowBody}>
+        {/* 상대 이름 탭 → 프로필 (오너 2026-08-06: 별도 프로필 버튼 대신). 카드 전체
+            Pressable 안의 중첩 Pressable — 터치는 더 안쪽이 가져가므로 이름은 프로필,
+            그 외 영역은 결과 화면으로 자연 분리된다. */}
+        {row.userId ? (
+          <Link
+            href={{ pathname: '/opponent-profile', params: { userId: row.userId, name: row.name } }}
+            asChild
+          >
+            <Pressable
+              hitSlop={spacing.xs}
+              accessibilityRole="button"
+              accessibilityLabel={`${row.name} 프로필 보기`}
+              style={styles.nameTapArea}
+            >
+              {nameText}
+            </Pressable>
+          </Link>
+        ) : nameText}
+        {row.metricLabel ? <Text style={styles.rowMetric}>{row.metricLabel}</Text> : null}
+      </View>
     </View>
   );
 }
@@ -165,43 +187,15 @@ function RunMatchResultCardBase({
     </Card>
   );
 
-  // Preserve a way to reach the opponent profile for duels. The whole card opens the
-  // dedicated match-result screen, so the opponent-profile link is a SEPARATE secondary
-  // affordance rendered as a sibling below the card (never nested inside the card's own
-  // Pressable, which would make a profile tap ambiguous with the card tap).
-  const opponentProfileLink = matchResult.mode === 'duel' && matchResult.opponentId ? (
-    <Link
-      href={{
-        pathname: '/opponent-profile',
-        params: {
-          userId: matchResult.opponentId,
-          name: matchResult.opponentName ?? '',
-        },
-      }}
-      asChild
-    >
-      <Pressable accessibilityRole="button" hitSlop={spacing.xs} style={styles.opponentProfileLink}>
-        <Text style={styles.resultLinkText}>상대 프로필 ›</Text>
-      </Pressable>
-    </Link>
-  ) : null;
-
   // The whole card opens the dedicated match-result screen, fetched by matchId from the
   // backend (works for both duel and group, official and party). Falls back to a static
   // card only when matchId is absent (old records without run.matchResult.matchId).
+  // 상대 프로필은 행의 이름 탭이 담당한다 (별도 링크 버튼 제거 — 오너 2026-08-06).
   if (!canOpenResult || !resultMatchId) {
-    if (!opponentProfileLink) {
-      return card;
-    }
-    return (
-      <View style={styles.wrap}>
-        {card}
-        {opponentProfileLink}
-      </View>
-    );
+    return card;
   }
 
-  const tappableCard = (
+  return (
     <Link
       href={{
         pathname: '/match-result',
@@ -217,29 +211,16 @@ function RunMatchResultCardBase({
       </Pressable>
     </Link>
   );
-
-  if (!opponentProfileLink) {
-    return tappableCard;
-  }
-
-  return (
-    <View style={styles.wrap}>
-      {tappableCard}
-      {opponentProfileLink}
-    </View>
-  );
 }
 
 export const RunMatchResultCard = memo(RunMatchResultCardBase);
 
 const styles = StyleSheet.create({
-  wrap: {
-    gap: spacing.s10,
-  },
   pressable: {
-    width: '100%',
+    flex: 1,
   },
   boardCard: {
+    flex: 1,
     gap: spacing.s12,
   },
   headerRow: {
@@ -293,8 +274,16 @@ const styles = StyleSheet.create({
     gap: spacing.s10,
     backgroundColor: colors.surfaceMuted,
     borderRadius: radii.md,
-    paddingHorizontal: spacing.s12,
+    paddingHorizontal: spacing.s10,
     paddingVertical: spacing.s10,
+  },
+  rowBody: {
+    flex: 1,
+    gap: spacing.xxs,
+  },
+  nameTapArea: {
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
   },
   rowMe: {
     backgroundColor: fixedColors.brandWashStrong,
@@ -331,7 +320,6 @@ const styles = StyleSheet.create({
     color: fixedColors.textSecondary,
   },
   rowName: {
-    flex: 1,
     color: colors.textPrimary,
     fontSize: fontSizes.base,
     fontWeight: fontWeights.bold,
@@ -342,7 +330,7 @@ const styles = StyleSheet.create({
   },
   rowMetric: {
     color: colors.textSecondary,
-    fontSize: fontSizes.sm,
+    fontSize: fontSizes.xs,
     fontWeight: fontWeights.bold,
     fontVariant: ['tabular-nums'],
   },
@@ -361,8 +349,5 @@ const styles = StyleSheet.create({
     color: fixedColors.brand,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
-  },
-  opponentProfileLink: {
-    alignSelf: 'flex-end',
   },
 });

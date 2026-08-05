@@ -125,6 +125,8 @@ export type MatchBoardRow = {
   name: string;
   metricLabel: string | null;
   isMe: boolean;
+  // 이름 탭 → 상대 프로필 이동용 (내 행/식별자 없는 행은 null — 탭 불가).
+  userId: string | null;
 };
 
 function joinMetric(paceLabel: string | null, durationLabel: string | null): string | null {
@@ -134,7 +136,7 @@ function joinMetric(paceLabel: string | null, durationLabel: string | null): str
 
 // 1대1 행: 로컬 matchResult 만으로 만든다 (승자 먼저 — 타워 문법).
 export function buildDuelBoardRows(input: {
-  matchResult: Pick<MatchResult, 'resultTone' | 'opponentName' | 'opponentPaceLabel'>;
+  matchResult: Pick<MatchResult, 'resultTone' | 'opponentName' | 'opponentPaceLabel' | 'opponentId'>;
   myDisplayPaceLabel: string | null;
   myDurationLabel: string | null;
   opponentDurationLabel: string | null;
@@ -150,6 +152,7 @@ export function buildDuelBoardRows(input: {
     name: '나',
     metricLabel: joinMetric(input.myDisplayPaceLabel, input.myDurationLabel),
     isMe: true,
+    userId: null,
   };
   const opponentRow: MatchBoardRow = {
     key: 'opponent',
@@ -159,6 +162,7 @@ export function buildDuelBoardRows(input: {
     name: input.matchResult.opponentName ?? '상대',
     metricLabel: joinMetric(input.matchResult.opponentPaceLabel ?? null, input.opponentDurationLabel),
     isMe: false,
+    userId: input.matchResult.opponentId ?? null,
   };
   // 승자 먼저. 무승부/판정 전이면 내가 먼저.
   return tone === 'lose' ? [opponentRow, myRow] : [myRow, opponentRow];
@@ -177,6 +181,7 @@ export function formatPaceLabelFromSeconds(paceSecondsPerKm: number | null): str
 export const GROUP_BOARD_TOP_COUNT = 3;
 
 type GroupBoardParticipant = {
+  userId?: string | null;
   name: string;
   paceSecondsPerKm: number | null;
   finishElapsedSeconds: number | null;
@@ -215,6 +220,7 @@ function toGroupRow(participant: GroupBoardParticipant): MatchBoardRow {
       ? '기권'
       : joinMetric(formatPaceLabelFromSeconds(participant.paceSecondsPerKm), durationLabel),
     isMe: participant.isMe,
+    userId: participant.isMe ? null : participant.userId ?? null,
   };
 }
 
