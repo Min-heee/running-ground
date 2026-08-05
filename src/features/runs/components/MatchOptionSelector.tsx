@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SegmentSwitch } from '@/components/ui/SegmentSwitch';
+import { TourTarget } from '@/features/tour/TourTarget';
 import {
   buildMatchOptionSegments,
   resolveActiveMatchOptionSegment,
@@ -110,11 +111,13 @@ export function MatchOptionSelector({
 
   return (
     <View style={styles.container}>
-      <SegmentSwitch
-        items={segmentItems}
-        activeId={activeSegment?.id ?? ''}
-        onSelect={handleSelectSegment}
-      />
+      <TourTarget id="running-modes">
+        <SegmentSwitch
+          items={segmentItems}
+          activeId={activeSegment?.id ?? ''}
+          onSelect={handleSelectSegment}
+        />
+      </TourTarget>
       {optionButtons.length ? (
         <View style={matchPickerCardStyles.row}>
           {optionButtons}

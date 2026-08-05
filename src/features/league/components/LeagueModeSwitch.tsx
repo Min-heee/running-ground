@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 
 import { SegmentSwitch } from '@/components/ui/SegmentSwitch';
+import { TourTarget } from '@/features/tour/TourTarget';
 import type { LeagueMode } from '@/features/league/types/league';
 
 type LeagueModeSwitchProps = {
@@ -20,5 +21,9 @@ export function LeagueModeSwitch({ mode, onChange }: LeagueModeSwitchProps) {
     onChange(id as LeagueMode);
   }, [onChange]);
 
-  return <SegmentSwitch items={LEAGUE_MODE_ITEMS} activeId={mode} onSelect={handleSelect} />;
+  return (
+    <TourTarget id="league-modes">
+      <SegmentSwitch items={LEAGUE_MODE_ITEMS} activeId={mode} onSelect={handleSelect} />
+    </TourTarget>
+  );
 }

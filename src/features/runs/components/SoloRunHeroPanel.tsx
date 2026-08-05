@@ -13,6 +13,7 @@ import {
   setSoloRunGoalKm,
   useSoloRunGoalKm,
 } from '@/features/runs/soloGoal/soloRunGoalStore';
+import { TourTarget } from '@/features/tour/TourTarget';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
 import { colors, fixedColors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
 
@@ -43,6 +44,7 @@ export const SoloRunHeroPanel = memo(function SoloRunHeroPanel({
           몇 pt만 빗맞아도 그 터치가 RUN에 떨어져 러닝이 시작돼버리고, 접근성 트리에서도
           바깥 버튼이 칩을 삼킨다 (적대 리뷰 발견). 칩 줄과 그 여백은 어떤 탭도 시작을
           트리거하지 않는 완충 지대다. */}
+      <TourTarget id="solo-run">
       <View style={styles.startBlock}>
         <Pressable
           style={({ pressed }) => [
@@ -60,11 +62,14 @@ export const SoloRunHeroPanel = memo(function SoloRunHeroPanel({
         </Pressable>
         <GoalInput />
       </View>
+      </TourTarget>
 
+      <TourTarget id="solo-tools">
       <View style={styles.subRow}>
         <SubTile overline="PACE" label="페이스메이커와 달리기" onPress={onOpenPacemaker} />
         <SubTile overline="VS ME" label="자신과 대결" onPress={onOpenGhostRun} />
       </View>
+      </TourTarget>
     </View>
   );
 });

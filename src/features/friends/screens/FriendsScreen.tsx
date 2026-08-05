@@ -5,6 +5,7 @@ import { BrandLoadingView } from '@/components/BrandLoadingView';
 import { Screen } from '@/components/Screen';
 import { FriendsRanking } from '@/features/friends/FriendsRanking';
 import { FriendListCard } from '@/features/friends/components/FriendListCard';
+import { TourTarget } from '@/features/tour/TourTarget';
 import { useFriendsScreen } from '@/features/friends/hooks/useFriendsScreen';
 import { createRunningMatchRoom, getApiErrorMessage } from '@/services';
 import { TabHeader } from '@/components/ui/TabHeader';
@@ -98,9 +99,11 @@ export default function FriendsScreen() {
             onOpenRequests={() => router.push('/friend-requests')}
           />
 
-          <Pressable style={styles.addButton} onPress={() => router.push('/add-friend')}>
-            <Text style={styles.addButtonText}>친구 추가</Text>
-          </Pressable>
+          <TourTarget id="friends-add">
+            <Pressable style={styles.addButton} onPress={() => router.push('/add-friend')}>
+              <Text style={styles.addButtonText}>친구 추가</Text>
+            </Pressable>
+          </TourTarget>
         </>
       ) : null}
     </Screen>

@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
 import { Tabs } from 'expo-router';
+import { View } from 'react-native';
+import { TourOverlay } from '@/features/tour/TourOverlay';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getTabScreenOptions } from '@/navigation/tabConfig';
 import { colors } from '@/theme/tokens';
@@ -71,6 +73,7 @@ export default function TabsLayout() {
     running: getTabScreenOptions('running'),
   }), []);
   return (
+    <View style={{ flex: 1 }}>
     <Tabs
       screenOptions={screenOptions}
     >
@@ -81,5 +84,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="market" options={tabOptions.market} listeners={tabListeners.market} />
       <Tabs.Screen name="mypage" options={tabOptions.mypage} listeners={tabListeners.mypage} />
     </Tabs>
+    <TourOverlay />
+    </View>
   );
 }

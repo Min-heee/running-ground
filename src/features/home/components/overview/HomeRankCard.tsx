@@ -4,6 +4,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import type { DimensionValue, StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { Card } from '@/components/Card';
+import { TourTarget } from '@/features/tour/TourTarget';
 import type { RankState } from '@/domain';
 import {
   formatRankLabel,
@@ -96,6 +97,7 @@ export function HomeRankCard({ rankState, duelRecord, recordHref }: HomeRankCard
   ], [accentColor, progressPercent]);
 
   return (
+    <TourTarget id="home-rank">
     <Card style={rankCardStyle}>
       <View style={styles.rankHeader}>
         <Text style={styles.sectionEyebrow}>내 랭크</Text>
@@ -151,6 +153,7 @@ export function HomeRankCard({ rankState, duelRecord, recordHref }: HomeRankCard
         </Pressable>
       </Link>
     </Card>
+    </TourTarget>
   );
 }
 

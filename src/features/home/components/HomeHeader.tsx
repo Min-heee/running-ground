@@ -5,6 +5,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { TabHeader } from '@/components/ui/TabHeader';
 import { isRunPossiblyActive } from '@/features/home/hooks/useOtaUpdatePrompt';
+import { startTour } from '@/features/tour/tourStore';
 import { fetchInbox } from '@/services';
 import { toggleThemeMode } from '@/theme/themeMode';
 import { colors, getAppliedThemeMode, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
@@ -38,6 +39,15 @@ export function HomeHeader() {
   const openNotifications = useCallback(() => {
     router.push({ pathname: '/notification-center', params: { tab: 'notifications' } });
   }, []);
+  const handleStartTour = useCallback(() => {
+    // 투어는 탭을 자동으로 옮겨 다닌다 — 러닝/대결 중엔 화면 이탈이 위험하므로 차단
+    // (테마 토글과 같은 fail-closed 규칙).
+    if (isRunPossiblyActive()) {
+      Alert.alert('사용 방법', '달리기나 대결이 진행 중일 때는 볼 수 없어요. 끝난 뒤 다시 열어 주세요.');
+      return;
+    }
+    startTour();
+  }, []);
   const handleToggleTheme = useCallback(() => {
     // Same fail-closed rule as the OTA prompt: the toggle triggers a full JS reload,
     // which must never fire while a run/match could be live.
@@ -53,6 +63,14 @@ export function HomeHeader() {
       title="홈"
       right={
         <>
+          <Pressable
+            accessibilityLabel="사용 방법 보기"
+            accessibilityRole="button"
+            onPress={handleStartTour}
+            style={styles.iconButton}
+          >
+            <Feather name="help-circle" size={fontSizes.metric} color={colors.textPrimary} />
+          </Pressable>
           <Pressable
             accessibilityLabel={getAppliedThemeMode() === 'dark' ? '밝은 테마로 바꾸기' : '어두운 테마로 바꾸기'}
             accessibilityRole="button"
