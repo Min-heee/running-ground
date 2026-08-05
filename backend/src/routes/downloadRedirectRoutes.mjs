@@ -22,6 +22,44 @@ function sanitizeTagCode(rawTag) {
   return /^[A-Z0-9]{3,8}$/.test(code) ? code : null;
 }
 
+// 모바일 공통 다운로드 랜딩 (2026-08-05): 인앱 브라우저(인스타 등)는 302 자동
+// 점프를 조용히 막는 경우가 있어 "안 열림"이 된다. 자동 이동을 시도하되, 실패해도
+// 큰 버튼이 남아 사용자가 무조건 스토어로 갈 수 있는 방탄 구조.
+function buildDownloadLandingHtml({ storeUrl, storeLabel }) {
+  return `<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>러닝그라운드 다운로드</title>
+<style>
+  body { margin: 0; font-family: -apple-system, sans-serif; background: #EFF0FA; color: #111827;
+         display: flex; flex-direction: column; align-items: center; justify-content: center;
+         min-height: 100vh; gap: 14px; padding: 24px; text-align: center; }
+  .logo { width: 76px; height: 76px; border-radius: 18px; background: #6D5EF7; color: #fff;
+          font-size: 44px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .name { font-size: 22px; font-weight: 800; }
+  .hint { color: #667085; font-size: 14px; line-height: 1.5; }
+  a.button { display: block; width: 100%; max-width: 320px; padding: 15px 0; border-radius: 12px;
+             text-decoration: none; font-weight: 700; background: #6D5EF7; color: #fff; font-size: 16px; }
+</style>
+</head>
+<body>
+<div class="logo">R</div>
+<div class="name">러닝그라운드</div>
+<p class="hint">뛸수록 랭크가 오르는 러닝 대결 앱</p>
+<a class="button" href="${storeUrl}">${storeLabel}</a>
+<script>
+  setTimeout(function () {
+    if (!document.hidden) {
+      location.href = ${JSON.stringify(storeUrl)};
+    }
+  }, 600);
+</script>
+</body>
+</html>`;
+}
+
 function buildFriendLandingHtml({ tagCode, storeUrl }) {
   const appLink = `runningground://add-friend?tag=${tagCode}`;
 
@@ -93,6 +131,20 @@ export async function routeDownloadRedirectRequest({ method, pathname, request, 
       'Cache-Control': 'no-store',
     });
     response.end(html);
+    return true;
+  }
+
+  // 모바일은 302 대신 랜딩 HTML: 인앱 브라우저가 자동 이동을 막아도 버튼이 남는다.
+  // 카톡은 스킴 302가 실기기 검증된 최단 경로라 유지, 데스크톱은 스토어 웹으로 302.
+  if ((isIos || isAndroid) && !isKakaoInAppBrowser && method === 'GET') {
+    response.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+    });
+    response.end(buildDownloadLandingHtml({
+      storeUrl,
+      storeLabel: isAndroid ? 'Google Play에서 받기' : 'App Store에서 열기',
+    }));
     return true;
   }
 
