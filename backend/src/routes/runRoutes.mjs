@@ -1,3 +1,5 @@
+import { findMatchSessionById } from '../lib/runningMatchSession/matchSessionLifecycle.mjs';
+
 export async function routeRunRequest({
   method,
   pathname,
@@ -186,6 +188,26 @@ async function handleCreateTrackedRun({
     throw new ApiError(400, '알 수 없는 경기장이에요. 앱을 최신 버전으로 업데이트해주세요.');
   }
 
+  let matchResult = typeof body.matchResult !== 'undefined' && body.matchResult !== null
+    ? validateRunMatchResult(body.matchResult)
+    : undefined;
+
+  // 파티런 조기 종료 포인트 파밍 차단 (오너 2026-08-06): 저장 직전, 아직 살아있는
+  // 세션에서 목표 거리를 찾아 블롭에 스탬프한다 — 포인트 집계(getMatchBonusPoints)가
+  // "목표를 다 채웠는가"를 판정할 근거. 세션이 이미 정리됐으면 스탬프 없이 저장되고
+  // 그 기록은 기존 정책대로 지급된다(합법 사용자 불이익 방지 fail-open).
+  if (matchResult?.source === 'party' && matchResult.matchId) {
+    try {
+      const store = await loadStore();
+      const session = findMatchSessionById(store, matchResult.matchId);
+      if (Number.isFinite(session?.distanceKm) && session.distanceKm > 0) {
+        matchResult = { ...matchResult, matchGoalDistanceKm: session.distanceKm };
+      }
+    } catch {
+      // 스탬프 실패는 저장을 막지 않는다.
+    }
+  }
+
   const payload = await getRunsRepository().createTrackedRun({
     token: getAccessToken(request),
     input: {
@@ -203,9 +225,7 @@ async function handleCreateTrackedRun({
       route: validateTrackedRoute(body.route),
       startedAt,
       endedAt,
-      ...(typeof body.matchResult !== 'undefined' && body.matchResult !== null
-        ? { matchResult: validateRunMatchResult(body.matchResult) }
-        : {}),
+      ...(matchResult ? { matchResult } : {}),
     },
   });
 

@@ -3,6 +3,8 @@ export type RunMatchSource = 'official' | 'party';
 export type RunMatchResult = {
   mode: 'duel' | 'group';
   source?: RunMatchSource;
+  // 서버가 저장 시 스탬프하는 매치 목표 거리 — 파티런 조기 종료 포인트 차단 판정용.
+  matchGoalDistanceKm?: number;
   // Persisted on the run record's matchResult JSON blob (run.matchResult.matchId).
   // Lets a saved record open the dedicated match-result screen, which always fetches
   // the authoritative per-participant result by matchId.

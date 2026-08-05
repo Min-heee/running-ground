@@ -55,6 +55,7 @@ export function buildMatchExitActionState({
   selfForfeited,
   selfFinished,
   allOthersForfeited = false,
+  isPartyRun = false,
 }: {
   source: MatchExitActionSource | null;
   isTestMatch: boolean;
@@ -65,6 +66,9 @@ export function buildMatchExitActionState({
   selfForfeited: boolean;
   selfFinished: boolean;
   allOthersForfeited?: boolean;
+  // 파티런이면 기권승·단독 생존 카드에 "목표 미달 시 포인트 미지급" 고지를 붙인다
+  // (오너 2026-08-06: 친구끼리 기권↔종료 반복 포인트 파밍 차단의 안내 반쪽).
+  isPartyRun?: boolean;
 }): MatchExitActionState {
   if (!source) {
     return { kind: 'hidden' };
@@ -120,7 +124,9 @@ export function buildMatchExitActionState({
     return {
       kind: 'counterpart-forfeited',
       title: '상대가 기권했어요',
-      body: '내가 승리한 상태예요. 러닝을 종료하면 결과 화면에서 대결 결과를 확인할 수 있어요.',
+      body: isPartyRun
+        ? '내가 승리한 상태예요. 다만 파티런은 목표 거리를 채우지 않고 종료하면 대결 포인트가 지급되지 않아요.'
+        : '내가 승리한 상태예요. 러닝을 종료하면 결과 화면에서 대결 결과를 확인할 수 있어요.',
       buttonLabel: isLeaving || isSaving
         ? '결과 저장 중...'
         : '대결종료',
@@ -139,7 +145,9 @@ export function buildMatchExitActionState({
     return {
       kind: 'sole-survivor',
       title: '혼자 남았어요',
-      body: '다른 참가자가 모두 기권했어요. 종료하면 결과 화면에서 기록을 확인할 수 있어요.',
+      body: isPartyRun
+        ? '다른 참가자가 모두 기권했어요. 다만 파티런은 목표 거리를 채우지 않고 종료하면 대결 포인트가 지급되지 않아요.'
+        : '다른 참가자가 모두 기권했어요. 종료하면 결과 화면에서 기록을 확인할 수 있어요.',
       buttonLabel: isLeaving || isSaving
         ? '결과 저장 중...'
         : '대결 종료',

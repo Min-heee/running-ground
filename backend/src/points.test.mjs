@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { buildUserRunMetrics, getRunPointBreakdown, getRunPointValue } from './lib/points.mjs';
+import { buildUserRunMetrics, getMatchBonusPoints, getRunPointBreakdown, getRunPointValue } from './lib/points.mjs';
 import { buildMatchRunnerProfile } from './lib/runningMatchSession/matchSessionSnapshots.mjs';
 import { cleanupLegacyIntegrationSources } from './lib/integrationSourceMigrations.mjs';
 
@@ -315,4 +315,44 @@ runTest('todayDistanceKm is the all-runs today total (leaderboard basis)', () =>
   assert.equal(metrics.competitiveTodayDistanceKm, 3);
   // 기록이 없으면 undefined가 아니라 0 (리더보드가 0으로 안전하게 렌더).
   assert.equal(buildUserRunMetrics([], NOW).todayDistanceKm, 0);
+});
+
+// ── 파티런 조기 종료 포인트 파밍 차단 (오너 2026-08-06) ─────────────────────────
+// 친구끼리 기권↔대결종료 반복으로 +20P를 무한 수확하던 구멍을 막는 계약.
+runTest('파티런 미완주 승리는 대결 보너스 0 (파밍 차단)', () => {
+  assert.equal(getMatchBonusPoints({
+    distanceKm: 0.06,
+    matchResult: { mode: 'duel', source: 'party', resultTone: 'win', matchGoalDistanceKm: 2 },
+  }), 0);
+});
+
+runTest('파티런도 목표를 완주하면 보너스 지급 (합법 러닝, 5cm 오차 허용)', () => {
+  assert.equal(getMatchBonusPoints({
+    distanceKm: 2.01,
+    matchResult: { mode: 'duel', source: 'party', resultTone: 'win', matchGoalDistanceKm: 2 },
+  }), 20);
+  assert.equal(getMatchBonusPoints({
+    distanceKm: 1.96,
+    matchResult: { mode: 'duel', source: 'party', resultTone: 'win', matchGoalDistanceKm: 2 },
+  }), 20);
+});
+
+runTest('매칭(official)은 기권승·조기 종료여도 정상 지급 (주작 불가)', () => {
+  assert.equal(getMatchBonusPoints({
+    distanceKm: 0.5,
+    matchResult: { mode: 'duel', source: 'official', resultTone: 'win', matchGoalDistanceKm: 2 },
+  }), 20);
+});
+
+runTest('목표 스탬프 없는 옛 파티런 기록은 기존대로 지급 (소급 몰수 없음)', () => {
+  assert.equal(getMatchBonusPoints({
+    distanceKm: 0.06,
+    matchResult: { mode: 'duel', source: 'party', resultTone: 'win' },
+  }), 20);
+});
+
+runTest('그룹 파티런도 미완주면 0, 완주면 순위 보너스', () => {
+  const groupResult = { mode: 'group', source: 'party', rank: 1, participantCount: 3, matchGoalDistanceKm: 2 };
+  assert.equal(getMatchBonusPoints({ distanceKm: 0.1, matchResult: groupResult }), 0);
+  assert.ok(getMatchBonusPoints({ distanceKm: 2.0, matchResult: groupResult }) > 0);
 });

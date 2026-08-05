@@ -52,9 +52,23 @@ function getConsecutiveRewardPoints(streakDays) {
   return streakDays * 2 - 3;
 }
 
-function getMatchBonusPoints(matchResult) {
+export function getMatchBonusPoints(run) {
+  const matchResult = run?.matchResult;
+
   if (!matchResult || typeof matchResult !== 'object') {
     return 0;
+  }
+
+  // 파티런 조기 종료 파밍 차단 (오너 2026-08-06): 목표 거리를 채우지 못한 파티런은
+  // 대결 보너스 0 — 친구끼리 기권↔대결종료 반복으로 +20P를 무한 수확하던 구멍.
+  // 목표를 모르는 옛 기록은 기존대로 지급(소급 몰수 없음). 매칭(official)은 모르는
+  // 상대와 주작이 불가능하므로 기권승·조기 종료여도 정상 지급한다.
+  if (matchResult.source === 'party') {
+    const goalKm = matchResult.matchGoalDistanceKm;
+
+    if (Number.isFinite(goalKm) && goalKm > 0 && (Number(run?.distanceKm) || 0) + 0.05 < goalKm) {
+      return 0;
+    }
   }
 
   if (matchResult.mode === 'duel') {
@@ -163,7 +177,7 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
 
     if (isCompetitiveRun(run)) {
       competitiveCumulativeDistanceKm = toFixed1(competitiveCumulativeDistanceKm + run.distanceKm);
-      const matchBonusPoints = getMatchBonusPoints(run.matchResult);
+      const matchBonusPoints = getMatchBonusPoints(run);
       // 경찰과 도둑런 보너스 — 정산(chaseSettlement)이 run.chase.bonusPoints에 박제한 값.
       // 경쟁 러닝 가지 안에 있으므로 차량 판정/임포트 러닝은 자동으로 0.
       const chasePoints = Number.isFinite(run.chase?.bonusPoints)

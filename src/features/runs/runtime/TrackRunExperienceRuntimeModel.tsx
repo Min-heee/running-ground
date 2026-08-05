@@ -2132,6 +2132,7 @@ export function TrackRunExperienceRuntime({
       selfForfeited: activeMatchExitSelfForfeited,
       selfFinished: activeMatchExitSelfFinished,
       allOthersForfeited: activeMatchExitAllOthersForfeited,
+      isPartyRun: wasPartyRunRef.current,
       onContinueSolo: handleContinueSoloFromMatch,
       onForfeit: handleForfeitMatch,
       onShowResultAfterCounterpartForfeit: handleShowResultAfterCounterpartForfeit,

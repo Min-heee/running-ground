@@ -299,3 +299,41 @@ test('allOthersForfeited does NOT change duel behavior', () => {
   assert.equal(duel.kind, 'forfeit');
   assert.equal(duel.buttonLabel, '기권하기');
 });
+
+test('party runs surface the no-points warning on forfeit-win and sole-survivor cards', () => {
+  const base = {
+    source: 'duel' as const,
+    isTestMatch: false,
+    isLeaving: false,
+    isSaving: false,
+    isRunning: true,
+    selfForfeited: false,
+    selfFinished: false,
+  };
+
+  const partyForfeitWin = buildMatchExitActionState({
+    ...base,
+    counterpartForfeited: true,
+    isPartyRun: true,
+  });
+  assert.equal(partyForfeitWin.kind, 'counterpart-forfeited');
+  assert.ok(partyForfeitWin.body.includes('포인트가 지급되지 않아요'));
+
+  // 매칭(official)은 기존 문구 그대로 — 포인트 경고 없음.
+  const officialForfeitWin = buildMatchExitActionState({
+    ...base,
+    counterpartForfeited: true,
+    isPartyRun: false,
+  });
+  assert.ok(officialForfeitWin.kind !== 'hidden' && !officialForfeitWin.body.includes('포인트가 지급되지'));
+
+  const partySoleSurvivor = buildMatchExitActionState({
+    ...base,
+    source: 'group',
+    counterpartForfeited: false,
+    allOthersForfeited: true,
+    isPartyRun: true,
+  });
+  assert.equal(partySoleSurvivor.kind, 'sole-survivor');
+  assert.ok(partySoleSurvivor.body.includes('포인트가 지급되지 않아요'));
+});
