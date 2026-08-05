@@ -22,13 +22,16 @@ function sanitizeTagCode(rawTag) {
   return /^[A-Z0-9]{3,8}$/.test(code) ? code : null;
 }
 
-// 모바일 공통 다운로드 랜딩 (2026-08-05): 인앱 브라우저(인스타 등)는 302 자동
-// 점프를 조용히 막는 경우가 있어 "안 열림"이 된다. 자동 이동을 시도하되, 실패해도
-// 큰 버튼이 남아 사용자가 무조건 스토어로 갈 수 있는 방탄 구조.
-// 버튼(primaryUrl)은 iOS에서 itms-apps 스킴: 302 스킴은 인앱 브라우저가 차단하지만
-// 사용자 탭 제스처의 스킴 이동은 허용된다(인스타 실기기에서 https 탭이 무반응이던
-// 사고의 우회). fallbackUrl은 스킴마저 안 먹는 환경용 보조 https 링크.
-function buildDownloadLandingHtml({ primaryUrl, storeLabel, fallbackUrl, autoUrl }) {
+// 다운로드 랜딩 = 자체 링크트리 (2026-08-05 안드로이드 정식 출시로 개편): 양대
+// 스토어 버튼을 나란히 보여주고 방문자가 고른다 — 링크 하나로 아이폰·갤럭시 커버.
+// 사용자 UA에 맞는 스토어가 첫 번째(굵은) 버튼. iOS 버튼은 itms-apps 스킴(302
+// 스킴은 인앱 브라우저가 차단하지만 탭 제스처는 허용) + https 보조 링크.
+// 자동 이동은 인앱 브라우저(인스타/페북/네이버/라인)가 아닐 때만 — 걔네는 어차피
+// 조용히 막아서 의미가 없고, 사파리 등에선 최단 경로가 된다.
+function buildDownloadLandingHtml({ iosFirst, autoUrl }) {
+  const appStoreButton = `<a class="button" href="${APP_STORE_SCHEME_URL}">App Store에서 받기</a>`;
+  const playButton = `<a class="button" href="${PLAY_STORE_WEB_URL}">Google Play에서 받기</a>`;
+
   return `<!doctype html>
 <html lang="ko">
 <head>
@@ -42,9 +45,10 @@ function buildDownloadLandingHtml({ primaryUrl, storeLabel, fallbackUrl, autoUrl
   .logo { width: 76px; height: 76px; border-radius: 18px; background: #6D5EF7; color: #fff;
           font-size: 44px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
   .name { font-size: 22px; font-weight: 800; }
-  .hint { color: #667085; font-size: 14px; line-height: 1.5; }
+  .hint { color: #667085; font-size: 14px; line-height: 1.5; margin-bottom: 6px; }
   a.button { display: block; width: 100%; max-width: 320px; padding: 15px 0; border-radius: 12px;
              text-decoration: none; font-weight: 700; background: #6D5EF7; color: #fff; font-size: 16px; }
+  a.button + a.button { background: rgba(109, 94, 247, 0.14); color: #4338CA; }
   a.fallback { color: #667085; font-size: 13px; text-decoration: underline; }
 </style>
 </head>
@@ -52,15 +56,15 @@ function buildDownloadLandingHtml({ primaryUrl, storeLabel, fallbackUrl, autoUrl
 <div class="logo">R</div>
 <div class="name">러닝그라운드</div>
 <p class="hint">뛸수록 랭크가 오르는 러닝 대결 앱</p>
-<a class="button" href="${primaryUrl}">${storeLabel}</a>
-${fallbackUrl ? `<a class="fallback" href="${fallbackUrl}">버튼이 안 되면 여기를 눌러 주세요</a>` : ''}
-<script>
+${iosFirst ? appStoreButton + '\n' + playButton : playButton + '\n' + appStoreButton}
+<a class="fallback" href="${APP_STORE_WEB_URL}">App Store 버튼이 안 되면 여기를 눌러 주세요</a>
+${autoUrl ? `<script>
   setTimeout(function () {
     if (!document.hidden) {
       location.href = ${JSON.stringify(autoUrl)};
     }
-  }, 600);
-</script>
+  }, 800);
+</script>` : ''}
 </body>
 </html>`;
 }
@@ -139,18 +143,17 @@ export async function routeDownloadRedirectRequest({ method, pathname, request, 
     return true;
   }
 
-  // 모바일은 302 대신 랜딩 HTML: 인앱 브라우저가 자동 이동을 막아도 버튼이 남는다.
-  // 카톡은 스킴 302가 실기기 검증된 최단 경로라 유지, 데스크톱은 스토어 웹으로 302.
-  if ((isIos || isAndroid) && !isKakaoInAppBrowser && method === 'GET') {
+  // 카톡만 스킴 302 유지(실기기 검증된 최단 경로) — 그 외에는 전부 양대 스토어
+  // 버튼 랜딩. 자동 이동은 인앱 브라우저가 아닐 때만 붙인다.
+  if (!isKakaoInAppBrowser && method === 'GET') {
+    const isInAppBrowser = /Instagram|FBAN|FBAV|NAVER|Line\//i.test(userAgent);
     response.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
     });
     response.end(buildDownloadLandingHtml({
-      primaryUrl: isAndroid ? PLAY_STORE_WEB_URL : APP_STORE_SCHEME_URL,
-      fallbackUrl: isAndroid ? null : APP_STORE_WEB_URL,
-      autoUrl: isAndroid ? PLAY_STORE_WEB_URL : APP_STORE_WEB_URL,
-      storeLabel: isAndroid ? 'Google Play에서 받기' : 'App Store에서 열기',
+      iosFirst: !isAndroid,
+      autoUrl: isInAppBrowser ? null : (isAndroid ? PLAY_STORE_WEB_URL : APP_STORE_WEB_URL),
     }));
     return true;
   }

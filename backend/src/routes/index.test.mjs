@@ -480,15 +480,20 @@ await test('download redirect sends iOS to the App Store scheme and others to th
     return response.body;
   };
 
+  // 랜딩 = 자체 링크트리: 어떤 기기든 양대 스토어 버튼이 모두 실린다.
   const iosLanding = await askLanding('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Instagram 334.0.0.0');
-  // 버튼 = itms-apps 스킴(탭 제스처는 인앱 브라우저가 허용) + https 보조 링크.
   assert.ok(iosLanding.includes('itms-apps://apps.apple.com/kr/app/id6762328694'));
   assert.ok(iosLanding.includes('https://apps.apple.com/kr/app/id6762328694'));
-  assert.ok(iosLanding.includes('App Store에서 열기'));
+  assert.ok(iosLanding.includes('App Store에서 받기'));
+  assert.ok(iosLanding.includes('Google Play에서 받기'));
+  // 인앱 브라우저에는 자동 이동 스크립트를 넣지 않는다(조용히 막혀 의미 없음).
+  assert.ok(!iosLanding.includes('setTimeout'));
 
   const androidLanding = await askLanding('Mozilla/5.0 (Linux; Android 14; SM-S921N) AppleWebKit/537.36 Chrome/124.0 Mobile');
-  assert.ok(androidLanding.includes('https://play.google.com/store/apps/details?id=com.minheee.runnigapp'));
   assert.ok(androidLanding.includes('Google Play에서 받기'));
+  assert.ok(androidLanding.includes('App Store에서 받기'));
+  // 일반 브라우저(크롬)에는 자동 이동이 붙는다.
+  assert.ok(androidLanding.includes('setTimeout'));
 
   // 카톡 인앱 브라우저만 itms-apps 스킴 302: 웹 스토어에서 멈추는 문제를 우회해
   // App Store 앱을 바로 연다 (실기기 검증된 기존 동작 유지).
@@ -496,9 +501,8 @@ await test('download redirect sends iOS to the App Store scheme and others to th
     await ask('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 KAKAOTALK 10.4.0'),
     'itms-apps://apps.apple.com/kr/app/id6762328694',
   );
-  // 그 외(데스크톱 등) → App Store 웹 페이지로 302.
-  assert.equal(
-    await ask('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'),
-    'https://apps.apple.com/kr/app/id6762328694',
-  );
+  // 데스크톱도 같은 양대 버튼 랜딩 — 링크 하나가 어디서 열려도 동작한다.
+  const desktopLanding = await askLanding('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
+  assert.ok(desktopLanding.includes('App Store에서 받기'));
+  assert.ok(desktopLanding.includes('Google Play에서 받기'));
 });
