@@ -25,6 +25,11 @@ export function buildDuelRecordSummary(
     if (run?.matchResult?.mode !== 'duel') {
       continue;
     }
+    // 파티런 1대1은 친선전(LP도 안 오름) — 랭크 카드 전적은 공식 매칭만 센다
+    // (오너 2026-08-06: 파티런 테스트가 승률에 잡힘). source 없는 옛 기록은 공식 취급.
+    if (run.matchResult.source === 'party') {
+      continue;
+    }
 
     if (run.matchResult.resultTone === 'win') {
       wins += 1;

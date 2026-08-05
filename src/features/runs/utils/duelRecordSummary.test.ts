@@ -67,3 +67,13 @@ test('전적 줄: 무승부는 있을 때만 붙고, 전적이 비어도 0으로
     '1대1 0승 0패',
   );
 });
+
+test('party-run duels are excluded from the ranked record (friendly matches)', () => {
+  const summary = buildDuelRecordSummary([
+    { id: 'r1', matchResult: { mode: 'duel', resultTone: 'win', title: '', summary: '', badgeLabel: '' } },
+    { id: 'r2', matchResult: { mode: 'duel', source: 'party', resultTone: 'win', title: '', summary: '', badgeLabel: '' } },
+    { id: 'r3', matchResult: { mode: 'duel', source: 'party', resultTone: 'lose', title: '', summary: '', badgeLabel: '' } },
+    { id: 'r4', matchResult: { mode: 'duel', source: 'official', resultTone: 'lose', title: '', summary: '', badgeLabel: '' } },
+  ] as never);
+  assert.deepEqual(summary, { wins: 1, losses: 1, draws: 0, winRatePercent: 50 });
+});
