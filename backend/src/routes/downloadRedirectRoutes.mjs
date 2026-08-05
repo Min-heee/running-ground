@@ -28,9 +28,19 @@ function sanitizeTagCode(rawTag) {
 // 스킴은 인앱 브라우저가 차단하지만 탭 제스처는 허용) + https 보조 링크.
 // 자동 이동은 인앱 브라우저(인스타/페북/네이버/라인)가 아닐 때만 — 걔네는 어차피
 // 조용히 막아서 의미가 없고, 사파리 등에선 최단 경로가 된다.
-function buildDownloadLandingHtml({ iosFirst, autoUrl }) {
-  const appStoreButton = `<a class="button" href="${APP_STORE_SCHEME_URL}">App Store에서 받기</a>`;
+function buildDownloadLandingHtml({ iosFirst, autoUrl, iosInAppBrowser }) {
+  // iOS 인앱 브라우저(인스타/페북)는 App Store 핸드오프를 통째로 떨궈서 https도
+  // itms-apps도 무반응이 된다(2026-08-06 실기기 다수 확인). x-safari-https 스킴은
+  // 탭 제스처로 사파리를 "밖에서" 열게 하는 공개된 우회 — 사파리로 나가면 앱스토어
+  // 핸드오프가 정상 작동한다. 일반 브라우저에서는 기존 itms-apps가 최단 경로.
+  const appStoreHref = iosInAppBrowser
+    ? `x-safari-${APP_STORE_WEB_URL}`
+    : APP_STORE_SCHEME_URL;
+  const appStoreButton = `<a class="button" href="${appStoreHref}">App Store에서 받기</a>`;
   const playButton = `<a class="button" href="${PLAY_STORE_WEB_URL}">Google Play에서 받기</a>`;
+  const inAppHint = iosInAppBrowser
+    ? `<div class="hint2">버튼이 안 되면 오른쪽 위 ⋯ 메뉴에서<br>'외부 브라우저로 열기'를 눌러 주세요</div>`
+    : '';
 
   return `<!doctype html>
 <html lang="ko">
@@ -50,6 +60,7 @@ function buildDownloadLandingHtml({ iosFirst, autoUrl }) {
              text-decoration: none; font-weight: 700; background: #6D5EF7; color: #fff; font-size: 16px; }
   a.button + a.button { background: rgba(109, 94, 247, 0.14); color: #4338CA; }
   a.fallback { color: #667085; font-size: 13px; text-decoration: underline; }
+  .hint2 { color: #98A2B3; font-size: 13px; line-height: 1.5; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -58,6 +69,7 @@ function buildDownloadLandingHtml({ iosFirst, autoUrl }) {
 <p class="hint">뛸수록 랭크가 오르는 러닝 대결 앱</p>
 ${iosFirst ? appStoreButton + '\n' + playButton : playButton + '\n' + appStoreButton}
 <a class="fallback" href="${APP_STORE_WEB_URL}">App Store 버튼이 안 되면 여기를 눌러 주세요</a>
+${inAppHint}
 ${autoUrl ? `<script>
   setTimeout(function () {
     if (!document.hidden) {
@@ -154,6 +166,7 @@ export async function routeDownloadRedirectRequest({ method, pathname, request, 
     response.end(buildDownloadLandingHtml({
       iosFirst: !isAndroid,
       autoUrl: isInAppBrowser ? null : (isAndroid ? PLAY_STORE_WEB_URL : APP_STORE_WEB_URL),
+      iosInAppBrowser: isIos && isInAppBrowser,
     }));
     return true;
   }

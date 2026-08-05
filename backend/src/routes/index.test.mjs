@@ -482,12 +482,19 @@ await test('download redirect sends iOS to the App Store scheme and others to th
 
   // 랜딩 = 자체 링크트리: 어떤 기기든 양대 스토어 버튼이 모두 실린다.
   const iosLanding = await askLanding('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Instagram 334.0.0.0');
-  assert.ok(iosLanding.includes('itms-apps://apps.apple.com/kr/app/id6762328694'));
-  assert.ok(iosLanding.includes('https://apps.apple.com/kr/app/id6762328694'));
+  // iOS 인앱 브라우저: App Store 버튼은 사파리 탈출 스킴(x-safari-https)이어야 한다 —
+  // 인앱 웹뷰는 앱스토어 핸드오프를 떨궈서 https/itms-apps 모두 무반응이 된다.
+  assert.ok(iosLanding.includes('x-safari-https://apps.apple.com/kr/app/id6762328694'));
   assert.ok(iosLanding.includes('App Store에서 받기'));
   assert.ok(iosLanding.includes('Google Play에서 받기'));
+  assert.ok(iosLanding.includes('외부 브라우저로 열기'));
   // 인앱 브라우저에는 자동 이동 스크립트를 넣지 않는다(조용히 막혀 의미 없음).
   assert.ok(!iosLanding.includes('setTimeout'));
+
+  // 일반 iOS 브라우저(사파리)는 기존 itms-apps 최단 경로 유지 + 탈출 스킴 불필요.
+  const iosSafariLanding = await askLanding('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15');
+  assert.ok(iosSafariLanding.includes('itms-apps://apps.apple.com/kr/app/id6762328694'));
+  assert.ok(!iosSafariLanding.includes('x-safari-'));
 
   const androidLanding = await askLanding('Mozilla/5.0 (Linux; Android 14; SM-S921N) AppleWebKit/537.36 Chrome/124.0 Mobile');
   assert.ok(androidLanding.includes('Google Play에서 받기'));
