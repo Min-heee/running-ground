@@ -67,19 +67,21 @@ export const friendsRankingStyles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
     includeFontPadding: false,
   },
-  rankList: {},
-  // 아래 친구 카드와 같은 리스트 결 (오너 2026-08-06 "친구 카드처럼"): 필·보더 없이
-  // 플랫한 줄 + 모든 줄 아래 헤어라인. 줄 스타일(선 색·세로 여백)은 FriendListCard
-  // friendItem/compareRow와 짝을 맞춘다.
-  rankCard: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderSoft,
-    // 줄이 너무 붙어 보인다 (오너 2026-08-06) — 친구 카드(s12)보다 한 뼘 넉넉하게.
-    paddingVertical: spacing.s16,
+  rankList: {
+    gap: spacing.s10,
   },
-  // 내 줄: 연보라 틴트로만 구분 ("나" 배지 + 상단 요약바가 이미 내 순위를 말해준다).
+  rankCard: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    paddingHorizontal: spacing.s16,
+    paddingVertical: 15,
+  },
+  // 내 줄: 흰 카드 + 브랜드 보더 (선택 카드와 같은 신호 언어).
   myCard: {
-    backgroundColor: colors.purpleRow,
+    borderColor: fixedColors.brand,
+    backgroundColor: colors.surface,
   },
   rankRow: {
     flexDirection: 'row',
