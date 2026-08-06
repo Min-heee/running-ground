@@ -87,7 +87,7 @@ test('그라운드 생성 검증: 친구 아닌 초대·판돈 잔액 부족은 
   );
 });
 
-test('직접 지정 기간: 오늘 시작은 거부, 내일부터 허용, 31일 초과 거부', () => {
+test('직접 지정 기간: 오늘 시작은 거부, 내일부터 허용, 2년 초과 거부', () => {
   const store = buildStore();
 
   assert.throws(
@@ -99,10 +99,16 @@ test('직접 지정 기간: 오늘 시작은 거부, 내일부터 허용, 31일 
 
   assert.throws(
     () => createRunmadangChallenge(store, store.users[0], {
-      metric: 'distance', stakePoints: 0, startDate: '2026-08-07', endDate: '2026-09-30', invitedFriendIds: ['user-b'],
+      metric: 'distance', stakePoints: 0, startDate: '2026-08-07', endDate: '2028-09-01', invitedFriendIds: ['user-b'],
     }, NOW),
-    /최대 31일/,
+    /최대 2년/,
   );
+
+  // 1년짜리 장기 내기 허용 (오너 2026-08-07).
+  const yearLong = createRunmadangChallenge(store, store.users[0], {
+    metric: 'distance', stakePoints: 0, startDate: '2026-08-07', endDate: '2027-08-06', invitedFriendIds: ['user-b'],
+  }, NOW);
+  assert.equal(resolveRunmadangStatus(yearLong, NOW), 'upcoming');
 
   const challenge = createRunmadangChallenge(store, store.users[0], {
     metric: 'distance', stakePoints: 0, startDate: '2026-08-07', endDate: '2026-08-13', invitedFriendIds: ['user-b'],

@@ -95,16 +95,21 @@ export function buildRunmadangStartDateOptions(nowMs: number): RunmadangDateOpti
   });
 }
 
-// 종료일 후보: 시작일 당일(하루짜리)부터 최대 31일.
+// 직접 지정 최대 기간(일) — 오너 2026-08-07: 1년·2년 내기도 가능하게. 서버
+// RUNMADANG_MAX_CUSTOM_SPAN_DAYS와 같은 값.
+export const RUNMADANG_MAX_SPAN_DAYS = 731;
+
+// 종료일 후보: 시작일 당일(하루짜리)부터 최대 2년. 올해가 아닌 날짜는 라벨에 연도가
+// 붙는다 (formatKstDayLabel).
 export function buildRunmadangEndDateOptions(startDateKey: string): RunmadangDateOption[] {
   const startMs = Date.parse(`${startDateKey}T00:00:00+09:00`);
-  return Array.from({ length: 31 }, (_, index) => {
+  return Array.from({ length: RUNMADANG_MAX_SPAN_DAYS }, (_, index) => {
     const ms = startMs + index * KST_DAY_MS;
     return { key: formatKstDayKey(ms), label: formatKstDayLabel(ms) };
   });
 }
 
-// 시작일을 다시 고를 때 기존 종료일을 새 31일 창에 맞춘다: 시작일보다 이르면 시작일로
+// 시작일을 다시 고를 때 기존 종료일을 새 창에 맞춘다: 시작일보다 이르면 시작일로
 // 끌어오고, 창을 넘으면 null(다시 선택) — 화면엔 '선택'인데 서버로는 낡은 값이 나가는
 // 모순을 막는다 (적대 리뷰).
 export function clampRunmadangEndDate(startDateKey: string, endDateKey: string | null): string | null {
@@ -115,7 +120,7 @@ export function clampRunmadangEndDate(startDateKey: string, endDateKey: string |
     return startDateKey;
   }
   const startMs = Date.parse(`${startDateKey}T00:00:00+09:00`);
-  const maxKey = formatKstDayKey(startMs + 30 * KST_DAY_MS);
+  const maxKey = formatKstDayKey(startMs + (RUNMADANG_MAX_SPAN_DAYS - 1) * KST_DAY_MS);
   return endDateKey > maxKey ? null : endDateKey;
 }
 
