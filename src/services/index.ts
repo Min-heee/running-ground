@@ -9,6 +9,7 @@ export * from './matchService';
 export * from './notificationsService';
 export * from './pointsService';
 export * from './profileService';
+export * from './runmadangService';
 export * from './runningService';
 export * from './usersService';
 export {

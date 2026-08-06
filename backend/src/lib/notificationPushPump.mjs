@@ -31,6 +31,10 @@ export const NOTIFICATION_PUSH_SETTING_KEY_BY_TYPE = {
   match_result: 'matchReminders',
   chase_settlement: 'matchReminders',
   inquiry_reply: null,
+  // 런마당은 친구 기반 내기 — 친구 알림 설정을 따른다.
+  runmadang_invite: 'friendAlerts',
+  runmadang_joined: 'friendAlerts',
+  runmadang_settled: 'friendAlerts',
 };
 
 // 인박스 전용(푸시 안 보냄) 유형 — rank_change는 랭크전 완료 때 match_result와 항상

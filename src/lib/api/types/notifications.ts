@@ -8,7 +8,11 @@ export type InboxNotificationType =
   | 'friend_accepted'
   | 'rank_change'
   | 'chase_settlement'
-  | 'inquiry_reply';
+  | 'inquiry_reply'
+  // 런마당 (기간제 포인트 내기): 초대 / 참가 / 정산·취소 결과.
+  | 'runmadang_invite'
+  | 'runmadang_joined'
+  | 'runmadang_settled';
 
 export type InboxNotificationData = {
   roomId?: string;
@@ -20,6 +24,7 @@ export type InboxNotificationData = {
   arenaId?: string;
   runId?: string;
   inquiryId?: string;
+  challengeId?: string;
   [key: string]: unknown;
 };
 

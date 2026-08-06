@@ -59,6 +59,10 @@ export function getNotificationTypeLabel(type: InboxNotificationType) {
       return '경찰과 도둑';
     case 'inquiry_reply':
       return '문의 답변';
+    case 'runmadang_invite':
+    case 'runmadang_joined':
+    case 'runmadang_settled':
+      return '런마당';
     default:
       return '알림';
   }
@@ -79,6 +83,15 @@ export function resolveNotificationHref(notification: InboxNotification): Href |
   // 문의 답변 알림 → 문의하기 화면(내역에 답변이 보인다). data 없이도 성립.
   if (notification.type === 'inquiry_reply') {
     return '/support';
+  }
+  // 런마당 알림(초대/참가/정산) → 런마당 목록으로. 목록이 판별 카드를 보여주므로
+  // challengeId 없이도 성립.
+  if (
+    notification.type === 'runmadang_invite'
+    || notification.type === 'runmadang_joined'
+    || notification.type === 'runmadang_settled'
+  ) {
+    return '/runmadang';
   }
 
   if (!data) {

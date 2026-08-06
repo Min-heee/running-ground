@@ -7,5 +7,6 @@ export * from './types/matches';
 export * from './types/notifications';
 export * from './types/profile';
 export * from './types/rooms';
+export * from './types/runmadang';
 export * from './types/runs';
 export * from './types/users';

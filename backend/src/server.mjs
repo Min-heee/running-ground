@@ -83,6 +83,16 @@ import {
 import { findChaseArena } from './lib/chase/chaseArenas.mjs';
 import { settleChaseRunUpload } from './lib/chase/chaseSettlement.mjs';
 import {
+  buildRunmadangMinePayload,
+  cancelRunmadangChallenge,
+  createRunmadangChallenge,
+  declineRunmadangChallenge,
+  hasDueRunmadangChallenges,
+  joinRunmadangChallenge,
+  settleDueRunmadangChallenges,
+  withdrawRunmadangChallenge,
+} from './lib/runmadang/runmadang.mjs';
+import {
   normalizeOptionalString,
 } from './lib/adminNormalizers.mjs';
 import {
@@ -287,6 +297,14 @@ const routeRequest = createApiRouteHandler({
   updateChasePresencePosition,
   findChaseArena,
   settleChaseRunUpload,
+  buildRunmadangMinePayload,
+  cancelRunmadangChallenge,
+  createRunmadangChallenge,
+  declineRunmadangChallenge,
+  hasDueRunmadangChallenges,
+  joinRunmadangChallenge,
+  settleDueRunmadangChallenges,
+  withdrawRunmadangChallenge,
   getStoredRunRoute,
   buildHealthStatus: backendStatusService.buildHealthStatus,
   ENABLE_ADMIN_STATUS,

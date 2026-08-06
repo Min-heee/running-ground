@@ -28,7 +28,9 @@ export const NotificationTypeIcon = memo(function NotificationTypeIcon({ type, u
           ? 'message-circle'
           : type === 'chase_settlement'
             ? 'target'
-            : 'trending-up';
+            : type === 'runmadang_invite' || type === 'runmadang_joined' || type === 'runmadang_settled'
+              ? 'award'
+              : 'trending-up';
 
   return <Feather name={iconName} size={fontSizes.title} color={iconColor} />;
 });

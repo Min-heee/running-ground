@@ -90,6 +90,15 @@ export default function FriendsScreen() {
         <>
           <FriendsRanking ranks={leaderboard.ranks} highlightTag={profile.publicTag} />
 
+          {/* 런마당 (오너 2026-08-06): 기간제 포인트 내기 진입점. */}
+          <Pressable style={styles.runmadangCard} onPress={() => router.push('/runmadang')}>
+            <View style={styles.runmadangCopy}>
+              <Text style={styles.runmadangTitle}>런마당</Text>
+              <Text style={styles.runmadangSubtitle}>기간을 정해 친구와 포인트를 걸고 달려요</Text>
+            </View>
+            <Text style={styles.runmadangChevron}>›</Text>
+          </Pressable>
+
           <FriendListCard
             friends={compareTargets}
             creatingPartyRunFriendId={creatingPartyRunFriendId}
@@ -112,6 +121,35 @@ export default function FriendsScreen() {
 
 const styles = StyleSheet.create({
   headerWrap: { gap: 12 },
+  runmadangCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.s12,
+    backgroundColor: colors.brandWash,
+    borderRadius: radii.lg,
+    paddingHorizontal: spacing.s18,
+    paddingVertical: spacing.s14,
+  },
+  runmadangCopy: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  runmadangTitle: {
+    color: colors.brandDeep,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.extraBold,
+  },
+  runmadangSubtitle: {
+    color: colors.brandStrong,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+  },
+  runmadangChevron: {
+    color: colors.brandDeep,
+    fontSize: fontSizes.summaryValue,
+    fontWeight: fontWeights.extraBold,
+  },
   addButton: {
     backgroundColor: colors.brand,
     borderRadius: radii.md,

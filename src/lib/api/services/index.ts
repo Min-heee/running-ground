@@ -4,6 +4,7 @@ export * from './runs';
 export * from './matches';
 export * from './notifications';
 export * from './rooms';
+export * from './runmadang';
 export * from './friends';
 export * from './league';
 export * from './market';

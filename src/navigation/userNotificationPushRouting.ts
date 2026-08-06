@@ -33,6 +33,11 @@ export function resolveUserNotificationPushHref(data: unknown): Href | null {
     return '/friend-requests';
   }
 
+  // 런마당 푸시(초대/참가/정산)도 알림함 대신 바로 런마당 목록으로.
+  if (type === 'runmadang_invite' || type === 'runmadang_joined' || type === 'runmadang_settled') {
+    return '/runmadang';
+  }
+
   if (INBOX_PUSH_TYPES.has(type)) {
     return { pathname: '/notification-center', params: { tab: 'notifications' } };
   }

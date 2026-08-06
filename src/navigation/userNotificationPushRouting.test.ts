@@ -35,3 +35,9 @@ test('매치 리마인더(kind 체계)·모르는 유형·빈 데이터는 건�
 test('friend request pushes deep-link straight to the friend-requests screen', () => {
   assert.equal(resolveUserNotificationPushHref({ type: 'friend_request' }), '/friend-requests');
 });
+
+test('런마당 푸시는 알림함 대신 런마당 목록으로 딥링크', () => {
+  assert.equal(resolveUserNotificationPushHref({ type: 'runmadang_invite' }), '/runmadang');
+  assert.equal(resolveUserNotificationPushHref({ type: 'runmadang_joined', challengeId: 'c1' }), '/runmadang');
+  assert.equal(resolveUserNotificationPushHref({ type: 'runmadang_settled' }), '/runmadang');
+});

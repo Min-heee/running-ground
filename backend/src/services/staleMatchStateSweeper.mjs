@@ -11,6 +11,10 @@
 import { pruneMatchQueues } from '../lib/matchQueueStoreHelpers.mjs';
 import { pruneMatchRooms } from '../lib/matchRoom/matchRoomCore.mjs';
 import { pruneMatchSessions } from '../lib/runningMatchSession/matchSessionLifecycle.mjs';
+import {
+  pruneRunmadangChallenges,
+  settleDueRunmadangChallenges,
+} from '../lib/runmadang/runmadang.mjs';
 
 // 5분: 대기방 수명(2시간)에 비해 충분히 촘촘하면서, 주기당 비용(blob 직렬화 1회)이 무의미한 간격.
 export const MATCH_STATE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
@@ -30,11 +34,16 @@ export async function sweepStaleMatchState({ mutateStore, now = new Date() }) {
     pruneMatchQueues(store, now);
     pruneMatchSessions(store, now);
     pruneMatchRooms(store, now);
+    // 런마당: 만기 판 정산(환불·상금·알림) + 오래된 판 정리 — 아무도 앱을 안 열어도
+    // 기간이 끝나면 결과가 나가야 한다.
+    const settledRunmadang = settleDueRunmadangChallenges(store, now);
+    pruneRunmadangChallenges(store, now);
 
     return {
       removedRooms: beforeRooms - (store.matchRooms?.length ?? 0),
       removedSessions: beforeSessions - (store.matchSessions?.length ?? 0),
       removedQueueEntries: beforeQueueEntries - countQueueEntries(store),
+      settledRunmadang,
     };
   });
 }
@@ -60,7 +69,7 @@ export function startStaleMatchStateSweeper({
     try {
       const swept = await sweepStaleMatchState({ mutateStore, now: new Date() });
 
-      if (onSwept && (swept.removedRooms || swept.removedSessions || swept.removedQueueEntries)) {
+      if (onSwept && (swept.removedRooms || swept.removedSessions || swept.removedQueueEntries || swept.settledRunmadang)) {
         onSwept(swept);
       }
     } catch (error) {
