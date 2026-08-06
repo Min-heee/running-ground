@@ -67,16 +67,18 @@ export const friendsRankingStyles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
     includeFontPadding: false,
   },
-  rankList: {
-    gap: spacing.s10,
+  rankList: {},
+  // 친구가 많아지면 경계 없이 뭉쳐 보인다 (오너 2026-08-06) — 회색 필 배경 대신
+  // 아래 친구 카드와 같은 구분선 리스트로. 필 위 보더는 이 팔레트에서 배경과 색이
+  // 붙어(라이트 #EDF0F3 vs #F2F4F7, 다크 0.12 vs 0.13 백색) 눈에 안 보인다.
+  rankDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
   },
   rankCard: {
-    backgroundColor: colors.surfaceMuted,
     borderRadius: radii.xl,
     borderWidth: 1,
-    // 친구가 많아지면 회색 줄들이 경계 없이 뭉쳐 보인다 (오너 2026-08-06) — 줄마다
-    // 은은한 경계선. 내 줄(myCard)은 브랜드 보더가 이걸 덮는다.
-    borderColor: colors.borderMuted,
+    borderColor: 'transparent',
     paddingHorizontal: spacing.s16,
     paddingVertical: 15,
   },
