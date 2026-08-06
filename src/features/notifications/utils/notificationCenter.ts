@@ -67,6 +67,20 @@ export function getNotificationTypeLabel(type: InboxNotificationType) {
 export function resolveNotificationHref(notification: InboxNotification): Href | null {
   const data = notification.data;
 
+  // 타입만으로 목적지가 정해지는 알림은 data 유무와 무관하게 먼저 라우팅한다
+  // (오너 2026-08-06: 친구 신청 알림 탭 → 친구 요청 화면).
+  if (notification.type === 'friend_request') {
+    return '/friend-requests';
+  }
+  // 수락됨 알림은 이제 친구가 된 상대를 보러 친구 탭으로.
+  if (notification.type === 'friend_accepted') {
+    return '/(tabs)/friends';
+  }
+  // 문의 답변 알림 → 문의하기 화면(내역에 답변이 보인다). data 없이도 성립.
+  if (notification.type === 'inquiry_reply') {
+    return '/support';
+  }
+
   if (!data) {
     return null;
   }
@@ -82,11 +96,6 @@ export function resolveNotificationHref(notification: InboxNotification): Href |
         ...(data.mode === 'duel' || data.mode === 'group' ? { matchMode: data.mode } : {}),
       },
     };
-  }
-
-  // 문의 답변 알림 → 문의하기 화면(내역에 답변이 보인다).
-  if (notification.type === 'inquiry_reply') {
-    return '/support';
   }
 
   // 경찰과 도둑런 정산 알림 → 해당 러닝의 상세(정산 카드)로.

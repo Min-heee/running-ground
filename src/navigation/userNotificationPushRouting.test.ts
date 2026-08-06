@@ -13,7 +13,7 @@ test('공지 푸시는 공지 탭으로', () => {
 });
 
 test('인박스 유형은 알림 탭으로', () => {
-  for (const type of ['friend_request', 'match_invite', 'inquiry_reply']) {
+  for (const type of ['match_invite', 'inquiry_reply']) {
     assert.deepEqual(resolveUserNotificationPushHref({ type }), {
       pathname: '/notification-center',
       params: { tab: 'notifications' },
@@ -30,4 +30,8 @@ test('매치 리마인더(kind 체계)·모르는 유형·빈 데이터는 건�
   assert.equal(resolveUserNotificationPushHref({ type: 'unknown-thing' }), null);
   assert.equal(resolveUserNotificationPushHref(null), null);
   assert.equal(resolveUserNotificationPushHref(undefined), null);
+});
+
+test('friend request pushes deep-link straight to the friend-requests screen', () => {
+  assert.equal(resolveUserNotificationPushHref({ type: 'friend_request' }), '/friend-requests');
 });

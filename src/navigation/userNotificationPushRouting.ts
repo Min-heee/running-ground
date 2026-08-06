@@ -27,6 +27,12 @@ export function resolveUserNotificationPushHref(data: unknown): Href | null {
     return { pathname: '/notification-center', params: { tab: 'announcements' } };
   }
 
+  // 친구 신청 푸시는 알림함을 거치지 않고 바로 친구 요청 화면으로
+  // (오너 2026-08-06 — 인앱 알림함 탭 라우팅과 같은 목적지).
+  if (type === 'friend_request') {
+    return '/friend-requests';
+  }
+
   if (INBOX_PUSH_TYPES.has(type)) {
     return { pathname: '/notification-center', params: { tab: 'notifications' } };
   }
