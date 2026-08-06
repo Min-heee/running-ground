@@ -419,6 +419,17 @@ const server = createServer(async (request, response) => {
   try {
     await routeRequest(request, response);
   } catch (error) {
+    // 4xx 거절 진단 로그 (2026-08-06, 회원K 저장 실종 조사): ApiError는 지금까지
+    // 아무 로그도 안 남아 "저장이 왜 거절됐는지"를 사후에 알 수 없었다. 401(만료 세션
+    // 폴링 소음)만 빼고 경로·상태·메시지를 남긴다 — 본문/토큰은 기록하지 않는다.
+    if (error instanceof ApiError && error.statusCode !== 401) {
+      logBackendInfo('api_client_error', {
+        method: request.method,
+        path: String(request.url ?? '').split('?')[0],
+        status: error.statusCode,
+        message: error.message,
+      });
+    }
     sendError(response, error);
   }
 });
