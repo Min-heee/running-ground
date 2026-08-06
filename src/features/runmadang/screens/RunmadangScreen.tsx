@@ -259,7 +259,10 @@ function ChallengeCard({
   return (
     <Card style={styles.challengeCard}>
       <View style={styles.challengeHeaderRow}>
-        <Text style={styles.challengeTitle}>{METRIC_TITLES[challenge.metric]}</Text>
+        {/* 판 이름 (오너 2026-08-06) — 이름 도입 전 구서버 판은 종목 기본명 폴백. */}
+        <Text numberOfLines={1} style={styles.challengeTitle}>
+          {challenge.title?.trim() || METRIC_TITLES[challenge.metric]}
+        </Text>
         <View style={styles.potPill}>
           <Text style={styles.potPillText}>
             {challenge.stakePoints > 0 ? `판돈 ${challenge.potPoints}P` : '판돈 없음'}
@@ -268,6 +271,8 @@ function ChallengeCard({
       </View>
 
       <Text style={styles.periodText}>
+        {METRIC_TITLES[challenge.metric]}
+        {' · '}
         {formatRunmadangPeriod(challenge.startAt, challenge.endAt)}
         {isLive ? ` · ${challenge.status === 'upcoming' ? '시작 전' : formatRunmadangRemaining(challenge.endAt, nowMs)}` : ''}
       </Text>
@@ -380,6 +385,7 @@ const styles = StyleSheet.create({
     gap: spacing.s10,
   },
   challengeTitle: {
+    flex: 1,
     color: colors.textPrimary,
     fontSize: fontSizes.title,
     fontWeight: fontWeights.extraBold,

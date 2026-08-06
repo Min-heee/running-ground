@@ -170,6 +170,7 @@ function resolvePeriod(input, now) {
 }
 
 const METRIC_LABELS = { distance: '거리', duration: '시간' };
+export const RUNMADANG_MAX_TITLE_LENGTH = 20;
 
 export function createRunmadangChallenge(store, user, input, now = new Date()) {
   ensureRunmadangStore(store);
@@ -178,6 +179,13 @@ export function createRunmadangChallenge(store, user, input, now = new Date()) {
   if (!RUNMADANG_METRICS.has(metric)) {
     throw new ApiError(400, '대결 종목(거리/시간)을 선택해주세요.');
   }
+
+  // 판 이름 (오너 2026-08-06: "이름부터 설정하게"). 필수 강제는 클라 쪽 —
+  // 이름 없는 구버전 클라 요청은 종목 기본명으로 관대하게 받아 호환을 지킨다.
+  const title = String(input.title ?? '')
+    .trim()
+    .slice(0, RUNMADANG_MAX_TITLE_LENGTH)
+    || `${METRIC_LABELS[metric]} 대결`;
 
   const stakePoints = Number(input.stakePoints);
   if (!Number.isInteger(stakePoints) || stakePoints < 0 || stakePoints > RUNMADANG_MAX_STAKE_POINTS) {
@@ -214,6 +222,7 @@ export function createRunmadangChallenge(store, user, input, now = new Date()) {
   const challenge = {
     id: nextId('runmadang'),
     hostUserId: user.id,
+    title,
     metric,
     stakePoints,
     startAt: period.startAt,
@@ -237,7 +246,7 @@ export function createRunmadangChallenge(store, user, input, now = new Date()) {
       userId: friendId,
       type: 'runmadang_invite',
       title: '그라운드 초대',
-      body: `${user.name}님이 그라운드에 초대했어요 · ${METRIC_LABELS[metric]} 대결${stakePoints > 0 ? ` · 판돈 ${stakePoints}P` : ''}`,
+      body: `${user.name}님이 "${title}" 그라운드에 초대했어요 · ${METRIC_LABELS[metric]} 대결${stakePoints > 0 ? ` · 판돈 ${stakePoints}P` : ''}`,
       data: { challengeId: challenge.id },
       nowIso: () => nowIso,
     });
@@ -584,6 +593,8 @@ function buildChallengePayload(store, challenge, currentUserId, now) {
 
   return {
     id: challenge.id,
+    // 이름 도입 전에 만들어진 판은 종목 기본명으로.
+    title: challenge.title ?? `${METRIC_LABELS[challenge.metric]} 대결`,
     metric: challenge.metric,
     stakePoints: challenge.stakePoints,
     startAt: challenge.startAt,

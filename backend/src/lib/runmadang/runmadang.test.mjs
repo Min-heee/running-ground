@@ -439,3 +439,28 @@ test('동률 정산 알림: 개인 수령액 표기 + myPayoutPoints 페이로�
   const viewC = buildRunmadangMinePayload(store, store.users[2], afterEnd);
   assert.equal(viewC.challenges[0].myPayoutPoints, 0);
 });
+
+test('판 이름: 저장·페이로드·초대 알림에 반영, 없으면 종목 기본명', () => {
+  const store = buildStore();
+  const named = createRunmadangChallenge(store, store.users[0], {
+    metric: 'distance', stakePoints: 0, periodPreset: '1w', invitedFriendIds: ['user-b'],
+    title: '  이번 주 10km 내기  ',
+  }, NOW);
+  assert.equal(named.title, '이번 주 10km 내기');
+  const invite = store.notifications.find((entry) => entry.type === 'runmadang_invite');
+  assert.ok(invite.body.includes('"이번 주 10km 내기"'));
+
+  const view = buildRunmadangMinePayload(store, store.users[0], NOW);
+  assert.equal(view.challenges[0].title, '이번 주 10km 내기');
+
+  // 이름 없이(구버전 클라) 오면 종목 기본명. 20자 초과는 잘린다.
+  const unnamed = createRunmadangChallenge(store, store.users[0], {
+    metric: 'duration', stakePoints: 0, periodPreset: '3d', invitedFriendIds: ['user-b'],
+  }, NOW);
+  assert.equal(unnamed.title, '시간 대결');
+  const long = createRunmadangChallenge(store, store.users[0], {
+    metric: 'distance', stakePoints: 0, periodPreset: '3d', invitedFriendIds: ['user-b'],
+    title: '가나다라마바사아자차카타파하가나다라마바사',
+  }, NOW);
+  assert.equal(long.title.length, 20);
+});

@@ -33,8 +33,10 @@ type FriendOption = { id: string; name: string };
 
 const MAX_INVITEES = 11;
 const MAX_STAKE = 10000;
+const MAX_TITLE_LENGTH = 20;
 
 export default function RunmadangCreateScreen() {
+  const [titleText, setTitleText] = useState('');
   const [metric, setMetric] = useState<RunmadangMetric>('distance');
   const [periodId, setPeriodId] = useState<string>('1w');
   const [startDate, setStartDate] = useState<string | null>(null);
@@ -116,7 +118,8 @@ export default function RunmadangCreateScreen() {
     setDatePickerTarget(null);
   }, [datePickerTarget]);
 
-  const canSubmit = selectedFriendIds.length > 0
+  const canSubmit = titleText.trim().length > 0
+    && selectedFriendIds.length > 0
     && !saving
     && !stakeExceedsBalance
     && (periodId !== 'custom'
@@ -145,6 +148,7 @@ export default function RunmadangCreateScreen() {
             setSaving(true);
             try {
               const input: CreateRunmadangInput = {
+                title: titleText.trim(),
                 metric,
                 stakePoints: effectiveStake,
                 invitedFriendIds: selectedFriendIds,
@@ -165,7 +169,7 @@ export default function RunmadangCreateScreen() {
         },
       },
     ]);
-  }, [canSubmit, effectiveStake, endDate, metric, periodId, selectedFriendIds, startDate]);
+  }, [canSubmit, effectiveStake, endDate, metric, periodId, selectedFriendIds, startDate, titleText]);
 
   return (
     <Screen>
@@ -175,6 +179,20 @@ export default function RunmadangCreateScreen() {
         showBack
         backHref="/runmadang"
       />
+
+      <Card style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>이름</Text>
+        <TextInput
+          style={styles.titleInput}
+          value={titleText}
+          onChangeText={setTitleText}
+          placeholder="예: 이번 주 10km 내기"
+          placeholderTextColor={colors.textTertiary}
+          maxLength={MAX_TITLE_LENGTH}
+          returnKeyType="done"
+        />
+        <Text style={styles.helperText}>친구 초대 알림과 판 목록에 이 이름이 보여요.</Text>
+      </Card>
 
       <Card style={styles.sectionCard}>
         <Text style={styles.sectionTitle}>종목</Text>
@@ -404,6 +422,15 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.bold,
   },
   stakeInput: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s12,
+    color: colors.textPrimary,
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.extraBold,
+  },
+  titleInput: {
     backgroundColor: colors.surfaceMuted,
     borderRadius: radii.md,
     paddingHorizontal: spacing.s14,

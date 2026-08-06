@@ -18,6 +18,8 @@ export type RunmadangStandingRow = {
 
 export type RunmadangChallenge = {
   id: string;
+  // 판 이름. 이름 도입 전 구서버 응답엔 없을 수 있다.
+  title?: string;
   metric: RunmadangMetric;
   stakePoints: number;
   startAt: string;
@@ -49,6 +51,7 @@ export type RunmadangMineResponse = {
 };
 
 export type CreateRunmadangInput = {
+  title: string;
   metric: RunmadangMetric;
   stakePoints: number;
   periodPreset?: '3d' | '1w' | '2w' | '1m';
