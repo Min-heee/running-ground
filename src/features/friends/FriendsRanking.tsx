@@ -1,4 +1,4 @@
-import { Fragment, memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { SegmentSwitch } from '@/components/ui/SegmentSwitch';
@@ -67,15 +67,12 @@ export const FriendsRanking = memo(function FriendsRanking({ ranks, highlightTag
       ) : null}
 
       <View style={styles.rankList}>
-        {/* 줄 사이 구분선 — 아래 친구 카드와 같은 리스트 결 (오너 2026-08-06). */}
-        {displayedRanks.map((runner, index) => (
-          <Fragment key={runner.id}>
-            {index > 0 ? <View style={styles.rankDivider} /> : null}
-            <FriendRankRow
-              runner={runner}
-              isMine={runner.tag === highlightTag}
-            />
-          </Fragment>
+        {displayedRanks.map((runner) => (
+          <FriendRankRow
+            key={runner.id}
+            runner={runner}
+            isMine={runner.tag === highlightTag}
+          />
         ))}
       </View>
     </Card>

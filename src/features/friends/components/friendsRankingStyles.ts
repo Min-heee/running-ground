@@ -68,24 +68,17 @@ export const friendsRankingStyles = StyleSheet.create({
     includeFontPadding: false,
   },
   rankList: {},
-  // 친구가 많아지면 경계 없이 뭉쳐 보인다 (오너 2026-08-06) — 회색 필 배경 대신
-  // 아래 친구 카드와 같은 구분선 리스트로. 필 위 보더는 이 팔레트에서 배경과 색이
-  // 붙어(라이트 #EDF0F3 vs #F2F4F7, 다크 0.12 vs 0.13 백색) 눈에 안 보인다.
-  rankDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
-  },
+  // 아래 친구 카드와 같은 리스트 결 (오너 2026-08-06 "친구 카드처럼"): 필·보더 없이
+  // 플랫한 줄 + 모든 줄 아래 헤어라인. 줄 스타일(선 색·세로 여백)은 FriendListCard
+  // friendItem/compareRow와 짝을 맞춘다.
   rankCard: {
-    borderRadius: radii.xl,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    paddingHorizontal: spacing.s16,
-    paddingVertical: 15,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderSoft,
+    paddingVertical: spacing.s12,
   },
-  // 내 줄: 흰 카드 + 브랜드 보더 (선택 카드와 같은 신호 언어).
+  // 내 줄: 연보라 틴트로만 구분 ("나" 배지 + 상단 요약바가 이미 내 순위를 말해준다).
   myCard: {
-    borderColor: fixedColors.brand,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.purpleRow,
   },
   rankRow: {
     flexDirection: 'row',
