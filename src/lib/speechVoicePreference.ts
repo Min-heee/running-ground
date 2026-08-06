@@ -103,9 +103,13 @@ export async function previewVoice(identifier: string | null): Promise<void> {
     if (typeof Speech.speak !== 'function') {
       return;
     }
-    // 무음 스위치가 켜진 iPhone에서도 들리게 — 대결 안내와 같은 오디오 세션을 쓴다.
-    const { ensureSpeechAudioModeConfigured } = await import('@/lib/speechAudioMode');
-    await ensureSpeechAudioModeConfigured();
+    // 무음 스위치가 켜진 iPhone에서도 들리게 — 대결 안내와 같은 오디오 세션을 쓰고,
+    // 끝나면 세션을 놓아 듣던 음악 볼륨을 되돌린다 (오너 2026-08-07 덕킹 미복원 수정).
+    const {
+      activateSpeechAudioSession,
+      releaseSpeechAudioSessionSoon,
+    } = await import('@/lib/speechAudioMode');
+    const sessionGeneration = await activateSpeechAudioSession();
     if (typeof Speech.stop === 'function') {
       await Speech.stop().catch(() => undefined);
     }
@@ -113,7 +117,9 @@ export async function previewVoice(identifier: string | null): Promise<void> {
       language: 'ko-KR',
       ...(identifier ? { voice: identifier } : {}),
       pitch: 0.95,
-      onError: () => undefined,
+      onDone: () => releaseSpeechAudioSessionSoon(sessionGeneration),
+      onStopped: () => releaseSpeechAudioSessionSoon(sessionGeneration),
+      onError: () => releaseSpeechAudioSessionSoon(sessionGeneration),
     });
   } catch {
     // 미리듣기 실패는 조용히.

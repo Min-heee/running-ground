@@ -7,7 +7,10 @@
 // dynamic imports fail and are caught), so this is safe to ship over OTA ahead of the
 // rebuild — voice simply stays silent until the native build lands.
 
-import { ensureSpeechAudioModeConfigured } from '@/lib/speechAudioMode';
+import {
+  activateSpeechAudioSession,
+  releaseSpeechAudioSessionSoon,
+} from '@/lib/speechAudioMode';
 import { getPreferredVoiceIdentifier } from '@/lib/speechVoicePreference';
 
 async function getSpeechModule() {
@@ -94,7 +97,9 @@ export async function speakLiveGapMessage(text: string): Promise<void> {
     return;
   }
 
-  await ensureSpeechAudioModeConfigured();
+  // 활성화(= 음악 덕킹 시작)와 세대 토큰 — 발화가 끝나면 세션을 놓아 음악 볼륨을
+  // 되돌린다. stop()이 이전 발화의 onStopped를 늦게 쏴도 세대가 달라 무해하다.
+  const sessionGeneration = await activateSpeechAudioSession();
   await ensureVoiceResolved(Speech);
 
   try {
@@ -113,9 +118,12 @@ export async function speakLiveGapMessage(text: string): Promise<void> {
       ...(effectiveVoice ? { voice: effectiveVoice } : {}),
       // 기본보다 반 톤 낮춰서 쨍한 기계음 느낌을 줄인다.
       pitch: 0.95,
-      onError: () => undefined,
+      onDone: () => releaseSpeechAudioSessionSoon(sessionGeneration),
+      onStopped: () => releaseSpeechAudioSessionSoon(sessionGeneration),
+      onError: () => releaseSpeechAudioSessionSoon(sessionGeneration),
     });
   } catch {
     // Never let a TTS failure disrupt the run.
+    releaseSpeechAudioSessionSoon(sessionGeneration);
   }
 }
