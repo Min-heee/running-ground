@@ -165,12 +165,18 @@ export default function RunmadangScreen() {
 
       {data ? (
         <>
+          {/* 상단 카드 (오너 2026-08-07): 왼쪽 = 보유 포인트 크게, 오른쪽 = 만들기 버튼
+              (버튼이 글자에 딱 붙지 않게 고정 폭으로 여유). */}
           <Card style={styles.createCard}>
             <View style={styles.createCopy}>
-              <Text style={styles.createTitle}>새 판 벌이기</Text>
-              <Text style={styles.createSubtitle}>보유 {Math.max(0, Math.round(data.availablePoints)).toLocaleString()}P</Text>
+              <Text style={styles.balanceLabel}>보유 포인트</Text>
+              <Text style={styles.balanceValue}>
+                {Math.max(0, Math.round(data.availablePoints)).toLocaleString()}P
+              </Text>
             </View>
-            <PrimaryButton label="그라운드 만들기" onPress={() => router.push('/runmadang-create')} />
+            <View style={styles.createButtonWrap}>
+              <PrimaryButton label="그라운드 만들기" onPress={() => router.push('/runmadang-create')} />
+            </View>
           </Card>
 
           {sections.invited.length > 0 ? (
@@ -351,15 +357,19 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: spacing.xs,
   },
-  createTitle: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.extraBold,
-  },
-  createSubtitle: {
+  balanceLabel: {
     color: colors.textSecondary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
+  },
+  balanceValue: {
+    color: colors.textPrimary,
+    fontSize: fontSizes.metric,
+    fontWeight: fontWeights.extraBold,
+    includeFontPadding: false,
+  },
+  createButtonWrap: {
+    width: 164,
   },
   sectionBlock: {
     gap: spacing.s10,
