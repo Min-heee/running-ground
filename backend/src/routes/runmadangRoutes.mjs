@@ -17,6 +17,7 @@ export async function routeRunmadangRequest({
   joinRunmadangChallenge,
   declineRunmadangChallenge,
   cancelRunmadangChallenge,
+  hideRunmadangChallenge,
   withdrawRunmadangChallenge,
   buildRunmadangMinePayload,
   hasDueRunmadangChallenges,
@@ -80,6 +81,18 @@ export async function routeRunmadangRequest({
     const payload = await mutateStore((store) => {
       const user = requireUser(store, request);
       withdrawRunmadangChallenge(store, user, challengeId);
+      return buildRunmadangMinePayload(store, user);
+    });
+    sendJson(response, 200, payload);
+    return true;
+  }
+
+  if (pathname === '/api/runmadang/hide' && method === 'POST') {
+    const body = await parseJsonBody(request);
+    const challengeId = validateRequiredString(body.challengeId, '그라운드를 선택해주세요.');
+    const payload = await mutateStore((store) => {
+      const user = requireUser(store, request);
+      hideRunmadangChallenge(store, user, challengeId);
       return buildRunmadangMinePayload(store, user);
     });
     sendJson(response, 200, payload);

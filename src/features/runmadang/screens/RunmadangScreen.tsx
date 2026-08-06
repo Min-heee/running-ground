@@ -8,12 +8,10 @@ import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import {
-  cancelRunmadang,
   declineRunmadang,
   fetchRunmadangMine,
   getApiErrorMessage,
   joinRunmadang,
-  withdrawRunmadang,
 } from '@/services';
 import type { RunmadangChallenge, RunmadangMineResponse } from '@/lib/api/types/runmadang';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
@@ -21,7 +19,6 @@ import {
   buildRunmadangResultLine,
   formatRunmadangPeriod,
   formatRunmadangRemaining,
-  formatRunmadangValue,
   splitRunmadangSections,
 } from '../runmadangModel';
 
@@ -114,32 +111,6 @@ export default function RunmadangScreen() {
     void runAction(challenge.id, declineRunmadang, '초대를 거절하지 못했어요.');
   }, [runAction]);
 
-  const handleCancel = useCallback((challenge: RunmadangChallenge) => {
-    Alert.alert('그라운드 취소', '판을 취소하면 모든 참가자의 판돈이 환불돼요.', [
-      { text: '닫기', style: 'cancel' },
-      {
-        text: '취소하기',
-        style: 'destructive',
-        onPress: () => {
-          void runAction(challenge.id, cancelRunmadang, '그라운드를 취소하지 못했어요.');
-        },
-      },
-    ]);
-  }, [runAction]);
-
-  const handleWithdraw = useCallback((challenge: RunmadangChallenge) => {
-    Alert.alert('참가 철회', '시작 전이라 판돈을 그대로 돌려받아요. 다시 참가할 수도 있어요.', [
-      { text: '닫기', style: 'cancel' },
-      {
-        text: '철회하기',
-        style: 'destructive',
-        onPress: () => {
-          void runAction(challenge.id, withdrawRunmadang, '참가를 철회하지 못했어요.');
-        },
-      },
-    ]);
-  }, [runAction]);
-
   if (!data && !error) {
     return <BrandLoadingView />;
   }
@@ -190,8 +161,6 @@ export default function RunmadangScreen() {
                   busy={actionChallengeId === challenge.id}
                   onJoin={handleJoin}
                   onDecline={handleDecline}
-                  onCancel={handleCancel}
-                  onWithdraw={handleWithdraw}
                 />
               ))}
             </View>
@@ -213,8 +182,6 @@ export default function RunmadangScreen() {
                 busy={actionChallengeId === challenge.id}
                 onJoin={handleJoin}
                 onDecline={handleDecline}
-                onCancel={handleCancel}
-                onWithdraw={handleWithdraw}
               />
             ))}
           </View>
@@ -230,8 +197,6 @@ export default function RunmadangScreen() {
                   busy={actionChallengeId === challenge.id}
                   onJoin={handleJoin}
                   onDecline={handleDecline}
-                  onCancel={handleCancel}
-                  onWithdraw={handleWithdraw}
                 />
               ))}
             </View>
@@ -248,96 +213,72 @@ function ChallengeCard({
   busy,
   onJoin,
   onDecline,
-  onCancel,
-  onWithdraw,
 }: {
   challenge: RunmadangChallenge;
   nowMs: number;
   busy: boolean;
   onJoin: (challenge: RunmadangChallenge) => void;
   onDecline: (challenge: RunmadangChallenge) => void;
-  onCancel: (challenge: RunmadangChallenge) => void;
-  onWithdraw: (challenge: RunmadangChallenge) => void;
 }) {
   const resultLine = buildRunmadangResultLine(challenge);
   const isLive = challenge.status === 'running' || challenge.status === 'upcoming';
 
+  // 카드는 간결하게(순위 없음) — 누르면 상세에서 순위가 쫙 (오너 2026-08-07).
   return (
-    <Card style={styles.challengeCard}>
-      <View style={styles.challengeHeaderRow}>
-        {/* 판 이름 (오너 2026-08-06) — 이름 도입 전 구서버 판은 종목 기본명 폴백. */}
-        <Text numberOfLines={1} style={styles.challengeTitle}>
-          {challenge.title?.trim() || METRIC_TITLES[challenge.metric]}
-        </Text>
-        <View style={styles.potPill}>
-          <Text style={styles.potPillText}>
-            {challenge.stakePoints > 0 ? `판돈 ${challenge.potPoints}P` : '판돈 없음'}
+    <Pressable
+      onPress={() => router.push({ pathname: '/runmadang-detail', params: { challengeId: challenge.id } })}
+      accessibilityRole="button"
+      accessibilityLabel={`${challenge.title?.trim() || METRIC_TITLES[challenge.metric]} 상세 보기`}
+    >
+      <Card style={styles.challengeCard}>
+        <View style={styles.challengeHeaderRow}>
+          {/* 판 이름 (오너 2026-08-06) — 이름 도입 전 구서버 판은 종목 기본명 폴백. */}
+          <Text numberOfLines={1} style={styles.challengeTitle}>
+            {challenge.title?.trim() || METRIC_TITLES[challenge.metric]}
           </Text>
-        </View>
-      </View>
-
-      <Text style={styles.periodText}>
-        {METRIC_TITLES[challenge.metric]}
-        {' · '}
-        {formatRunmadangPeriod(challenge.startAt, challenge.endAt)}
-        {isLive ? ` · ${challenge.status === 'upcoming' ? '시작 전' : formatRunmadangRemaining(challenge.endAt, nowMs)}` : ''}
-      </Text>
-
-      {resultLine ? <Text style={styles.resultLine}>{resultLine}</Text> : null}
-
-      <View style={styles.standingsBlock}>
-        {challenge.standings.map((row) => {
-          const isWinner = challenge.status === 'settled'
-            && challenge.resultTone === 'win'
-            && (challenge.winnerUserIds?.includes(row.userId) ?? false);
-          return (
-            <View key={row.userId} style={[styles.standingRow, row.isMe ? styles.standingRowMine : null]}>
-              <Text style={styles.standingRank}>{row.rank}위</Text>
-              <Text numberOfLines={1} style={[styles.standingName, row.isMe ? styles.standingNameMine : null]}>
-                {row.name}{isWinner ? ' 🏆' : ''}
-              </Text>
-              <Text style={styles.standingValue}>{formatRunmadangValue(challenge.metric, row.value)}</Text>
-            </View>
-          );
-        })}
-        {challenge.myRole === 'invited' ? (
-          <Text style={styles.inviteHint}>{challenge.hostName}님의 초대 · 참가하면 순위에 들어가요</Text>
-        ) : null}
-      </View>
-
-      {challenge.canJoin ? (
-        <View style={styles.actionRow}>
-          <Pressable
-            style={[styles.actionButton, styles.declineButton]}
-            onPress={() => onDecline(challenge)}
-            disabled={busy}
-          >
-            <Text style={styles.declineButtonText}>거절</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.actionButton, styles.joinButton, busy ? styles.actionBusy : null]}
-            onPress={() => onJoin(challenge)}
-            disabled={busy}
-          >
-            <Text style={styles.joinButtonText}>
-              {challenge.stakePoints > 0 ? `${challenge.stakePoints}P 걸고 참가` : '참가하기'}
+          <View style={styles.potPill}>
+            <Text style={styles.potPillText}>
+              {challenge.stakePoints > 0 ? `판돈 ${challenge.potPoints}P` : '판돈 없음'}
             </Text>
-          </Pressable>
+          </View>
+          <Text style={styles.chevron}>›</Text>
         </View>
-      ) : null}
 
-      {challenge.canCancel ? (
-        <Pressable style={styles.cancelLink} onPress={() => onCancel(challenge)} disabled={busy}>
-          <Text style={styles.cancelLinkText}>판 취소하고 환불하기</Text>
-        </Pressable>
-      ) : null}
+        <Text style={styles.periodText}>
+          {METRIC_TITLES[challenge.metric]}
+          {' · '}
+          {formatRunmadangPeriod(challenge.startAt, challenge.endAt)}
+          {isLive ? ` · ${challenge.status === 'upcoming' ? '시작 전' : formatRunmadangRemaining(challenge.endAt, nowMs)}` : ''}
+        </Text>
 
-      {challenge.canWithdraw ? (
-        <Pressable style={styles.cancelLink} onPress={() => onWithdraw(challenge)} disabled={busy}>
-          <Text style={styles.cancelLinkText}>참가 철회하고 환불받기</Text>
-        </Pressable>
-      ) : null}
-    </Card>
+        {resultLine ? <Text style={styles.resultLine}>{resultLine}</Text> : null}
+
+        {challenge.myRole === 'invited' ? (
+          <Text style={styles.inviteHint}>{challenge.hostName}님의 초대 · 눌러서 확인하고 참가해요</Text>
+        ) : null}
+
+        {challenge.canJoin ? (
+          <View style={styles.actionRow}>
+            <Pressable
+              style={[styles.actionButton, styles.declineButton]}
+              onPress={() => onDecline(challenge)}
+              disabled={busy}
+            >
+              <Text style={styles.declineButtonText}>거절</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.actionButton, styles.joinButton, busy ? styles.actionBusy : null]}
+              onPress={() => onJoin(challenge)}
+              disabled={busy}
+            >
+              <Text style={styles.joinButtonText}>
+                {challenge.stakePoints > 0 ? `${challenge.stakePoints}P 걸고 참가` : '참가하기'}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </Card>
+    </Pressable>
   );
 }
 
@@ -421,38 +362,9 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
   },
-  standingsBlock: {
-    gap: spacing.sm,
-  },
-  standingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.s10,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.s10,
-    borderRadius: radii.md,
-  },
-  standingRowMine: {
-    backgroundColor: colors.purpleRowSoft,
-  },
-  standingRank: {
-    width: 34,
-    color: colors.textSecondary,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.extraBold,
-  },
-  standingName: {
-    flex: 1,
-    color: colors.textPrimary,
-    fontSize: fontSizes.base,
-    fontWeight: fontWeights.bold,
-  },
-  standingNameMine: {
-    fontWeight: fontWeights.extraBold,
-  },
-  standingValue: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.base,
+  chevron: {
+    color: colors.textTertiary,
+    fontSize: fontSizes.title,
     fontWeight: fontWeights.extraBold,
   },
   inviteHint: {
@@ -489,14 +401,5 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: fontSizes.base,
     fontWeight: fontWeights.extraBold,
-  },
-  cancelLink: {
-    alignSelf: 'center',
-    paddingVertical: spacing.sm,
-  },
-  cancelLinkText: {
-    color: colors.textTertiary,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.bold,
   },
 });

@@ -36,6 +36,8 @@ export type RunmadangChallenge = {
   canCancel: boolean;
   // 시작 전 참가 철회(판돈 환불) 가능 여부 — 호스트가 아닌 참가자. 구서버 응답엔 없음.
   canWithdraw?: boolean;
+  // 끝난 판을 내 목록에서 삭제(숨김) 가능 여부. 구서버 응답엔 없음.
+  canHide?: boolean;
   // 미참가 초대자에게는 서버가 순위를 숨긴다(빈 배열) — 보고 참가 여부를 정하는 무위험
   // 옵션 방지.
   standings: RunmadangStandingRow[];

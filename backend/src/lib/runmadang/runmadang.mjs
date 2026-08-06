@@ -351,10 +351,14 @@ export function cancelRunmadangChallenge(store, user, challengeId, now = new Dat
   const status = resolveRunmadangStatus(challenge, now);
 
   if (challenge.hostUserId !== user.id) {
-    throw new ApiError(403, '만든 사람만 취소할 수 있어요.');
+    throw new ApiError(403, '만든 사람만 삭제할 수 있어요.');
   }
-  if (status !== 'upcoming') {
-    throw new ApiError(400, '시작 전에만 취소할 수 있어요.');
+  // 진행 중에도 삭제 허용 (오너 2026-08-07: 상세 화면 맨 아래 삭제 버튼) — 전원
+  // 환불이라 금전 손해는 없다. 다만 지고 있는 호스트가 판을 엎을 수 있는 건 사실이라
+  // 참가자 전원에게 취소 알림이 간다. 기간이 끝난 판(finished/settled)은 정산이
+  // 우선이므로 삭제 불가.
+  if (status !== 'upcoming' && status !== 'running') {
+    throw new ApiError(400, '이미 끝난 그라운드는 삭제할 수 없어요.');
   }
 
   const nowIso = now.toISOString();
@@ -366,14 +370,32 @@ export function cancelRunmadangChallenge(store, user, challengeId, now = new Dat
       appendUserNotification(store, {
         userId: participant.userId,
         type: 'runmadang_settled',
-        title: '그라운드 취소',
-        body: '그라운드가 취소되어 판돈이 돌아왔어요.',
+        title: '그라운드 삭제',
+        body: `${user.name}님이 그라운드를 삭제했어요. 판돈은 돌려드렸어요.`,
         data: { challengeId: challenge.id },
         nowIso: () => nowIso,
       });
     }
   }
 
+  return challenge;
+}
+
+// 끝난 판(정산/취소)을 내 목록에서만 숨긴다 — 데이터는 남고 다른 참가자 목록엔 그대로.
+export function hideRunmadangChallenge(store, user, challengeId, now = new Date()) {
+  const challenge = findChallengeOrThrow(store, challengeId);
+  const status = resolveRunmadangStatus(challenge, now);
+
+  if (status !== 'settled' && status !== 'cancelled') {
+    throw new ApiError(400, '끝난 그라운드만 목록에서 삭제할 수 있어요.');
+  }
+
+  if (!Array.isArray(challenge.hiddenUserIds)) {
+    challenge.hiddenUserIds = [];
+  }
+  if (!challenge.hiddenUserIds.includes(user.id)) {
+    challenge.hiddenUserIds.push(user.id);
+  }
   return challenge;
 }
 
@@ -608,8 +630,9 @@ function buildChallengePayload(store, challenge, currentUserId, now) {
     myPayoutPoints,
     myRole,
     canJoin: myRole === 'invited' && (status === 'upcoming' || status === 'running'),
-    canCancel: isHost && status === 'upcoming',
+    canCancel: isHost && (status === 'upcoming' || status === 'running'),
     canWithdraw: isParticipant && !isHost && status === 'upcoming',
+    canHide: status === 'settled' || status === 'cancelled',
     standings,
     winnerUserIds: challenge.winnerUserIds,
     resultTone: challenge.resultTone,
@@ -626,6 +649,8 @@ export function buildRunmadangMinePayload(store, user, now = new Date()) {
       || challenge.participants.some((entry) => entry.userId === user.id)
       || challenge.invitedFriendIds.includes(user.id))
     .filter((challenge) => !challenge.cancelledAt || challenge.participants.some((entry) => entry.userId === user.id))
+    // 내 목록에서 삭제(숨김)한 판은 제외.
+    .filter((challenge) => !(Array.isArray(challenge.hiddenUserIds) && challenge.hiddenUserIds.includes(user.id)))
     .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))
     .map((challenge) => buildChallengePayload(store, challenge, user.id, now));
 

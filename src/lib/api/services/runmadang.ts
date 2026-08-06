@@ -39,6 +39,13 @@ export async function cancelRunmadang(challengeId: string): Promise<RunmadangMin
   });
 }
 
+export async function hideRunmadang(challengeId: string): Promise<RunmadangMineResponse> {
+  return apiPost<RunmadangMineResponse>('/runmadang/hide', { challengeId }, {
+    accessToken: await requireAccessToken(),
+    fallbackMessage: '목록에서 삭제하지 못했어요.',
+  });
+}
+
 export async function withdrawRunmadang(challengeId: string): Promise<RunmadangMineResponse> {
   return apiPost<RunmadangMineResponse>('/runmadang/withdraw', { challengeId }, {
     accessToken: await requireAccessToken(),

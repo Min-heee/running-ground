@@ -7,6 +7,7 @@ import {
   cancelRunmadangChallenge,
   createRunmadangChallenge,
   declineRunmadangChallenge,
+  hideRunmadangChallenge,
   joinRunmadangChallenge,
   pruneRunmadangChallenges,
   resolveRunmadangStatus,
@@ -475,4 +476,49 @@ test('판 이름: 저장·페이로드·초대 알림에 반영, 없으면 종�
     title: '가나다라마바사아자차카타파하가나다라마바사',
   }, NOW);
   assert.equal(long.title.length, 20);
+});
+
+test('삭제(취소): 진행 중에도 방장 삭제 허용 + 전액 환불, 끝난 판은 거부', () => {
+  const earnA = buildRun({ userId: 'user-a', km: 10, endedAt: '2026-08-01T10:00:00.000Z' });
+  const earnB = buildRun({ userId: 'user-b', km: 10, endedAt: '2026-08-01T10:00:00.000Z' });
+  const store = buildStore({ runs: [earnA, earnB] });
+
+  // 프리셋 = 생성 즉시 running.
+  const challenge = createBasicChallenge(store, { stakePoints: 10 });
+  joinRunmadangChallenge(store, store.users[1], challenge.id, NOW);
+  assert.equal(resolveRunmadangStatus(challenge, NOW), 'running');
+
+  cancelRunmadangChallenge(store, store.users[0], challenge.id, NOW);
+  assert.equal(resolveRunmadangStatus(challenge, NOW), 'cancelled');
+  assert.equal(getRedeemedPointCost(store, 'user-a'), 0);
+  assert.equal(getRedeemedPointCost(store, 'user-b'), 0);
+
+  // 기간이 끝난(정산 대기) 판은 삭제 불가.
+  const finished = createBasicChallenge(store, { stakePoints: 0 });
+  const afterEnd = new Date('2026-08-20T00:00:00.000Z');
+  assert.throws(
+    () => cancelRunmadangChallenge(store, store.users[0], finished.id, afterEnd),
+    /이미 끝난/,
+  );
+});
+
+test('목록에서 삭제(숨김): 끝난 판만, 내 목록에서만 사라진다', () => {
+  const store = buildStore();
+  const challenge = createBasicChallenge(store);
+  joinRunmadangChallenge(store, store.users[1], challenge.id, NOW);
+
+  // 진행 중엔 숨김 불가.
+  assert.throws(
+    () => hideRunmadangChallenge(store, store.users[1], challenge.id, NOW),
+    /끝난 그라운드만/,
+  );
+
+  const afterEnd = new Date('2026-08-14T00:00:00.000Z');
+  settleDueRunmadangChallenges(store, afterEnd);
+  hideRunmadangChallenge(store, store.users[1], challenge.id, afterEnd);
+
+  const viewB = buildRunmadangMinePayload(store, store.users[1], afterEnd);
+  assert.equal(viewB.challenges.length, 0);
+  const viewA = buildRunmadangMinePayload(store, store.users[0], afterEnd);
+  assert.equal(viewA.challenges.length, 1);
 });
