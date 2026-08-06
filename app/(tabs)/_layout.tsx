@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Tabs } from 'expo-router';
 import { View } from 'react-native';
 import { TourOverlay } from '@/features/tour/TourOverlay';
+import { useDrainPendingRunSaves } from '@/features/runs/save/useDrainPendingRunSaves';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getTabScreenOptions } from '@/navigation/tabConfig';
 import { colors } from '@/theme/tokens';
@@ -17,6 +18,8 @@ function buildTabInputListeners(tab: string) {
 }
 
 export default function TabsLayout() {
+  // 저장 대기열 드레인 — 앱 진입/포그라운드 복귀 때 못 보낸 러닝 기록을 자동 재전송.
+  useDrainPendingRunSaves();
   const insets = useSafeAreaInsets();
   const tabBarBottomPadding = Math.max(insets.bottom, 12);
   const tabBarHeight = 58 + tabBarBottomPadding + 8;
