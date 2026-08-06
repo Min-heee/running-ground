@@ -103,6 +103,9 @@ export async function previewVoice(identifier: string | null): Promise<void> {
     if (typeof Speech.speak !== 'function') {
       return;
     }
+    // 무음 스위치가 켜진 iPhone에서도 들리게 — 대결 안내와 같은 오디오 세션을 쓴다.
+    const { ensureSpeechAudioModeConfigured } = await import('@/lib/speechAudioMode');
+    await ensureSpeechAudioModeConfigured();
     if (typeof Speech.stop === 'function') {
       await Speech.stop().catch(() => undefined);
     }
