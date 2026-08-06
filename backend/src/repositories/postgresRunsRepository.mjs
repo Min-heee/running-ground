@@ -2,6 +2,7 @@ import {
   areRunsPotentialDuplicates,
   buildRunExternalKey,
   buildRunFingerprint,
+  preserveMatchGoalStamp,
   shouldOverwriteMatchResult,
 } from './runsRepository.mjs';
 import { deriveDurationSecondsFromPace } from '../lib/paceDuration.mjs';
@@ -136,6 +137,19 @@ export function createPostgresRunsRepository({
           ? input.matchResult.matchId
           : null;
 
+        // dedupe 구멍 (적대 리뷰 2026-08-06, json-repo 쌍둥이): matchId 없는 matchResult
+        // 재전송은 솔로 dedupe와 B-5를 모두 비켜간다 — (userId, startedAt) 정확 일치로
+        // 기존 행을 돌려준다.
+        if (input.startedAt && input.matchResult && !retryMatchId) {
+          const existingRuns = await loadRunsForUser(client, user.id);
+          const existingRun = existingRuns.find((entry) => entry.startedAt === input.startedAt);
+
+          if (existingRun) {
+            const existingMetrics = buildUserMetrics(existingRuns);
+            return buildRunDetail(existingRun, existingMetrics.currentWeekDistanceKm, undefined, existingMetrics);
+          }
+        }
+
         if (input.startedAt && retryMatchId) {
           const existingRuns = await loadRunsForUser(client, user.id);
           const existingRun = existingRuns.find((entry) => (
@@ -146,7 +160,7 @@ export function createPostgresRunsRepository({
             const reResolvedMatchResult = await resolveMatchResult(user, input.matchResult);
 
             if (reResolvedMatchResult && shouldOverwriteMatchResult(existingRun.matchResult, reResolvedMatchResult)) {
-              await updateRunMatchResult(client, existingRun.id, reResolvedMatchResult, nowIso());
+              await updateRunMatchResult(client, existingRun.id, preserveMatchGoalStamp(existingRun.matchResult, reResolvedMatchResult), nowIso());
             }
 
             const runs = await loadRunsForUser(client, user.id);

@@ -125,6 +125,9 @@ export async function signOut() {
   await clearPushRegistration();
   // 아이콘 배지도 걷어낸다 — 로그아웃한 기기에 남의 안 읽은 수가 남으면 안 된다.
   void setAppIconBadge(0);
+  // 못 보낸 러닝 저장 대기열도 비운다 — 다른 계정으로 로그인했을 때 이전 계정의
+  // 기록이 전송되면 안 된다. (동적 import: session ↔ 대기열 순환 참조 방지.)
+  void clearPendingRunSaveQueue();
 
   if (USE_MOCK_API) {
     await clearSession();
@@ -150,8 +153,17 @@ export async function signOut() {
   await clearSession();
 }
 
+// 저장 대기열 정리 (동적 import: session ↔ 대기열 순환 참조 방지) — 로그아웃/탈퇴 공용.
+function clearPendingRunSaveQueue() {
+  return import('@/features/runs/save/pendingRunSaveQueue')
+    .then(({ clearAllPendingRunSaves }) => clearAllPendingRunSaves())
+    .catch(() => undefined);
+}
+
 export async function deleteAccount() {
   await ensureHydrated();
+  // 탈퇴 계정의 미전송 기록이 남아 다른 계정으로 전송되면 안 된다.
+  void clearPendingRunSaveQueue();
 
   if (USE_MOCK_API) {
     await clearSession();

@@ -4,6 +4,8 @@ export type RankState = {
 };
 
 export type UserProfile = {
+  // 서버 불변 userId — 구서버 응답엔 없을 수 있다 (저장 대기열 소유자 대조용).
+  id?: string;
   name: string;
   provinceName?: string;
   cityName?: string;

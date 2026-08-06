@@ -349,6 +349,18 @@ export function shouldOverwriteMatchResult(existingMatchResult, reResolvedMatchR
   return !isDefiniteMatchResult(existingMatchResult) || isDefiniteMatchResult(reResolvedMatchResult);
 }
 
+// 파티런 조기종료 파밍 차단 스탬프(matchGoalDistanceKm — runRoutes가 세션 생존 시에만
+// 찍는 서버 전용 필드, 클라 입력에선 validator가 걷어냄)는 재전송 업그레이드에서
+// 보존해야 한다 (적대 리뷰 2026-08-06): 세션이 사라진 뒤의 저장 대기열 드레인/재시도는
+// 스탬프 없는 클라 블롭이라, 통째로 덮으면 파밍 차단(목표 미달 파티런 보너스 0)이 풀린다.
+export function preserveMatchGoalStamp(existingMatchResult, nextMatchResult) {
+  const existingGoal = existingMatchResult?.matchGoalDistanceKm;
+  if (Number.isFinite(existingGoal) && !Number.isFinite(nextMatchResult?.matchGoalDistanceKm)) {
+    return { ...nextMatchResult, matchGoalDistanceKm: existingGoal };
+  }
+  return nextMatchResult;
+}
+
 export function createJsonRunsRepository({
   loadStore,
   mutateStore,
@@ -453,6 +465,21 @@ export function createJsonRunsRepository({
           ? input.matchResult.matchId
           : null;
 
+        // dedupe 구멍 (적대 리뷰 2026-08-06): matchId 없는 matchResult 재전송은 솔로
+        // dedupe(!matchResult)와 B-5(matchId 필요)를 모두 비켜가 중복 행을 만든다 —
+        // 저장 대기열 드레인이 이 클래스의 재전송을 자동화하므로, 같은 (userId,
+        // startedAt) 정확 일치로 기존 행을 돌려준다.
+        if (input.startedAt && input.matchResult && !retryMatchId) {
+          const existingRun = store.runs.find((entry) => (
+            entry.userId === user.id && entry.startedAt === input.startedAt
+          ));
+
+          if (existingRun) {
+            const existingMetrics = getUserMetrics(store, user.id);
+            return buildRunDetail(existingRun, existingMetrics.currentWeekDistanceKm, undefined, existingMetrics);
+          }
+        }
+
         if (input.startedAt && retryMatchId) {
           const existingRun = store.runs.find((entry) => (
             entry.userId === user.id
@@ -464,7 +491,7 @@ export function createJsonRunsRepository({
             const reResolvedMatchResult = resolveMatchResult(store, user, input.matchResult);
 
             if (reResolvedMatchResult && shouldOverwriteMatchResult(existingRun.matchResult, reResolvedMatchResult)) {
-              existingRun.matchResult = clone(reResolvedMatchResult);
+              existingRun.matchResult = clone(preserveMatchGoalStamp(existingRun.matchResult, reResolvedMatchResult));
             }
 
             // Anti-cheat V1 stage 2: the reconcile re-save that upgrades a PENDING verdict is

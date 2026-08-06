@@ -20,6 +20,7 @@ import {
   listLocalGoalFreezes,
 } from '@/features/runs/sync/localGoalFreezeStore';
 import { createTrackedRun, forceResetRunningMatchState, getApiErrorMessage } from '@/services';
+import { clearPendingRunSave, persistPendingRunSave } from '@/features/runs/save/pendingRunSaveQueue';
 import type { SaveTrackingOptions } from '@/features/runs/hooks/useRunTracking';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { applyGoalFreezeToDisplayedSnapshot } from './goalFreezeClamp';
@@ -305,11 +306,16 @@ export function useRunSaveCommand({
       // 경찰과 도둑런: 시작 시점에 잠근 경기장 태그를 저장 payload에 싣는다. 저장 실패 시
       // 컨텍스트가 남아 paused-shell 재시도도 같은 태그로 저장된다 (매치 컨텍스트와 동일 계약).
       const activeChaseArena = getActiveChaseArena();
-      const savedRun = await createTrackedRun(
-        activeChaseArena
-          ? { ...saveSnapshot.createRunInput, chaseArenaId: activeChaseArena.arenaId }
-          : saveSnapshot.createRunInput,
-      );
+      const createRunInput = activeChaseArena
+        ? { ...saveSnapshot.createRunInput, chaseArenaId: activeChaseArena.arenaId }
+        : saveSnapshot.createRunInput;
+      // 저장 대기열 (2026-08-06 회원K 기록 실종): 전송 전에 페이로드를 디스크에
+      // 먼저 써둔다 — 이 요청이 어떻게 죽든 다음 앱 실행 때 자동 재전송돼 기록이
+      // 사라지지 않는다. 성공하면 바로 지운다. (서버가 같은 startedAt 재전송을 중복
+      // 처리하므로 "성공했는데 응답만 유실" 재전송도 안전.)
+      const pendingSaveUri = await persistPendingRunSave(createRunInput);
+      const savedRun = await createTrackedRun(createRunInput);
+      void clearPendingRunSave(pendingSaveUri);
       clearActiveChaseArena();
       options.onSavedRun?.(savedRun.run.id);
       await runCleanupAfterSave({

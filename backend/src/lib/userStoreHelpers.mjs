@@ -128,6 +128,9 @@ export function buildProfile(store, user) {
 
 export function buildProfileWithMetrics(user, metrics, { availablePoints } = {}) {
   return {
+    // 불변 식별자 (적대 리뷰 2026-08-06): 클라 저장 대기열의 소유자 대조는 개명 가능한
+    // publicTag 대신 이 id를 쓴다.
+    id: user.id,
     name: user.name,
     ...(typeof user.provinceName === 'string' && user.provinceName ? { provinceName: user.provinceName } : {}),
     ...(typeof user.cityName === 'string' && user.cityName ? { cityName: user.cityName } : {}),

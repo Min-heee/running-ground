@@ -590,3 +590,20 @@ await runTest('#209: a re-attached route reproduces the embedded-route run detai
 
   assert.equal(JSON.stringify(reattached), JSON.stringify(embedded));
 });
+
+// --- 저장 대기열 적대 리뷰 회귀 (2026-08-06) ---
+
+await runTest('preserveMatchGoalStamp: 재전송 블롭에 스탬프가 없으면 기존 값을 이월', async () => {
+  const { preserveMatchGoalStamp } = await import('./runsRepository.mjs');
+
+  const existing = { mode: 'duel', source: 'party', matchGoalDistanceKm: 5 };
+  const retry = { mode: 'duel', source: 'party', badgeLabel: '기권 패배' };
+  assert.equal(preserveMatchGoalStamp(existing, retry).matchGoalDistanceKm, 5);
+
+  // 재전송이 스탬프를 들고 오면(세션 생존 재저장) 그 값을 존중.
+  const stamped = { mode: 'duel', source: 'party', matchGoalDistanceKm: 3 };
+  assert.equal(preserveMatchGoalStamp(existing, stamped).matchGoalDistanceKm, 3);
+
+  // 기존에도 없으면 그대로.
+  assert.equal(preserveMatchGoalStamp({ mode: 'duel' }, retry).matchGoalDistanceKm, undefined);
+});

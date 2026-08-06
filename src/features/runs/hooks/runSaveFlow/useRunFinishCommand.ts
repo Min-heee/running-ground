@@ -2,8 +2,10 @@ import { useRef } from 'react';
 import { Alert } from 'react-native';
 import { router } from 'expo-router';
 import {
+  getBackgroundRunTrackingSnapshot,
   resetBackgroundRunTracking,
 } from '@/features/runs/tracking/background';
+import { clearPendingRunSaveForStartedAt } from '@/features/runs/save/pendingRunSaveQueue';
 import {
   resolveMatchExitId,
   type MatchExitSource,
@@ -80,6 +82,10 @@ export function useRunFinishCommand({
     // C-2 — discarding the tracking discards the failed-save context with it (mirrors the
     // freeze, which the resetBackgroundRunTracking below releases).
     clearPendingMatchSaveContext();
+    // 저장 대기열 (적대 리뷰 2026-08-06): 버린 러닝의 대기 파일이 남아 있으면 다음
+    // 드레인이 버린 기록을 되살린다 — 스냅샷이 지워지기 전에 startedAt으로 지운다.
+    const discardedStartedAt = getBackgroundRunTrackingSnapshot({ cloneRoute: false }).startedAt ?? null;
+    void clearPendingRunSaveForStartedAt(discardedStartedAt);
     // 경찰과 도둑런: 버려진 러닝은 업로드 정산(슬롯 반납 경로)에 도달하지 않는다 —
     // 여기서 반납하지 않으면 경기장 인원수가 3시간 TTL 동안 부풀어 있는다.
     if (getActiveChaseArena()) {
