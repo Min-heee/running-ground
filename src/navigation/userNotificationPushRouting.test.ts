@@ -36,7 +36,7 @@ test('friend request pushes deep-link straight to the friend-requests screen', (
   assert.equal(resolveUserNotificationPushHref({ type: 'friend_request' }), '/friend-requests');
 });
 
-test('런마당 푸시는 알림함 대신 런마당 목록으로 딥링크', () => {
+test('그라운드 푸시는 알림함 대신 그라운드 목록으로 딥링크', () => {
   assert.equal(resolveUserNotificationPushHref({ type: 'runmadang_invite' }), '/runmadang');
   assert.equal(resolveUserNotificationPushHref({ type: 'runmadang_joined', challengeId: 'c1' }), '/runmadang');
   assert.equal(resolveUserNotificationPushHref({ type: 'runmadang_settled' }), '/runmadang');

@@ -25,7 +25,7 @@ import {
   splitRunmadangSections,
 } from '../runmadangModel';
 
-// 런마당 (오너 2026-08-06): 친구와 기간을 정해 거리/시간 총합으로 겨루는 포인트 내기.
+// 그라운드 (오너 2026-08-06): 친구와 기간을 정해 거리/시간 총합으로 겨루는 포인트 내기.
 // 목록 = 초대받은 판 / 진행 중 / 지난 판. 20초 폴링 (친구탭과 같은 리듬).
 
 const POLL_INTERVAL_MS = 20_000;
@@ -56,7 +56,7 @@ export default function RunmadangScreen() {
       hasLoadedRef.current = true;
     } catch (loadError) {
       if (!hasLoadedRef.current) {
-        setError(getApiErrorMessage(loadError, '런마당 목록을 불러오지 못했어요.'));
+        setError(getApiErrorMessage(loadError, '그라운드 목록을 불러오지 못했어요.'));
       }
     }
   }, []);
@@ -88,7 +88,7 @@ export default function RunmadangScreen() {
       dataSeqRef.current += 1;
       setData(response);
     } catch (actionError) {
-      Alert.alert('런마당', getApiErrorMessage(actionError, failMessage));
+      Alert.alert('그라운드', getApiErrorMessage(actionError, failMessage));
     } finally {
       actionInFlightRef.current = false;
       setActionChallengeId(null);
@@ -99,12 +99,12 @@ export default function RunmadangScreen() {
     const stakeLine = challenge.stakePoints > 0
       ? `판돈 ${challenge.stakePoints}P를 걸고 참가할까요? 참가하면 종료까지 판돈이 잠겨요.`
       : '판돈 없이 참가할까요?';
-    Alert.alert('런마당 참가', stakeLine, [
+    Alert.alert('그라운드 참가', stakeLine, [
       { text: '취소', style: 'cancel' },
       {
         text: '참가',
         onPress: () => {
-          void runAction(challenge.id, joinRunmadang, '런마당에 참가하지 못했어요.');
+          void runAction(challenge.id, joinRunmadang, '그라운드에 참가하지 못했어요.');
         },
       },
     ]);
@@ -115,13 +115,13 @@ export default function RunmadangScreen() {
   }, [runAction]);
 
   const handleCancel = useCallback((challenge: RunmadangChallenge) => {
-    Alert.alert('런마당 취소', '판을 취소하면 모든 참가자의 판돈이 환불돼요.', [
+    Alert.alert('그라운드 취소', '판을 취소하면 모든 참가자의 판돈이 환불돼요.', [
       { text: '닫기', style: 'cancel' },
       {
         text: '취소하기',
         style: 'destructive',
         onPress: () => {
-          void runAction(challenge.id, cancelRunmadang, '런마당을 취소하지 못했어요.');
+          void runAction(challenge.id, cancelRunmadang, '그라운드를 취소하지 못했어요.');
         },
       },
     ]);
@@ -150,7 +150,7 @@ export default function RunmadangScreen() {
   return (
     <Screen>
       <AuthHeader
-        title="런마당"
+        title="그라운드"
         subtitle="기간을 정해 친구와 포인트를 걸고, 더 많이 달린 사람이 가져가요."
         showBack
         backHref="/(tabs)/friends"
@@ -170,7 +170,7 @@ export default function RunmadangScreen() {
               <Text style={styles.createTitle}>새 판 벌이기</Text>
               <Text style={styles.createSubtitle}>보유 {Math.max(0, Math.round(data.availablePoints)).toLocaleString()}P</Text>
             </View>
-            <PrimaryButton label="런마당 만들기" onPress={() => router.push('/runmadang-create')} />
+            <PrimaryButton label="그라운드 만들기" onPress={() => router.push('/runmadang-create')} />
           </Card>
 
           {sections.invited.length > 0 ? (

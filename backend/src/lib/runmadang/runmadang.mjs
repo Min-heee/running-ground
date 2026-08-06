@@ -1,4 +1,4 @@
-// 런마당 (오너 2026-08-06): 친구와 기간을 정해 거리/시간 총합으로 겨루는 포인트 내기.
+// 그라운드 (오너 2026-08-06): 친구와 기간을 정해 거리/시간 총합으로 겨루는 포인트 내기.
 // 참가자 전원이 같은 포인트를 걸고(원장 방식 차감 — store.runmadangStakes), 기간이
 // 끝나면 1등이 판돈을 모두 가져간다(store.runmadangAwards). 상태는 저장하지 않고
 // startAt/endAt에서 읽기 시점에 도출한다 (matchSession의 hydrate 패턴).
@@ -204,7 +204,7 @@ export function createRunmadangChallenge(store, user, input, now = new Date()) {
     .filter((entry) => entry.hostUserId === user.id && !entry.settledAt && !entry.cancelledAt)
     .length;
   if (openCount >= RUNMADANG_MAX_OPEN_PER_HOST) {
-    throw new ApiError(400, `동시에 열 수 있는 런마당은 ${RUNMADANG_MAX_OPEN_PER_HOST}개까지예요.`);
+    throw new ApiError(400, `동시에 열 수 있는 그라운드는 ${RUNMADANG_MAX_OPEN_PER_HOST}개까지예요.`);
   }
 
   const period = resolvePeriod(input, now);
@@ -236,8 +236,8 @@ export function createRunmadangChallenge(store, user, input, now = new Date()) {
     appendUserNotification(store, {
       userId: friendId,
       type: 'runmadang_invite',
-      title: '런마당 초대',
-      body: `${user.name}님이 런마당에 초대했어요 · ${METRIC_LABELS[metric]} 대결${stakePoints > 0 ? ` · 판돈 ${stakePoints}P` : ''}`,
+      title: '그라운드 초대',
+      body: `${user.name}님이 그라운드에 초대했어요 · ${METRIC_LABELS[metric]} 대결${stakePoints > 0 ? ` · 판돈 ${stakePoints}P` : ''}`,
       data: { challengeId: challenge.id },
       nowIso: () => nowIso,
     });
@@ -250,7 +250,7 @@ function findChallengeOrThrow(store, challengeId) {
   ensureRunmadangStore(store);
   const challenge = store.runmadangChallenges.find((entry) => entry.id === challengeId);
   if (!challenge) {
-    throw new ApiError(404, '런마당을 찾을 수 없어요.');
+    throw new ApiError(404, '그라운드를 찾을 수 없어요.');
   }
   return challenge;
 }
@@ -260,10 +260,10 @@ export function joinRunmadangChallenge(store, user, challengeId, now = new Date(
   const status = resolveRunmadangStatus(challenge, now);
 
   if (status === 'cancelled' || status === 'settled' || status === 'finished') {
-    throw new ApiError(400, '이미 끝난 런마당이에요.');
+    throw new ApiError(400, '이미 끝난 그라운드예요.');
   }
   if (challenge.participants.some((entry) => entry.userId === user.id)) {
-    throw new ApiError(400, '이미 참가한 런마당이에요.');
+    throw new ApiError(400, '이미 참가한 그라운드예요.');
   }
   if (!challenge.invitedFriendIds.includes(user.id)) {
     throw new ApiError(403, '초대받은 러너만 참가할 수 있어요.');
@@ -279,8 +279,8 @@ export function joinRunmadangChallenge(store, user, challengeId, now = new Date(
   appendUserNotification(store, {
     userId: challenge.hostUserId,
     type: 'runmadang_joined',
-    title: '런마당 참가',
-    body: `${user.name}님이 런마당에 참가했어요.`,
+    title: '그라운드 참가',
+    body: `${user.name}님이 그라운드에 참가했어요.`,
     data: { challengeId: challenge.id },
     nowIso: () => nowIso,
   });
@@ -292,7 +292,7 @@ export function declineRunmadangChallenge(store, user, challengeId, now = new Da
   const challenge = findChallengeOrThrow(store, challengeId);
 
   if (challenge.participants.some((entry) => entry.userId === user.id)) {
-    throw new ApiError(400, '이미 참가한 런마당은 거절할 수 없어요.');
+    throw new ApiError(400, '이미 참가한 그라운드는 거절할 수 없어요.');
   }
   // join과 같은 초대 가드 — 없으면 아무 유저나 남의 판에 자기 id를 기록할 수 있다.
   if (!challenge.invitedFriendIds.includes(user.id)) {
@@ -314,7 +314,7 @@ export function withdrawRunmadangChallenge(store, user, challengeId, now = new D
     throw new ApiError(400, '만든 사람은 철회 대신 판 취소를 이용해주세요.');
   }
   if (!challenge.participants.some((entry) => entry.userId === user.id)) {
-    throw new ApiError(400, '참가하지 않은 런마당이에요.');
+    throw new ApiError(400, '참가하지 않은 그라운드예요.');
   }
   if (status !== 'upcoming') {
     throw new ApiError(400, '시작 전에만 참가를 철회할 수 있어요.');
@@ -327,7 +327,7 @@ export function withdrawRunmadangChallenge(store, user, challengeId, now = new D
   appendUserNotification(store, {
     userId: challenge.hostUserId,
     type: 'runmadang_joined',
-    title: '런마당 참가 철회',
+    title: '그라운드 참가 철회',
     body: `${user.name}님이 참가를 철회했어요. 판돈은 돌려드렸어요.`,
     data: { challengeId: challenge.id },
     nowIso: () => nowIso,
@@ -356,8 +356,8 @@ export function cancelRunmadangChallenge(store, user, challengeId, now = new Dat
       appendUserNotification(store, {
         userId: participant.userId,
         type: 'runmadang_settled',
-        title: '런마당 취소',
-        body: '런마당이 취소되어 판돈이 돌아왔어요.',
+        title: '그라운드 취소',
+        body: '그라운드가 취소되어 판돈이 돌아왔어요.',
         data: { challengeId: challenge.id },
         nowIso: () => nowIso,
       });
@@ -461,9 +461,9 @@ export function settleRunmadangChallenge(store, challenge, now = new Date()) {
       appendUserNotification(store, {
         userId: participant.userId,
         type: 'runmadang_settled',
-        title: '런마당 종료',
+        title: '그라운드 종료',
         body: challenge.participants.length < 2
-          ? '참가자가 모이지 않아 런마당이 무효 처리됐어요. 판돈이 돌아왔어요.'
+          ? '참가자가 모이지 않아 그라운드가 무효 처리됐어요. 판돈이 돌아왔어요.'
           : '기간 동안 기록이 없어 무승부예요. 판돈이 돌아왔어요.',
         data: { challengeId: challenge.id },
         nowIso: () => nowIso,
@@ -508,7 +508,7 @@ export function settleRunmadangChallenge(store, challenge, now = new Date()) {
     appendUserNotification(store, {
       userId: participant.userId,
       type: 'runmadang_settled',
-      title: '런마당 결과',
+      title: '그라운드 결과',
       body: typeof payout === 'number'
         ? winBody
         : `${winnerNames}님이 우승했어요. 다음 판에서 되찾아 봐요!`,

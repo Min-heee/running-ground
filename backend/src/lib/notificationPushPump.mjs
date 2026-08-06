@@ -31,7 +31,7 @@ export const NOTIFICATION_PUSH_SETTING_KEY_BY_TYPE = {
   match_result: 'matchReminders',
   chase_settlement: 'matchReminders',
   inquiry_reply: null,
-  // 런마당은 친구 기반 내기 — 친구 알림 설정을 따른다.
+  // 그라운드는 친구 기반 내기 — 친구 알림 설정을 따른다.
   runmadang_invite: 'friendAlerts',
   runmadang_joined: 'friendAlerts',
   runmadang_settled: 'friendAlerts',

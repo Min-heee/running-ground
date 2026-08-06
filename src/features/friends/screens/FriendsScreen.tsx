@@ -90,10 +90,10 @@ export default function FriendsScreen() {
         <>
           <FriendsRanking ranks={leaderboard.ranks} highlightTag={profile.publicTag} />
 
-          {/* 런마당 (오너 2026-08-06): 기간제 포인트 내기 진입점. */}
+          {/* 그라운드 (오너 2026-08-06): 기간제 포인트 내기 진입점. */}
           <Pressable style={styles.runmadangCard} onPress={() => router.push('/runmadang')}>
             <View style={styles.runmadangCopy}>
-              <Text style={styles.runmadangTitle}>런마당</Text>
+              <Text style={styles.runmadangTitle}>그라운드</Text>
               <Text style={styles.runmadangSubtitle}>기간을 정해 친구와 포인트를 걸고 달려요</Text>
             </View>
             <Text style={styles.runmadangChevron}>›</Text>

@@ -26,7 +26,7 @@ import {
   clampRunmadangEndDate,
 } from '../runmadangModel';
 
-// 런마당 만들기 — 종목(거리/시간) · 기간(프리셋/직접) · 판돈 · 친구 초대.
+// 그라운드 만들기 — 종목(거리/시간) · 기간(프리셋/직접) · 판돈 · 친구 초대.
 // 프리셋 기간은 '지금부터', 직접 지정은 내일부터 (서버 규칙과 동일).
 
 type FriendOption = { id: string; name: string };
@@ -131,7 +131,7 @@ export default function RunmadangCreateScreen() {
       ? `판돈 ${effectiveStake}P를 걸고 시작할까요? 참가자 전원이 같은 판돈을 걸고, 1등이 전부 가져가요.`
       : '판돈 없이 시작할까요? 승패 기록만 남아요.';
 
-    Alert.alert('런마당 시작', stakeLine, [
+    Alert.alert('그라운드 시작', stakeLine, [
       { text: '취소', style: 'cancel' },
       {
         text: '시작',
@@ -157,7 +157,7 @@ export default function RunmadangCreateScreen() {
               router.back();
             } catch (createError) {
               submittingRef.current = false;
-              Alert.alert('런마당', getApiErrorMessage(createError, '런마당을 만들지 못했어요.'));
+              Alert.alert('그라운드', getApiErrorMessage(createError, '그라운드를 만들지 못했어요.'));
             } finally {
               setSaving(false);
             }
@@ -170,7 +170,7 @@ export default function RunmadangCreateScreen() {
   return (
     <Screen>
       <AuthHeader
-        title="런마당 만들기"
+        title="그라운드 만들기"
         subtitle="기간 동안 더 많이 달린 사람이 판돈을 가져가요."
         showBack
         backHref="/runmadang"
@@ -307,7 +307,7 @@ export default function RunmadangCreateScreen() {
       </Card>
 
       <PrimaryButton
-        label={saving ? '만드는 중...' : '런마당 시작'}
+        label={saving ? '만드는 중...' : '그라운드 시작'}
         onPress={handleCreate}
         disabled={!canSubmit}
       />

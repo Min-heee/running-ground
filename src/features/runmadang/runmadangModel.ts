@@ -1,4 +1,4 @@
-// 런마당 표시/생성 모델 — RN 무의존 순수 함수 (node 테스트 러너 호환).
+// 그라운드 표시/생성 모델 — RN 무의존 순수 함수 (node 테스트 러너 호환).
 
 import type { RunmadangChallenge, RunmadangMetric } from '@/lib/api/types/runmadang';
 

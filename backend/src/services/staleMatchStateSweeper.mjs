@@ -34,7 +34,7 @@ export async function sweepStaleMatchState({ mutateStore, now = new Date() }) {
     pruneMatchQueues(store, now);
     pruneMatchSessions(store, now);
     pruneMatchRooms(store, now);
-    // 런마당: 만기 판 정산(환불·상금·알림) + 오래된 판 정리 — 아무도 앱을 안 열어도
+    // 그라운드: 만기 판 정산(환불·상금·알림) + 오래된 판 정리 — 아무도 앱을 안 열어도
     // 기간이 끝나면 결과가 나가야 한다.
     const settledRunmadang = settleDueRunmadangChallenges(store, now);
     pruneRunmadangChallenges(store, now);

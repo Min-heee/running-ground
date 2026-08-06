@@ -43,7 +43,7 @@ test('unknown notifications without data stay non-navigating', () => {
   assert.equal(resolveNotificationHref(makeNotification({ type: 'rank_change' })), null);
 });
 
-// 런마당 알림(초대/참가/정산)은 data 유무와 무관하게 런마당 목록으로 간다.
+// 그라운드 알림(초대/참가/정산)은 data 유무와 무관하게 그라운드 목록으로 간다.
 test('runmadang notifications open the runmadang list screen', () => {
   assert.equal(resolveNotificationHref(makeNotification({ type: 'runmadang_invite' })), '/runmadang');
   assert.equal(

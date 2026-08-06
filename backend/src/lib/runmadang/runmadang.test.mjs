@@ -56,7 +56,7 @@ function createBasicChallenge(store, { stakePoints = 0, metric = 'distance', inv
   );
 }
 
-test('런마당 생성: 방장 자동 참가 + 초대 알림 (0P 판은 원장 행 없음)', () => {
+test('그라운드 생성: 방장 자동 참가 + 초대 알림 (0P 판은 원장 행 없음)', () => {
   const store = buildStore();
   const challenge = createBasicChallenge(store, { invited: ['user-b', 'user-c'] });
 
@@ -69,7 +69,7 @@ test('런마당 생성: 방장 자동 참가 + 초대 알림 (0P 판은 원장 �
   assert.equal(invites[0].data.challengeId, challenge.id);
 });
 
-test('런마당 생성 검증: 친구 아닌 초대·판돈 잔액 부족은 거부', () => {
+test('그라운드 생성 검증: 친구 아닌 초대·판돈 잔액 부족은 거부', () => {
   const store = buildStore();
 
   // user-b와 user-c는 서로 친구가 아니다.

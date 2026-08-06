@@ -1,4 +1,4 @@
-// 런마당 API — chase.ts와 같은 최소 형태 (목 분기 없음).
+// 그라운드 API — chase.ts와 같은 최소 형태 (목 분기 없음).
 
 import { apiGet, apiPost } from '../client';
 import type { CreateRunmadangInput, RunmadangMineResponse } from '../types/runmadang';
@@ -7,21 +7,21 @@ import { requireAccessToken } from './_shared';
 export async function fetchRunmadangMine(): Promise<RunmadangMineResponse> {
   return apiGet<RunmadangMineResponse>('/runmadang/mine', {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '런마당 목록을 불러오지 못했어요.',
+    fallbackMessage: '그라운드 목록을 불러오지 못했어요.',
   });
 }
 
 export async function createRunmadang(input: CreateRunmadangInput): Promise<RunmadangMineResponse> {
   return apiPost<RunmadangMineResponse>('/runmadang', input, {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '런마당을 만들지 못했어요.',
+    fallbackMessage: '그라운드를 만들지 못했어요.',
   });
 }
 
 export async function joinRunmadang(challengeId: string): Promise<RunmadangMineResponse> {
   return apiPost<RunmadangMineResponse>('/runmadang/join', { challengeId }, {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '런마당에 참가하지 못했어요.',
+    fallbackMessage: '그라운드에 참가하지 못했어요.',
   });
 }
 
@@ -35,7 +35,7 @@ export async function declineRunmadang(challengeId: string): Promise<RunmadangMi
 export async function cancelRunmadang(challengeId: string): Promise<RunmadangMineResponse> {
   return apiPost<RunmadangMineResponse>('/runmadang/cancel', { challengeId }, {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '런마당을 취소하지 못했어요.',
+    fallbackMessage: '그라운드를 취소하지 못했어요.',
   });
 }
 

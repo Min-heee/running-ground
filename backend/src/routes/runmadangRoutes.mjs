@@ -1,4 +1,4 @@
-// 런마당 API — 기간제 포인트 내기 (생성/참가/거절/취소/내 목록).
+// 그라운드 API — 기간제 포인트 내기 (생성/참가/거절/취소/내 목록).
 // 정산은 지연 실행: 조회 때 만기 판이 보이면 그때 정산하고(mutateStore), 아무도 앱을
 // 안 열어도 staleMatchStateSweeper가 5분 주기로 정산해 알림을 보낸다.
 
@@ -52,7 +52,7 @@ export async function routeRunmadangRequest({
 
   if (pathname === '/api/runmadang/join' && method === 'POST') {
     const body = await parseJsonBody(request);
-    const challengeId = validateRequiredString(body.challengeId, '런마당을 선택해주세요.');
+    const challengeId = validateRequiredString(body.challengeId, '그라운드를 선택해주세요.');
     const payload = await mutateStore((store) => {
       const user = requireUser(store, request);
       joinRunmadangChallenge(store, user, challengeId);
@@ -64,7 +64,7 @@ export async function routeRunmadangRequest({
 
   if (pathname === '/api/runmadang/decline' && method === 'POST') {
     const body = await parseJsonBody(request);
-    const challengeId = validateRequiredString(body.challengeId, '런마당을 선택해주세요.');
+    const challengeId = validateRequiredString(body.challengeId, '그라운드를 선택해주세요.');
     const payload = await mutateStore((store) => {
       const user = requireUser(store, request);
       declineRunmadangChallenge(store, user, challengeId);
@@ -76,7 +76,7 @@ export async function routeRunmadangRequest({
 
   if (pathname === '/api/runmadang/withdraw' && method === 'POST') {
     const body = await parseJsonBody(request);
-    const challengeId = validateRequiredString(body.challengeId, '런마당을 선택해주세요.');
+    const challengeId = validateRequiredString(body.challengeId, '그라운드를 선택해주세요.');
     const payload = await mutateStore((store) => {
       const user = requireUser(store, request);
       withdrawRunmadangChallenge(store, user, challengeId);
@@ -88,7 +88,7 @@ export async function routeRunmadangRequest({
 
   if (pathname === '/api/runmadang/cancel' && method === 'POST') {
     const body = await parseJsonBody(request);
-    const challengeId = validateRequiredString(body.challengeId, '런마당을 선택해주세요.');
+    const challengeId = validateRequiredString(body.challengeId, '그라운드를 선택해주세요.');
     const payload = await mutateStore((store) => {
       const user = requireUser(store, request);
       cancelRunmadangChallenge(store, user, challengeId);

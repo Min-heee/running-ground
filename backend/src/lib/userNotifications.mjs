@@ -11,7 +11,7 @@ export const USER_NOTIFICATION_TYPES = new Set([
   'rank_change',
   'chase_settlement',
   'inquiry_reply',
-  // 런마당 (기간제 포인트 내기, 2026-08-06): 초대 / 참가 / 정산·취소 결과.
+  // 그라운드 (기간제 포인트 내기, 2026-08-06): 초대 / 참가 / 정산·취소 결과.
   'runmadang_invite',
   'runmadang_joined',
   'runmadang_settled',
