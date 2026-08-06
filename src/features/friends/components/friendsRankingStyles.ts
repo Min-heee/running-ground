@@ -74,7 +74,9 @@ export const friendsRankingStyles = StyleSheet.create({
     backgroundColor: colors.surfaceMuted,
     borderRadius: radii.xl,
     borderWidth: 1,
-    borderColor: 'transparent',
+    // 친구가 많아지면 회색 줄들이 경계 없이 뭉쳐 보인다 (오너 2026-08-06) — 줄마다
+    // 은은한 경계선. 내 줄(myCard)은 브랜드 보더가 이걸 덮는다.
+    borderColor: colors.borderMuted,
     paddingHorizontal: spacing.s16,
     paddingVertical: 15,
   },
