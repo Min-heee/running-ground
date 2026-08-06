@@ -185,7 +185,7 @@ export default function RunmadangCreateScreen() {
           style={styles.titleInput}
           value={titleText}
           onChangeText={setTitleText}
-          placeholder="예: 이번 주 10km 내기"
+          placeholder="예: 이번 주 10km 내기, 커피 내기"
           placeholderTextColor={colors.textTertiary}
           maxLength={MAX_TITLE_LENGTH}
           returnKeyType="done"
