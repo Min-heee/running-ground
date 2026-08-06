@@ -84,7 +84,7 @@ export default function VoiceSettingsScreen() {
       </Card>
 
       <Text style={styles.footnote}>
-        iPhone은 설정 → 손쉬운 사용 → 콘텐츠 말하기 → 음성에서, Android는 설정 → 일반 → TTS 출력에서
+        iPhone은 설정 → 손쉬운 사용 → 읽기 및 말하기 → 음성에서, Android는 설정 → 일반 → TTS 출력에서
         새 음성을 내려받으면 목록에 추가돼요.
       </Text>
     </Screen>
