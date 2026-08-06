@@ -7,6 +7,8 @@
 // dynamic imports fail and are caught), so this is safe to ship over OTA ahead of the
 // rebuild — voice simply stays silent until the native build lands.
 
+import { getPreferredVoiceIdentifier } from '@/lib/speechVoicePreference';
+
 let audioModeConfigured = false;
 let audioModeConfigureInFlight: Promise<void> | null = null;
 
@@ -149,9 +151,13 @@ export async function speakLiveGapMessage(text: string): Promise<void> {
       await Speech.stop().catch(() => undefined);
     }
 
+    // 사용자가 설정에서 고른 목소리가 있으면 자동 추천보다 우선한다 (오너 2026-08-06).
+    const preferredVoice = await getPreferredVoiceIdentifier();
+    const effectiveVoice = preferredVoice ?? voiceIdentifier;
+
     Speech.speak(trimmed, {
       language: 'ko-KR',
-      ...(voiceIdentifier ? { voice: voiceIdentifier } : {}),
+      ...(effectiveVoice ? { voice: effectiveVoice } : {}),
       // 기본보다 반 톤 낮춰서 쨍한 기계음 느낌을 줄인다.
       pitch: 0.95,
       onError: () => undefined,

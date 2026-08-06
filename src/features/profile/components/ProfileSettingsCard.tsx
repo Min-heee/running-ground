@@ -66,6 +66,12 @@ export function ProfileSettingsCard({ onDebugUnlockPress }: ProfileSettingsCardP
           <Text style={styles.settingValue}>관리</Text>
         </Pressable>
       </Link>
+      <Link href="/voice-settings" asChild>
+        <Pressable style={styles.settingRow}>
+          <Text style={styles.settingLabel}>음성 안내 목소리</Text>
+          <Text style={styles.settingValue}>선택</Text>
+        </Pressable>
+      </Link>
       <Link href="/integration-management" asChild>
         <Pressable style={styles.settingRow}>
           <View style={styles.settingLabelBlock}>
