@@ -7,7 +7,7 @@ import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Screen } from '@/components/Screen';
 import { SegmentSwitch } from '@/components/ui/SegmentSwitch';
-import { RunPeriodPickerSheet } from '@/features/home/components/overview/RunPeriodPickerSheet';
+import { RunmadangDateWheelSheet } from '../components/RunmadangDateWheelSheet';
 import {
   createRunmadang,
   fetchFriendLeaderboard,
@@ -21,9 +21,11 @@ import {
   RUNMADANG_METRIC_ITEMS,
   RUNMADANG_PERIOD_PRESET_ITEMS,
   RUNMADANG_STAKE_PRESETS,
-  buildRunmadangEndDateOptions,
-  buildRunmadangStartDateOptions,
+  buildRunmadangStartBounds,
   clampRunmadangEndDate,
+  dateKeyToMs,
+  formatKstDayLabel,
+  maxRunmadangEndKey,
 } from '../runmadangModel';
 
 // 그라운드 만들기 — 종목(거리/시간) · 기간(프리셋/직접) · 판돈 · 친구 초대.
@@ -81,13 +83,10 @@ export default function RunmadangCreateScreen() {
   }, [loadOptions]);
 
   const nowMs = useMemo(() => Date.now(), []);
-  const startOptions = useMemo(() => buildRunmadangStartDateOptions(nowMs), [nowMs]);
-  const endOptions = useMemo(
-    () => (startDate ? buildRunmadangEndDateOptions(startDate) : []),
-    [startDate],
-  );
-  const startLabel = startOptions.find((option) => option.key === startDate)?.label ?? '선택';
-  const endLabel = endOptions.find((option) => option.key === endDate)?.label ?? '선택';
+  // 시작일 = 내일부터 31일, 종료일 = 시작일부터 최대 5년 (년/월/일 휠 피커의 경계).
+  const startBounds = useMemo(() => buildRunmadangStartBounds(nowMs), [nowMs]);
+  const startLabel = startDate ? formatKstDayLabel(dateKeyToMs(startDate)) : '선택';
+  const endLabel = endDate ? formatKstDayLabel(dateKeyToMs(endDate)) : '선택';
 
   const effectiveStake = useCustomStake
     ? Math.min(MAX_STAKE, Math.max(0, Math.round(Number(customStakeText) || 0)))
@@ -123,7 +122,7 @@ export default function RunmadangCreateScreen() {
     && !saving
     && !stakeExceedsBalance
     && (periodId !== 'custom'
-      || (Boolean(startDate) && Boolean(endDate) && endOptions.some((option) => option.key === endDate)));
+      || Boolean(startDate && endDate && endDate >= startDate && endDate <= maxRunmadangEndKey(startDate)));
 
   const handleCreate = useCallback(() => {
     if (!canSubmit || submittingRef.current) {
@@ -330,13 +329,16 @@ export default function RunmadangCreateScreen() {
         disabled={!canSubmit}
       />
 
-      <RunPeriodPickerSheet
+      <RunmadangDateWheelSheet
         visible={datePickerTarget !== null}
-        options={datePickerTarget === 'start' ? startOptions : endOptions}
-        selectedKey={(datePickerTarget === 'start' ? startDate : endDate) ?? ''}
+        title={datePickerTarget === 'start' ? '시작일 선택' : '종료일 선택'}
+        minKey={datePickerTarget === 'end' && startDate ? startDate : startBounds.minKey}
+        maxKey={datePickerTarget === 'end' && startDate
+          ? maxRunmadangEndKey(startDate)
+          : startBounds.maxKey}
+        selectedKey={datePickerTarget === 'start' ? startDate : endDate}
         onSelect={handleSelectDate}
         onClose={() => setDatePickerTarget(null)}
-        title={datePickerTarget === 'start' ? '시작일 선택' : '종료일 선택'}
       />
     </Screen>
   );

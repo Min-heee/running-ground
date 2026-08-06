@@ -3,14 +3,15 @@ import test from 'node:test';
 
 import type { RunmadangChallenge } from '@/lib/api/types/runmadang';
 import {
-  buildRunmadangEndDateOptions,
+  buildDateWheelRanges,
   buildRunmadangResultLine,
-  buildRunmadangStartDateOptions,
+  buildRunmadangStartBounds,
   clampRunmadangEndDate,
   formatKstDayLabel,
   formatRunmadangPeriod,
   formatRunmadangRemaining,
   formatRunmadangValue,
+  maxRunmadangEndKey,
   splitRunmadangSections,
 } from './runmadangModel';
 
@@ -65,18 +66,30 @@ test('값 표시: 거리는 km 소수 2자리, 시간은 시·분 조합', () =>
   assert.equal(formatRunmadangValue('duration', 30), '30초');
 });
 
-test('직접 지정 날짜 후보: 시작은 내일부터 30일, 종료는 시작일부터 31일', () => {
+test('직접 지정 경계: 시작은 내일부터 31일, 종료는 시작일부터 최대 5년', () => {
   const nowMs = Date.parse('2026-08-06T03:00:00.000Z'); // KST 8/6 12:00
-  const startOptions = buildRunmadangStartDateOptions(nowMs);
-  assert.equal(startOptions.length, 30);
-  assert.equal(startOptions[0].key, '2026-08-07');
-  assert.equal(startOptions[0].label, '8.7 (금)');
+  const bounds = buildRunmadangStartBounds(nowMs);
+  assert.equal(bounds.minKey, '2026-08-07');
+  assert.equal(bounds.maxKey, '2026-09-06');
 
-  const endOptions = buildRunmadangEndDateOptions('2026-08-07');
-  assert.equal(endOptions.length, 731); // 최대 2년 (오너 2026-08-07)
-  assert.equal(endOptions[0].key, '2026-08-07');
-  assert.equal(endOptions[30].key, '2026-09-06');
-  assert.equal(endOptions[730].key, '2028-08-06');
+  // 시작 포함 1827일(5년) → 종료 상한은 +1826일.
+  assert.equal(maxRunmadangEndKey('2026-08-07'), '2031-08-07');
+});
+
+test('년/월/일 휠 범위: 경계 연·월에서 월/일이 잘린다', () => {
+  const ranges = buildDateWheelRanges('2026-08-07', '2031-08-07', 2026, 8);
+  assert.deepEqual(ranges.years, [2026, 2027, 2028, 2029, 2030, 2031]);
+  assert.deepEqual(ranges.months, [8, 9, 10, 11, 12]); // 최소 연도는 8월부터
+  assert.equal(ranges.days[0], 7); // 최소 연·월은 7일부터
+  assert.equal(ranges.days[ranges.days.length - 1], 31);
+
+  const maxEdge = buildDateWheelRanges('2026-08-07', '2031-08-07', 2031, 8);
+  assert.deepEqual(maxEdge.months, [1, 2, 3, 4, 5, 6, 7, 8]); // 최대 연도는 8월까지
+  assert.deepEqual(maxEdge.days[maxEdge.days.length - 1], 7); // 최대 연·월은 7일까지
+
+  const midYear = buildDateWheelRanges('2026-08-07', '2031-08-07', 2028, 2);
+  assert.deepEqual(midYear.months.length, 12);
+  assert.equal(midYear.days.length, 29); // 2028년 2월 = 윤년
 });
 
 test('목록 3분할: 초대/진행/끝난 판', () => {
@@ -130,8 +143,8 @@ test('종료일 클램프: 시작일 재선택 시 창 밖 종료일은 null, �
   assert.equal(clampRunmadangEndDate('2026-08-07', null), null);
   assert.equal(clampRunmadangEndDate('2026-08-07', '2026-08-05'), '2026-08-07');
   assert.equal(clampRunmadangEndDate('2026-08-07', '2026-08-20'), '2026-08-20');
-  assert.equal(clampRunmadangEndDate('2026-08-07', '2028-08-06'), '2028-08-06'); // 2년째 = 창 안
-  assert.equal(clampRunmadangEndDate('2026-08-07', '2028-09-01'), null); // 창 밖
+  assert.equal(clampRunmadangEndDate('2026-08-07', '2031-08-07'), '2031-08-07'); // 5년째 = 창 안
+  assert.equal(clampRunmadangEndDate('2026-08-07', '2031-08-08'), null); // 창 밖
 });
 
 test('동률 결과 줄: 실수령액(myPayoutPoints)과 공동 우승 표기', () => {

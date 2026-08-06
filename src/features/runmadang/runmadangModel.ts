@@ -85,28 +85,85 @@ export function formatRunmadangValue(metric: RunmadangMetric, value: number): st
   return `${totalSeconds}초`;
 }
 
-export type RunmadangDateOption = { key: string; label: string };
+// 직접 지정 최대 기간(일) — 오너 2026-08-07: 최대 5년. 서버
+// RUNMADANG_MAX_CUSTOM_SPAN_DAYS와 같은 값.
+export const RUNMADANG_MAX_SPAN_DAYS = 1827;
+// 시작일 상한(오늘부터 며칠 안) — 서버 RUNMADANG_MAX_START_AHEAD_DAYS 미러.
+export const RUNMADANG_MAX_START_AHEAD_DAYS = 31;
 
-// 직접 지정용 날짜 후보: 내일부터 30일 (백엔드 규칙과 동일 — 오늘 시작은 프리셋으로).
-export function buildRunmadangStartDateOptions(nowMs: number): RunmadangDateOption[] {
-  return Array.from({ length: 30 }, (_, index) => {
-    const ms = nowMs + (index + 1) * KST_DAY_MS;
-    return { key: formatKstDayKey(ms), label: formatKstDayLabel(ms) };
-  });
+export function dateKeyToMs(dateKey: string): number {
+  return Date.parse(`${dateKey}T00:00:00+09:00`);
 }
 
-// 직접 지정 최대 기간(일) — 오너 2026-08-07: 1년·2년 내기도 가능하게. 서버
-// RUNMADANG_MAX_CUSTOM_SPAN_DAYS와 같은 값.
-export const RUNMADANG_MAX_SPAN_DAYS = 731;
+// 시작일 선택 범위: 내일부터 31일 (백엔드 규칙과 동일 — 오늘 시작은 프리셋으로).
+export function buildRunmadangStartBounds(nowMs: number): { minKey: string; maxKey: string } {
+  return {
+    minKey: formatKstDayKey(nowMs + KST_DAY_MS),
+    maxKey: formatKstDayKey(nowMs + RUNMADANG_MAX_START_AHEAD_DAYS * KST_DAY_MS),
+  };
+}
 
-// 종료일 후보: 시작일 당일(하루짜리)부터 최대 2년. 올해가 아닌 날짜는 라벨에 연도가
-// 붙는다 (formatKstDayLabel).
-export function buildRunmadangEndDateOptions(startDateKey: string): RunmadangDateOption[] {
-  const startMs = Date.parse(`${startDateKey}T00:00:00+09:00`);
-  return Array.from({ length: RUNMADANG_MAX_SPAN_DAYS }, (_, index) => {
-    const ms = startMs + index * KST_DAY_MS;
-    return { key: formatKstDayKey(ms), label: formatKstDayLabel(ms) };
-  });
+// 종료일 상한: 시작일 포함 최대 5년.
+export function maxRunmadangEndKey(startDateKey: string): string {
+  return formatKstDayKey(dateKeyToMs(startDateKey) + (RUNMADANG_MAX_SPAN_DAYS - 1) * KST_DAY_MS);
+}
+
+// --- 년/월/일 휠 피커 재료 (오너 2026-08-07: 시작일·종료일을 세 휠로 따로 스크롤) ---
+
+export type DateKeyParts = { year: number; month: number; day: number };
+
+export function getDateKeyParts(dateKey: string): DateKeyParts {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return { year, month, day };
+}
+
+export function buildDateKey(year: number, month: number, day: number): string {
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+export function daysInMonthOf(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function rangeOf(from: number, to: number): number[] {
+  return Array.from({ length: Math.max(0, to - from + 1) }, (_, index) => from + index);
+}
+
+// [minKey, maxKey] 범위 안에서 (year, month) 선택 상태에 맞는 년/월/일 휠 값들.
+// 경계 연·월에서는 선택 가능한 월/일이 잘린다 (예: maxKey가 2031-08-07이면 2031년의
+// 월은 1~8, 2031년 8월의 일은 1~7).
+export function buildDateWheelRanges(
+  minKey: string,
+  maxKey: string,
+  year: number,
+  month: number,
+): { years: number[]; months: number[]; days: number[] } {
+  const min = getDateKeyParts(minKey);
+  const max = getDateKeyParts(maxKey);
+
+  const years = rangeOf(min.year, max.year);
+  const monthFrom = year === min.year ? min.month : 1;
+  const monthTo = year === max.year ? max.month : 12;
+  const months = rangeOf(monthFrom, monthTo);
+
+  const clampedMonth = Math.min(Math.max(month, monthFrom), monthTo);
+  const dayFrom = year === min.year && clampedMonth === min.month ? min.day : 1;
+  const dayTo = year === max.year && clampedMonth === max.month
+    ? Math.min(max.day, daysInMonthOf(year, clampedMonth))
+    : daysInMonthOf(year, clampedMonth);
+  const days = rangeOf(dayFrom, dayTo);
+
+  return { years, months, days };
+}
+
+export function clampDateKeyToRange(dateKey: string, minKey: string, maxKey: string): string {
+  if (dateKey < minKey) {
+    return minKey;
+  }
+  if (dateKey > maxKey) {
+    return maxKey;
+  }
+  return dateKey;
 }
 
 // 시작일을 다시 고를 때 기존 종료일을 새 창에 맞춘다: 시작일보다 이르면 시작일로

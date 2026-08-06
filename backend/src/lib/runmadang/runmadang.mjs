@@ -29,8 +29,8 @@ export const RUNMADANG_PERIOD_PRESETS = {
 };
 export const RUNMADANG_MAX_STAKE_POINTS = 10000;
 export const RUNMADANG_MAX_INVITEES = 11; // 본인 포함 최대 12명 (파티방 초대 칩 캡과 동일)
-// 직접 지정 최대 기간 — 오너 2026-08-07: "1년, 2년 내기도 있을 수 있잖아" → 2년.
-export const RUNMADANG_MAX_CUSTOM_SPAN_DAYS = 731;
+// 직접 지정 최대 기간 — 오너 2026-08-07: 년 휠 최대 5년.
+export const RUNMADANG_MAX_CUSTOM_SPAN_DAYS = 1827;
 // 시작일 상한 — 상한이 없으면 수십 년 뒤 시작 판에 친구 판돈을 무기한 잠글 수 있다.
 export const RUNMADANG_MAX_START_AHEAD_DAYS = 31;
 // 호스트당 동시에 열어둘 수 있는 판 — 0P 판 무한 생성(초대 푸시 스팸·blob 비대)을 막는다.
@@ -160,7 +160,7 @@ function resolvePeriod(input, now) {
 
   const spanDays = Math.round((endMs - startMs) / (24 * 60 * 60 * 1000)) + 1;
   if (spanDays > RUNMADANG_MAX_CUSTOM_SPAN_DAYS) {
-    throw new ApiError(400, '기간은 최대 2년까지 가능해요.');
+    throw new ApiError(400, '기간은 최대 5년까지 가능해요.');
   }
 
   // 종료일 하루를 통째로 포함 — 다음날 00:00(KST)이 경계.
