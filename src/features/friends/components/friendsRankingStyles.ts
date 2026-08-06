@@ -74,7 +74,8 @@ export const friendsRankingStyles = StyleSheet.create({
   rankCard: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.borderSoft,
-    paddingVertical: spacing.s12,
+    // 줄이 너무 붙어 보인다 (오너 2026-08-06) — 친구 카드(s12)보다 한 뼘 넉넉하게.
+    paddingVertical: spacing.s16,
   },
   // 내 줄: 연보라 틴트로만 구분 ("나" 배지 + 상단 요약바가 이미 내 순위를 말해준다).
   myCard: {
