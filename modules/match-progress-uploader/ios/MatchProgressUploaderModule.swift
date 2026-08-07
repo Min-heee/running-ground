@@ -1,6 +1,7 @@
 import ExpoModulesCore
 import Foundation
 import CoreLocation
+import UIKit
 
 // REAL iOS uploader — mirrors the Android Kotlin MatchProgressUploaderModule's behavior.
 //
@@ -66,12 +67,31 @@ public class MatchProgressUploaderModule: Module {
   // Default native cadence (matches the Android default) when JS passes a non-positive interval.
   private static let defaultIntervalMs: Int = 3000
 
+  // 기록 저장 총 전송 예산 — 다운샘플(1500점) 경로가 실린 최대 바디를 느린 회선에서도
+  // 보낼 수 있게. 요청 유휴 타임아웃(15s)은 그대로라 죽은 연결은 여전히 빨리 끊긴다.
+  private static let runSaveResourceTimeoutSeconds: TimeInterval = 120
+
   // Dedicated background URLSession so the POST runs off the JS thread, mirroring Kotlin's
   // single-thread Executor. Timeouts applied at both the request and session level.
-  private lazy var session: URLSession = {
+  // lazy 제거 (적대 리뷰 2026-08-07): Swift의 lazy var는 스레드 안전하지 않은데 이 세션은
+  // Expo 디스패치 큐 / 메인 스레드(periodic) / runSaveQueue 세 곳에서 접근된다.
+  private let session: URLSession = {
     let configuration = URLSessionConfiguration.default
     configuration.timeoutIntervalForRequest = MatchProgressUploaderModule.timeoutSeconds
     configuration.timeoutIntervalForResource = MatchProgressUploaderModule.timeoutSeconds
+    configuration.waitsForConnectivity = false
+    return URLSession(configuration: configuration)
+  }()
+
+  // 기록 저장 전용 세션 (적대 리뷰 2026-08-07): 진행 페이로드용 세션의
+  // timeoutIntervalForResource=15s는 '총 전송 시간' 캡이라, 경로가 실린 큰 저장 바디가
+  // 느린 회선에서 매 시도 같은 이유로 타임아웃돼 사다리 전체가 결정적으로 소진된다.
+  // 요청 유휴 타임아웃은 15s 그대로 두고 총 전송 예산만 넉넉히 준다 (Kotlin의
+  // HttpURLConnection은 애초에 총 캡이 없어 플랫폼 비대칭이기도 했다).
+  private let runSaveSession: URLSession = {
+    let configuration = URLSessionConfiguration.default
+    configuration.timeoutIntervalForRequest = MatchProgressUploaderModule.timeoutSeconds
+    configuration.timeoutIntervalForResource = MatchProgressUploaderModule.runSaveResourceTimeoutSeconds
     configuration.waitsForConnectivity = false
     return URLSession(configuration: configuration)
   }()
@@ -158,6 +178,22 @@ public class MatchProgressUploaderModule: Module {
       self.runOnMain {
         self.locationDriver?.markPayloadTerminal()
       }
+    }
+
+    // 화면 꺼진 완주의 기록 저장 배달 (오너 2026-08-07 네이티브 업로더 확장): JS가 골
+    // 크로싱 순간 완성한 /runs/tracked 페이로드를, JS가 다시 정지돼도 네이티브가
+    // 재시도(0/5/15/30/60s)하며 배달한다. 아무 것도 재계산하지 않는다 — JS 몸통 그대로.
+    // 서버가 (userId, startedAt) 재전송을 dedupe 하므로 이후 JS 저장과 겹쳐도 무해.
+    // 2xx = 완료, 4xx = 결정적 거절(중단 — JS 저장 대기열이 이어받음), 그 외 = 재시도.
+    Function("armRunSaveUpload") { (url: String, authToken: String, jsonBody: String) in
+      self.armRunSave(url: url, authToken: authToken, jsonBody: jsonBody)
+    }
+
+    Function("cancelRunSaveUpload") {
+      self.runSaveQueue.async {
+        self.runSaveGeneration += 1
+      }
+      self.endRunSaveBackgroundTask()
     }
 
     // MARK: Native distance accumulator (screen-off distance advance)
@@ -355,6 +391,109 @@ public class MatchProgressUploaderModule: Module {
     }
   }
 
+  // MARK: - Run-save delivery (hands-free finish)
+
+  // 세대 카운터 — cancel 또는 새 arm이 값을 올리면 진행 중이던 재시도 체인이 다음
+  // 체크포인트에서 조용히 끝난다. 데이터 레이스 방지를 위해 모든 읽기/쓰기를
+  // runSaveQueue(직렬)에서만 수행한다 (URLSession 콜백도 이 큐로 되돌아온다).
+  private var runSaveGeneration: Int = 0
+  // 메인 스레드 전용 (UIApplication API 짝).
+  private var runSaveBackgroundTaskId: UIBackgroundTaskIdentifier = .invalid
+  private let runSaveQueue = DispatchQueue(label: "rg.run-save-uploader")
+  private static let runSaveRetryDelaysSeconds: [Double] = [0, 5, 15, 30, 60]
+
+  private func armRunSave(url: String, authToken: String, jsonBody: String) {
+    // 백그라운드 실행 시간 확보 (적대 리뷰 2026-08-07): 크로싱 직후 Stage-5 터미널
+    // self-stop이 CLLocationManager를 내리면 iOS가 수 초 안에 앱을 suspend한다. GCD
+    // asyncAfter는 suspend된 프로세스에서 아예 흐르지 않으므로 재시도 사다리가 얼어붙는다.
+    // beginBackgroundTask로 실행 창을 확보해 초반 시도들이 실제로 실행되게 한다.
+    beginRunSaveBackgroundTask()
+
+    runSaveQueue.async { [weak self] in
+      guard let self else { return }
+      self.runSaveGeneration += 1
+      let myGeneration = self.runSaveGeneration
+      self.attemptRunSave(
+        url: url,
+        authToken: authToken,
+        jsonBody: jsonBody,
+        attemptIndex: 0,
+        generation: myGeneration
+      )
+    }
+  }
+
+  // UIApplication 백그라운드 태스크 짝 — 식별자는 메인 스레드에서만 만지므로
+  // runSaveQueue와 경합하지 않는다 (UIApplication API 규약).
+  private func beginRunSaveBackgroundTask() {
+    runOnMain { [weak self] in
+      guard let self else { return }
+      if self.runSaveBackgroundTaskId != .invalid {
+        UIApplication.shared.endBackgroundTask(self.runSaveBackgroundTaskId)
+        self.runSaveBackgroundTaskId = .invalid
+      }
+      self.runSaveBackgroundTaskId = UIApplication.shared.beginBackgroundTask(withName: "rg.run-save") { [weak self] in
+        // 만료 통보 — 즉시 반납하지 않으면 OS가 앱을 종료시킨다.
+        self?.endRunSaveBackgroundTask()
+      }
+    }
+  }
+
+  // 백그라운드 태스크 반납 — 사다리가 끝났거나(성공/결정적 거절/소진/취소) 만료될 때.
+  private func endRunSaveBackgroundTask() {
+    runOnMain { [weak self] in
+      guard let self, self.runSaveBackgroundTaskId != .invalid else { return }
+      UIApplication.shared.endBackgroundTask(self.runSaveBackgroundTaskId)
+      self.runSaveBackgroundTaskId = .invalid
+    }
+  }
+
+  // 항상 runSaveQueue 위에서 호출된다.
+  private func attemptRunSave(
+    url: String,
+    authToken: String,
+    jsonBody: String,
+    attemptIndex: Int,
+    generation: Int
+  ) {
+    guard attemptIndex < MatchProgressUploaderModule.runSaveRetryDelaysSeconds.count else {
+      endRunSaveBackgroundTask()
+      return // 재시도 소진 — 앱을 열면 JS 저장 흐름이 이어받는다.
+    }
+
+    let delaySeconds = MatchProgressUploaderModule.runSaveRetryDelaysSeconds[attemptIndex]
+    runSaveQueue.asyncAfter(deadline: .now() + delaySeconds) { [weak self] in
+      guard let self else { return }
+      guard self.runSaveGeneration == generation else {
+        self.endRunSaveBackgroundTask()
+        return // 취소/대체됨
+      }
+
+      self.send(url: url, authToken: authToken, jsonBody: jsonBody, useRunSaveSession: true) { _, statusCode in
+        // URLSession 콜백 스레드에서 세대를 만지지 않도록 직렬 큐로 복귀.
+        self.runSaveQueue.async {
+          guard self.runSaveGeneration == generation else {
+            self.endRunSaveBackgroundTask()
+            return
+          }
+          // Kotlin과 같은 3분기 (적대 리뷰 2026-08-07): 2xx 완료 / 4xx 결정적 거절 /
+          // 그 외(3xx·5xx·전송실패)는 재시도. 이전엔 3xx를 거절로 묶어 iOS만 조기 포기했다.
+          if let statusCode, (200...299).contains(statusCode) || (400...499).contains(statusCode) {
+            self.endRunSaveBackgroundTask()
+            return
+          }
+          self.attemptRunSave(
+            url: url,
+            authToken: authToken,
+            jsonBody: jsonBody,
+            attemptIndex: attemptIndex + 1,
+            generation: generation
+          )
+        }
+      }
+    }
+  }
+
   // MARK: - Shared HTTP send
 
   // Shared HTTP send. Resolves the 2xx body string (or nil on non-2xx / any error) PLUS the raw
@@ -366,6 +505,7 @@ public class MatchProgressUploaderModule: Module {
     url urlString: String,
     authToken: String,
     jsonBody: String,
+    useRunSaveSession: Bool = false,
     completion: @escaping (String?, Int?) -> Void
   ) {
     guard let url = URL(string: urlString) else {
@@ -382,7 +522,8 @@ public class MatchProgressUploaderModule: Module {
     request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
     request.httpBody = jsonBody.data(using: .utf8)
 
-    let task = session.dataTask(with: request) { data, response, error in
+    let activeSession = useRunSaveSession ? runSaveSession : session
+    let task = activeSession.dataTask(with: request) { data, response, error in
       // Mirror Kotlin's catch → null on any transport error. No HTTP response arrived, so there is
       // no status code either — a transport error can never read as a terminal ACK.
       if error != nil {

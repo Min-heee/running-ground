@@ -86,6 +86,11 @@ export function useRunFinishCommand({
     // 드레인이 버린 기록을 되살린다 — 스냅샷이 지워지기 전에 startedAt으로 지운다.
     const discardedStartedAt = getBackgroundRunTrackingSnapshot({ cloneRoute: false }).startedAt ?? null;
     void clearPendingRunSaveForStartedAt(discardedStartedAt);
+    // 버린 기록이 네이티브 배달로 되살아나지 않게 취소 (2026-08-07 — 놓쳐도 서버
+    // dedupe로 무해하지만, 버린 기록의 뒤늦은 저장은 UX 혼란이라 최선을 다해 막는다).
+    void import('../../../../../modules/match-progress-uploader')
+      .then((uploader) => uploader.cancelNativeRunSaveUpload())
+      .catch(() => undefined);
     // 경찰과 도둑런: 버려진 러닝은 업로드 정산(슬롯 반납 경로)에 도달하지 않는다 —
     // 여기서 반납하지 않으면 경기장 인원수가 3시간 TTL 동안 부풀어 있는다.
     if (getActiveChaseArena()) {

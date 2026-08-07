@@ -150,10 +150,13 @@ export function createPostgresRunsRepository({
           }
         }
 
-        if (input.startedAt && retryMatchId) {
+        // startedAt 무관 매치 dedupe (json-repo 쌍둥이, 2026-08-07 네이티브 배달) — 저장
+        // 경로마다 startedAt이 다르므로(네이티브=원시 시작시각 / JS=슬롯 앵커) matchId만으로
+        // 같은 런임을 판정한다. 매치 1회 = 유저당 런 1개가 도메인 불변식.
+        if (retryMatchId) {
           const existingRuns = await loadRunsForUser(client, user.id);
           const existingRun = existingRuns.find((entry) => (
-            entry.startedAt === input.startedAt && entry.matchResult?.matchId === retryMatchId
+            entry.matchResult?.matchId === retryMatchId
           ));
 
           if (existingRun) {

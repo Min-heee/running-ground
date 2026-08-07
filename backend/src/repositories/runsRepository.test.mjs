@@ -591,6 +591,47 @@ await runTest('#209: a re-attached route reproduces the embedded-route run detai
   assert.equal(JSON.stringify(reattached), JSON.stringify(embedded));
 });
 
+// --- 네이티브 배달 적대 리뷰 회귀 (2026-08-07) ---
+
+await runTest('매치 dedupe는 startedAt이 달라도 matchId로 같은 런을 알아본다 (네이티브 배달 ↔ JS 저장)', async () => {
+  const { repository, storeHarness } = createRepositoryHarness();
+
+  const matchResult = {
+    mode: 'duel',
+    source: 'party',
+    matchId: 'duel-native-dedupe',
+    title: '대결 결과 집계 중',
+    summary: '상대 기록을 기다리는 중이에요.',
+    badgeLabel: '집계 중',
+  };
+  const baseInput = {
+    date: '2026-08-07',
+    distanceKm: 5,
+    pace: '06:00/km',
+    durationSeconds: 1800,
+    route: [{ latitude: 37.5, longitude: 127.0 }],
+    endedAt: '2026-08-07T10:30:00.000Z',
+    matchResult,
+  };
+
+  // 1) 화면 꺼짐 네이티브 배달 — 원시 트래킹 시작시각.
+  const native = await repository.createTrackedRun({
+    token: 'token-1',
+    input: { ...baseInput, startedAt: '2026-08-07T10:00:03.000Z' },
+  });
+  assert.equal(storeHarness.getStore().runs.length, 1);
+
+  // 2) 앱을 연 뒤의 JS 저장 — 슬롯 앵커 startedAt(다른 문자열!) + 같은 matchId.
+  const jsSave = await repository.createTrackedRun({
+    token: 'token-1',
+    input: { ...baseInput, startedAt: '2026-08-07T10:00:00.000Z' },
+  });
+
+  // startedAt이 달라도 같은 매치 = 한 행 (이중 기록/포인트 이중 적립 없음).
+  assert.equal(jsSave.run.id, native.run.id);
+  assert.equal(storeHarness.getStore().runs.length, 1);
+});
+
 // --- 저장 대기열 적대 리뷰 회귀 (2026-08-06) ---
 
 await runTest('preserveMatchGoalStamp: 재전송 블롭에 스탬프가 없으면 기존 값을 이월', async () => {

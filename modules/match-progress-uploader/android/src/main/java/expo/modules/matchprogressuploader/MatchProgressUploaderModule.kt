@@ -88,6 +88,17 @@ class MatchProgressUploaderModule : Module() {
     // NATIVE DISTANCE ACCUMULATOR — begin GPS distance accumulation in the foreground service with
     // the JS filter constants so native mirrors JS. Wires the onDistanceAccumulated bridge so each
     // advance can reach JS. Returns true when the start intent was dispatched.
+    // 화면 꺼진 완주의 기록 저장 배달 (오너 2026-08-07 네이티브 업로더 확장): JS가 골
+    // 크로싱 순간 완성한 /runs/tracked 페이로드를 네이티브 스레드가 재시도하며 배달한다.
+    // 서버가 (userId, startedAt) 재전송을 dedupe 하므로 이후 JS 저장과 겹쳐도 무해.
+    Function("armRunSaveUpload") { url: String, authToken: String, jsonBody: String ->
+      RunSaveUploader.arm(url, authToken, jsonBody)
+    }
+
+    Function("cancelRunSaveUpload") {
+      RunSaveUploader.cancel()
+    }
+
     Function("startDistanceAccumulator") { options: Map<String, Any?> ->
       MatchDistanceBus.setListener(distanceListener)
       startDistanceService(MatchUploadForegroundService.ACTION_DISTANCE_START, options)

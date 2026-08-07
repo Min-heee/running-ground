@@ -316,6 +316,12 @@ export function useRunSaveCommand({
       const pendingSaveUri = await persistPendingRunSave(createRunInput);
       const savedRun = await createTrackedRun(createRunInput);
       void clearPendingRunSave(pendingSaveUri);
+      // 네이티브 기록 저장 배달 취소 (2026-08-07): JS 저장이 성공했으니 크로싱 때 맡긴
+      // 네이티브 재시도는 불필요 — 놓쳐도 서버 dedupe가 이중 기록을 막는다 (동적 import:
+      // 옛 바이너리·테스트 환경에선 조용히 no-op).
+      void import('../../../../../modules/match-progress-uploader')
+        .then((uploader) => uploader.cancelNativeRunSaveUpload())
+        .catch(() => undefined);
       clearActiveChaseArena();
       options.onSavedRun?.(savedRun.run.id);
       await runCleanupAfterSave({

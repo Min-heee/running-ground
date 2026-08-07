@@ -480,10 +480,14 @@ export function createJsonRunsRepository({
           }
         }
 
-        if (input.startedAt && retryMatchId) {
+        // startedAt 무관 매치 dedupe (2026-08-07 네이티브 배달): 같은 유저가 같은 매치로
+        // 두 번 저장하는 정당한 케이스는 없다(매치 1회 = 런 1개). 그런데 저장 경로마다
+        // startedAt이 다르다 — 화면 꺼짐 네이티브 배달은 원시 트래킹 시작시각, 앱을 연 뒤의
+        // JS 저장은 슬롯 앵커 시각(trackingDisplayModel). startedAt까지 일치를 요구하면 두
+        // 경로가 서로를 못 알아보고 같은 매치가 두 행으로 남아 포인트가 이중 적립된다.
+        if (retryMatchId) {
           const existingRun = store.runs.find((entry) => (
             entry.userId === user.id
-            && entry.startedAt === input.startedAt
             && entry.matchResult?.matchId === retryMatchId
           ));
 

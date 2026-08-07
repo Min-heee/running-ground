@@ -30,7 +30,9 @@ import {
 } from '@/features/runs/tracking/background/distanceAccumulatorController';
 import { isMyMatchDistanceStale } from '@/features/runs/sync/matchDistanceStaleness';
 import { getPendingFinish } from '@/features/runs/sync/pendingFinishStore';
-import { recordLocalGoalFreezeOnce } from '@/features/runs/sync/localGoalFreezeStore';
+import { getLocalGoalFreeze, recordLocalGoalFreezeOnce } from '@/features/runs/sync/localGoalFreezeStore';
+import { buildScreenOffRunSaveInput } from '@/features/runs/save/screenOffRunSave';
+import type { RunMatchSource, RunRoutePoint } from '@/domain';
 import { presentFinishCelebrationOnce } from '@/features/runs/finishReminder/finishApproachNotification';
 import { isApiError } from '@/services/apiError';
 import { rgDiagLog } from '@/utils/rgPerfTrace';
@@ -93,6 +95,10 @@ type NativeBackgroundMatchProgressUploader = (
 type NativeMatchProgressUploaderModule = {
   isNativeMatchProgressUploaderAvailable(): boolean;
   uploadMatchProgressNative: NativeBackgroundMatchProgressUploader;
+  // 화면 꺼진 완주 기록 저장 배달 (새 네이티브 빌드 전용) — 옛 바이너리에선 래퍼가
+  // no-op이므로 optional (2026-08-07 네이티브 업로더 확장).
+  isNativeRunSaveUploaderAvailable?: () => boolean;
+  armNativeRunSaveUpload?: (url: string, authToken: string, jsonBody: string) => boolean;
 };
 
 // Fix A.1 — module-level applier injected from React (same pattern as the context injection
@@ -495,6 +501,78 @@ async function getNativeMatchProgressUploaderService(): Promise<NativeMatchProgr
   }
 }
 
+// 화면 꺼진 완주의 네이티브 기록 저장 배달 (2026-08-07): 크로싱을 계산한 바로 이 틱에
+// 정식 조립기로 /runs/tracked 페이로드를 완성해 네이티브 배달원에 맡긴다 — 이후 JS가
+// 다시 정지돼도 기록이 서버에 도착한다. 매치당 1회(재전송 틱의 재-arm 방지), 유저가
+// 앱을 열어 JS 저장이 또 나가도 서버 (userId, startedAt) dedupe가 이중 기록을 막는다.
+const armedRunSaveMatchIds = new Set<string>();
+// 대기열 영속은 네이티브 유무와 무관하게 매치당 1회 (옛 바이너리에서도 7일 안전망).
+const persistedRunSaveMatchIds = new Set<string>();
+
+function armScreenOffRunSaveOnce(params: {
+  matchId: string;
+  uploader: NativeMatchProgressUploaderModule | null;
+  token: string | null;
+  apiBaseUrl: string | null;
+  route: RunRoutePoint[];
+  startedAt: string | null;
+  elevationGainM: number;
+  crossing: { distanceKm: number; elapsedSeconds: number; pace: string; crossedAtIso: string };
+  mode: 'duel' | 'group';
+  matchSource?: RunMatchSource;
+}) {
+  if (armedRunSaveMatchIds.has(params.matchId) && persistedRunSaveMatchIds.has(params.matchId)) {
+    return;
+  }
+
+  const saveInput = buildScreenOffRunSaveInput({
+    route: params.route,
+    startedAt: params.startedAt,
+    elevationGainM: params.elevationGainM,
+    finishDistanceKm: params.crossing.distanceKm,
+    finishElapsedSeconds: params.crossing.elapsedSeconds,
+    finishPace: params.crossing.pace,
+    crossedAtIso: params.crossing.crossedAtIso,
+    matchId: params.matchId,
+    mode: params.mode,
+    matchSource: params.matchSource,
+  });
+  if (!saveInput) {
+    return; // 조립 불가(경로 부족 등) — 기존 흐름(앱 열면 JS 저장)만 남긴다.
+  }
+
+  // 1) 저장 대기열 영속 (적대 리뷰 2026-08-07): 네이티브 배달이 전부 실패하거나 애초에
+  // 네이티브가 없는 옛 바이너리여도 7일 대기열이 다음 앱 실행 때 이어받는다 — 이게 없으면
+  // 안전망이 24시간짜리 크래시 스냅샷 복원뿐이었다. 네이티브가 성공한 뒤 대기열이 또
+  // 보내도 서버 matchId dedupe가 흡수한다. fire-and-forget (§3.④ zero-await 불변식 유지).
+  if (!persistedRunSaveMatchIds.has(params.matchId)) {
+    persistedRunSaveMatchIds.add(params.matchId);
+    // 동적 import: 대기열 모듈은 세션(→react-native) 체인을 끌어오므로 정적으로 묶으면
+    // 이 파일을 쓰는 node 테스트가 깨진다 (이 저장소의 RN-무의존 모듈 규칙).
+    void import('@/features/runs/save/pendingRunSaveQueue')
+      .then(({ persistPendingRunSave }) => persistPendingRunSave(saveInput))
+      .catch(() => undefined);
+  }
+
+  // 2) 네이티브 즉시 배달 — 가능한 바이너리에서만. Set은 arm이 실제로 성공한 뒤에만
+  // 잠근다: 예외로 실패했는데 선점하면 그 매치의 화면-꺼짐 배달이 영구히 무효가 된다.
+  const uploader = params.uploader;
+  if (armedRunSaveMatchIds.has(params.matchId)
+    || !uploader
+    || typeof uploader.isNativeRunSaveUploaderAvailable !== 'function'
+    || !uploader.isNativeRunSaveUploaderAvailable()
+    || typeof uploader.armNativeRunSaveUpload !== 'function'
+    || !params.token
+    || !params.apiBaseUrl) {
+    return;
+  }
+
+  const jsonBody = JSON.stringify(saveInput);
+  if (uploader.armNativeRunSaveUpload(`${params.apiBaseUrl}/runs/tracked`, params.token, jsonBody)) {
+    armedRunSaveMatchIds.add(params.matchId);
+  }
+}
+
 // §3.④ — native handoff deps PRE-RESOLVED at context-arm time. Every `await` is a point where iOS
 // can suspend the JS thread (#203); resolving the native module handle + access token + apiBaseUrl
 // when the context is ARMED means the flush can hand a freshly-built FINISHED payload to the native
@@ -545,6 +623,10 @@ function normalizeBackgroundMatchProgressContext(
     mode: context.mode,
     distanceKm: Number.isFinite(context.distanceKm) ? Math.max(0, context.distanceKm) : 0,
     slotStartAt: context.slotStartAt ?? null,
+    // matchSource 누락 수정 (적대 리뷰 2026-08-07): 정규화가 이 필드를 떨어뜨려
+    // context.matchSource가 항상 undefined였다 — goal freeze의 save-fallback 메타데이터와
+    // 네이티브 배달 블롭이 파티런을 official로 저장하게 만드는 기존 결함.
+    ...(context.matchSource ? { matchSource: context.matchSource } : {}),
   };
 }
 
@@ -883,6 +965,37 @@ export async function flushBackgroundMatchProgressSync({
       pace: input.currentPace,
       crossedAtIso: new Date(nowMs).toISOString(),
       // FIX-A — additive save-fallback metadata from the arm-time context (same matchId).
+      mode: context.mode,
+      ...(context.matchSource ? { matchSource: context.matchSource } : {}),
+    });
+    // 네이티브 기록 저장 배달 (2026-08-07): 크로싱 첫 틱(스냅샷이 아직 살아있는 유일한
+    // 순간)에 저장 페이로드를 완성해 맡긴다. 재전송 틱은 Set이 걸러낸다. 동기 호출
+    // (§3.④ zero-await 불변식 유지 — 네이티브 진행 핸드오프 전에 await를 넣지 않는다).
+    // 크로싱 값은 freeze 스토어에서 읽는다 (적대 리뷰 2026-08-07): freeze는 로컬
+    // first-write-wins라 항상 '골을 넘은 그 순간'의 값이다. 첫 틱에 arm이 빠지고(토큰
+    // 미해결 등) 나중 틱이 arm하더라도 크로싱 이후 표류가 저장되지 않는다.
+    const crossingFreeze = getLocalGoalFreeze(input.matchId);
+    armScreenOffRunSaveOnce({
+      matchId: input.matchId,
+      uploader: nativeUploader,
+      token: nativeToken,
+      apiBaseUrl: nativeApiBaseUrl,
+      route: snapshot.route,
+      startedAt: snapshot.startedAt,
+      elevationGainM: snapshot.elevationGainM,
+      crossing: crossingFreeze
+        ? {
+            distanceKm: crossingFreeze.distanceKm,
+            elapsedSeconds: crossingFreeze.elapsedSeconds,
+            pace: crossingFreeze.pace,
+            crossedAtIso: crossingFreeze.crossedAtIso,
+          }
+        : {
+            distanceKm: input.distanceKm,
+            elapsedSeconds: input.elapsedSeconds,
+            pace: input.currentPace,
+            crossedAtIso: new Date(nowMs).toISOString(),
+          },
       mode: context.mode,
       ...(context.matchSource ? { matchSource: context.matchSource } : {}),
     });

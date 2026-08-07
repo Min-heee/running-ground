@@ -98,6 +98,14 @@ type MatchProgressUploaderNativeModule = {
   resetDistanceAccumulator?(): void;
   stopDistanceAccumulator?(): void;
 
+  // NATIVE RUN-SAVE DELIVERY (NEW — ships in the NEXT native build on BOTH platforms). 화면 꺼진
+  // 완주(골 크로싱) 순간 JS가 완성한 /runs/tracked 저장 페이로드를 네이티브가 재시도하며
+  // 배달한다. 네이티브는 아무 것도 재계산하지 않는다 — JS 몸통 그대로. 서버의
+  // (userId, startedAt) dedupe 덕에 이후 JS 저장과 겹쳐도 이중 기록이 안 된다.
+  // OPTIONAL: 현재 설치된 바이너리들은 이 fn들이 없으므로 typeof 게이트로 no-op (OTA 안전).
+  armRunSaveUpload?(url: string, authToken: string, jsonBody: string): void;
+  cancelRunSaveUpload?(): void;
+
   // Emitter contract used by addListener below (Expo Events("onMatchProgressResponse") +
   // Events("onDistanceAccumulated")).
   addListener?(
@@ -424,6 +432,51 @@ export function stopDistanceAccumulator(): void {
     nativeModule?.stopDistanceAccumulator?.();
   } catch {
     // Best-effort teardown.
+  }
+}
+
+// OTA-SAFETY availability gate for the NEW native run-save delivery. True ONLY when the resolved
+// native module actually exposes both fns — i.e. ONLY on the next native build. On every currently
+// installed binary this returns false, so the wrappers below no-op and the screen-off finish keeps
+// today's behavior (record persisted by the JS pending-save queue, delivered on next app open).
+export function isNativeRunSaveUploaderAvailable(): boolean {
+  if (nativeModule == null) {
+    return false;
+  }
+
+  return (
+    typeof nativeModule.armRunSaveUpload === 'function'
+    && typeof nativeModule.cancelRunSaveUpload === 'function'
+  );
+}
+
+// 골 크로싱 순간 JS가 완성한 저장 페이로드를 네이티브 배달원에 맡긴다. 실패해도(no-op
+// 포함) JS 저장 대기열이 안전망이므로 호출부는 결과에 의존하지 않는다.
+export function armNativeRunSaveUpload(url: string, authToken: string, jsonBody: string): boolean {
+  if (!isNativeRunSaveUploaderAvailable()) {
+    return false;
+  }
+
+  try {
+    nativeModule?.armRunSaveUpload?.(url, authToken, jsonBody);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// JS 저장이 먼저 성공했거나(중복 전송 절약) 기록을 버렸을 때 네이티브 배달을 중단한다.
+// 놓쳐도 무해하다 — 서버 dedupe가 이중 기록을 막는다.
+export function cancelNativeRunSaveUpload(): boolean {
+  if (!isNativeRunSaveUploaderAvailable()) {
+    return false;
+  }
+
+  try {
+    nativeModule?.cancelRunSaveUpload?.();
+    return true;
+  } catch {
+    return false;
   }
 }
 
