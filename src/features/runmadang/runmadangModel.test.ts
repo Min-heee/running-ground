@@ -117,13 +117,13 @@ test('결과 줄: 우승/패배/무효/취소', () => {
     buildRunmadangResultLine(buildChallenge({
       status: 'settled', resultTone: 'win', winnerUserIds: ['user-a'],
     })),
-    '가람 우승 · 200P',
+    '가람 우승 · 상금 200P',
   );
   assert.equal(
     buildRunmadangResultLine(buildChallenge({ status: 'settled', resultTone: 'void' })),
-    '무효 · 판돈 환불',
+    '무효 · 참가 포인트 환불',
   );
-  assert.equal(buildRunmadangResultLine(buildChallenge({ status: 'cancelled' })), '취소됨 · 판돈 환불');
+  assert.equal(buildRunmadangResultLine(buildChallenge({ status: 'cancelled' })), '취소됨 · 참가 포인트 환불');
   assert.equal(buildRunmadangResultLine(buildChallenge({ status: 'running' })), null);
 });
 

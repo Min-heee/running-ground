@@ -34,7 +34,7 @@ export type RunmadangChallenge = {
   myRole: RunmadangRole;
   canJoin: boolean;
   canCancel: boolean;
-  // 시작 전 참가 철회(판돈 환불) 가능 여부 — 호스트가 아닌 참가자. 구서버 응답엔 없음.
+  // 시작 전 참가 철회(참가 포인트 환불) 가능 여부 — 호스트가 아닌 참가자. 구서버 응답엔 없음.
   canWithdraw?: boolean;
   // 끝난 판을 내 목록에서 삭제(숨김) 가능 여부. 구서버 응답엔 없음.
   canHide?: boolean;

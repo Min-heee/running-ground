@@ -28,7 +28,7 @@ import {
   maxRunmadangEndKey,
 } from '../runmadangModel';
 
-// 그라운드 만들기 — 종목(거리/시간) · 기간(프리셋/직접) · 판돈 · 친구 초대.
+// 그라운드 만들기 — 종목(거리/시간) · 기간(프리셋/직접) · 참가 포인트 · 친구 초대.
 // 프리셋 기간은 '지금부터', 직접 지정은 내일부터 (서버 규칙과 동일).
 
 type FriendOption = { id: string; name: string };
@@ -130,8 +130,8 @@ export default function RunmadangCreateScreen() {
     }
 
     const stakeLine = effectiveStake > 0
-      ? `판돈 ${effectiveStake}P를 걸고 시작할까요? 참가자 전원이 같은 판돈을 걸고, 1등이 전부 가져가요.`
-      : '판돈 없이 시작할까요? 승패 기록만 남아요.';
+      ? `참가 포인트 ${effectiveStake}P를 걸고 시작할까요? 참가자 전원이 같은 포인트를 걸고, 1등이 상금을 전부 가져가요.`
+      : '참가 포인트 없이 시작할까요? 승패 기록만 남아요.';
 
     Alert.alert('그라운드 시작', stakeLine, [
       { text: '취소', style: 'cancel' },
@@ -174,7 +174,7 @@ export default function RunmadangCreateScreen() {
     <Screen>
       <AuthHeader
         title="그라운드 만들기"
-        subtitle="기간 동안 더 많이 달린 사람이 판돈을 가져가요."
+        subtitle="기간 동안 더 많이 달린 사람이 상금을 가져가요."
         showBack
         backHref="/runmadang"
       />
@@ -242,7 +242,7 @@ export default function RunmadangCreateScreen() {
 
       <Card style={styles.sectionCard}>
         <View style={styles.stakeHeaderRow}>
-          <Text style={styles.sectionTitle}>판돈</Text>
+          <Text style={styles.sectionTitle}>참가 포인트</Text>
           <Text style={styles.balanceText}>
             보유 {typeof availablePoints === 'number' ? Math.max(0, Math.round(availablePoints)).toLocaleString() : '--'}P
           </Text>
@@ -284,9 +284,9 @@ export default function RunmadangCreateScreen() {
           />
         ) : null}
         {stakeExceedsBalance ? (
-          <Text style={styles.warnText}>보유 포인트보다 판돈이 커요.</Text>
+          <Text style={styles.warnText}>보유 포인트보다 참가 포인트가 커요.</Text>
         ) : (
-          <Text style={styles.helperText}>참가자 전원이 같은 판돈을 걸어요. 1등이 전부 가져가요.</Text>
+          <Text style={styles.helperText}>참가자 전원이 같은 포인트를 걸어요. 1등이 상금을 전부 가져가요.</Text>
         )}
       </Card>
 

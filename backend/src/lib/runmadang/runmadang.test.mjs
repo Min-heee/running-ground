@@ -70,7 +70,7 @@ test('그라운드 생성: 방장 자동 참가 + 초대 알림 (0P 판은 원�
   assert.equal(invites[0].data.challengeId, challenge.id);
 });
 
-test('그라운드 생성 검증: 친구 아닌 초대·판돈 잔액 부족은 거부', () => {
+test('그라운드 생성 검증: 친구 아닌 초대·참가 포인트 잔액 부족은 거부', () => {
   const store = buildStore();
 
   // user-b와 user-c는 서로 친구가 아니다.
@@ -81,10 +81,10 @@ test('그라운드 생성 검증: 친구 아닌 초대·판돈 잔액 부족은 
     /친구 목록/,
   );
 
-  // 포인트 0인 유저가 판돈 100을 걸 수 없다.
+  // 포인트 0인 유저가 참가 포인트 100을 걸 수 없다.
   assert.throws(
     () => createBasicChallenge(store, { stakePoints: 100 }),
-    /보유 포인트가 판돈보다 적어요/,
+    /보유 포인트가 참가 포인트보다 적어요/,
   );
 });
 
@@ -150,7 +150,7 @@ test('참가: 초대받은 사람만, 참가 알림, 거절 취소', () => {
 });
 
 test('취소: 시작 전 방장만, 스테이크 전액 환불', () => {
-  // 10km 러닝 두 개 → 각자 10P 확보 → 판돈 10P.
+  // 10km 러닝 두 개 → 각자 10P 확보 → 참가 포인트 10P.
   const earnRunA = buildRun({ userId: 'user-a', km: 10, endedAt: '2026-08-01T10:00:00.000Z' });
   const earnRunB = buildRun({ userId: 'user-b', km: 10, endedAt: '2026-08-01T10:00:00.000Z' });
   const store = buildStore({ runs: [earnRunA, earnRunB] });
@@ -195,7 +195,7 @@ test('집계: 기간 안 인앱 러닝만 — 임포트·차량 판정·기간 �
   );
 });
 
-test('정산(거리): 우승자가 판돈 전부 획득 + 결과 알림 + 멱등', () => {
+test('정산(거리): 우승자가 상금 전부 획득 + 결과 알림 + 멱등', () => {
   const earnA = buildRun({ userId: 'user-a', km: 10, endedAt: '2026-08-01T10:00:00.000Z' });
   const earnB = buildRun({ userId: 'user-b', km: 10, endedAt: '2026-08-01T10:00:00.000Z' });
   const store = buildStore({ runs: [earnA, earnB] });
@@ -252,7 +252,7 @@ test('정산 무효: 혼자 남았거나 아무도 안 뛰면 전액 환불', ()
   assert.equal(getRedeemedPointCost(store, 'user-a'), 0);
 });
 
-test('정산 동률: 판돈 균등 분배(나머지는 먼저 참가한 쪽)', () => {
+test('정산 동률: 상금 균등 분배(나머지는 먼저 참가한 쪽)', () => {
   const earnA = buildRun({ userId: 'user-a', km: 10, endedAt: '2026-08-01T10:00:00.000Z' });
   const earnB = buildRun({ userId: 'user-b', km: 10, endedAt: '2026-08-01T10:00:00.000Z' });
   const earnC = buildRun({ userId: 'user-c', km: 10, endedAt: '2026-08-01T10:00:00.000Z' });
@@ -270,7 +270,7 @@ test('정산 동률: 판돈 균등 분배(나머지는 먼저 참가한 쪽)', (
   );
 
   settleDueRunmadangChallenges(store, new Date('2026-08-14T00:00:00.000Z'));
-  // 판돈 15를 둘이 나누면 7+나머지1 / 7.
+  // 상금 15를 둘이 나누면 7+나머지1 / 7.
   const awards = store.runmadangAwards.map((entry) => [entry.userId, entry.points]);
   assert.equal(awards.reduce((sum, [, points]) => sum + points, 0), 15);
   assert.equal(challenge.winnerUserIds.length, 2);

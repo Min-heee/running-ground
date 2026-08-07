@@ -94,8 +94,8 @@ export default function RunmadangScreen() {
 
   const handleJoin = useCallback((challenge: RunmadangChallenge) => {
     const stakeLine = challenge.stakePoints > 0
-      ? `판돈 ${challenge.stakePoints}P를 걸고 참가할까요? 참가하면 종료까지 판돈이 잠겨요.`
-      : '판돈 없이 참가할까요?';
+      ? `참가 포인트 ${challenge.stakePoints}P를 걸고 참가할까요? 참가하면 종료까지 포인트가 잠겨요.`
+      : '참가 포인트 없이 참가할까요?';
     Alert.alert('그라운드 참가', stakeLine, [
       { text: '취소', style: 'cancel' },
       {
@@ -238,7 +238,7 @@ function ChallengeCard({
           </Text>
           <View style={styles.potPill}>
             <Text style={styles.potPillText}>
-              {challenge.stakePoints > 0 ? `판돈 ${challenge.potPoints}P` : '판돈 없음'}
+              {challenge.stakePoints > 0 ? `상금 ${challenge.potPoints}P` : '상금 없음'}
             </Text>
           </View>
           <Text style={styles.chevron}>›</Text>

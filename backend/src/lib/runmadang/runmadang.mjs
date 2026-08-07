@@ -1,6 +1,6 @@
 // 그라운드 (오너 2026-08-06): 친구와 기간을 정해 거리/시간 총합으로 겨루는 포인트 내기.
 // 참가자 전원이 같은 포인트를 걸고(원장 방식 차감 — store.runmadangStakes), 기간이
-// 끝나면 1등이 판돈을 모두 가져간다(store.runmadangAwards). 상태는 저장하지 않고
+// 끝나면 1등이 상금을 모두 가져간다(store.runmadangAwards). 상태는 저장하지 않고
 // startAt/endAt에서 읽기 시점에 도출한다 (matchSession의 hydrate 패턴).
 //
 // 포인트 회계: 밸런스는 어디에도 저장되지 않는다(points.mjs가 러닝에서 재계산).
@@ -31,7 +31,7 @@ export const RUNMADANG_MAX_STAKE_POINTS = 10000;
 export const RUNMADANG_MAX_INVITEES = 11; // 본인 포함 최대 12명 (파티방 초대 칩 캡과 동일)
 // 직접 지정 최대 기간 — 오너 2026-08-07: 년 휠 최대 5년.
 export const RUNMADANG_MAX_CUSTOM_SPAN_DAYS = 1827;
-// 시작일 상한 — 상한이 없으면 수십 년 뒤 시작 판에 친구 판돈을 무기한 잠글 수 있다.
+// 시작일 상한 — 상한이 없으면 수십 년 뒤 시작 판에 친구 참가 포인트를 무기한 잠글 수 있다.
 export const RUNMADANG_MAX_START_AHEAD_DAYS = 31;
 // 호스트당 동시에 열어둘 수 있는 판 — 0P 판 무한 생성(초대 푸시 스팸·blob 비대)을 막는다.
 export const RUNMADANG_MAX_OPEN_PER_HOST = 5;
@@ -109,7 +109,7 @@ function refundStakes(store, challenge, nowIso) {
 
 function requireStakeBalance(store, userId, stakePoints) {
   if (stakePoints > 0 && getAvailablePointsFor(store, userId) < stakePoints) {
-    throw new ApiError(400, '보유 포인트가 판돈보다 적어요.');
+    throw new ApiError(400, '보유 포인트가 참가 포인트보다 적어요.');
   }
 }
 
@@ -150,7 +150,7 @@ function resolvePeriod(input, now) {
     throw new ApiError(400, '직접 지정 기간은 내일부터 시작할 수 있어요.');
   }
 
-  // 시작일 상한 — 먼 미래 판으로 참가자 판돈을 무기한 잠그는 것을 막는다 (피커 창과 정합).
+  // 시작일 상한 — 먼 미래 판으로 참가자 참가 포인트를 무기한 잠그는 것을 막는다 (피커 창과 정합).
   const maxStartKey = formatKstDateKey(
     new Date(now.getTime() + RUNMADANG_MAX_START_AHEAD_DAYS * 24 * 60 * 60 * 1000),
   );
@@ -190,7 +190,7 @@ export function createRunmadangChallenge(store, user, input, now = new Date()) {
 
   const stakePoints = Number(input.stakePoints);
   if (!Number.isInteger(stakePoints) || stakePoints < 0 || stakePoints > RUNMADANG_MAX_STAKE_POINTS) {
-    throw new ApiError(400, `판돈은 0~${RUNMADANG_MAX_STAKE_POINTS}P 사이 정수여야 해요.`);
+    throw new ApiError(400, `참가 포인트는 0~${RUNMADANG_MAX_STAKE_POINTS}P 사이 정수여야 해요.`);
   }
 
   const invitedFriendIds = Array.from(new Set(
@@ -247,7 +247,7 @@ export function createRunmadangChallenge(store, user, input, now = new Date()) {
       userId: friendId,
       type: 'runmadang_invite',
       title: '그라운드 초대',
-      body: `${user.name}님이 "${title}" 그라운드에 초대했어요 · ${METRIC_LABELS[metric]} 대결${stakePoints > 0 ? ` · 판돈 ${stakePoints}P` : ''}`,
+      body: `${user.name}님이 "${title}" 그라운드에 초대했어요 · ${METRIC_LABELS[metric]} 대결${stakePoints > 0 ? ` · 참가 포인트 ${stakePoints}P` : ''}`,
       data: { challengeId: challenge.id },
       nowIso: () => nowIso,
     });
@@ -314,7 +314,7 @@ export function declineRunmadangChallenge(store, user, challengeId, now = new Da
   return challenge;
 }
 
-// 시작 전 참가 철회 — 호스트가 판을 방치해도 참가자가 스스로 판돈을 회수할 수 있어야
+// 시작 전 참가 철회 — 호스트가 판을 방치해도 참가자가 스스로 참가 포인트를 회수할 수 있어야
 // 한다 (적대 리뷰: 참가자 셀프 회수 경로 부재). 다시 초대 목록에 남아 재참가 가능.
 export function withdrawRunmadangChallenge(store, user, challengeId, now = new Date()) {
   const challenge = findChallengeOrThrow(store, challengeId);
@@ -338,7 +338,7 @@ export function withdrawRunmadangChallenge(store, user, challengeId, now = new D
     userId: challenge.hostUserId,
     type: 'runmadang_joined',
     title: '그라운드 참가 철회',
-    body: `${user.name}님이 참가를 철회했어요. 판돈은 돌려드렸어요.`,
+    body: `${user.name}님이 참가를 철회했어요. 참가 포인트는 돌려드렸어요.`,
     data: { challengeId: challenge.id },
     nowIso: () => nowIso,
   });
@@ -371,7 +371,7 @@ export function cancelRunmadangChallenge(store, user, challengeId, now = new Dat
         userId: participant.userId,
         type: 'runmadang_settled',
         title: '그라운드 삭제',
-        body: `${user.name}님이 그라운드를 삭제했어요. 판돈은 돌려드렸어요.`,
+        body: `${user.name}님이 그라운드를 삭제했어요. 참가 포인트는 돌려드렸어요.`,
         data: { challengeId: challenge.id },
         nowIso: () => nowIso,
       });
@@ -495,8 +495,8 @@ export function settleRunmadangChallenge(store, challenge, now = new Date()) {
         type: 'runmadang_settled',
         title: '그라운드 종료',
         body: challenge.participants.length < 2
-          ? '참가자가 모이지 않아 그라운드가 무효 처리됐어요. 판돈이 돌아왔어요.'
-          : '기간 동안 기록이 없어 무승부예요. 판돈이 돌아왔어요.',
+          ? '참가자가 모이지 않아 그라운드가 무효 처리됐어요. 참가 포인트가 돌아왔어요.'
+          : '기간 동안 기록이 없어 무승부예요. 참가 포인트가 돌아왔어요.',
         data: { challengeId: challenge.id },
         nowIso: () => nowIso,
       });
@@ -536,7 +536,7 @@ export function settleRunmadangChallenge(store, challenge, now = new Date()) {
     const payout = payoutByUserId.get(participant.userId);
     const winBody = winners.length > 1
       ? `공동 우승! ${payout}P를 가져왔어요 🏆`
-      : `우승! 판돈 ${payout}P를 가져왔어요 🏆`;
+      : `우승! 상금 ${payout}P를 가져왔어요 🏆`;
     appendUserNotification(store, {
       userId: participant.userId,
       type: 'runmadang_settled',

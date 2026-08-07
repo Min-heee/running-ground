@@ -146,8 +146,8 @@ function ChallengeDetail({
 
   const handleJoin = () => {
     const stakeLine = challenge.stakePoints > 0
-      ? `판돈 ${challenge.stakePoints}P를 걸고 참가할까요? 참가하면 종료까지 판돈이 잠겨요.`
-      : '판돈 없이 참가할까요?';
+      ? `참가 포인트 ${challenge.stakePoints}P를 걸고 참가할까요? 참가하면 종료까지 포인트가 잠겨요.`
+      : '참가 포인트 없이 참가할까요?';
     Alert.alert('그라운드 참가', stakeLine, [
       { text: '취소', style: 'cancel' },
       { text: '참가', onPress: () => { void runAction(joinRunmadang, '그라운드에 참가하지 못했어요.'); } },
@@ -157,7 +157,7 @@ function ChallengeDetail({
   const handleDelete = () => {
     Alert.alert(
       '그라운드 삭제',
-      '판을 삭제하면 모든 참가자의 판돈이 환불되고 참가자에게 알림이 가요.',
+      '판을 삭제하면 모든 참가자의 참가 포인트가 환불되고 참가자에게 알림이 가요.',
       [
         { text: '닫기', style: 'cancel' },
         {
@@ -172,7 +172,7 @@ function ChallengeDetail({
   };
 
   const handleWithdraw = () => {
-    Alert.alert('참가 철회', '시작 전이라 판돈을 그대로 돌려받아요. 다시 참가할 수도 있어요.', [
+    Alert.alert('참가 철회', '시작 전이라 참가 포인트를 그대로 돌려받아요. 다시 참가할 수도 있어요.', [
       { text: '닫기', style: 'cancel' },
       {
         text: '철회하기',
@@ -202,7 +202,7 @@ function ChallengeDetail({
       <Card style={styles.summaryCard}>
         <View style={styles.summaryRow}>
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>판돈</Text>
+            <Text style={styles.summaryLabel}>상금</Text>
             <Text style={styles.summaryValue}>
               {challenge.stakePoints > 0 ? `${challenge.potPoints}P` : '없음'}
             </Text>

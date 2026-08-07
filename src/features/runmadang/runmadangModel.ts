@@ -214,7 +214,7 @@ export function splitRunmadangSections(challenges: RunmadangChallenge[]): Runmad
 
 export function buildRunmadangResultLine(challenge: RunmadangChallenge): string | null {
   if (challenge.status === 'cancelled') {
-    return '취소됨 · 판돈 환불';
+    return '취소됨 · 참가 포인트 환불';
   }
   if (challenge.status === 'finished') {
     return '기간 종료 · 정산 준비 중';
@@ -223,7 +223,7 @@ export function buildRunmadangResultLine(challenge: RunmadangChallenge): string 
     return null;
   }
   if (challenge.resultTone === 'void') {
-    return '무효 · 판돈 환불';
+    return '무효 · 참가 포인트 환불';
   }
 
   const winners = challenge.standings.filter((row) => challenge.winnerUserIds?.includes(row.userId));
@@ -242,5 +242,5 @@ export function buildRunmadangResultLine(challenge: RunmadangChallenge): string 
   if (winnerCount > 1) {
     return `${winnerNames} 공동 우승 · 각 ${Math.floor(challenge.potPoints / winnerCount)}P`;
   }
-  return `${winnerNames} 우승 · ${challenge.potPoints}P`;
+  return `${winnerNames} 우승 · 상금 ${challenge.potPoints}P`;
 }

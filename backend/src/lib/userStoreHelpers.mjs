@@ -87,8 +87,8 @@ export function invalidateUserMetrics(store, userId) {
   metricsCacheByStore.get(store)?.delete(userId);
 }
 
-// 그라운드(runmadang) 판돈 순지출 = 걸려 있는(또는 잃은) 스테이크 − 받은 상금. 원장 행은 절대
-// 삭제되지 않고 환불은 status='refunded'로만 표시된다 (runmadang.mjs). 상금이 판돈보다
+// 그라운드(runmadang) 참가 포인트 순지출 = 걸려 있는(또는 잃은) 스테이크 − 받은 상금. 원장 행은 절대
+// 삭제되지 않고 환불은 status='refunded'로만 표시된다 (runmadang.mjs). 상금이 참가 포인트보다
 // 크면 음수가 되어 밸런스를 늘린다 — getAvailableRewardPoints의 max(0,...)와 합쳐져
 // 안전하다. 여기(단일 차감 합산 지점)에 넣어야 마켓 결제·프로필·마켓 개요가 전부
 // 같은 밸런스를 본다.
