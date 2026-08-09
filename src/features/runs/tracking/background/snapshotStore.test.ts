@@ -13,10 +13,17 @@ import {
 
 // 오너 실기기 대결 2026-08-09. The Galaxy's distance froze at ~3.05km with the screen off, yet the
 // run kept reading as FRESH — because a GPS fix the filters REJECT still commits a snapshot (its
-// pace/elapsed move on) and the only freshness signal was "a snapshot was committed". With
-// freshness permanently true the screen-off native gap-fill could never engage, and every flush
-// re-seeded the native accumulator back to the frozen JS total. Freshness must therefore track
-// "are we still MEASURING", which is what lastDistanceAdvanceAtMs answers.
+// pace/elapsed move on) and the only freshness signal was "a snapshot was committed". Freshness
+// must instead track "are we still MEASURING", which is what lastDistanceAdvanceAtMs answers.
+//
+// NOTE: the consumer (backgroundMatchProgressSync.buildRunningProgressInput) is currently gated OFF
+// behind ENABLE_DISTANCE_ADVANCE_FRESHNESS until a native binary carries the signal-loss gap rule.
+// These tests pin the SIGNAL, which is what the gate will switch on.
+//
+// Every assertion below pins the clock explicitly. Without that, recordBackgroundTaskStarted() and
+// commitSnapshot() call Date.now() microseconds apart and land in the SAME millisecond, so an
+// implementation that stamps on every commit still satisfies `=== armedAt` — 적대 검증 2026-08-09
+// measured that mutant surviving ~95% of runs.
 function snapshot(distanceKm: number): BackgroundRunTrackingSnapshot {
   return {
     status: 'running',
@@ -28,60 +35,65 @@ function snapshot(distanceKm: number): BackgroundRunTrackingSnapshot {
   } as unknown as BackgroundRunTrackingSnapshot;
 }
 
-function resetTo(distanceKm: number) {
+// Run `body` with Date.now() pinned to `atMs` so a stamp is attributable to an exact instant.
+function atClock<T>(atMs: number, body: () => T): T {
+  const originalNow = Date.now;
+  Date.now = () => atMs;
+  try {
+    return body();
+  } finally {
+    Date.now = originalNow;
+  }
+}
+
+const ARMED_AT = 1_700_000_000_000;
+const LATER = ARMED_AT + 5_000;
+
+function armAt(distanceKm: number) {
   setSnapshotState(snapshot(distanceKm));
+  atClock(ARMED_AT, recordBackgroundTaskStarted);
+  assert.equal(
+    getBackgroundSyncDiagnostics().lastDistanceAdvanceAtMs,
+    ARMED_AT,
+    'the advance clock is armed when tracking starts',
+  );
 }
 
 test('a rejected fix advances the snapshot clock but NOT the distance-advance clock', () => {
-  resetTo(3.05);
-  recordBackgroundTaskStarted();
-
-  const armedAt = getBackgroundSyncDiagnostics().lastDistanceAdvanceAtMs;
-  assert.ok(typeof armedAt === 'number', 'the advance clock is armed when tracking starts');
+  armAt(3.05);
 
   // What routeAccumulator does for a DROP acc-high fix: same distance, refreshed pace only.
-  commitSnapshot({ ...snapshot(3.05), currentPace: '06:12/km' });
+  atClock(LATER, () => commitSnapshot({ ...snapshot(3.05), currentPace: '06:12/km' }));
 
-  const afterReject = getBackgroundSyncDiagnostics();
-  assert.ok(typeof afterReject.lastSnapshotAtMs === 'number', 'we did hear from the sensor');
+  const after = getBackgroundSyncDiagnostics();
+  assert.equal(after.lastSnapshotAtMs, LATER, 'we did hear from the sensor');
   assert.equal(
-    afterReject.lastDistanceAdvanceAtMs,
-    armedAt,
+    after.lastDistanceAdvanceAtMs,
+    ARMED_AT,
     'a fix that measured nothing must not claim the run is still measuring',
   );
 });
 
 test('an accepted fix that advances distance refreshes the distance-advance clock', () => {
-  resetTo(3.05);
-  recordBackgroundTaskStarted();
-  const armedAt = getBackgroundSyncDiagnostics().lastDistanceAdvanceAtMs as number;
+  armAt(3.05);
 
-  // Guarantee an observable difference regardless of clock resolution.
-  const originalNow = Date.now;
-  Date.now = () => originalNow() + 5_000;
-  try {
-    commitSnapshot(snapshot(3.06));
-  } finally {
-    Date.now = originalNow;
-  }
+  atClock(LATER, () => commitSnapshot(snapshot(3.06)));
 
-  const after = getBackgroundSyncDiagnostics();
-  assert.ok(
-    (after.lastDistanceAdvanceAtMs as number) > armedAt,
+  assert.equal(
+    getBackgroundSyncDiagnostics().lastDistanceAdvanceAtMs,
+    LATER,
     'real movement must refresh the freshness signal',
   );
 });
 
 test('distance going backwards or standing still never refreshes the advance clock', () => {
-  resetTo(5);
-  recordBackgroundTaskStarted();
-  const armedAt = getBackgroundSyncDiagnostics().lastDistanceAdvanceAtMs;
+  armAt(5);
 
-  // A cold-start route rewrite can lower the total; a stationary runner repeats it. Neither is
+  // A cold-start route rewrite can LOWER the total; a stationary runner repeats it. Neither is
   // evidence that measurement is alive.
-  commitSnapshot(snapshot(4.8));
-  assert.equal(getBackgroundSyncDiagnostics().lastDistanceAdvanceAtMs, armedAt);
+  atClock(LATER, () => commitSnapshot(snapshot(4.8)));
+  assert.equal(getBackgroundSyncDiagnostics().lastDistanceAdvanceAtMs, ARMED_AT, 'a lower total is not progress');
 
-  commitSnapshot(snapshot(4.8));
-  assert.equal(getBackgroundSyncDiagnostics().lastDistanceAdvanceAtMs, armedAt);
+  atClock(LATER + 5_000, () => commitSnapshot(snapshot(4.8)));
+  assert.equal(getBackgroundSyncDiagnostics().lastDistanceAdvanceAtMs, ARMED_AT, 'an unchanged total is not progress');
 });

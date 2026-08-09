@@ -42,6 +42,25 @@ import {
 // helper ignores the native total entirely → today's behavior.
 export const ENABLE_NATIVE_DISTANCE_MERGE = true;
 
+// OTA gate for the distance-ADVANCE freshness signal (backgroundSyncDiagnostics
+// lastDistanceAdvanceAtMs). Keep FALSE until a binary carrying the native signal-loss gap rule is
+// the minimum shipped build — then flip here, no native rebuild needed to turn it on.
+//
+// WHY IT IS OFF (적대 검증 2026-08-09, critical): freshness rightly means "are we still
+// MEASURING", and keying staleness on it makes the screen-off native gap-fill reachable in far
+// more situations than before (any stretch where every fix is rejected, plus long stationary
+// stretches) — not just a fully suspended JS thread. But the native accumulators do NOT mirror the
+// JS signal-loss rule: routeAccumulator.ts credits 0 m across a fix gap longer than
+// MAX_CREDITABLE_FIX_GAP_MS (30s, locationDistance.ts), while MatchUploadForegroundService.kt
+// consume() and MatchProgressUploaderModule.swift consume() have no dt ceiling at all. A 3-minute
+// GPS blackout (tunnel, subway) therefore banks its whole ~1km straight-line chord natively at a
+// perfectly plausible 5.5 m/s, and the server's normalizeRunningMatchProgress does
+// Math.max(previousDistanceKm, …) so the inflated total can never be walked back.
+//
+// Widening the stale window before the native gate exists would hand that path a much bigger
+// opening, so the signal is computed (and unit-tested) but not yet consulted.
+export const ENABLE_DISTANCE_ADVANCE_FRESHNESS = false;
+
 // The JS filter constants handed to the native accumulator so native mirrors JS EXACTLY (source:
 // locationDistance.ts). Kept here so the start wiring and the native side stay in lockstep.
 export type NativeDistanceAccumulatorOptions = {

@@ -20,6 +20,7 @@ import {
   stopPeriodicMatchUpload,
 } from '@/features/runs/tracking/background/periodicMatchUploadController';
 import {
+  ENABLE_DISTANCE_ADVANCE_FRESHNESS,
   getLastFreshJsAuthoritativeKm,
   getMergeableNativeDistanceMeters,
   recordFreshJsAuthoritativeMeters,
@@ -771,9 +772,13 @@ function buildRunningProgressInput(
   // never engaged and every flush re-seeded native back to the frozen JS total
   // (오너 실기기 대결 2026-08-09: Galaxy stuck at ~3.05km while the server saw it as connected).
   // Falls back to lastSnapshotAtMs only before the advance clock is armed.
+  // Gated OFF until a native binary carries the signal-loss gap rule — see
+  // ENABLE_DISTANCE_ADVANCE_FRESHNESS. Until then this keeps today's snapshot-clock behavior.
   const diagnostics = getBackgroundSyncDiagnostics();
   const isMyDistanceStaleNow = isMyMatchDistanceStale({
-    lastUpdatedAtMs: diagnostics.lastDistanceAdvanceAtMs ?? diagnostics.lastSnapshotAtMs,
+    lastUpdatedAtMs: ENABLE_DISTANCE_ADVANCE_FRESHNESS
+      ? diagnostics.lastDistanceAdvanceAtMs ?? diagnostics.lastSnapshotAtMs
+      : diagnostics.lastSnapshotAtMs,
     nowMs,
   });
   if (!isMyDistanceStaleNow) {
