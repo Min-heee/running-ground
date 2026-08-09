@@ -2834,6 +2834,118 @@ await runTest('after the session is PRUNED, a save with a fabricated client win 
   });
 });
 
+await runTest('WINNER-FIRST duel: the faster finisher saves FIRST (PENDING, 0P) and the opponent\'s save alone heals it to 승리 +20P — no client re-save', async () => {
+  // 오너 실기기 대결 2026-08-09. The mirror of the test above, and the case that actually bites:
+  // the FASTER runner finishes first, so they also SAVE first — with no opponent run to verify
+  // against, their blob is stored PENDING (correctly: a client-claimed win is never trusted).
+  // Nothing then healed it. The session-based back-fill runs only inside
+  // sweepStuckMatchSessionFallbacks, which skips any match that never sealed — and a both-finished
+  // duel never seals. So the winner's card stayed "결과 집계 중" and getMatchBonusPoints kept
+  // returning 0, while the loser (saving second, able to verify) collected 10P. Every duel
+  // structurally shortchanged its winner.
+  // The heal requires the LIVE session — it is the only server-built roster, and matchId is
+  // unvalidated client input (see backFillMatchCounterpartSavedRuns). A finished session is kept
+  // for MATCH_SESSION_ALL_DONE_RETENTION_MS (10 min), which covers a normal duel's two saves.
+  const matchId = 'duel-contract-match';
+  const { store } = createActiveDuelStore();
+  const session = store.matchSessions[0];
+  session.isPartyRun = true;
+
+  // The FASTER runner has finished; the opponent is still out on the course.
+  const host = session.participants.find((participant) => participant.userId === 'host-user');
+  host.liveStatus = 'finished';
+  host.liveDistanceKm = 5;
+  host.liveElapsedSeconds = 1500;
+  host.livePace = '05:00/km';
+  host.liveUpdatedAt = iso(-30 * 1000);
+  host.finishedAt = iso(-30 * 1000);
+  host.finishElapsedSeconds = 1500;
+
+  await withBackend(store, async ({ request, readStore }) => {
+    const startedAt = iso(-10 * 60 * 1000);
+    const endedAt = iso(-1 * 60 * 1000);
+    const saveClaimingWin = (token, durationSeconds, opponentName) => request(token, 'POST', '/api/runs/tracked', {
+      date: startedAt.slice(0, 10),
+      distanceKm: 5,
+      pace: '05:00/km',
+      durationSeconds,
+      startedAt,
+      endedAt,
+      route: [
+        { latitude: 37.658, longitude: 126.77, timestamp: startedAt },
+        { latitude: 37.668, longitude: 126.78, timestamp: endedAt },
+      ],
+      matchResult: {
+        mode: 'duel',
+        matchId,
+        source: 'party',
+        title: '대결 결과',
+        summary: '대결 요약',
+        badgeLabel: '승리',
+        opponentName,
+        resultTone: 'win',
+        comparedDistanceKm: 5,
+        myDurationSeconds: durationSeconds,
+        myPaceLabel: '05:00/km',
+      },
+    });
+
+    // 1) The FASTER runner (host, 1500s) saves FIRST. No opponent run exists yet → PENDING, 0P.
+    // This part was always correct and must stay correct: an unverifiable win earns nothing.
+    const hostFirst = await saveClaimingWin('host-token', 1500, '갤럭시S24');
+    assert.equal(hostFirst.run.matchResult.resultTone, undefined);
+    assert.equal(hostFirst.run.matchResult.badgeLabel, '결과 집계 중');
+    assert.equal(hostFirst.pointBreakdown.matchBonusPoints, 0);
+
+    const hostBefore = await request('host-token', 'GET', '/api/me/activity');
+
+    // 2) The SLOWER runner finishes on the course, then saves. Their own verdict resolves to
+    // 'lose' (10P) — that half always worked.
+    const guestFinish = await request('guest-token', 'POST', '/api/running/matches/progress', {
+      matchId,
+      distanceKm: 5.1,
+      elapsedSeconds: 1620,
+      currentPace: '05:24/km',
+      status: 'finished',
+    });
+    assert.equal(guestFinish.duelVerdict.winnerUserId, 'host-user');
+
+    const guestSecond = await saveClaimingWin('guest-token', 1620, '아이폰14');
+    assert.equal(guestSecond.run.matchResult.resultTone, 'lose');
+    assert.equal(guestSecond.pointBreakdown.matchBonusPoints, 10);
+
+    // 3) THE REGRESSION: the host sent nothing more, yet their PERSISTED blob must now carry the
+    // verified win. Before the fix this stayed PENDING forever.
+    const hostRun = readStore().runs.find((run) => (
+      run.userId === 'host-user' && run.matchResult?.matchId === matchId
+    ));
+    assert.equal(hostRun.matchResult.resultTone, 'win');
+    assert.equal(hostRun.matchResult.badgeLabel, '승리');
+    // Healed through the same resolver the save path uses — real opponent account, not a device label.
+    assert.equal(hostRun.matchResult.opponentId, 'guest-user');
+    assert.equal(hostRun.matchResult.opponentName, '참가 러너');
+
+    // 4) Points are derived from the blob (no stored balance), so the healed card must move the
+    // host's user-visible monthly points by exactly the duel win bonus — without any re-save.
+    const hostAfter = await request('host-token', 'GET', '/api/me/activity');
+    assert.equal(hostAfter.monthlyPoints - hostBefore.monthlyPoints, 20);
+    const hostActivityRun = hostAfter.runs.find((run) => run.matchResult?.matchId === matchId);
+    assert.equal(hostActivityRun.matchResult.resultTone, 'win');
+
+    // 5) The heal is one-directional and idempotent: the loser is never upgraded, and a repeat
+    // save does not mint a second bonus.
+    const guestRun = readStore().runs.find((run) => (
+      run.userId === 'guest-user' && run.matchResult?.matchId === matchId
+    ));
+    assert.equal(guestRun.matchResult.resultTone, 'lose');
+
+    const hostReSaved = await saveClaimingWin('host-token', 1500, '갤럭시S24');
+    assert.equal(hostReSaved.run.matchResult.resultTone, 'win');
+    assert.equal(hostReSaved.pointBreakdown.matchBonusPoints, 20);
+    assert.equal(readStore().runs.filter((run) => run.matchResult?.matchId === matchId).length, 2);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // DURABLE one-finisher (DNF) resolution: the permanent-PENDING launch blocker.
 // One runner finishes and saves a PENDING record; the other never finishes (quit /

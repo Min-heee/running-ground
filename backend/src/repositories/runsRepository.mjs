@@ -361,6 +361,28 @@ export function preserveMatchGoalStamp(existingMatchResult, nextMatchResult) {
   return nextMatchResult;
 }
 
+// 승자 0P 근치 (오너 2026-08-09): 매치 기록이 저장된 직후, 같은 matchId를 가진 상대의
+// PENDING 블롭을 서버가 스스로 확정 판정으로 승격시킨다 (둘 다 저장된 시점 = 승패가 확정되는
+// 시점). 치유에 실패해도 저장 자체는 절대 실패하면 안 되므로 — 기록 유실 방지가 포인트 정확도보다
+// 우선이다 — 삼켜서 로그만 남긴다. applyRunIntegrityCheck와 같은 방침.
+function healMatchCounterparts({ backFillMatchCounterparts, store, matchResult, invalidateUserMetrics }) {
+  if (!matchResult) {
+    return;
+  }
+
+  try {
+    const healedUserIds = backFillMatchCounterparts(store, matchResult) ?? [];
+
+    // 포인트는 저장된 잔액이 아니라 기록에서 파생된다 — 고쳐진 유저의 메모된 메트릭만 버리면
+    // 다음 조회에서 보너스가 정확히 한 번 반영된다.
+    for (const healedUserId of healedUserIds) {
+      invalidateUserMetrics(store, healedUserId);
+    }
+  } catch (error) {
+    console.error(`[match-backfill] counterpart heal failed — run save kept: ${error?.message ?? error}`);
+  }
+}
+
 export function createJsonRunsRepository({
   loadStore,
   mutateStore,
@@ -378,6 +400,12 @@ export function createJsonRunsRepository({
   // PENDING result when the verdict is not yet resolvable. Defaults to identity so callers that
   // do not pass it (and group/non-match runs) keep their behavior exactly as before.
   resolveMatchResult = (store, user, matchResult) => matchResult,
+  // 승자 0P 근치 (오너 2026-08-09): 이 저장이 매치의 마지막 조각일 수 있다 — 그 순간 상대의
+  // 저장된 블롭은 아직 PENDING("결과 집계 중")이고, resultTone이 없어 보너스가 0으로 굳어 있다.
+  // 주어진 (store, matchResult)로 같은 matchId를 가진 나머지 저장 기록을 서버 authoritative
+  // resolver로 다시 풀어 확정 판정으로 승격시키고, 실제로 고쳐진 유저 id 목록을 돌려준다.
+  // 기본값은 빈 배열 — 이걸 넘기지 않는 호출자는 기존 동작 그대로다.
+  backFillMatchCounterparts = () => [],
   // Drops the user's memoized metrics so the post-save recompute sees the just-pushed run. The
   // verdict resolver reads the opponent's runner profile (→ metrics) before the run is pushed,
   // which would otherwise leave a stale, pre-push metrics entry cached and miss the new run's
@@ -504,6 +532,14 @@ export function createJsonRunsRepository({
             // the stored row. Idempotent via run.integrity.lpRevoked; never throws.
             applyRunIntegrityCheck({ store, user, run: existingRun, nowIso });
 
+            // 이 재저장이 매치의 마지막 조각이었을 수 있다 — 상대의 PENDING 블롭도 같이 푼다.
+            healMatchCounterparts({
+              backFillMatchCounterparts,
+              store,
+              matchResult: existingRun.matchResult,
+              invalidateUserMetrics,
+            });
+
             // The resolver may have read (and cached) this user's metrics before the upgrade;
             // drop the entry so the recompute sees the upgraded blob's match bonus exactly once.
             invalidateUserMetrics(store, user.id);
@@ -563,6 +599,15 @@ export function createJsonRunsRepository({
         // revoke this user's already-applied match LP when the verdict is 'vehicle'. Never
         // throws — a bug in the integrity logic degrades to an un-flagged save.
         applyRunIntegrityCheck({ store, user, run, nowIso });
+
+        // 이 저장이 매치의 마지막 조각이었을 수 있다 — 먼저 저장해서 PENDING으로 굳어 있던
+        // 상대(주로 먼저 완주한 승자)의 블롭을 여기서 확정 판정으로 승격시킨다.
+        healMatchCounterparts({
+          backFillMatchCounterparts,
+          store,
+          matchResult: run.matchResult,
+          invalidateUserMetrics,
+        });
 
         // The verdict resolver above may have read (and cached) this user's metrics before the
         // run was pushed; drop that stale entry so the recompute includes the new run's bonus.

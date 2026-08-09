@@ -50,6 +50,7 @@ import {
   invalidateUserMetrics,
 } from '../lib/userStoreHelpers.mjs';
 import {
+  backFillMatchCounterpartSavedRuns,
   resolveSavedDuelMatchResult,
   resolveSavedGroupMatchResult,
 } from '../lib/runningMatchStoreHelpers.mjs';
@@ -213,6 +214,12 @@ export function getRunsRepository() {
         matchResult?.mode === 'group'
           ? resolveSavedGroupMatchResult(store, user, matchResult)
           : resolveSavedDuelMatchResult(store, user, matchResult)
+      ),
+      // 승자 0P 근치 (오너 2026-08-09): 저장이 끝난 뒤 같은 matchId의 상대 PENDING 블롭을
+      // 같은 resolver로 승격시킨다. 고쳐진 유저 id 목록을 돌려주고, 저장소가 그 유저들의
+      // 메모된 메트릭을 버려 파생 포인트가 즉시 맞춰진다.
+      backFillMatchCounterparts: (store, matchResult) => (
+        backFillMatchCounterpartSavedRuns(store, matchResult)
       ),
       invalidateUserMetrics,
       // #209: run detail responses re-attach GPS routes stored in the run_routes side table

@@ -1,6 +1,6 @@
 import { ApiError } from '../response/httpResponse.mjs';
 import { parsePaceToMinutes } from './points.mjs';
-import { applyRunIntegrityCheck } from './runIntegrity.mjs';
+import { applyRunIntegrityCheck, classifyRunIntegrity } from './runIntegrity.mjs';
 import {
   buildDuelVerdict,
   buildGroupVerdict,
@@ -777,7 +777,7 @@ export function buildMatchResultByMatchId(store, currentUser, matchId, now = new
 // can delegate the back-fill here, keeping the resolver as the single source of truth.
 // Returns true if any run was rewritten.
 export function backFillFinisherSavedRuns(store, session, now = new Date()) {
-  if (!session || !Array.isArray(store.runs) || !store.runs.length) {
+  if (!session) {
     return false;
   }
 
@@ -786,11 +786,154 @@ export function backFillFinisherSavedRuns(store, session, now = new Date()) {
     return false;
   }
 
-  let changed = false;
+  return backFillSavedRunsForMatchId(store, session.id, mode, now, readSessionParticipantIds(session)).length > 0;
+}
+
+// The match's authoritative roster. matchResult.matchId is free-form CLIENT input (the validator
+// only trims it), so "everyone who saved a run carrying this matchId" is NOT a roster — it is
+// whatever the internet claims. The session's participant list is the only server-built one.
+function readSessionParticipantIds(session) {
+  const participants = Array.isArray(session?.participants) ? session.participants : [];
+  return new Set(participants.map((participant) => participant?.userId).filter(Boolean));
+}
+
+// 승자 0P 근치 (오너 2026-08-09, 실기기 대결에서 발견): 위 세션 기반 back-fill은
+// sweepStuckMatchSessionFallbacks 안에서만 돌고, 그 sweep은 봉인(sealed)되거나 개정된 세션만
+// 통과시킨다 — 둘 다 정상 완주한 대결은 봉인될 일이 없어 `continue`로 걸러지므로 back-fill에
+// 영원히 도달하지 못했다. 그 사이 먼저 완주해서 먼저 저장한 쪽(= 이긴 쪽)의 블롭은 PENDING으로
+// 굳고, resultTone이 없으니 getMatchBonusPoints가 0을 준다. 진 쪽은 나중에 저장하면서 상대
+// 기록을 보고 'lose'로 해소돼 10P를 받는다 — 구조적으로 매 대결마다 승자만 손해를 봤다.
+//
+// 저장소에는 이미 치유 장치가 있었지만(같은 matchId 재저장 시 블롭 덮어쓰기) 그걸 불러줄 클라
+// 재저장이 없어 고아로 남아 있었다. 여기서 상대가 저장하는 순간 서버가 스스로 그 치유를
+// 발동시킨다 — 두 기록이 모두 저장된 시점이 곧 승패가 확정되는 시점이기 때문.
+//
+// LIVE SESSION 필수 (적대 검증 2026-08-09에서 두 건 실증되어 추가된 방어):
+// matchId는 검증되지 않는 클라 입력이라 "이 matchId로 저장한 사람들"은 로스터가 아니다.
+// 세션 없이 저장 기록만으로 상대를 고르면(resolveDuelMatchResultFromSavedRuns의 "나 아닌 첫
+// 기록") 두 가지가 실증됐다 — ① 참가자가 아닌 제3자가 남의 matchId로 기록을 올려 진짜
+// 참가자의 승리를 패배로 영구히 덮을 수 있고(확정 판정이 되어 진짜 치유가 영영 막힌다),
+// ② 악의가 없어도 중도 포기한 짧은 기록이 상대로 잡혀 실제 완주자를 패배로 뒤집는다.
+// 세션 분기는 참가자 검증(:88)과 실제 완주 상태(buildDuelVerdict)를 모두 거치므로 둘 다 막힌다.
+// 완주 후 세션은 MATCH_SESSION_ALL_DONE_RETENTION_MS(10분) 동안 남으므로 정상 대결은 그 안에
+// 치유된다. 그보다 늦게 도착한 저장(대기열 드레인 등)은 치유하지 않고 PENDING으로 남긴다 —
+// 추측으로 남의 기록을 고치느니 그대로 두는 쪽이 안전하다. 그런 잔여분은
+// scripts/backfill-pending-match-results.mjs 가 운영자 확인 아래 따로 처리한다.
+//
+// 반환값은 기록이 실제로 고쳐진 유저 id 목록 — 포인트는 저장된 잔액이 아니라 블롭에서 매번
+// 파생되므로, 호출자는 그 유저들의 메모된 메트릭만 버리면 과거 포인트까지 자동으로 복구된다.
+export function backFillMatchCounterpartSavedRuns(store, matchResult, now = new Date()) {
+  const matchId = typeof matchResult?.matchId === 'string' ? matchResult.matchId.trim() : '';
+  const mode = matchResult?.mode === 'group'
+    ? 'group'
+    : matchResult?.mode === 'duel' ? 'duel' : null;
+
+  if (!matchId || !mode) {
+    return [];
+  }
+
+  const session = findRawMatchSessionById(store, matchId);
+
+  if (!session || session.mode !== mode) {
+    return [];
+  }
+
+  return backFillSavedRunsForMatchId(store, matchId, mode, now, readSessionParticipantIds(session));
+}
+
+export const MATCH_GOAL_DISTANCE_TOLERANCE_KM = 0.6;
+
+// Without a live session the verdict is ranked on RAW ELAPSED alone (resolveDuelMatchResultFromSavedRuns
+// :382-396) with no check that the runner actually covered the match goal. So a mid-run quit —
+// 1.2km in 400s — outranks a genuine 5km/1500s finisher and inverts the result. A saved run is
+// therefore usable as evidence only when it demonstrably completed the goal AND is physically
+// plausible. A blob carrying no recorded goal cannot be checked at all: treat that as
+// untrustworthy rather than waving it through (적대 재검증 2026-08-09 — the missing/zero
+// comparedDistanceKm case was the hole left in the first hardening pass).
+export function isTrustworthyMatchEvidence(run) {
+  const goalKm = Number(run?.matchResult?.comparedDistanceKm);
+  const distanceKm = Number(run?.distanceKm);
+  const durationSeconds = Number(run?.durationSeconds);
+
+  if (!Number.isFinite(goalKm) || goalKm <= 0) {
+    return false;
+  }
+
+  if (!Number.isFinite(distanceKm) || distanceKm + MATCH_GOAL_DISTANCE_TOLERANCE_KM < goalKm) {
+    return false;
+  }
+
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    return false;
+  }
+
+  // Reuses the app's own anti-cheat rule rather than inventing a second speed threshold — this is
+  // what rejects an impossible pace (the 0:53/km case) being used to outrank a real finisher.
+  // Only 'vehicle' disqualifies: the classifier returns 'suspect' for ANY run without a cadence
+  // reading (runIntegrity.mjs:121), which is a large share of real records, and 'suspect' is by
+  // its own contract "flagged, never auto-punished".
+  return classifyRunIntegrity({
+    distanceKm,
+    durationSeconds,
+    cadenceSpm: run?.cadenceSpm,
+  }) !== 'vehicle';
+}
+
+// Operator-driven entry point for the retroactive repair script, where the live session is long
+// gone and the roster therefore cannot be read from the store. The caller MUST supply a roster it
+// verified out-of-band (the script requires --participants and prints a dry run first). Kept
+// separate from backFillMatchCounterpartSavedRuns so no request-path code can ever reach a
+// back-fill with a roster it did not derive from a session.
+//
+// The refusals below are defense in depth: the script surfaces the same conditions as readable
+// blockers, but they are enforced HERE too so a future caller cannot re-open the defect simply by
+// skipping the script's checks.
+export function backFillSavedRunsWithVerifiedRoster(store, matchId, mode, participantIds, now = new Date()) {
+  const roster = participantIds instanceof Set ? participantIds : new Set(participantIds ?? []);
+  const matchRuns = (store?.runs ?? []).filter((run) => run?.matchResult?.matchId === matchId);
+  const rosterRuns = matchRuns.filter((run) => roster.has(run.userId));
+
+  // A run by someone outside the roster is not merely ignorable: the session-less resolver picks
+  // the opponent as "first saved run that isn't me", so leaving it in the store lets it decide the
+  // verdict. Refuse the whole match instead.
+  if (matchRuns.length !== rosterRuns.length) {
+    return [];
+  }
+
+  // Two measured finishes are the minimum a verdict can be derived from.
+  if (rosterRuns.length < 2 || !rosterRuns.every(isTrustworthyMatchEvidence)) {
+    return [];
+  }
+
+  return backFillSavedRunsForMatchId(store, matchId, mode, now, roster);
+}
+
+// Shared core for both back-fill entry points above. Re-resolves every UNRESOLVED saved blob
+// carrying `matchId` (of `mode`) through the SAME resolver the save path uses, and persists only a
+// genuine upgrade. Returns the ids of the users whose run was rewritten.
+//
+// `participantIds` is REQUIRED and must be a server-built roster (never "whoever saved a run with
+// this matchId" — matchId is unvalidated client input). A run whose owner is outside the roster is
+// never rewritten, so a forged matchId cannot reach a real participant's record.
+function backFillSavedRunsForMatchId(store, matchId, mode, now, participantIds) {
+  if (!matchId || (mode !== 'duel' && mode !== 'group')
+    || !(participantIds instanceof Set) || participantIds.size === 0
+    || !Array.isArray(store?.runs) || !store.runs.length) {
+    return [];
+  }
+
+  const healedUserIds = [];
 
   for (const run of store.runs) {
     const matchResult = run?.matchResult;
-    if (!matchResult || matchResult.matchId !== session.id || matchResult.mode !== mode) {
+    if (!matchResult || matchResult.matchId !== matchId || matchResult.mode !== mode) {
+      continue;
+    }
+
+    // A run whose owner is not on the server-built roster only PROVES that someone posted this
+    // matchId — it is not evidence about the match. Never rewrite it, and never let it stand in
+    // as a participant.
+    if (!participantIds.has(run.userId)) {
       continue;
     }
 
@@ -821,7 +964,7 @@ export function backFillFinisherSavedRuns(store, session, now = new Date()) {
       : Number.isInteger(resolved?.rank);
     if (resolved && upgraded && resolved !== matchResult) {
       run.matchResult = resolved;
-      changed = true;
+      healedUserIds.push(run.userId);
 
       // Anti-cheat stage 2: this back-fill is the moment LP has certainly been applied
       // for a FINISHER-FIRST runner (their save landed before the opponent finished, so
@@ -832,7 +975,7 @@ export function backFillFinisherSavedRuns(store, session, now = new Date()) {
     }
   }
 
-  return changed;
+  return healedUserIds;
 }
 
 // Register the resolver-backed back-fill into the session-store sweep at module init, breaking

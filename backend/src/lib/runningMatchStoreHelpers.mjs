@@ -16,7 +16,10 @@ export {
 
 export {
   backFillFinisherSavedRuns,
+  backFillMatchCounterpartSavedRuns,
+  backFillSavedRunsWithVerifiedRoster,
   buildMatchResultByMatchId,
+  isTrustworthyMatchEvidence,
   resolveSavedDuelMatchResult,
   resolveSavedGroupMatchResult,
 } from './matchResultBuilders.mjs';
