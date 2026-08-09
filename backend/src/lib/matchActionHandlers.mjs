@@ -272,11 +272,36 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
     && effectiveStatus === 'finished'
     && currentParticipant.finishElapsedSeconds != null;
 
+  // 오너 실기기 대결 2026-08-09 — the server was disguising a dead runner as a live one. The
+  // Android native uploader re-POSTs the LAST JS-BUILT PAYLOAD BYTE-FOR-BYTE every ~3s and never
+  // recomputes anything (MatchUploadForegroundService: "The native side NEVER recomputes
+  // distance/pace/elapsed"). So when the Galaxy's JS froze, the same body kept arriving and
+  // liveUpdatedAt kept being restamped — the 90s stall detector could never fire, the opponent's
+  // phone confidently rendered a frozen 3.05km as "연결됨", and no safety net ran.
+  //
+  // The discriminator is "did this push carry NEW information", NOT "did distance move": an
+  // identical cached re-POST repeats the same elapsedSeconds too, while a runner genuinely
+  // standing still at a crossing is on a LIVE JS thread whose elapsed keeps advancing. So a
+  // stationary runner still reads as connected, and only a repeat of an already-stored payload
+  // leaves the liveness clock alone — which is what lets the client's existing opponent-stale
+  // lifeline surface the outage instead of trusting a stale number.
+  // Compare the RAW pushed payload, never the normalized one: the server rewrites elapsedSeconds
+  // from its own wall clock, so every normalized push looks new even when the device sent the same
+  // bytes. The replay is only visible in what the device actually sent.
+  const livePushSignature = `${distanceKm}|${elapsedSeconds}|${status}`;
+  const carriesNewLiveInformation = currentParticipant.liveUpdatedAt == null
+    || currentParticipant.lastLivePushSignature !== livePushSignature;
+
   if (!skipFinishedRepushLiveStamps) {
     currentParticipant.liveDistanceKm = normalizedProgress.distanceKm;
     currentParticipant.liveElapsedSeconds = normalizedProgress.elapsedSeconds;
     currentParticipant.livePace = currentPace;
-    currentParticipant.liveUpdatedAt = new Date().toISOString();
+    // Stored so the NEXT push can recognise a byte-identical replay. An unchanged replay rewrites
+    // the same value, so the store's no-change serialize skip (B-2/B-3) is preserved.
+    currentParticipant.lastLivePushSignature = livePushSignature;
+    if (carriesNewLiveInformation) {
+      currentParticipant.liveUpdatedAt = new Date().toISOString();
+    }
     currentParticipant.liveStatus = effectiveStatus;
 
     // CHECKPOINT-FAIR LIVE COMPARE (2026-07-09) — sample this push onto the 10s grid, but ONLY

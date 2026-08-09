@@ -66,8 +66,15 @@ export function emitSnapshot() {
 }
 
 export function commitSnapshot(snapshot: BackgroundRunTrackingSnapshot) {
+  // Compare BEFORE swapping the state in: a fix the filters rejected still lands here (it carries
+  // a refreshed pace) but leaves distanceKm untouched, and only a genuine advance may refresh the
+  // distance-freshness clock the screen-off native gap-fill keys on.
+  const previousDistanceKm = Number.isFinite(snapshotState.distanceKm) ? snapshotState.distanceKm : 0;
+  const nextDistanceKm = Number.isFinite(snapshot.distanceKm) ? snapshot.distanceKm : 0;
+  const distanceAdvanced = nextDistanceKm > previousDistanceKm;
+
   setSnapshotState(snapshot);
-  recordBackgroundSnapshotUpdate();
+  recordBackgroundSnapshotUpdate(distanceAdvanced);
   emitSnapshot();
 }
 

@@ -6,6 +6,14 @@ type BackgroundSyncDiagnosticsState = {
   taskStartedAtMs: number | null;
   taskFailedReason: string | null;
   lastSnapshotAtMs: number | null;
+  // When the tracked distance last actually ADVANCED. Distinct from lastSnapshotAtMs on purpose:
+  // a snapshot is committed for every accepted GPS fix AND for every fix the filters REJECT (a
+  // dropped fix still refreshes pace/elapsed), so lastSnapshotAtMs answers "did we hear from the
+  // sensor", not "are we still measuring". The screen-off freeze lives exactly in that gap —
+  // 오너 실기기 대결 2026-08-09: the Galaxy's distance stuck at ~3.05km while every rejected fix
+  // kept stamping lastSnapshotAtMs, so the run read as FRESH, the native gap-fill never engaged,
+  // and each flush re-seeded the native accumulator back to the frozen JS total.
+  lastDistanceAdvanceAtMs: number | null;
   lastHeartbeatAtMs: number | null;
   heartbeatAttemptCount: number;
   isAppBackground: boolean;
@@ -17,6 +25,7 @@ let state: BackgroundSyncDiagnosticsState = {
   taskStartedAtMs: null,
   taskFailedReason: null,
   lastSnapshotAtMs: null,
+  lastDistanceAdvanceAtMs: null,
   lastHeartbeatAtMs: null,
   heartbeatAttemptCount: 0,
   isAppBackground: false,
@@ -39,11 +48,16 @@ export function recordBackgroundTaskAttempt() {
 }
 
 export function recordBackgroundTaskStarted() {
+  const nowMs = Date.now();
   state = {
     ...state,
     taskFailedReason: null,
-    taskStartedAtMs: Date.now(),
+    taskStartedAtMs: nowMs,
     taskStartAttemptInFlight: false,
+    // Arm the distance-advance clock at start. Leaving it null through the warmup would read as
+    // "never advanced" and hand the merge to the native accumulator before the JS cold-start
+    // filter has settled — exactly the over-count the fresh-path re-seed exists to suppress.
+    lastDistanceAdvanceAtMs: nowMs,
   };
   emit();
 }
@@ -57,13 +71,18 @@ export function recordBackgroundTaskFailed(reason: string) {
   emit();
 }
 
-export function recordBackgroundSnapshotUpdate() {
+// `distanceAdvanced` must be true ONLY when the committed snapshot's distance is greater than the
+// previous one — a rejected fix commits a snapshot (pace/elapsed still move) but measures nothing.
+export function recordBackgroundSnapshotUpdate(distanceAdvanced = false) {
+  const nowMs = Date.now();
   state = {
     ...state,
-    lastSnapshotAtMs: Date.now(),
+    lastSnapshotAtMs: nowMs,
+    ...(distanceAdvanced ? { lastDistanceAdvanceAtMs: nowMs } : {}),
   };
   emit();
 }
+
 
 export function recordBackgroundHeartbeatAttempt() {
   state = {

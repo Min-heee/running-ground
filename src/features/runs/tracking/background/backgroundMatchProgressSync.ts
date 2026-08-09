@@ -765,8 +765,15 @@ function buildRunningProgressInput(
   nowMs: number,
 ): UpdateRunningMatchProgressInput {
   const elapsedSeconds = Math.floor(resolveSnapshotElapsedMs(snapshot, nowMs) / 1000);
+  // Freshness must mean "we are still MEASURING", not "we heard from the sensor". A fix the
+  // filters reject commits a snapshot (pace/elapsed move on) without advancing distance, so keying
+  // this on lastSnapshotAtMs made a frozen run read as fresh forever — the native gap-fill then
+  // never engaged and every flush re-seeded native back to the frozen JS total
+  // (오너 실기기 대결 2026-08-09: Galaxy stuck at ~3.05km while the server saw it as connected).
+  // Falls back to lastSnapshotAtMs only before the advance clock is armed.
+  const diagnostics = getBackgroundSyncDiagnostics();
   const isMyDistanceStaleNow = isMyMatchDistanceStale({
-    lastUpdatedAtMs: getBackgroundSyncDiagnostics().lastSnapshotAtMs,
+    lastUpdatedAtMs: diagnostics.lastDistanceAdvanceAtMs ?? diagnostics.lastSnapshotAtMs,
     nowMs,
   });
   if (!isMyDistanceStaleNow) {

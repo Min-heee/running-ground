@@ -263,3 +263,96 @@ test('runProgressPollPrunesIfDue gates on the injectable now at exactly the inte
   const storeAfterReset = buildStore();
   assert.equal(runProgressPollPrunesIfDue(storeAfterReset, new Date(t0), new Date(t0 + 1)), true, 'reset re-arms');
 });
+
+// 오너 실기기 대결 2026-08-09. The Android native uploader re-POSTs the last JS-built payload
+// byte-for-byte every ~3s and never recomputes anything, so a frozen JS thread produced an endless
+// stream of IDENTICAL pushes. Restamping liveUpdatedAt on those kept the runner "연결됨" forever:
+// the stall detector could never fire and the opponent's phone confidently rendered a stuck 3.05km.
+function createRunningDuelFixture(matchId) {
+  const a = createUser(`live-a-${matchId}`);
+  const b = createUser(`live-b-${matchId}`);
+  const session = {
+    id: matchId,
+    mode: 'duel',
+    isTestMatch: false,
+    isPartyRun: false,
+    distanceKm: 6,
+    slotStartAt: iso(-30 * 60 * 1000),
+    startedAt: iso(-30 * 60 * 1000),
+    createdAt: iso(-31 * 60 * 1000),
+    matchedAt: iso(-31 * 60 * 1000),
+    participants: [a, b].map((user, index) => ({
+      userId: user.id,
+      seedRank: index + 1,
+      acceptedAt: null,
+      liveStatus: 'running',
+      liveDistanceKm: 3.05,
+      liveElapsedSeconds: 1200,
+      livePace: '06:33/km',
+      // Two minutes stale: any restamp is unmistakable.
+      liveUpdatedAt: iso(-120 * 1000),
+      finishedAt: null,
+      finishElapsedSeconds: null,
+    })),
+  };
+
+  return {
+    store: {
+      users: [a, b],
+      runs: [createProfileRun(a.id), createProfileRun(b.id)],
+      matchSessions: [session],
+      matchQueues: { duel: [], group: [] },
+      matchRooms: [],
+      notifications: [],
+    },
+    session,
+    pusher: a,
+  };
+}
+
+test('an identical re-push does NOT refresh liveUpdatedAt (a frozen device cannot fake liveness)', () => {
+  const { store, session, pusher } = createRunningDuelFixture('frozen-repush-duel');
+  const push = () => updateRunningMatchProgress(store, { id: pusher.id }, {
+    matchId: 'frozen-repush-duel',
+    distanceKm: 3.05,
+    elapsedSeconds: 1200,
+    currentPace: '06:33/km',
+    status: 'running',
+  });
+  const readParticipant = () => session.participants.find((participant) => participant.userId === pusher.id);
+
+  // The FIRST arrival is legitimately new information (the server has never seen this payload), so
+  // it stamps. It is every REPLAY after it that must not.
+  push();
+  const afterFirst = readParticipant().liveUpdatedAt;
+  assert.notEqual(afterFirst, iso(-120 * 1000), 'the first push is genuine and does stamp');
+
+  // Exactly what the native uploader does for the rest of a frozen run: the same cached body,
+  // every ~3s, forever.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    push();
+  }
+
+  const after = readParticipant();
+  assert.equal(after.liveUpdatedAt, afterFirst, 'a repeated identical payload must leave the liveness clock alone');
+  assert.equal(after.liveDistanceKm, 3.05);
+});
+
+test('a standing-still runner still refreshes liveUpdatedAt (elapsed advances on a live JS thread)', () => {
+  const { store, session, pusher } = createRunningDuelFixture('stationary-duel');
+  const before = session.participants.find((participant) => participant.userId === pusher.id).liveUpdatedAt;
+
+  // Waiting at a crossing: distance does not move, but the app is alive so elapsed does. This must
+  // NOT be mistaken for the frozen case — the discriminator is "new information", not "moved".
+  updateRunningMatchProgress(store, { id: pusher.id }, {
+    matchId: 'stationary-duel',
+    distanceKm: 3.05,
+    elapsedSeconds: 1230,
+    currentPace: '06:40/km',
+    status: 'running',
+  });
+
+  const after = session.participants.find((participant) => participant.userId === pusher.id);
+  assert.notEqual(after.liveUpdatedAt, before, 'a live push with fresh elapsed must restamp');
+  assert.equal(after.liveDistanceKm, 3.05, 'distance genuinely did not move');
+});
