@@ -11,7 +11,9 @@ type ResultDuelCardProps = {
   // 'win' emphasizes the card with a brand accent; 'lose' renders muted.
   variant: 'win' | 'lose';
   // The badge label is derived by the screen (draw collapses both cards to DRAW).
-  badgeLabel: ArenaResultLabel;
+  // null when the duel has no identified winner yet — the card then shows no badge rather than
+  // labelling one runner WIN on nothing but render order.
+  badgeLabel: ArenaResultLabel | null;
 };
 
 function StatBlock({ label, value }: { label: string; value: string }) {
@@ -39,7 +41,7 @@ export const ResultDuelCard = memo(function ResultDuelCard({
   return (
     <View style={[styles.card, isWin ? styles.cardWin : styles.cardLose]}>
       <View style={styles.headerRow}>
-        <ResultBadge label={badgeLabel} />
+        {badgeLabel ? <ResultBadge label={badgeLabel} /> : null}
         <View style={styles.nameWrap}>
           <Text style={styles.name} numberOfLines={1}>
             {row.name}

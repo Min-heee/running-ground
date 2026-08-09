@@ -570,15 +570,24 @@ function collectSavedMatchRuns(store, matchId) {
   return byUserId;
 }
 
+// 오너 실기기 대결 2026-08-09: this used to divide by matchResult.comparedDistanceKm first.
+// That field is the distance the CLIENT had compared at when it built the blob, and a screen-off
+// freeze strands it at a partial value while the finish time keeps advancing — the real record was
+// 6km / 37:07 (6:11/km) but carried comparedDistanceKm 3.06, so 대결 결과 displayed 12:08/km,
+// roughly double, and disagreed with the 기록 상세 screen for the same run. The run's own measured
+// distanceKm is the authoritative number the rest of the app shows, so pace is derived from it and
+// comparedDistanceKm is only the fallback.
 function paceSecondsFromRun(run, goalDistanceKm) {
   const matchResult = run.matchResult ?? {};
   const duration = Number.isInteger(matchResult.myDurationSeconds) ? matchResult.myDurationSeconds : null;
-  const comparedDistanceKm = Number.isFinite(matchResult.comparedDistanceKm) && matchResult.comparedDistanceKm > 0
-    ? matchResult.comparedDistanceKm
-    : goalDistanceKm;
+  const measuredDistanceKm = Number.isFinite(run.distanceKm) && run.distanceKm > 0
+    ? run.distanceKm
+    : Number.isFinite(matchResult.comparedDistanceKm) && matchResult.comparedDistanceKm > 0
+      ? matchResult.comparedDistanceKm
+      : goalDistanceKm;
 
-  if (duration && comparedDistanceKm > 0) {
-    return Math.round(duration / comparedDistanceKm);
+  if (duration && measuredDistanceKm > 0) {
+    return Math.round(duration / measuredDistanceKm);
   }
 
   const paceMinutes = parsePaceToMinutes(matchResult.myPaceLabel ?? run.pace);

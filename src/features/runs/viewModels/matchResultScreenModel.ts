@@ -36,6 +36,10 @@ export type MatchResultScreenModel =
     loser: MatchResultScreenRow;
     // true when the duel resolved to a draw (both rows carry resultTone 'draw').
     draw?: boolean;
+    // true when NOTHING in the payload identifies a winner (e.g. one side's record is still
+    // PENDING). The winner/loser slots then carry no meaning beyond render order, so the screen
+    // must not paint WIN/LOSE badges.
+    unresolved?: boolean;
     // Fair-verdict additive server fields — absent on old backends (render nothing then).
     // provisional → "가확정 · 상대 기록 수신 대기 중" badge; revised → the 정정 reason banner.
     provisional?: boolean;
@@ -104,11 +108,26 @@ export function buildMatchResultScreenModel(
     const participants = response.participants;
     const draw = participants.some((participant) => participant.resultTone === 'draw');
 
-    // Winner = the 'win' row, else rank 1, else the first row. Loser = the other row.
+    // Winner = the 'win' row; else the OTHER row when exactly one side says 'lose' (a duel has two
+    // sides, so a single definite loser names the winner); else rank 1. Loser = the other row.
+    //
+    // 오너 실기기 대결 2026-08-09: the old last resort was "else the first row", which crowned
+    // whoever the server happened to sort first. When one runner's blob is still PENDING (no
+    // resultTone) the server orders the explicit 'lose' row FIRST, so the screen showed the runner
+    // who had just declared themselves the LOSER as the WINNER — contradicting both the finish
+    // times and that row's own tone. Never invent a winner: with nothing to identify one the duel
+    // is reported unresolved and the badges render neutrally.
     const winnerIndex = (() => {
       const toneWin = participants.findIndex((participant) => participant.resultTone === 'win');
       if (toneWin >= 0) {
         return toneWin;
+      }
+
+      const loseIndexes = participants
+        .map((participant, index) => (participant.resultTone === 'lose' ? index : -1))
+        .filter((index) => index >= 0);
+      if (participants.length === 2 && loseIndexes.length === 1) {
+        return loseIndexes[0] === 0 ? 1 : 0;
       }
 
       const rankOne = participants.findIndex((participant) => participant.rank === 1);
@@ -116,14 +135,17 @@ export function buildMatchResultScreenModel(
         return rankOne;
       }
 
-      return 0;
+      return -1;
     })();
-    const loserIndex = winnerIndex === 0 ? rows.length - 1 : 0;
+    const unresolved = winnerIndex < 0;
+    const resolvedWinnerIndex = unresolved ? 0 : winnerIndex;
+    const loserIndex = resolvedWinnerIndex === 0 ? rows.length - 1 : 0;
 
     return {
       mode: 'duel',
-      winner: rows[winnerIndex],
-      loser: rows[loserIndex] ?? rows[winnerIndex],
+      winner: rows[resolvedWinnerIndex],
+      loser: rows[loserIndex] ?? rows[resolvedWinnerIndex],
+      ...(unresolved ? { unresolved: true } : {}),
       ...(draw ? { draw: true } : {}),
       ...(response.provisional === true ? { provisional: true } : {}),
       ...(response.revised === true ? { revised: true } : {}),

@@ -37,11 +37,17 @@ type LoadState =
 // Map a duel row's resultTone to the WIN/LOSE/DRAW badge label. A draw collapses both
 // cards to DRAW regardless of the row's own tone; otherwise the winner slot is WIN and
 // the loser slot is LOSE.
+// unresolved → no badge at all: nothing in the payload identifies a winner, so the slots carry no
+// meaning beyond render order and labelling either card WIN would be a fabrication.
 function resolveDuelBadge(
   draw: boolean,
   slot: 'win' | 'lose',
   row: MatchResultScreenRow,
-): ArenaResultLabel {
+  unresolved: boolean,
+): ArenaResultLabel | null {
+  if (unresolved) {
+    return null;
+  }
   if (draw || row.resultTone === 'draw') {
     return 'DRAW';
   }
@@ -50,18 +56,20 @@ function resolveDuelBadge(
 
 function DuelBody({ model }: { model: Extract<MatchResultScreenModel, { mode: 'duel' }> }) {
   const draw = Boolean(model.draw);
+  const unresolved = Boolean(model.unresolved);
 
   return (
     <View style={styles.duelStack}>
       <ResultDuelCard
         row={model.winner}
-        variant="win"
-        badgeLabel={resolveDuelBadge(draw, 'win', model.winner)}
+        // Never accent one card as the winner while the outcome is unknown.
+        variant={unresolved ? 'lose' : 'win'}
+        badgeLabel={resolveDuelBadge(draw, 'win', model.winner, unresolved)}
       />
       <ResultDuelCard
         row={model.loser}
         variant="lose"
-        badgeLabel={resolveDuelBadge(draw, 'lose', model.loser)}
+        badgeLabel={resolveDuelBadge(draw, 'lose', model.loser, unresolved)}
       />
     </View>
   );

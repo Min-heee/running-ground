@@ -2946,6 +2946,65 @@ await runTest('WINNER-FIRST duel: the faster finisher saves FIRST (PENDING, 0P) 
   });
 });
 
+await runTest('GET /result derives pace from the MEASURED distance, not a screen-off-frozen comparedDistanceKm', async () => {
+  // 오너 실기기 대결 2026-08-09 (duel-match-e545bceb): both runs were 6km, but a screen-off freeze
+  // stranded matchResult.comparedDistanceKm at 3.06 / 3.23 while the finish times kept advancing.
+  // 대결 결과 divided the full time by that frozen distance and printed 12:08/km and 11:40/km —
+  // roughly double, and flatly contradicting the 기록 상세 card (6:11 / 6:17) for the same runs.
+  const matchId = 'frozen-compared-distance-duel';
+
+  await withBackend(createBaseStore(), async ({ request }) => {
+    const startedAt = iso(-60 * 60 * 1000);
+    const endedAt = iso(-20 * 60 * 1000);
+    const save = (token, durationSeconds, comparedDistanceKm) => request(token, 'POST', '/api/runs/tracked', {
+      date: startedAt.slice(0, 10),
+      distanceKm: 6,
+      pace: '06:11/km',
+      durationSeconds,
+      startedAt,
+      endedAt,
+      route: [
+        { latitude: 37.658, longitude: 126.77, timestamp: startedAt },
+        { latitude: 37.668, longitude: 126.78, timestamp: endedAt },
+      ],
+      matchResult: {
+        mode: 'duel',
+        matchId,
+        source: 'party',
+        title: '대결 결과',
+        summary: '대결 요약',
+        badgeLabel: '승리',
+        opponentName: '상대',
+        resultTone: 'win',
+        // The corrupted field, exactly as found in production.
+        comparedDistanceKm,
+        myDurationSeconds: durationSeconds,
+        myPaceLabel: '06:11/km',
+      },
+    });
+
+    await save('guest-token', 2261, 3.23);
+    await save('host-token', 2227, 3.06);
+
+    const result = await request('host-token', 'GET', `/api/running/matches/${matchId}/result`);
+    const byUser = new Map(result.participants.map((participant) => [participant.userId, participant]));
+
+    // 2227s / 6km = 371 s/km = 6:11/km, and 2261s / 6km = 377 s/km = 6:17/km — the same numbers
+    // the run detail screen shows. Under the old divisor these were 728 and 700.
+    assert.equal(byUser.get('host-user').paceSecondsPerKm, 371);
+    assert.equal(byUser.get('guest-user').paceSecondsPerKm, 377);
+
+    // The verdict still follows the measured finish times, never the frozen distance: the faster
+    // finisher (2227s) resolves to 'win' at save.
+    assert.equal(byUser.get('host-user').resultTone, 'win');
+    // The first saver stays PENDING here BY DESIGN — this store has no live session, and the
+    // counterpart heal refuses to rewrite another runner's record without a server-built roster
+    // (backFillMatchCounterpartSavedRuns). That is the documented residual: such leftovers are
+    // repaired by scripts/backfill-pending-match-results.mjs under operator review, never guessed.
+    assert.equal(byUser.get('guest-user').resultTone, null);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // DURABLE one-finisher (DNF) resolution: the permanent-PENDING launch blocker.
 // One runner finishes and saves a PENDING record; the other never finishes (quit /

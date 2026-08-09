@@ -285,3 +285,77 @@ test('§3-⑨: fields absent on an old backend → model carries neither flag (r
   assert.equal(model.provisional, undefined);
   assert.equal(model.revised, undefined);
 });
+
+// 오너 실기기 대결 2026-08-09 (duel-match-e545bceb). One runner's saved blob was still PENDING, so
+// no row carried 'win'. The server orders the explicit 'lose' row FIRST, and the old fallback took
+// "the first row" as the winner — crowning the runner who had just declared themselves the loser,
+// while the genuine winner (the faster finish) was shown as LOSE.
+test('duel with one PENDING side → the explicit loser is never crowned; the other row wins', () => {
+  const model = buildMatchResultScreenModel({
+    matchId: 'duel-match-e545bceb',
+    mode: 'duel',
+    source: 'party',
+    comparedDistanceKm: 6,
+    participants: [
+      // Sorted first by the server precisely BECAUSE it carries a definite 'lose'.
+      participant({
+        userId: 'user-membera',
+        name: '회원A',
+        finishElapsedSeconds: 2261,
+        rank: null,
+        resultTone: 'lose',
+        isMe: false,
+      }),
+      participant({
+        userId: 'user-memberi',
+        name: '회원I',
+        finishElapsedSeconds: 2227,
+        rank: null,
+        resultTone: null, // PENDING — "결과 집계 중"
+        isMe: true,
+      }),
+    ],
+  });
+  assertDuel(model);
+
+  assert.equal(model.winner.name, '회원I');
+  assert.equal(model.loser.name, '회원A');
+  // The faster finish is the winner, matching the 기록 상세 card for the same run.
+  assert.ok(model.winner.timeLabel);
+  assert.equal(model.unresolved, undefined);
+});
+
+test('duel with nothing identifying a winner → unresolved, no fabricated WIN', () => {
+  const model = buildMatchResultScreenModel({
+    matchId: 'duel-unknown',
+    mode: 'duel',
+    source: 'party',
+    comparedDistanceKm: 6,
+    participants: [
+      participant({ userId: 'a', name: '가', rank: null, resultTone: null, isMe: true }),
+      participant({ userId: 'b', name: '나', rank: null, resultTone: null, isMe: false }),
+    ],
+  });
+  assertDuel(model);
+
+  assert.equal(model.unresolved, true);
+  // Both rows are still returned (render order only) — neither is labelled a winner.
+  assert.equal(model.winner.resultTone, null);
+  assert.equal(model.loser.resultTone, null);
+});
+
+test('duel where both sides say lose (impossible pair) stays unresolved rather than guessing', () => {
+  const model = buildMatchResultScreenModel({
+    matchId: 'duel-both-lose',
+    mode: 'duel',
+    source: 'party',
+    comparedDistanceKm: 6,
+    participants: [
+      participant({ userId: 'a', name: '가', rank: null, resultTone: 'lose', isMe: true }),
+      participant({ userId: 'b', name: '나', rank: null, resultTone: 'lose', isMe: false }),
+    ],
+  });
+  assertDuel(model);
+
+  assert.equal(model.unresolved, true);
+});
