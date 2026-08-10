@@ -195,9 +195,11 @@ export function useMatchAutoTrackingEffects({
       (Number.isFinite(slotStartMs) ? slotStartMs - Date.now() : 0) + WARMUP_ORPHAN_BACKSTOP_AFTER_SLOT_MS,
       WARMUP_ORPHAN_BACKSTOP_AFTER_SLOT_MS,
     );
-    if (warmupBackstopTimerRef.current) {
-      clearTimeout(warmupBackstopTimerRef.current);
-    }
+    // 3차 재검증: do NOT clear a previous match's pending backstop here. Warmup can chain (match A
+    // cancelled mid-countdown → match B arms within A's backstop window), and cancelling A's timer
+    // let A's orphan escape its own watchdog. Overwriting the handle is safe: A's timer either
+    // no-ops (the eager orphan cleanup below nulls the ref it guards on) or is the only pending
+    // timer (no B) and thus still held here for the unmount cleanup.
     warmupBackstopTimerRef.current = setTimeout(() => {
       warmupBackstopTimerRef.current = null;
       const liveSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
@@ -234,7 +236,7 @@ export function useMatchAutoTrackingEffects({
       appState: appStateRef.current,
       detachLocationTask: Platform.OS === 'android' && matchMode !== 'solo',
       trackingKey: warmupTarget.matchId,
-    }).then((restored) => {
+    }).then(async (restored) => {
       if (warmupRestoringMatchIdRef.current !== warmupTarget.matchId) {
         return;
       }
@@ -249,6 +251,26 @@ export function useMatchAutoTrackingEffects({
         }
         syncFromBackgroundTracking(restoredSnapshot);
         return;
+      }
+
+      // 3차 재검증 (워밍업 연쇄 A→B): a PREVIOUS match's warmup orphan can still be squatting on
+      // the session — A was cancelled mid-countdown, its backstop hasn't fired (or was lost), and
+      // its 'running' status would block B's fresh start below. B would then race mis-keyed on A's
+      // session: no baseline (both builders key on the ref matching B), elapsed counted from A's
+      // arm, persistence filed under A. Evict the squatter EAGERLY under exactly the backstop's
+      // safety envelope — no official baseline, a FOREIGN warmup ref, and no measured meters
+      // (an official run or anything a runner actually ran is never touched).
+      const squatterSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
+      if (
+        squatterSnapshot.status === 'running'
+        && !officialStartBaselineRef.current
+        && preStartWarmupMatchIdRef.current !== null
+        && preStartWarmupMatchIdRef.current !== warmupTarget.matchId
+        && squatterSnapshot.distanceKm < 0.03
+      ) {
+        preStartWarmupMatchIdRef.current = null;
+        await resetBackgroundRunTracking();
+        syncFromBackgroundTracking(getBackgroundRunTrackingSnapshot({ cloneRoute: false }));
       }
 
       if (
