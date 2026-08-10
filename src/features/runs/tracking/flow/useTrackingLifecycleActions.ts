@@ -91,6 +91,7 @@ export function useTrackingLifecycleActions({
 
   useMatchAutoTrackingEffects({
     autoStartedMatchIdRef: flow.autoStartedMatchIdRef,
+    autoStartingMatchTrackingRef: flow.autoStartingMatchTrackingRef,
     appStateRef: flow.appStateRef,
     preStartWarmupMatchIdRef: flow.preStartWarmupMatchIdRef,
     officialStartBaselineRef: flow.officialStartBaselineRef,

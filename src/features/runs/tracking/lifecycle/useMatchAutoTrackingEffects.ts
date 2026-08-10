@@ -25,6 +25,7 @@ import type { UseRunTrackingFlowInput } from '@/features/runs/types/runTrackingF
 type UseMatchAutoTrackingEffectsInput = Pick<
   UseRunTrackingFlowInput,
   | 'autoStartedMatchIdRef'
+  | 'autoStartingMatchTrackingRef'
   | 'appStateRef'
   | 'preStartWarmupMatchIdRef'
   | 'officialStartBaselineRef'
@@ -48,6 +49,7 @@ type UseMatchAutoTrackingEffectsInput = Pick<
 
 export function useMatchAutoTrackingEffects({
   autoStartedMatchIdRef,
+  autoStartingMatchTrackingRef,
   appStateRef,
   preStartWarmupMatchIdRef,
   officialStartBaselineRef,
@@ -68,6 +70,25 @@ export function useMatchAutoTrackingEffects({
   // ONE warmup attempt per match (see the warmup effect) — never re-cleared within a match so a
   // failed attempt cannot loop; the slot-time active path remains the second, unconditional try.
   const warmupAttemptedMatchIdRef = useRef<string | null>(null);
+  // 재검증 2026-08-11 (블로커): the warmup restore MUST NOT share restoringMatchIdRef. The active
+  // effect runs in the SAME React commit (shared deps), computes activeMatchId=null during any
+  // countdown, and its no-active branch nulls restoringMatchIdRef — before the warmup's restore
+  // promise can possibly resolve (promises never run between same-commit effects). The warmup's
+  // .then then saw a foreign marker and aborted, so the arm NEVER fired and the one-attempt guard
+  // blocked every retry: the hardening had silently un-fixed the original incident.
+  const warmupRestoringMatchIdRef = useRef<string | null>(null);
+  // The zombie backstop's pending timer — cleared on unmount only (NOT on dep changes: the 2.5s
+  // polls re-run effects constantly and a dep-scoped cleanup would cancel every backstop 2.5s
+  // after scheduling). Without this, a stale timer from an unmounted instance could fire at
+  // slot+120s holding old refs and reset a LIVE session started by the next instance.
+  const warmupBackstopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (warmupBackstopTimerRef.current) {
+      clearTimeout(warmupBackstopTimerRef.current);
+      warmupBackstopTimerRef.current = null;
+    }
+  }, []);
 
   // STAGE 4 (clean core): the pre-slot GPS warm-up is GONE. The old warm-up branch was gated
   // on shouldAutoOpenMatchArena (≤20s) / the arena-handoff phase — i.e. it started MEASURING
@@ -86,10 +107,24 @@ export function useMatchAutoTrackingEffects({
     // this effect and wipe the warmup ref, and with it the only key both baseline builders accept:
     // the countdown meters then leaked into the official result. status==='idle' is the "no live
     // match in flight" this clear was always meant for (Stage 4 comment above).
-    if (!officialStartBaselineRef.current && status === 'idle') {
+    //
+    // 재검증: the committed `status` LAGS the live session — the warmup ref is armed inside
+    // handleStartTrackingInternal while the start is still awaiting (~0.3-3s of native FGS/GPS
+    // spin-up), and 'running' only commits afterward. That whole window is covered by
+    // autoStartingMatchTrackingRef (true from arm until finishDetachedAutoStart), which the active
+    // effect never touches — unlike autoStartedMatchIdRef, which its no-active branch nulls every
+    // countdown render and therefore cannot be trusted as the in-flight signal.
+    if (
+      !officialStartBaselineRef.current
+      && status === 'idle'
+      && !autoStartingMatchTrackingRef.current
+      && !autoStartedMatchIdRef.current
+    ) {
       preStartWarmupMatchIdRef.current = null;
     }
   }, [
+    autoStartedMatchIdRef,
+    autoStartingMatchTrackingRef,
     officialStartBaselineRef,
     preStartWarmupMatchIdRef,
     status,
@@ -136,6 +171,7 @@ export function useMatchAutoTrackingEffects({
       preStartWarmupMatchIdRef.current === warmupTarget.matchId
       || autoStartedMatchIdRef.current === warmupTarget.matchId
       || restoringMatchIdRef.current === warmupTarget.matchId
+      || warmupRestoringMatchIdRef.current === warmupTarget.matchId
       // 적대 검증 2026-08-11: ONE warmup attempt per match. A failed start (e.g. permission
       // denied) releases the funnel guards, and the 2.5s status polls re-render this effect — an
       // unbounded retry re-opened the permission/disclosure prompt every poll for the rest of the
@@ -159,12 +195,22 @@ export function useMatchAutoTrackingEffects({
       (Number.isFinite(slotStartMs) ? slotStartMs - Date.now() : 0) + WARMUP_ORPHAN_BACKSTOP_AFTER_SLOT_MS,
       WARMUP_ORPHAN_BACKSTOP_AFTER_SLOT_MS,
     );
-    setTimeout(() => {
-      const liveStatus = getBackgroundRunTrackingSnapshot({ cloneRoute: false }).status;
+    if (warmupBackstopTimerRef.current) {
+      clearTimeout(warmupBackstopTimerRef.current);
+    }
+    warmupBackstopTimerRef.current = setTimeout(() => {
+      warmupBackstopTimerRef.current = null;
+      const liveSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
       if (
         officialStartBaselineRef.current
         || preStartWarmupMatchIdRef.current !== warmupTarget.matchId
-        || liveStatus !== 'running'
+        || liveSnapshot.status !== 'running'
+        // 재검증 2026-08-11: an ORPHAN is a session with nothing on it — the runner never actually
+        // raced (room cancelled, dead context), so stationary rejection kept it at ~0m. A session
+        // with real distance is someone RUNNING whose promotion is merely late (server outage,
+        // cellular dead zone); killing it — and its persisted snapshot — would destroy genuine
+        // race data. Never reset a session that has measured meters.
+        || liveSnapshot.distanceKm >= 0.03
       ) {
         return;
       }
@@ -180,14 +226,16 @@ export function useMatchAutoTrackingEffects({
     // 적대 검증 2026-08-11 (restore-first): the active path never starts fresh over a restorable
     // session, and neither may warmup — a cold relaunch inside a stale-'matched' window used to
     // reset straight over a crashed run's persisted meters. Same discipline, same goal-freeze
-    // guard (never re-launch a finished match).
-    restoringMatchIdRef.current = warmupTarget.matchId;
+    // guard (never re-launch a finished match). Uses the warmup-OWNED marker: the shared
+    // restoringMatchIdRef is nulled by the active effect's no-active branch in the same commit
+    // during any countdown, which silently aborted this restore and un-fixed the incident (재검증).
+    warmupRestoringMatchIdRef.current = warmupTarget.matchId;
     void restorePersistedBackgroundRunTracking(warmupTarget.matchId, {
       appState: appStateRef.current,
       detachLocationTask: Platform.OS === 'android' && matchMode !== 'solo',
       trackingKey: warmupTarget.matchId,
     }).then((restored) => {
-      if (restoringMatchIdRef.current !== warmupTarget.matchId) {
+      if (warmupRestoringMatchIdRef.current !== warmupTarget.matchId) {
         return;
       }
 
@@ -210,8 +258,8 @@ export function useMatchAutoTrackingEffects({
         startMatchTrackingAutomatically(warmupTarget.matchId, { allowCountdownWarmup: true });
       }
     }).finally(() => {
-      if (restoringMatchIdRef.current === warmupTarget.matchId) {
-        restoringMatchIdRef.current = null;
+      if (warmupRestoringMatchIdRef.current === warmupTarget.matchId) {
+        warmupRestoringMatchIdRef.current = null;
       }
     });
   }, [
