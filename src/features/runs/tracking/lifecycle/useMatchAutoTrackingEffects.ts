@@ -7,6 +7,7 @@ import {
   type BackgroundRunTrackingSnapshot,
 } from '@/features/runs/tracking/background';
 import { getLocalGoalFreeze } from '@/features/runs/sync/localGoalFreezeStore';
+import { resolvePreSlotWarmupTarget } from '@/features/runs/tracking/lifecycle/preSlotWarmup';
 import {
   buildOfficialStartBaseline,
 } from '@/features/runs/tracking/trackingSession';
@@ -77,6 +78,64 @@ export function useMatchAutoTrackingEffects({
   }, [
     officialStartBaselineRef,
     preStartWarmupMatchIdRef,
+    trackingSubscriptionsEnabled,
+  ]);
+
+  // PRE-SLOT WARMUP (회원K 파티런 2026-08-10): arm the tracking PLUMBING while the countdown is
+  // still on screen — the runner is watching it, so the screen is guaranteed on. Without this the
+  // whole arm waits for state === 'active' (countdown END) and rides JS timers that a lock at
+  // +1-2s freezes: the FGS that would keep those timers alive is exactly the thing not started
+  // yet, so a Galaxy locked right after the countdown showed 0.00km for the entire match and only
+  // began measuring on unlock (server saw them at 0.04km all match). Measuring semantics are
+  // unchanged: the warmup start records preStartWarmupMatchIdRef and the active effect below
+  // replaces the warmup's few meters with the official-start baseline at the slot — the Stage 4
+  // "measuring starts at the slot" invariant holds; only the plumbing starts early.
+  //
+  // Re-evaluation cadence needs no timer: the party-run room handoff CHANGES these deps when its
+  // countdown begins (slot ≈ +10s), and a scheduled match's arena auto-open (≤20s before the slot)
+  // MOUNTS this hook inside the window. A failed warmup start releases its guards
+  // (finishDetachedAutoStart) and the active path retries exactly as before, so this can only ever
+  // add an earlier attempt, never remove one.
+  useEffect(() => {
+    if (!trackingSubscriptionsEnabled || status !== 'idle') {
+      return;
+    }
+
+    if (officialStartBaselineRef.current) {
+      return;
+    }
+
+    const warmupTarget = resolvePreSlotWarmupTarget({
+      matchMode,
+      duelMatchStatus,
+      groupMatchStatus,
+      roomLinkedMatchContext,
+      nowMs: Date.now(),
+    });
+
+    if (!warmupTarget) {
+      return;
+    }
+
+    if (
+      preStartWarmupMatchIdRef.current === warmupTarget.matchId
+      || autoStartedMatchIdRef.current === warmupTarget.matchId
+      || restoringMatchIdRef.current === warmupTarget.matchId
+    ) {
+      return;
+    }
+
+    startMatchTrackingAutomatically(warmupTarget.matchId, { allowCountdownWarmup: true });
+  }, [
+    autoStartedMatchIdRef,
+    duelMatchStatus,
+    groupMatchStatus,
+    matchMode,
+    officialStartBaselineRef,
+    preStartWarmupMatchIdRef,
+    roomLinkedMatchContext,
+    startMatchTrackingAutomatically,
+    status,
     trackingSubscriptionsEnabled,
   ]);
 

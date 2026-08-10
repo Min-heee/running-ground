@@ -31,30 +31,6 @@ function finishDetachedAutoStart(input: {
   }
 }
 
-function skipAndroidCountdownWarmup(input: {
-  androidLiveMatchGpsStartDelayMs: number;
-  matchId: string;
-  matchMode: UseAutoStartMatchTrackingActionInput['matchMode'];
-  preStartWarmupMatchIdRef: UseAutoStartMatchTrackingActionInput['preStartWarmupMatchIdRef'];
-  skippedAndroidWarmupMatchIdRef: UseAutoStartMatchTrackingActionInput['gpsStartGuard']['skippedAndroidWarmupMatchIdRef'];
-}) {
-  input.preStartWarmupMatchIdRef.current = input.matchId;
-  input.skippedAndroidWarmupMatchIdRef.current = input.matchId;
-  rgPerfMark('GPS tracking start delayed after mount', {
-    delayMs: input.androidLiveMatchGpsStartDelayMs,
-    matchId: input.matchId,
-    matchMode: input.matchMode,
-    reason: 'android-countdown-warmup-disabled',
-    source: 'match auto warmup',
-  });
-  rgPerfMark('GPS tracking start UI detached', {
-    matchId: input.matchId,
-    matchMode: input.matchMode,
-    reason: 'countdown warmup disabled on android',
-    source: 'match auto warmup',
-  });
-}
-
 function startImmediately(input: {
   autoStartedMatchIdRef: UseAutoStartMatchTrackingActionInput['autoStartedMatchIdRef'];
   autoStartingMatchTrackingRef: UseAutoStartMatchTrackingActionInput['autoStartingMatchTrackingRef'];
@@ -145,7 +121,6 @@ export function useAutoStartMatchTrackingAction(input: UseAutoStartMatchTracking
     gpsStartGuard,
     handleStartTracking,
     matchMode,
-    preStartWarmupMatchIdRef,
   } = input;
 
   return useCallback((
@@ -156,17 +131,14 @@ export function useAutoStartMatchTrackingAction(input: UseAutoStartMatchTracking
       return;
     }
 
+    // 회원K 파티런 2026-08-10: the old skipAndroidCountdownWarmup branch here made Android drop
+    // the countdown warmup entirely, deferring the WHOLE arm to countdown end — where a screen
+    // lock at +1-2s froze the JS timer chain before the FGS (the thing that keeps those timers
+    // alive) ever started, leaving the run at 0.00km until the next unlock. Warmup now flows
+    // through the same path as the active start: Android keeps its render-detached delay (the
+    // perf reason the skip existed), which lands mid-countdown with the screen still on. iOS
+    // starts immediately, as it always did.
     const isAndroidLiveMatchAutoStart = Platform.OS === 'android' && matchMode !== 'solo';
-    if (isAndroidLiveMatchAutoStart && options?.allowCountdownWarmup) {
-      skipAndroidCountdownWarmup({
-        androidLiveMatchGpsStartDelayMs,
-        matchId,
-        matchMode,
-        preStartWarmupMatchIdRef,
-        skippedAndroidWarmupMatchIdRef: gpsStartGuard.skippedAndroidWarmupMatchIdRef,
-      });
-      return;
-    }
 
     autoStartingMatchTrackingRef.current = true;
     autoStartedMatchIdRef.current = matchId;
@@ -199,6 +171,5 @@ export function useAutoStartMatchTrackingAction(input: UseAutoStartMatchTracking
     gpsStartGuard,
     handleStartTracking,
     matchMode,
-    preStartWarmupMatchIdRef,
   ]);
 }
