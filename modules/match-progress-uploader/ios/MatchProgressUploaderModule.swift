@@ -1073,11 +1073,12 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
 // a run's distance keeps moving while the JS thread is suspended (screen off). Mirrors the JS
 // per-fix filter chain (src/features/runs/tracking/background/locationDistance.ts +
 // routeAccumulator.ts appendTrackedLocation) in the SAME order: accuracy + age windows, cold-start
-// warmup discard, min time delta, both teleport gates, the stationary/poor-accuracy noise
-// rejection, and the accuracy-scaled distance gate. Only the JS route-REWRITE passes (cold-start
-// excursion collapse + mid-run lateral-jitter collapse) stay JS-only — they rewrite the whole route
-// and recompute the total from it, which needs the full route history the native side does not
-// keep. The JS merge is FRESH-JS-WINS, so this total only ever fills screen-off gaps.
+// warmup discard, min time delta, the signal-loss gap ceiling, both teleport gates, the
+// stationary/poor-accuracy noise rejection, and the accuracy-scaled distance gate. Only the JS
+// route-REWRITE passes (cold-start excursion collapse + mid-run lateral-jitter collapse) stay
+// JS-only — they rewrite the whole route and recompute the total from it, which needs the full
+// route history the native side does not keep. The JS merge is FRESH-JS-WINS, so this total only
+// ever fills screen-off gaps.
 //
 // Wire-format compatibility: the six original constants keep their existing keys. Every LATER-ADDED
 // constant is OPTIONAL — an absent key leaves its gate DISABLED, so an OLD JS bundle (which never
@@ -1114,6 +1115,9 @@ private final class DistanceAccumulator {
   private var coldStartMaxClusterRadiusMeters: Double?
   private var coldStartMaxAccuracyMeters: Double?
   private var coldStartMaxWindowMs: Double?
+
+  // Signal-loss gap ceiling (JS MAX_CREDITABLE_FIX_GAP_MS). nil = not delivered = no dt ceiling.
+  private var maxCreditableFixGapMs: Double?
 
   // Reserved overrides (no JS bundle sends them yet). minMovementMeters is the noisy-gate floor
   // (JS MIN_MOVEMENT_DISTANCE_METERS); a nil maxFutureLocationMs keeps today's symmetric age window.
@@ -1172,6 +1176,14 @@ private final class DistanceAccumulator {
     coldStartMaxClusterRadiusMeters = DistanceAccumulator.doubleOption(options, "coldStartMaxClusterRadiusMeters")
     coldStartMaxAccuracyMeters = DistanceAccumulator.doubleOption(options, "coldStartMaxAccuracyMeters")
     coldStartMaxWindowMs = DistanceAccumulator.doubleOption(options, "coldStartMaxWindowMs")
+    // A non-positive/garbled ceiling would gate EVERY fix (native distance frozen for the whole
+    // run), so it disables the rule instead of bricking accumulation — same guard style as the
+    // cold-start fix count above.
+    if let rawGapMs = DistanceAccumulator.doubleOption(options, "maxCreditableFixGapMs"), rawGapMs > 0 {
+      maxCreditableFixGapMs = rawGapMs
+    } else {
+      maxCreditableFixGapMs = nil
+    }
     minMovementMeters = DistanceAccumulator.doubleOption(options, "minMovementMeters") ?? 3.0
     maxFutureLocationMs = DistanceAccumulator.doubleOption(options, "maxFutureLocationMs")
   }
@@ -1206,8 +1218,9 @@ private final class DistanceAccumulator {
   // Consume one delivered fix. Returns the NEW total in meters when the fix advanced the distance,
   // or nil when the fix was rejected/gated (so the caller only emits onDistanceAccumulated on a real
   // advance). Mirrors the JS appendTrackedLocation chain in the SAME order:
-  //   accuracy → age window → cold-start warmup → min time delta → teleport (hard +
-  //   accuracy-scaled) → stationary/poor-accuracy noise → accuracy-scaled distance gate → count.
+  //   accuracy → age window → cold-start warmup → min time delta → signal-loss gap → teleport
+  //   (hard + accuracy-scaled) → stationary/poor-accuracy noise → accuracy-scaled distance gate →
+  //   count.
   // Distances are CoreLocation's geodesic distance(from:) — matching the JS haversine within GPS
   // noise, battery-free.
   func consume(location current: CLLocation) -> Double? {
@@ -1245,6 +1258,25 @@ private final class DistanceAccumulator {
 
     // Min time delta (JS MIN_LOCATION_TIME_DELTA_MS): sub-cadence duplicate fixes are noise.
     if let minTimeDeltaMs = minTimeDeltaMs, dtMs < minTimeDeltaMs {
+      return nil
+    }
+
+    // Signal-loss gap (JS isSignalLossGapMs, routeAccumulator.ts): no valid fix for longer than the
+    // ceiling means the path between the two fixes was NEVER OBSERVED — the straight chord is not
+    // ours to credit. Move BOTH anchors to the re-acquired position (JS appends the point and moves
+    // lastCountedPoint to it) and bank nothing, so counting resumes cleanly from there.
+    //
+    // MUST sit BEFORE both teleport gates, exactly like JS, for two reasons:
+    //   1. They are no defense here. They are SPEED-based, and the longer the blackout the LOWER
+    //      the chord's implied speed — a 3-minute tunnel crossing ~1km implies ~5.5 m/s and sails
+    //      under both limits (8.5 / 5.8 m/s) and the server's limiter too.
+    //   2. When a chord DOES trip one, that gate drops the fix WITHOUT moving the anchors. A gap
+    //      check placed after it would never run, and every later fix would keep being compared
+    //      against the stale pre-blackout anchor — distance frozen for the rest of the run.
+    // Gap-first both refuses the credit AND re-anchors, so counting resumes either way.
+    if let maxCreditableFixGapMs = maxCreditableFixGapMs, dtMs > maxCreditableFixGapMs {
+      lastAppended = current
+      lastCounted = current
       return nil
     }
 

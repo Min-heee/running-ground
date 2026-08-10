@@ -491,6 +491,10 @@ class MatchUploadForegroundService : Service() {
     const val EXTRA_COLD_START_MAX_ACCURACY_METERS = "coldStartMaxAccuracyMeters"
     const val EXTRA_COLD_START_MAX_WINDOW_MS = "coldStartMaxWindowMs"
 
+    // Signal-loss gap ceiling (JS MAX_CREDITABLE_FIX_GAP_MS). Same OPTIONAL contract as the block
+    // above: absent → no dt ceiling → the previous binary's behavior.
+    const val EXTRA_MAX_CREDITABLE_FIX_GAP_MS = "maxCreditableFixGapMs"
+
     // Reserved overrides (no JS bundle sends these yet): the noisy-gate min-movement floor (JS
     // MIN_MOVEMENT_DISTANCE_METERS) and an explicit future-timestamp window (JS
     // MAX_FUTURE_LOCATION_MS). Absent → JS-source default 3.0 / today's symmetric age window.
@@ -516,11 +520,12 @@ class MatchUploadForegroundService : Service() {
  * consumer so a run's distance keeps moving while the JS thread is suspended (screen off). Mirrors
  * the JS per-fix filter chain (src/features/runs/tracking/background/locationDistance.ts +
  * routeAccumulator.ts appendTrackedLocation) in the SAME order: accuracy + age windows, cold-start
- * warmup discard, min time delta, both teleport gates, the stationary/poor-accuracy noise
- * rejection, and the accuracy-scaled distance gate. Only the JS route-REWRITE passes (cold-start
- * excursion collapse + mid-run lateral-jitter collapse) stay JS-only — they rewrite the whole route
- * and recompute the total from it, which needs the full route history the native side does not
- * keep. The JS merge is FRESH-JS-WINS, so this total only ever fills screen-off gaps.
+ * warmup discard, min time delta, the signal-loss gap ceiling, both teleport gates, the
+ * stationary/poor-accuracy noise rejection, and the accuracy-scaled distance gate. Only the JS
+ * route-REWRITE passes (cold-start excursion collapse + mid-run lateral-jitter collapse) stay
+ * JS-only — they rewrite the whole route and recompute the total from it, which needs the full
+ * route history the native side does not keep. The JS merge is FRESH-JS-WINS, so this total only
+ * ever fills screen-off gaps.
  *
  * Wire-format compatibility: the six original constants keep their existing extras. Every
  * LATER-ADDED constant is OPTIONAL — an absent extra leaves its gate DISABLED, so an old JS bundle
@@ -551,6 +556,9 @@ private class DistanceAccumulator {
   @Volatile private var coldStartMaxClusterRadiusMeters: Double? = null
   @Volatile private var coldStartMaxAccuracyMeters: Double? = null
   @Volatile private var coldStartMaxWindowMs: Double? = null
+
+  // Signal-loss gap ceiling (JS MAX_CREDITABLE_FIX_GAP_MS). null = not delivered = no dt ceiling.
+  @Volatile private var maxCreditableFixGapMs: Double? = null
 
   // Reserved overrides (no JS bundle sends them yet). minMovementMeters is the noisy-gate floor
   // (JS MIN_MOVEMENT_DISTANCE_METERS); a null maxFutureLocationMs keeps today's symmetric age window.
@@ -603,6 +611,11 @@ private class DistanceAccumulator {
     coldStartMaxClusterRadiusMeters = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_COLD_START_MAX_CLUSTER_RADIUS_METERS)
     coldStartMaxAccuracyMeters = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_COLD_START_MAX_ACCURACY_METERS)
     coldStartMaxWindowMs = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_COLD_START_MAX_WINDOW_MS)
+    // A non-positive/garbled ceiling would gate EVERY fix (native distance frozen for the whole
+    // run), so it disables the rule instead of bricking accumulation — same guard style as the
+    // cold-start fix count above.
+    maxCreditableFixGapMs = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_MAX_CREDITABLE_FIX_GAP_MS)
+      ?.takeIf { it > 0 }
     minMovementMeters = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_MIN_MOVEMENT_METERS) ?: 3.0
     maxFutureLocationMs = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_MAX_FUTURE_LOCATION_MS)
   }
@@ -635,8 +648,9 @@ private class DistanceAccumulator {
 
   // Consume one delivered fix. Returns the NEW total in meters when the fix advanced the distance,
   // or null when the fix was rejected/gated. Mirrors the JS appendTrackedLocation chain in the SAME
-  // order: accuracy → age window → cold-start warmup → min time delta → teleport (hard +
-  // accuracy-scaled) → stationary/poor-accuracy noise → accuracy-scaled distance gate → count.
+  // order: accuracy → age window → cold-start warmup → min time delta → signal-loss gap → teleport
+  // (hard + accuracy-scaled) → stationary/poor-accuracy noise → accuracy-scaled distance gate →
+  // count.
   fun consume(current: Location): Double? {
     // FAIL CLOSED on missing accuracy: a fix with no accuracy value used to read as 0.0 (best
     // possible) and slide under the smallest gate. Treat it as worst — reject.
@@ -675,6 +689,26 @@ private class DistanceAccumulator {
     // Min time delta (JS MIN_LOCATION_TIME_DELTA_MS): sub-cadence duplicate fixes are noise.
     val activeMinTimeDeltaMs = minTimeDeltaMs
     if (activeMinTimeDeltaMs != null && dtMs < activeMinTimeDeltaMs) {
+      return null
+    }
+
+    // Signal-loss gap (JS isSignalLossGapMs, routeAccumulator.ts): no valid fix for longer than the
+    // ceiling means the path between the two fixes was NEVER OBSERVED — the straight chord is not
+    // ours to credit. Move BOTH anchors to the re-acquired position (JS appends the point and moves
+    // lastCountedPoint to it) and bank nothing, so counting resumes cleanly from there.
+    //
+    // MUST sit BEFORE both teleport gates, exactly like JS, for two reasons:
+    //   1. They are no defense here. They are SPEED-based, and the longer the blackout the LOWER
+    //      the chord's implied speed — a 3-minute tunnel crossing ~1km implies ~5.5 m/s and sails
+    //      under both limits (8.5 / 5.8 m/s) and the server's limiter too.
+    //   2. When a chord DOES trip one, that gate drops the fix WITHOUT moving the anchors. A gap
+    //      check placed after it would never run, and every later fix would keep being compared
+    //      against the stale pre-blackout anchor — distance frozen for the rest of the run.
+    // Gap-first both refuses the credit AND re-anchors, so counting resumes either way.
+    val activeMaxCreditableFixGapMs = maxCreditableFixGapMs
+    if (activeMaxCreditableFixGapMs != null && dtMs > activeMaxCreditableFixGapMs) {
+      lastAppended = current
+      lastCounted = current
       return null
     }
 

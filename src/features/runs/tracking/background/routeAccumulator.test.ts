@@ -12,6 +12,12 @@ import {
   getSnapshotState,
   setSnapshotState,
 } from '@/features/runs/tracking/background/snapshotStore';
+import {
+  MAX_CREDITABLE_FIX_GAP_MS,
+  MAX_REASONABLE_RUNNING_SPEED_MPS,
+  isSignalLossGapMs,
+} from '@/features/runs/tracking/background/locationDistance';
+import { NATIVE_DISTANCE_ACCUMULATOR_OPTIONS } from '@/features/runs/tracking/background/distanceAccumulatorController';
 
 const BASE_LATITUDE = 37.5;
 const BASE_LONGITUDE = 127;
@@ -542,4 +548,73 @@ test('route accumulator still credits short bridge dropouts as before', () => {
 
     assert.ok(getAccumulatedDistanceMeters() - beforeMeters >= 55, `credited only ${(getAccumulatedDistanceMeters() - beforeMeters).toFixed(1)}m`);
   });
+});
+
+// 적대 검증 2026-08-09가 지목한 정확한 시나리오. 위 테스트(720m/120s = 6.0m/s)의 chord는
+// 순간이동 게이트 2(5.8m/s)에 걸리므로 갭 규칙이 없어도 일부는 막힌다 — 이 테스트는 **어떤
+// 속도 필터에도 걸리지 않는** chord를 쓴다: 3분 블랙아웃 + 990m = 5.5m/s는 순간이동 게이트
+// 둘(8.5 / 5.8m/s)과 서버 속도 제한을 전부 통과한다. 즉 갭 규칙이 유일한 방어선이며, 그것을
+// 지우면 chord가 통째로 적립된다.
+//
+// (순서 — 갭 검사가 순간이동 게이트보다 앞에 와야 한다는 것 — 은 위 720m 테스트가 지킨다:
+// 순간이동이 먼저 걸리면 픽스가 통째로 버려져 앵커가 옛 위치에 남고, 이후 모든 픽스가 같은
+// 이유로 거부되어 거리가 남은 러닝 내내 얼어붙는다. 그래서 route.length + 재개 적립을 본다.)
+test('signal-loss gap rule is the ONLY defense against a plausible-speed blackout chord', () => {
+  withFakeClock(({ setNow }) => {
+    const baseMs = Date.now();
+    resetRunningSnapshot(baseMs);
+
+    for (const [metersEast, offsetMs] of [[0, 0], [4, 1_000], [8, 2_000], [20, 3_200]] as const) {
+      setNow(baseMs + offsetMs);
+      appendTrackedLocation(locationAt({ metersEast, timestampMs: baseMs + offsetMs, speedMps: 3 }));
+    }
+    const beforeGapMeters = getAccumulatedDistanceMeters();
+
+    const gapMs = 180_000;
+    const chordMeters = 990;
+    const chordSpeedMps = chordMeters / (gapMs / 1000);
+
+    // 방어선이 갭 규칙 하나뿐임을 먼저 증명한다: chord는 두 순간이동 게이트를 모두 통과한다.
+    assert.ok(chordSpeedMps < MAX_REASONABLE_RUNNING_SPEED_MPS, 'chord would trip teleport gate 1');
+    assert.ok(chordSpeedMps < 5.8, 'chord would trip teleport gate 2');
+    // 그리고 이 갭은 신호 소실로 판정된다.
+    assert.ok(isSignalLossGapMs(gapMs));
+
+    const reacquiredAtMs = baseMs + 3_200 + gapMs;
+    setNow(reacquiredAtMs);
+    appendTrackedLocation(locationAt({
+      metersEast: 20 + chordMeters,
+      timestampMs: reacquiredAtMs,
+      speedMps: 3,
+    }));
+
+    assert.equal(
+      getAccumulatedDistanceMeters(),
+      beforeGapMeters,
+      `blackout chord banked ${(getAccumulatedDistanceMeters() - beforeGapMeters).toFixed(1)}m`,
+    );
+
+    // 앵커는 재획득 지점으로 옮겨졌다 — 거리는 얼지 않고 이후 실제 주행부터 다시 적립된다.
+    for (const extraMeters of [12, 24]) {
+      const atMs = reacquiredAtMs + extraMeters * 100;
+      setNow(atMs);
+      appendTrackedLocation(locationAt({
+        metersEast: 20 + chordMeters + extraMeters,
+        timestampMs: atMs,
+        speedMps: 3,
+      }));
+    }
+    assert.ok(
+      getAccumulatedDistanceMeters() - beforeGapMeters >= 20,
+      'accumulator froze after the blackout instead of re-anchoring',
+    );
+  });
+});
+
+// 갭 상한은 네이티브 누적기에 그대로 전달되어야 한다 (JS만 막고 네이티브가 뚫리면 서버의
+// Math.max(previousDistanceKm, …) 때문에 부풀려진 총합을 되돌릴 수 없다). 키가 사라지면
+// undefined !== 30_000 으로 이 테스트가 깨진다.
+test('the signal-loss gap ceiling is handed to the native accumulators on the same wire', () => {
+  assert.equal(NATIVE_DISTANCE_ACCUMULATOR_OPTIONS.maxCreditableFixGapMs, MAX_CREDITABLE_FIX_GAP_MS);
+  assert.equal(MAX_CREDITABLE_FIX_GAP_MS, 30_000);
 });

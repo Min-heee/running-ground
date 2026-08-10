@@ -28,6 +28,7 @@ import {
   COLD_START_STABLE_FIX_COUNT,
   DISTANCE_GATE_ACCURACY_SCALE,
   DISTANCE_GATE_BASE_METERS,
+  MAX_CREDITABLE_FIX_GAP_MS,
   MAX_LOCATION_AGE_MS,
   MAX_REASONABLE_RUNNING_SPEED_MPS,
   MAX_TRACKING_ACCURACY_METERS,
@@ -49,16 +50,21 @@ export const ENABLE_NATIVE_DISTANCE_MERGE = true;
 // WHY IT IS OFF (적대 검증 2026-08-09, critical): freshness rightly means "are we still
 // MEASURING", and keying staleness on it makes the screen-off native gap-fill reachable in far
 // more situations than before (any stretch where every fix is rejected, plus long stationary
-// stretches) — not just a fully suspended JS thread. But the native accumulators do NOT mirror the
-// JS signal-loss rule: routeAccumulator.ts credits 0 m across a fix gap longer than
-// MAX_CREDITABLE_FIX_GAP_MS (30s, locationDistance.ts), while MatchUploadForegroundService.kt
-// consume() and MatchProgressUploaderModule.swift consume() have no dt ceiling at all. A 3-minute
-// GPS blackout (tunnel, subway) therefore banks its whole ~1km straight-line chord natively at a
-// perfectly plausible 5.5 m/s, and the server's normalizeRunningMatchProgress does
-// Math.max(previousDistanceKm, …) so the inflated total can never be walked back.
+// stretches) — not just a fully suspended JS thread. But the SHIPPED native accumulators do NOT
+// mirror the JS signal-loss rule: routeAccumulator.ts credits 0 m across a fix gap longer than
+// MAX_CREDITABLE_FIX_GAP_MS (30s, locationDistance.ts), while the build-44 binaries'
+// MatchUploadForegroundService.kt consume() and MatchProgressUploaderModule.swift consume() have no
+// dt ceiling at all. A 3-minute GPS blackout (tunnel, subway) therefore banks its whole ~1km
+// straight-line chord natively at a perfectly plausible 5.5 m/s, and the server's
+// normalizeRunningMatchProgress does Math.max(previousDistanceKm, …) so the inflated total can
+// never be walked back.
 //
-// Widening the stale window before the native gate exists would hand that path a much bigger
-// opening, so the signal is computed (and unit-tested) but not yet consulted.
+// STATUS: both native accumulators now implement the gate IN SOURCE (maxCreditableFixGapMs,
+// positioned before the teleport gates exactly like JS), but source is not a shipped binary — the
+// devices in the field still run build 44. Widening the stale window before the gate is LIVE ON
+// DEVICE would hand that path a much bigger opening, so the signal stays computed (and
+// unit-tested) but not consulted. Flip this to true — no native rebuild needed — once a build
+// carrying the native gate is the MINIMUM shipped version.
 export const ENABLE_DISTANCE_ADVANCE_FRESHNESS = false;
 
 // The JS filter constants handed to the native accumulator so native mirrors JS EXACTLY (source:
@@ -93,6 +99,11 @@ export type NativeDistanceAccumulatorOptions = {
   coldStartMaxClusterRadiusMeters: number;
   coldStartMaxAccuracyMeters: number;
   coldStartMaxWindowMs: number;
+  // SIGNAL-LOSS GAP CEILING (JS MAX_CREDITABLE_FIX_GAP_MS / isSignalLossGapMs). No valid fix for
+  // longer than this means the path between the two fixes was never observed, so the chord is NOT
+  // credited — the native accumulator only re-anchors and resumes counting from the re-acquired
+  // position. Added together with the native gate that reads it (see the convention note below).
+  maxCreditableFixGapMs: number;
 };
 
 // TODO(next native build): the JS filter chain now caps the accuracy value used by its
@@ -120,6 +131,8 @@ export const NATIVE_DISTANCE_ACCUMULATOR_OPTIONS: NativeDistanceAccumulatorOptio
   coldStartMaxClusterRadiusMeters: COLD_START_MAX_STABLE_CLUSTER_RADIUS_METERS,
   coldStartMaxAccuracyMeters: COLD_START_MAX_STABLE_ACCURACY_METERS,
   coldStartMaxWindowMs: COLD_START_MAX_STABLE_WINDOW_MS,
+  // Wired in the SAME change that teaches BOTH native accumulators to read it (see above).
+  maxCreditableFixGapMs: MAX_CREDITABLE_FIX_GAP_MS,
 };
 
 type NativeDistanceAccumulatorModule = {

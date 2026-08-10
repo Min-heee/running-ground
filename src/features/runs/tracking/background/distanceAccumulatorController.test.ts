@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  ENABLE_DISTANCE_ADVANCE_FRESHNESS,
   getLastFreshJsAuthoritativeKm,
   NATIVE_DISTANCE_ACCUMULATOR_OPTIONS,
   recordFreshJsAuthoritativeMeters,
@@ -9,6 +10,7 @@ import {
   startNativeDistanceAccumulator,
   stopNativeDistanceAccumulator,
 } from '@/features/runs/tracking/background/distanceAccumulatorController';
+import { MAX_CREDITABLE_FIX_GAP_MS } from '@/features/runs/tracking/background/locationDistance';
 import { resolveBackgroundHeartbeatStatus } from '@/features/runs/tracking/background/backgroundMatchProgressSync';
 import { MATCH_GOAL_DISTANCE_TOLERANCE_KM } from '@/features/runs/sync/matchProgressSync';
 
@@ -368,4 +370,34 @@ test('NATIVE_DISTANCE_ACCUMULATOR_OPTIONS carries the new step-4 wire-format fie
   // The tightened tracking-accuracy + distance-gate base flow through too.
   assert.equal(options.maxAccuracyMeters, 40);
   assert.equal(options.distanceGateBaseMeters, 3.0);
+});
+
+// ---- SIGNAL-LOSS GAP CEILING ON THE WIRE (적대 검증 2026-08-09) ----
+//
+// The JS chain refuses to credit the chord across a fix gap longer than MAX_CREDITABLE_FIX_GAP_MS,
+// but the native accumulators had NO dt ceiling — so a 3-minute blackout banked its whole ~1km
+// chord natively at a plausible ~5.5 m/s, under both teleport gates and the server speed limiter.
+// The server's normalizeRunningMatchProgress is Math.max(previousDistanceKm, …), so that inflated
+// total can never be walked back. The ceiling must therefore reach native on the same wire.
+test('NATIVE_DISTANCE_ACCUMULATOR_OPTIONS carries the signal-loss gap ceiling', () => {
+  const options = NATIVE_DISTANCE_ACCUMULATOR_OPTIONS;
+  // Sourced from the JS constant — the two chains cannot drift apart by tuning one of them.
+  assert.equal(options.maxCreditableFixGapMs, MAX_CREDITABLE_FIX_GAP_MS);
+  assert.equal(options.maxCreditableFixGapMs, 30_000);
+  // A non-positive/garbled ceiling would gate EVERY fix natively (distance frozen for the run);
+  // both native parsers reject that, and the wire must never send it in the first place.
+  assert.ok(Number.isFinite(options.maxCreditableFixGapMs) && options.maxCreditableFixGapMs > 0);
+});
+
+// The freshness signal must stay OFF until a binary carrying the native gap gate is the minimum
+// shipped version: keying staleness on distance-ADVANCE widens how often the native total is
+// consulted, and the field binaries (build 44) have no dt ceiling. Flipping this before the native
+// gate is live on device hands the blackout path a much bigger opening.
+test('ENABLE_DISTANCE_ADVANCE_FRESHNESS stays off until the native gap gate ships', () => {
+  assert.equal(
+    ENABLE_DISTANCE_ADVANCE_FRESHNESS,
+    false,
+    'Flipping this is only safe once a build carrying the native maxCreditableFixGapMs gate is the '
+      + 'MINIMUM shipped version — verify on device first, then update this test with the flag.',
+  );
 });

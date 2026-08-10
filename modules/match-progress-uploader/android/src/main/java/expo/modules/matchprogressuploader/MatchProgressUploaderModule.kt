@@ -176,6 +176,9 @@ class MatchProgressUploaderModule : Module() {
       putDistanceOption(intent, MatchUploadForegroundService.EXTRA_COLD_START_MAX_CLUSTER_RADIUS_METERS, options["coldStartMaxClusterRadiusMeters"])
       putDistanceOption(intent, MatchUploadForegroundService.EXTRA_COLD_START_MAX_ACCURACY_METERS, options["coldStartMaxAccuracyMeters"])
       putDistanceOption(intent, MatchUploadForegroundService.EXTRA_COLD_START_MAX_WINDOW_MS, options["coldStartMaxWindowMs"])
+      // Signal-loss gap ceiling (JS MAX_CREDITABLE_FIX_GAP_MS) — same optional contract: an old
+      // bundle omits it and the service keeps the (uncapped) previous behavior.
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_MAX_CREDITABLE_FIX_GAP_MS, options["maxCreditableFixGapMs"])
       // Reserved overrides — no JS bundle sends these yet; forwarded so a future OTA can deliver
       // them without another native build.
       putDistanceOption(intent, MatchUploadForegroundService.EXTRA_MIN_MOVEMENT_METERS, options["minMovementMeters"])
