@@ -110,9 +110,14 @@ export function useStartTrackingAction({
       await resetBackgroundRunTracking();
 
       if (options?.allowCountdownWarmup) {
-        const warmupMatchId = matchMode === 'duel'
-          ? duelMatchStatus?.matchId ?? roomLinkedStartContext?.matchId
-          : groupMatchStatus?.matchId ?? roomLinkedStartContext?.matchId;
+        // 적대 검증 2026-08-11: prefer the matchId the CALLER armed for (the auto-start funnel
+        // always passes it). Deriving it here from the status objects let a stale scheduled duel
+        // shadow the party-run room match — the ref then carried the WRONG id, the baseline
+        // reconciliation never matched, and the warmup meters stuck to the official result.
+        const warmupMatchId = options?.matchId
+          ?? (matchMode === 'duel'
+            ? duelMatchStatus?.matchId ?? roomLinkedStartContext?.matchId
+            : groupMatchStatus?.matchId ?? roomLinkedStartContext?.matchId);
         preStartWarmupMatchIdRef.current = warmupMatchId ?? null;
         officialStartBaselineRef.current = null;
       } else {

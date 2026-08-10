@@ -3,11 +3,16 @@ import type { MutableRefObject } from 'react';
 import { Platform } from 'react-native';
 import {
   getBackgroundRunTrackingSnapshot,
+  resetBackgroundRunTracking,
   restorePersistedBackgroundRunTracking,
   type BackgroundRunTrackingSnapshot,
 } from '@/features/runs/tracking/background';
 import { getLocalGoalFreeze } from '@/features/runs/sync/localGoalFreezeStore';
-import { resolvePreSlotWarmupTarget } from '@/features/runs/tracking/lifecycle/preSlotWarmup';
+import {
+  isWarmupEraSnapshot,
+  resolvePreSlotWarmupTarget,
+  WARMUP_ORPHAN_BACKSTOP_AFTER_SLOT_MS,
+} from '@/features/runs/tracking/lifecycle/preSlotWarmup';
 import {
   buildOfficialStartBaseline,
 } from '@/features/runs/tracking/trackingSession';
@@ -60,6 +65,9 @@ export function useMatchAutoTrackingEffects({
   syncFromBackgroundTracking,
 }: UseMatchAutoTrackingEffectsInput) {
   const restoringMatchIdRef = useRef<string | null>(null);
+  // ONE warmup attempt per match (see the warmup effect) — never re-cleared within a match so a
+  // failed attempt cannot loop; the slot-time active path remains the second, unconditional try.
+  const warmupAttemptedMatchIdRef = useRef<string | null>(null);
 
   // STAGE 4 (clean core): the pre-slot GPS warm-up is GONE. The old warm-up branch was gated
   // on shouldAutoOpenMatchArena (≤20s) / the arena-handoff phase — i.e. it started MEASURING
@@ -72,12 +80,19 @@ export function useMatchAutoTrackingEffects({
       return;
     }
 
-    if (!officialStartBaselineRef.current) {
+    // 적대 검증 2026-08-11: this clear may only run when NO session is in flight. During a
+    // countdown warmup the session is 'running' with the baseline deliberately still null — the
+    // focus gate toggling trackingSubscriptionsEnabled on a mid-countdown tab flip used to re-run
+    // this effect and wipe the warmup ref, and with it the only key both baseline builders accept:
+    // the countdown meters then leaked into the official result. status==='idle' is the "no live
+    // match in flight" this clear was always meant for (Stage 4 comment above).
+    if (!officialStartBaselineRef.current && status === 'idle') {
       preStartWarmupMatchIdRef.current = null;
     }
   }, [
     officialStartBaselineRef,
     preStartWarmupMatchIdRef,
+    status,
     trackingSubscriptionsEnabled,
   ]);
 
@@ -121,12 +136,86 @@ export function useMatchAutoTrackingEffects({
       preStartWarmupMatchIdRef.current === warmupTarget.matchId
       || autoStartedMatchIdRef.current === warmupTarget.matchId
       || restoringMatchIdRef.current === warmupTarget.matchId
+      // 적대 검증 2026-08-11: ONE warmup attempt per match. A failed start (e.g. permission
+      // denied) releases the funnel guards, and the 2.5s status polls re-render this effect — an
+      // unbounded retry re-opened the permission/disclosure prompt every poll for the rest of the
+      // countdown. One attempt; on failure the slot-time active path starts exactly as before.
+      || warmupAttemptedMatchIdRef.current === warmupTarget.matchId
     ) {
       return;
     }
 
-    startMatchTrackingAutomatically(warmupTarget.matchId, { allowCountdownWarmup: true });
+    warmupAttemptedMatchIdRef.current = warmupTarget.matchId;
+
+    // 적대 검증 2026-08-11 (zombie backstop): a match can dissolve AFTER warmup arms (room
+    // cancelled mid-countdown, stale 'matched' context) and pre-slot there is no teardown path —
+    // the FGS+GPS would spin until the user noticed. Backstop: if no official-start baseline has
+    // materialized well past the slot, the warmup session has no match to serve — drop it. The
+    // timer runs on JS the warmup's own FGS keeps alive; if the process died there is nothing to
+    // clean. A legitimate late promotion loses nothing: the active path re-arms exactly as it
+    // would have without warmup.
+    const slotStartMs = Date.parse(warmupTarget.slotStartAt);
+    const backstopDelayMs = Math.max(
+      (Number.isFinite(slotStartMs) ? slotStartMs - Date.now() : 0) + WARMUP_ORPHAN_BACKSTOP_AFTER_SLOT_MS,
+      WARMUP_ORPHAN_BACKSTOP_AFTER_SLOT_MS,
+    );
+    setTimeout(() => {
+      const liveStatus = getBackgroundRunTrackingSnapshot({ cloneRoute: false }).status;
+      if (
+        officialStartBaselineRef.current
+        || preStartWarmupMatchIdRef.current !== warmupTarget.matchId
+        || liveStatus !== 'running'
+      ) {
+        return;
+      }
+      // warmupAttemptedMatchIdRef stays SET: this matchId is still inside the resolver's stale
+      // floor, and clearing it here would let the effect re-arm the orphan and loop
+      // start→backstop→start every two minutes until the floor expires.
+      preStartWarmupMatchIdRef.current = null;
+      void resetBackgroundRunTracking().then(() => {
+        syncFromBackgroundTracking(getBackgroundRunTrackingSnapshot({ cloneRoute: false }));
+      });
+    }, backstopDelayMs);
+
+    // 적대 검증 2026-08-11 (restore-first): the active path never starts fresh over a restorable
+    // session, and neither may warmup — a cold relaunch inside a stale-'matched' window used to
+    // reset straight over a crashed run's persisted meters. Same discipline, same goal-freeze
+    // guard (never re-launch a finished match).
+    restoringMatchIdRef.current = warmupTarget.matchId;
+    void restorePersistedBackgroundRunTracking(warmupTarget.matchId, {
+      appState: appStateRef.current,
+      detachLocationTask: Platform.OS === 'android' && matchMode !== 'solo',
+      trackingKey: warmupTarget.matchId,
+    }).then((restored) => {
+      if (restoringMatchIdRef.current !== warmupTarget.matchId) {
+        return;
+      }
+
+      if (restored) {
+        autoStartedMatchIdRef.current = warmupTarget.matchId;
+        const restoredSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
+        // A restored pre-slot session must be re-marked as warmup so the baseline builders rebase
+        // it at the slot — the ref died with the process, the snapshot's startedAt did not.
+        if (isWarmupEraSnapshot(restoredSnapshot.startedAt, warmupTarget.slotStartAt)) {
+          preStartWarmupMatchIdRef.current = warmupTarget.matchId;
+        }
+        syncFromBackgroundTracking(restoredSnapshot);
+        return;
+      }
+
+      if (
+        getBackgroundRunTrackingSnapshot({ cloneRoute: false }).status !== 'running'
+        && !getLocalGoalFreeze(warmupTarget.matchId)
+      ) {
+        startMatchTrackingAutomatically(warmupTarget.matchId, { allowCountdownWarmup: true });
+      }
+    }).finally(() => {
+      if (restoringMatchIdRef.current === warmupTarget.matchId) {
+        restoringMatchIdRef.current = null;
+      }
+    });
   }, [
+    appStateRef,
     autoStartedMatchIdRef,
     duelMatchStatus,
     groupMatchStatus,
@@ -136,6 +225,7 @@ export function useMatchAutoTrackingEffects({
     roomLinkedMatchContext,
     startMatchTrackingAutomatically,
     status,
+    syncFromBackgroundTracking,
     trackingSubscriptionsEnabled,
   ]);
 
@@ -225,7 +315,15 @@ export function useMatchAutoTrackingEffects({
 
       if (restored) {
         autoStartedMatchIdRef.current = activeMatchId;
-        syncFromBackgroundTracking(getBackgroundRunTrackingSnapshot({ cloneRoute: false }));
+        const restoredSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
+        // 적대 검증 2026-08-11: a crash-restored session that STARTED before the slot is a warmup
+        // session whose baseline died with the process. Re-mark it so the baseline branch above
+        // rebuilds the official-start baseline (route truncation at the slot) on the next pass —
+        // otherwise the countdown meters and seconds would count as match performance.
+        if (isWarmupEraSnapshot(restoredSnapshot.startedAt, activeMatch?.slotStartAt ?? null)) {
+          preStartWarmupMatchIdRef.current = activeMatchId;
+        }
+        syncFromBackgroundTracking(restoredSnapshot);
         return;
       }
 

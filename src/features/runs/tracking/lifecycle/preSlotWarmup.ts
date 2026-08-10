@@ -52,13 +52,46 @@ function readCandidate(candidate: PreSlotMatchSnapshot): { matchId: string; slot
   return { matchId, slotStartAt };
 }
 
+// A session whose tracking began BEFORE the slot is a warmup-era session: its first meters/seconds
+// belong to the countdown, not the match, and the official-start baseline must rebase it at the
+// slot. Restore paths use this to re-mark a session after process death — the warmup ref does not
+// survive the process, but the snapshot's own startedAt does (적대 검증 2026-08-11: without the
+// re-mark, a crash-restored warmup session baked its countdown meters and seconds into the
+// official result because both baseline builders key on the ref).
+export function isWarmupEraSnapshot(startedAt: string | null | undefined, slotStartAt: string | null | undefined): boolean {
+  const startedMs = Date.parse(startedAt ?? '');
+  const slotMs = Date.parse(slotStartAt ?? '');
+
+  if (!Number.isFinite(startedMs) || !Number.isFinite(slotMs)) {
+    return false;
+  }
+
+  return startedMs < slotMs;
+}
+
+// How far past the slot an armed warmup may wait for its official start before it is declared an
+// orphan (match dissolved mid-countdown) and dropped. Promotion lag is poll-RTT-scale (seconds);
+// two minutes is generous without leaving GPS+FGS spinning on a dead match.
+export const WARMUP_ORPHAN_BACKSTOP_AFTER_SLOT_MS = 120_000;
+
+function isInsideWarmupWindow(candidate: { slotStartAt: string }, nowMs: number): boolean {
+  const slotStartMs = Date.parse(candidate.slotStartAt);
+
+  if (!Number.isFinite(slotStartMs)) {
+    return false;
+  }
+
+  const untilSlotMs = slotStartMs - nowMs;
+  return untilSlotMs <= PRE_SLOT_WARMUP_WINDOW_MS && untilSlotMs >= -PRE_SLOT_WARMUP_STALE_AFTER_MS;
+}
+
 export function resolvePreSlotWarmupTarget(input: {
   matchMode: string;
   duelMatchStatus?: PreSlotMatchSnapshot;
   groupMatchStatus?: PreSlotMatchSnapshot;
   roomLinkedMatchContext?: RoomLinkedSnapshot;
   nowMs: number;
-}): { matchId: string } | null {
+}): { matchId: string; slotStartAt: string } | null {
   // Live matches only — solo has its own warmup flow, chase arms on entry.
   if (input.matchMode !== 'duel' && input.matchMode !== 'group') {
     return null;
@@ -71,29 +104,17 @@ export function resolvePreSlotWarmupTarget(input: {
     ? readCandidate(input.duelMatchStatus)
     : readCandidate(input.groupMatchStatus);
 
-  // Same precedence as the active path: the mode-specific status wins, the room-linked context is
-  // the party-run fallback.
-  const candidate = statusCandidate ?? roomCandidate;
+  // Same precedence as the active path — the mode-specific status first, the room-linked context
+  // as the party-run fallback — but the window is judged PER CANDIDATE (적대 검증 2026-08-11): a
+  // scheduled duel matched hours out must not SHADOW an in-window party-run room countdown, or the
+  // party match would silently lose its warmup and reproduce the incident this file exists to fix.
+  const candidate = [statusCandidate, roomCandidate].find(
+    (entry): entry is NonNullable<typeof entry> => entry !== null && isInsideWarmupWindow(entry, input.nowMs),
+  ) ?? null;
 
   if (!candidate) {
     return null;
   }
 
-  const slotStartMs = Date.parse(candidate.slotStartAt);
-
-  if (!Number.isFinite(slotStartMs)) {
-    return null;
-  }
-
-  const untilSlotMs = slotStartMs - input.nowMs;
-
-  if (untilSlotMs > PRE_SLOT_WARMUP_WINDOW_MS) {
-    return null;
-  }
-
-  if (untilSlotMs < -PRE_SLOT_WARMUP_STALE_AFTER_MS) {
-    return null;
-  }
-
-  return { matchId: candidate.matchId };
+  return { matchId: candidate.matchId, slotStartAt: candidate.slotStartAt };
 }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  isWarmupEraSnapshot,
   PRE_SLOT_WARMUP_STALE_AFTER_MS,
   PRE_SLOT_WARMUP_WINDOW_MS,
   resolvePreSlotWarmupTarget,
@@ -33,7 +34,7 @@ test('the incident shape: a matched party-run room context inside the countdown 
     nowMs: NOW,
   });
 
-  assert.deepEqual(target, { matchId: 'duel-match-80d88038' });
+  assert.deepEqual(target, { matchId: 'duel-match-80d88038', slotStartAt: slotIn(10_000) });
 });
 
 test('a scheduled duel warms up only inside the ≤20s arena window', () => {
@@ -54,14 +55,14 @@ test('a scheduled duel warms up only inside the ≤20s arena window', () => {
   assert.deepEqual(resolvePreSlotWarmupTarget({
     ...base,
     duelMatchStatus: { state: 'matched', matchId: 'duel-1', slotStartAt: slotIn(PRE_SLOT_WARMUP_WINDOW_MS) },
-  }), { matchId: 'duel-1' });
+  }), { matchId: 'duel-1', slotStartAt: slotIn(PRE_SLOT_WARMUP_WINDOW_MS) });
 
   // Slot just passed but still 'matched' (promotion poll lag) — arming is exactly what that lag
   // needs, so it stays eligible.
   assert.deepEqual(resolvePreSlotWarmupTarget({
     ...base,
     duelMatchStatus: { state: 'matched', matchId: 'duel-1', slotStartAt: slotIn(-30_000) },
-  }), { matchId: 'duel-1' });
+  }), { matchId: 'duel-1', slotStartAt: slotIn(-30_000) });
 
   // Long-dead matched context (abandoned, awaiting prune) — never arm.
   assert.equal(resolvePreSlotWarmupTarget({
@@ -108,7 +109,35 @@ test('mode-specific status wins over the room context, mirroring the active path
     nowMs: NOW,
   });
 
-  assert.deepEqual(target, { matchId: 'group-official' });
+  assert.deepEqual(target, { matchId: 'group-official', slotStartAt: slotIn(8_000) });
+});
+
+// 적대 검증 2026-08-11: the window must be judged PER CANDIDATE. A scheduled duel matched hours out
+// used to SHADOW an in-window party-run room countdown (precedence picked it first, then the window
+// check nulled everything) — silently disabling the warmup for exactly the incident this exists for.
+test('an out-of-window status candidate cannot shadow an in-window room candidate', () => {
+  const target = resolvePreSlotWarmupTarget({
+    matchMode: 'duel',
+    duelMatchStatus: { state: 'matched', matchId: 'duel-tonight', slotStartAt: slotIn(2 * 60 * 60 * 1000) },
+    groupMatchStatus: null,
+    roomLinkedMatchContext: { mode: 'duel', state: 'matched', matchId: 'party-now', slotStartAt: slotIn(10_000) },
+    nowMs: NOW,
+  });
+
+  assert.deepEqual(target, { matchId: 'party-now', slotStartAt: slotIn(10_000) });
+});
+
+// 적대 검증 2026-08-11: the warmup ref dies with the process, but the snapshot's own startedAt does
+// not — restore paths re-mark a pre-slot-started session so the baseline rebuilds and the countdown
+// meters/seconds stay out of the official result.
+test('isWarmupEraSnapshot: only a session started strictly before the slot is warmup-era', () => {
+  assert.equal(isWarmupEraSnapshot(slotIn(-15_000), slotIn(0)), true);
+  assert.equal(isWarmupEraSnapshot(slotIn(0), slotIn(0)), false);
+  assert.equal(isWarmupEraSnapshot(slotIn(5_000), slotIn(0)), false);
+  // Unparseable input must never claim warmup-era (it would wrongly rebase a normal run).
+  assert.equal(isWarmupEraSnapshot(null, slotIn(0)), false);
+  assert.equal(isWarmupEraSnapshot(slotIn(-15_000), undefined), false);
+  assert.equal(isWarmupEraSnapshot('not-a-date', slotIn(0)), false);
 });
 
 test('malformed input never arms: missing ids, missing/garbled slot times', () => {
