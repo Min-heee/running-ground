@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
@@ -47,11 +47,15 @@ function EventMetaRow({ label, value }: { label: string; value: string }) {
 function FeaturedEventCard({
   event,
   busy,
+  password,
+  onChangePassword,
   onJoin,
   onCancel,
 }: {
   event: OfflineRaceEvent;
   busy: boolean;
+  password: string;
+  onChangePassword: (value: string) => void;
   onJoin: (event: OfflineRaceEvent) => void;
   onCancel: (event: OfflineRaceEvent) => void;
 }) {
@@ -93,13 +97,26 @@ function FeaturedEventCard({
         </View>
       ) : null}
 
+      {action.kind === 'join' && event.passwordRequired ? (
+        <TextInput
+          style={styles.passwordInput}
+          value={password}
+          onChangeText={onChangePassword}
+          placeholder="참가 비밀번호"
+          placeholderTextColor={colors.textPlaceholder}
+          keyboardType="number-pad"
+          secureTextEntry
+          editable={!busy}
+        />
+      ) : null}
+
       {action.kind === 'cancel' ? (
         <SecondaryButton label={busy ? '처리 중…' : action.label} onPress={() => onCancel(event)} disabled={busy} />
       ) : (
         <PrimaryButton
           label={busy ? '처리 중…' : action.label}
           onPress={() => onJoin(event)}
-          disabled={busy || action.disabled}
+          disabled={busy || action.disabled || (Boolean(event.passwordRequired) && !password.trim())}
         />
       )}
     </Card>
@@ -125,6 +142,7 @@ export default function RaceScreen() {
   const [state, setState] = useState<HubState>({ status: 'loading' });
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [joinPassword, setJoinPassword] = useState('');
 
   const loadHub = useCallback(async () => {
     try {
@@ -145,7 +163,8 @@ export default function RaceScreen() {
     setBusyEventId(event.id);
     setActionError(null);
     try {
-      await joinOfflineRace(event.id);
+      await joinOfflineRace(event.id, event.passwordRequired ? joinPassword.trim() : undefined);
+      setJoinPassword('');
       // 출발 10분 전 로컬 알림 — 화면이 꺼져 있어도 OS가 배달한다. 실패(권한 거부 등)해도
       // 신청 자체는 성공이므로 막지 않는다.
       void scheduleRaceReminder({ eventId: event.id, title: event.title, startsAt: event.startsAt });
@@ -155,7 +174,7 @@ export default function RaceScreen() {
     } finally {
       setBusyEventId(null);
     }
-  }, [loadHub]);
+  }, [joinPassword, loadHub]);
 
   const handleCancel = useCallback(async (event: OfflineRaceEvent) => {
     setBusyEventId(event.id);
@@ -206,6 +225,8 @@ export default function RaceScreen() {
             <FeaturedEventCard
               event={state.hub.featuredEvent}
               busy={busyEventId === state.hub.featuredEvent.id}
+              password={joinPassword}
+              onChangePassword={setJoinPassword}
               onJoin={handleJoin}
               onCancel={handleCancel}
             />
@@ -314,6 +335,17 @@ const styles = StyleSheet.create({
   },
   metaBlock: {
     gap: spacing.s10,
+  },
+  passwordInput: {
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.borderSoft,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    color: colors.textPrimary,
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.bold,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s12,
   },
   rewardBox: {
     backgroundColor: colors.brandWash,

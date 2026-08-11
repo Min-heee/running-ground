@@ -27,14 +27,14 @@ export async function fetchOfflineRaceHub(): Promise<OfflineRaceHubResponse> {
   });
 }
 
-export async function joinOfflineRace(eventId: string): Promise<OfflineRaceEntryActionResponse> {
+export async function joinOfflineRace(eventId: string, password?: string): Promise<OfflineRaceEntryActionResponse> {
   if (USE_MOCK_API) {
     return mutateMockOfflineRaceRegistration(eventId, 'join');
   }
 
   return apiPost<OfflineRaceEntryActionResponse>(
     `/offline-races/${eventId}/join`,
-    {},
+    password ? { password } : {},
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '레이스 신청에 실패했어요.',

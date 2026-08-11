@@ -62,6 +62,8 @@ export type OfflineRaceEvent = {
   entryFeePoints: number;
   operationNote: string;
   registered: boolean;
+  // 참가 비밀번호가 걸린 회차(테스트/비공개) — 클라는 입력창 표시 여부만 안다.
+  passwordRequired?: boolean;
   status: OfflineRaceStatus;
   participantPreview: OfflineRaceParticipantPreview[];
 };

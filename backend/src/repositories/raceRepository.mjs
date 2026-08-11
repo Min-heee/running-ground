@@ -1,3 +1,5 @@
+import { formDueLiveGroupRaceSessions } from '../lib/raceEventFormation.mjs';
+
 export function createJsonRaceRepository({
   loadStore,
   mutateStore,
@@ -20,7 +22,16 @@ export function createJsonRaceRepository({
       return buildAdminOfflineRaceEvents(await loadStore());
     },
 
-    async applyEntryAction({ token, eventId, action }) {
+    // 8·15런 편성 스윕 — 허브 GET이 부른다. 편성할 게 없으면 store가 안 바뀌어 mutateStore의
+    // 무변경 직렬화 스킵이 저장을 건너뛴다 (폴마다 불러도 무비용).
+    async sweepLiveGroupFormation() {
+      return mutateStore((store) => {
+        ensureOfflineRaceStore(store);
+        return { formed: formDueLiveGroupRaceSessions(store) };
+      });
+    },
+
+    async applyEntryAction({ token, eventId, action, password }) {
       return mutateStore((store) => {
         ensureOfflineRaceStore(store);
         const user = requireUserByToken(store, token);
@@ -42,6 +53,12 @@ export function createJsonRaceRepository({
         if (action === 'join') {
           if (alreadyRegistered) {
             throw createError(409, '이미 신청한 레이스예요.');
+          }
+
+          // 비밀번호 걸린 이벤트(테스트/비공개 회차): 서버가 보관한 값과 대조. 허브 payload에는
+          // passwordRequired(불리언)만 나가고 비밀번호 자체는 절대 안 나간다.
+          if (event.joinPassword && String(password ?? '').trim() !== event.joinPassword) {
+            throw createError(403, '참가 비밀번호가 올바르지 않아요.');
           }
 
           if (registeredUserTags.length >= event.capacity) {

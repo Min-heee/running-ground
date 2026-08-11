@@ -34,10 +34,30 @@ export function normalizeAdminOfflineRaceEventInput(body) {
     throw new ApiError(400, '접수 마감은 출발 시간보다 이전이어야 해요.');
   }
 
+  // 레이스 거리는 소수 2자리까지 허용한다 — 8·15런의 8.15km처럼 날짜를 딴 거리가 기획의
+  // 핵심인데, 매치 큐용 validateDistanceKm는 1자리로 반올림해 8.2가 돼버린다.
+  const rawDistanceKm = Number(body.distanceKm);
+
+  if (!Number.isFinite(rawDistanceKm) || rawDistanceKm <= 0) {
+    throw new ApiError(400, '레이스 거리를 입력해주세요.');
+  }
+
+  const eventKind = normalizeOptionalString(body.eventKind);
+
+  if (eventKind && eventKind !== 'live_group') {
+    throw new ApiError(400, '지원하지 않는 레이스 방식이에요.');
+  }
+
+  const joinPassword = normalizeOptionalString(body.joinPassword);
+
+  if (joinPassword && joinPassword.length > 20) {
+    throw new ApiError(400, '참가 비밀번호는 20자 이하로 입력해주세요.');
+  }
+
   return {
     title: validateRequiredString(body.title, '레이스 이름을 입력해주세요.'),
     subtitle: validateRequiredString(body.subtitle, '레이스 한 줄 설명을 입력해주세요.'),
-    distanceKm: validateDistanceKm(body.distanceKm, '레이스 거리를 입력해주세요.'),
+    distanceKm: Math.round(rawDistanceKm * 100) / 100,
     startsAt,
     registrationClosesAt,
     participationMode: validateRequiredString(body.participationMode, '운영 방식을 입력해주세요.'),
@@ -47,6 +67,11 @@ export function normalizeAdminOfflineRaceEventInput(body) {
     capacity: validatePositiveInteger(body.capacity, '정원은 1명 이상으로 입력해주세요.'),
     entryFeePoints: validateNonNegativeInteger(body.entryFeePoints, '참가 포인트는 0 이상으로 입력해주세요.'),
     operationNote: validateRequiredString(body.operationNote, '운영 안내를 입력해주세요.'),
+    // 8·15런: 'live_group'이면 마감 후 신청자 전원이 하나의 그룹 세션으로 편성된다
+    // (raceEventFormation.mjs). 생략하면 기존과 같은 목록 전용 이벤트.
+    ...(eventKind ? { eventKind } : {}),
+    // 참가 비밀번호(선택): 테스트/비공개 회차용. 허브에는 passwordRequired 불리언만 나간다.
+    ...(joinPassword ? { joinPassword } : {}),
   };
 }
 

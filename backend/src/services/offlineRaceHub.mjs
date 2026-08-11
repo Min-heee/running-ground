@@ -89,6 +89,8 @@ export function decorateOfflineRaceEvent(store, event, currentUser = null) {
     entryFeePoints: event.entryFeePoints,
     operationNote: event.operationNote,
     registered: typeof currentUserTag === 'string' ? (event.registeredUserTags ?? []).includes(currentUserTag) : false,
+    // 비밀번호 자체는 절대 내보내지 않는다 — 클라는 입력창을 띄울지만 판단한다.
+    passwordRequired: Boolean(event.joinPassword),
     status: getOfflineRaceStatus(event),
     participantPreview: buildOfflineRaceParticipantPreview(store, event),
   };
