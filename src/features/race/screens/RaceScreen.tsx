@@ -86,6 +86,13 @@ function FeaturedEventCard({
         <EventMetaRow label="방식" value="전원 동시 출발 · 라이브 순위" />
       </View>
 
+      {event.operationNote ? (
+        <View style={styles.rewardBox}>
+          <Text style={styles.rewardEyebrow}>완주 보상</Text>
+          <Text style={styles.rewardText}>{event.operationNote}</Text>
+        </View>
+      ) : null}
+
       {action.kind === 'cancel' ? (
         <SecondaryButton label={busy ? '처리 중…' : action.label} onPress={() => onCancel(event)} disabled={busy} />
       ) : (
@@ -307,6 +314,26 @@ const styles = StyleSheet.create({
   },
   metaBlock: {
     gap: spacing.s10,
+  },
+  rewardBox: {
+    backgroundColor: colors.brandWash,
+    borderColor: colors.brandSoftBorder,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.s14,
+  },
+  rewardEyebrow: {
+    color: colors.brandDeep,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+    letterSpacing: 1,
+  },
+  rewardText: {
+    color: colors.textPrimary,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.semibold,
+    lineHeight: 20,
   },
   metaRow: {
     alignItems: 'center',
