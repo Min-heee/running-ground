@@ -51,7 +51,12 @@ export function buildLocationTaskOptions(): Location.LocationTaskOptions {
           deferredUpdatesDistance: 0,
         }
       : {}),
-    mayShowUserSettingsDialog: true,
+    // false, and load-bearing for the silent-retry contract: the manager core re-attempts this
+    // start on a bounded backoff, and a retry must never surface a system dialog. expo-location
+    // 19.0.8 ignores this option in startLocationUpdatesAsync on both platforms (the settings
+    // dialog exists only in watchPosition/getCurrentPosition), so this is inert today — false
+    // keeps it inert if a future SDK starts honoring it here.
+    mayShowUserSettingsDialog: false,
     // activityType fitness already biases iOS toward frequent pedestrian fixes.
     activityType: Location.ActivityType.Fitness,
     // pausesUpdatesAutomatically=false so iOS never auto-pauses background updates mid-run.

@@ -15,12 +15,12 @@ let stopForegroundLocationTrace: (() => void) | null = null;
 const FOREGROUND_LOCATION_TIME_INTERVAL_MS = 1000;
 const FOREGROUND_LOCATION_DISTANCE_INTERVAL_M = 0;
 
-function buildForegroundLocationOptions(): Location.LocationOptions {
+function buildForegroundLocationOptions(mayShowUserSettingsDialog: boolean): Location.LocationOptions {
   return {
     accuracy: Location.Accuracy.BestForNavigation,
     timeInterval: FOREGROUND_LOCATION_TIME_INTERVAL_MS,
     distanceInterval: FOREGROUND_LOCATION_DISTANCE_INTERVAL_M,
-    mayShowUserSettingsDialog: true,
+    mayShowUserSettingsDialog,
   };
 }
 
@@ -35,23 +35,38 @@ export function stopForegroundLocationWatch() {
   stopForegroundLocationTrace = null;
 }
 
-export async function startForegroundLocationWatch() {
+export type StartForegroundLocationWatchOptions = {
+  // Android location-settings popup. Automatic re-arms (the manager core's silent retry) MUST
+  // pass false — a retry can fire with the user mid-run or mid-lock and must never surface a
+  // system dialog. Only user-intent start paths keep the default true.
+  mayShowUserSettingsDialog?: boolean;
+};
+
+// Resolves true when the watch is live after this call. A failed watchPositionAsync is swallowed
+// on purpose (never reject: the detached start path fire-and-forgets, so a rejection would
+// vanish) — this boolean is the only channel that carries the failure to the policy/manager
+// layers, which own recording + retry.
+export async function startForegroundLocationWatch(
+  options?: StartForegroundLocationWatchOptions,
+): Promise<boolean> {
   if (foregroundLocationSubscription) {
-    return;
+    return true;
   }
 
   try {
     foregroundLocationSubscription = await Location.watchPositionAsync(
-      buildForegroundLocationOptions(),
+      buildForegroundLocationOptions(options?.mayShowUserSettingsDialog ?? true),
       appendTrackedLocation,
     );
     stopForegroundLocationTrace = rgPerfTrackResource('watcher', 'foreground location watch', {
       distanceInterval: FOREGROUND_LOCATION_DISTANCE_INTERVAL_M,
       timeInterval: FOREGROUND_LOCATION_TIME_INTERVAL_MS,
     });
+    return true;
   } catch {
     foregroundLocationSubscription = null;
     stopForegroundLocationTrace?.();
     stopForegroundLocationTrace = null;
+    return false;
   }
 }

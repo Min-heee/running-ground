@@ -12,7 +12,10 @@ import {
   type LocationTaskPolicy,
 } from '@/features/runs/tracking/background/locationTaskPolicy';
 
-export type { LocationTaskPolicy } from '@/features/runs/tracking/background/locationTaskPolicy';
+export type {
+  LocationTaskPolicy,
+  LocationTaskStartOutcome,
+} from '@/features/runs/tracking/background/locationTaskPolicy';
 
 const locationTaskController = createLocationTaskController({
   platform: Platform.OS,
@@ -27,5 +30,5 @@ export async function stopLocationTaskIfNeeded() {
 }
 
 export async function startLocationTask(policy: LocationTaskPolicy = {}) {
-  await locationTaskController.startLocationTask(policy);
+  return locationTaskController.startLocationTask(policy);
 }

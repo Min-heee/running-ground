@@ -39,6 +39,9 @@ import { resolveLocationTimestampMs } from '@/features/runs/tracking/background/
 import {
   buildWarmupBaselineSnapshot,
 } from '@/features/runs/tracking/background/warmupSnapshotPolicy';
+import {
+  runBackgroundResetSequence,
+} from '@/features/runs/tracking/background/backgroundResetSequence';
 
 export type {
   BackgroundRunTrackingSnapshot,
@@ -260,19 +263,17 @@ export async function resumeBackgroundRunTracking(options?: StartBackgroundRunTr
   startAndroidBackgroundLocationTaskEagerly();
 }
 
+// The step ORDER lives in runBackgroundResetSequence — pinned there by tests because the order
+// IS the TOCTOU zombie-GPS fix (snapshot flips to idle before the awaited native stop).
 export async function resetBackgroundRunTracking() {
-  const previousMatchId = stopBackgroundRunPersistence();
-  await stopManagedLocationTask();
-  resetTrackingStateOnly();
-  emitSnapshot();
-  await clearBackgroundRunSnapshot(previousMatchId);
-  // HANDS-FREE FINISH — a reset-driven discard drops the local goal freeze together with the
-  // persisted snapshot (the user chose to throw the run away, or the post-save reset already ran
-  // after runCleanupAfterSave cleared it — double-clearing is a no-op). This is one of exactly
-  // two clear sites; the freeze is never cleared on server ACK.
-  if (previousMatchId) {
-    clearLocalGoalFreeze(previousMatchId);
-  }
+  await runBackgroundResetSequence({
+    stopPersistence: stopBackgroundRunPersistence,
+    resetTrackingStateOnly,
+    emitSnapshot,
+    stopManagedLocationTask,
+    clearPersistedSnapshot: clearBackgroundRunSnapshot,
+    clearGoalFreeze: clearLocalGoalFreeze,
+  });
 }
 
 export async function syncBackgroundRunTrackingAppState(appState: AppStateStatus) {

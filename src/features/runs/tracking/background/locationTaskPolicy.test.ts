@@ -16,9 +16,11 @@ type FakeLocationState = {
   backgroundStarted: boolean;
   backgroundStarts: number;
   backgroundStops: number;
+  foregroundReady: boolean;
   foregroundStarted: boolean;
   foregroundStarts: number;
   foregroundStops: number;
+  foregroundDialogFlags: (boolean | undefined)[];
   operations: string[];
 };
 
@@ -28,20 +30,28 @@ function createFakeLocationAdapter(platform: LocationTaskPlatform = 'android') {
     backgroundStarted: false,
     backgroundStarts: 0,
     backgroundStops: 0,
+    foregroundReady: true,
     foregroundStarted: false,
     foregroundStarts: 0,
     foregroundStops: 0,
+    foregroundDialogFlags: [],
     operations: [],
   };
 
   const adapter: LocationTaskControllerAdapter = {
     platform,
-    startForegroundLocationWatch: async () => {
+    startForegroundLocationWatch: async (options?: { mayShowUserSettingsDialog?: boolean }) => {
       state.operations.push('start-foreground');
+      state.foregroundDialogFlags.push(options?.mayShowUserSettingsDialog);
+      if (!state.foregroundReady) {
+        return false;
+      }
+
       if (!state.foregroundStarted) {
         state.foregroundStarted = true;
         state.foregroundStarts += 1;
       }
+      return true;
     },
     stopForegroundLocationWatch: () => {
       state.operations.push('stop-foreground');
@@ -184,4 +194,58 @@ test('android still starts the foreground watch even if the background task cann
   // working even when the background foreground-service task fails to start.
   assert.equal(state.foregroundStarted, true);
   assert.equal(state.backgroundStarted, false);
+});
+
+test('start outcome is fully armed only when every required piece started', async () => {
+  const { adapter, state } = createFakeLocationAdapter('android');
+  const controller = createLocationTaskController(adapter);
+
+  const armed = await controller.startLocationTask({ appState: 'active' });
+  assert.deepEqual(armed, {
+    fullyArmed: true,
+    foregroundWatchActive: true,
+    backgroundTaskStarted: true,
+  });
+
+  await controller.stopLocationTaskIfNeeded();
+  state.backgroundReady = false;
+  const partial = await controller.startLocationTask({ appState: 'active' });
+  assert.deepEqual(partial, {
+    fullyArmed: false,
+    foregroundWatchActive: true,
+    backgroundTaskStarted: false,
+  });
+});
+
+test('start outcome reports a dead foreground watch as not fully armed', async () => {
+  const { adapter, state } = createFakeLocationAdapter('android');
+  state.foregroundReady = false;
+  const controller = createLocationTaskController(adapter);
+
+  const outcome = await controller.startLocationTask({ appState: 'active' });
+
+  assert.equal(outcome.fullyArmed, false);
+  assert.equal(outcome.foregroundWatchActive, false);
+  assert.equal(outcome.backgroundTaskStarted, true);
+});
+
+test('web platform start resolves fully armed without native calls', async () => {
+  const { adapter, state } = createFakeLocationAdapter('web');
+  const controller = createLocationTaskController(adapter);
+
+  const outcome = await controller.startLocationTask({ appState: 'active' });
+
+  assert.equal(outcome.fullyArmed, true);
+  assert.deepEqual(state.operations, []);
+});
+
+test('allowUserSettingsDialog false is routed to the foreground watch, default stays true', async () => {
+  const { adapter, state } = createFakeLocationAdapter('android');
+  const controller = createLocationTaskController(adapter);
+
+  await controller.startLocationTask({ appState: 'active' });
+  await controller.stopLocationTaskIfNeeded();
+  await controller.startLocationTask({ appState: 'active', allowUserSettingsDialog: false });
+
+  assert.deepEqual(state.foregroundDialogFlags, [true, false]);
 });
