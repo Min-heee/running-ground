@@ -4,6 +4,7 @@ const TAB_TITLES = {
   league: '랭킹',
   friends: '\uCE5C\uAD6C',
   home: '\uD648',
+  race: '\uB808\uC774\uC2A4',
   running: '\uB7EC\uB2DD',
   market: '\uB9C8\uCF13',
   mypage: '\uB9C8\uC774',
@@ -14,6 +15,7 @@ const TAB_ICONS = {
   friends: 'users',
   home: 'home',
   market: 'shopping-bag',
+  race: 'flag',
   mypage: 'user',
 } as const;
 
