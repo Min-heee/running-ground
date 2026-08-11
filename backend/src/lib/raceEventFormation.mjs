@@ -12,6 +12,7 @@
 // 로스터 기록도 자동으로 탄다.
 
 import { createMatchSession } from './runningMatchSession/matchSessionLifecycle.mjs';
+import { findMatchRoster } from './matchRosters.mjs';
 
 // 마감~출발 사이가 정상 편성 창. 출발 후에도 이 유예까지는 편성한다 — 첫 허브 요청이 늦게
 // 도착해도(전원이 출발 직전에야 앱을 여는 경우) 행사가 통째로 무산되지 않게. 세션은 슬롯이
@@ -81,6 +82,12 @@ export function formDueLiveGroupRaceSessions(store, now = new Date()) {
     // 이벤트 세션은 이벤트가 공표한 거리 그대로가 목표다 — 정확값으로 되돌린다. 하류(목표 판정·
     // 표시·체크포인트)는 전부 숫자 그대로 쓰므로 안전하다.
     session.distanceKm = event.distanceKm;
+    // 내구 로스터에도 같은 값을 박는다 — 로스터의 distanceKm은 세션이 사라진 뒤 완주 판정의
+    // 신뢰 목표 소스라(matchRosters.mjs), 정규화값(8.2)이 남으면 세션(8.15)과 어긋난다.
+    const roster = findMatchRoster(store, session.id);
+    if (roster && Number.isFinite(event.distanceKm) && event.distanceKm > 0) {
+      roster.distanceKm = event.distanceKm;
+    }
     event.formedMatchId = session.id;
     formed.push({ eventId: event.id, matchId: session.id, participantCount: registrants.length });
   }

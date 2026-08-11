@@ -51,6 +51,10 @@ test('마감 후 스윕: 신청자 전원이 하나의 그룹 세션으로, 슬�
   assert.equal(session.slotStartAt, START_AT);
   // createMatchSession의 1자리 정규화(8.2)를 이벤트 공표 거리로 되돌린다 — 8.15 그대로.
   assert.equal(session.distanceKm, 8.15);
+  // 내구 로스터의 목표 거리도 같은 값이어야 한다 (세션 소멸 후 완주 판정의 신뢰 소스).
+  const roster = (store.matchRosters ?? []).find((entry) => entry.id === session.id);
+  assert.ok(roster, '로스터가 세션 생성 길목에서 기록돼야 한다');
+  assert.equal(roster.distanceKm, 8.15);
   assert.deepEqual(
     session.participants.map((participant) => participant.userId).sort(),
     ['user-a', 'user-b', 'user-c'],
