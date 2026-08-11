@@ -78,6 +78,12 @@ export function formDueLiveGroupRaceSessions(store, now = new Date()) {
       isTestMatch: false,
       isPartyRun: false,
     });
+    // 행사 마감(출발 + 러닝 윈도우)까지 §B4 DNF 봉인을 유예한다 — 축제는 페이스가 제각각이라
+    // 90초 창이 뒤처진 러너를 영구 기권 처리해버린다 (matchSessionFallbackSeals의 가드 참조).
+    const runWindowMinutes = Number.isFinite(event.runWindowMinutes) && event.runWindowMinutes > 0
+      ? event.runWindowMinutes
+      : 180;
+    session.raceSealGraceUntil = new Date(startMs + runWindowMinutes * 60 * 1000).toISOString();
     // createMatchSession은 매칭 큐 관례대로 거리를 소수 1자리로 정규화한다(8.15→8.2).
     // 이벤트 세션은 이벤트가 공표한 거리 그대로가 목표다 — 정확값으로 되돌린다. 하류(목표 판정·
     // 표시·체크포인트)는 전부 숫자 그대로 쓰므로 안전하다.

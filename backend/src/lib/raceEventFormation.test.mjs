@@ -31,6 +31,7 @@ function buildStore({ tags = ['TAG-A', 'TAG-B', 'TAG-C'], eventKind = 'live_grou
       startsAt: START_AT,
       registrationClosesAt: CLOSE_AT,
       registeredUserTags: tags,
+      runWindowMinutes: 120,
       ...(eventKind ? { eventKind } : {}),
       ...(formedMatchId ? { formedMatchId } : {}),
     }],
@@ -60,6 +61,8 @@ test('마감 후 스윕: 신청자 전원이 하나의 그룹 세션으로, 슬�
     ['user-a', 'user-b', 'user-c'],
   );
   assert.equal(session.isTestMatch, false);
+  // §B4 DNF 봉인 유예 = 출발 + 러닝 윈도우(120분) — 축제에서 뒤처진 러너가 기권 처리되지 않게.
+  assert.equal(session.raceSealGraceUntil, new Date(Date.parse(START_AT) + 120 * 60 * 1000).toISOString());
   // 이벤트에 세션이 박제된다 — 멱등의 근거.
   assert.equal(store.offlineRaceEvents[0].formedMatchId, session.id);
 });
@@ -107,4 +110,37 @@ test('최소 인원 미달·대상 아님·태그 미해석은 건너뛴다', ()
   // 이미 편성된 이벤트는 다시 만들지 않는다.
   const already = buildStore({ formedMatchId: 'group-match-xyz' });
   assert.equal(formDueLiveGroupRaceSessions(already, at('2026-08-15T11:01:00.000Z')).length, 0);
+});
+
+// 오너 확정 2026-08-11: 유예 중엔 절대 DNF 봉인이 생기지 않고, 유예가 끝나면 기존 §B4가 살아난다.
+// (수정을 되돌리면 — 가드 제거 — 첫 단언이 결정적으로 깨진다.)
+test('raceSealGraceUntil 유예 중엔 그룹 DNF 봉인 불가, 유예 후엔 기존 규칙 부활', async () => {
+  const { sealGroupFallbackResolutionIfElapsed } = await import('./runningMatchSession/matchSessionFallbackSeals.mjs');
+  const buildSession = (graceUntil) => ({
+    id: 'group-match-race',
+    mode: 'group',
+    distanceKm: 6,
+    slotStartAt: START_AT,
+    ...(graceUntil ? { raceSealGraceUntil: graceUntil } : {}),
+    participants: [
+      { userId: 'user-a', liveStatus: 'finished', finishedAt: '2026-08-15T11:45:00.000Z', finishElapsedSeconds: 1800 },
+      { userId: 'user-b', liveStatus: 'running', finishedAt: null, finishElapsedSeconds: null },
+    ],
+  });
+
+  // 첫 완주 후 90초가 한참 지났지만(+30분) 유예(+120분) 안 — 봉인 금지.
+  const graceUntil = new Date(Date.parse(START_AT) + 120 * 60 * 1000).toISOString();
+  const inGrace = buildSession(graceUntil);
+  assert.equal(sealGroupFallbackResolutionIfElapsed(inGrace, at('2026-08-15T12:15:00.000Z')), null);
+  assert.equal(inGrace.groupFallbackResolution, undefined);
+
+  // 유예가 끝나면 기존 §B4 그대로 — 사라진 러너가 결과를 영원히 붙잡는 것은 여전히 방지.
+  const afterGrace = buildSession(graceUntil);
+  const sealed = sealGroupFallbackResolutionIfElapsed(afterGrace, at('2026-08-15T13:16:00.000Z'));
+  assert.ok(sealed, '유예 종료 후에는 봉인이 생겨야 한다');
+  assert.deepEqual(sealed.dnfUserIds, ['user-b']);
+
+  // 유예 필드가 없는 일반 매치는 동작 불변 (기존 90초 창 그대로).
+  const normal = buildSession(null);
+  assert.ok(sealGroupFallbackResolutionIfElapsed(normal, at('2026-08-15T12:15:00.000Z')));
 });

@@ -279,6 +279,19 @@ export function sealGroupFallbackResolutionIfElapsed(session, now = new Date()) 
     return session?.groupFallbackResolution ?? null;
   }
 
+  // 레이스 이벤트 세션(전원 동시 출발 축제): 행사 마감 시각까지는 아무도 DNF로 봉인하지 않는다
+  // (오너 확정 2026-08-11 — "완주 간격 벌어지면 기권 처리" 제거). 90초 §B4 창은 페이스가 ±15초로
+  // 클러스터된 매칭 그룹의 가정이라, 페이스가 제각각인 축제에선 뒤처진 러너를 영구 DNF로
+  // 박제한다. F4 구조상 라이브 판정(buildGroupVerdict)도 이 봉인을 읽으므로 여기 한 줄이
+  // 저장·표시 양쪽을 막는다. 유예가 지나면 기존 §B4 규칙이 그대로 살아나 사라진 러너가
+  // 결과를 영원히 붙잡는 것은 여전히 방지된다. 일반 매치(필드 없음)는 동작 불변.
+  if (typeof session.raceSealGraceUntil === 'string') {
+    const graceUntilMs = Date.parse(session.raceSealGraceUntil);
+    if (Number.isFinite(graceUntilMs) && now.getTime() < graceUntilMs) {
+      return null;
+    }
+  }
+
   const participants = Array.isArray(session.participants) ? session.participants : [];
   if (participants.length < 2) {
     return null;
