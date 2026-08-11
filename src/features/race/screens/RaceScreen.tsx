@@ -132,7 +132,9 @@ function UpcomingEventRow({ event, onPress }: { event: OfflineRaceEvent; onPress
           {formatRaceStartLabel(event.startsAt)} · {formatDistanceLabel(event.distanceKm)}
         </Text>
       </View>
-      {event.registered ? <Text style={styles.upcomingRegistered}>신청 완료</Text> : null}
+      {event.registered
+        ? <Text style={styles.upcomingRegistered}>신청 완료</Text>
+        : <Text style={styles.upcomingChevron}>›</Text>}
     </Pressable>
   );
 }
@@ -143,6 +145,10 @@ export default function RaceScreen() {
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [joinPassword, setJoinPassword] = useState('');
+  // 대표 카드는 서버 추천(내가 신청한 것 우선)이 기본이지만, 목록의 다른 이벤트를 탭하면 그
+  // 이벤트가 대표 자리로 올라와 신청/취소/비밀번호 입력이 가능해진다 — 이벤트가 여러 개일 때
+  // 목록 줄에는 신청 수단이 없다는 구멍(광복절 런 테스트 신청 불가)의 수정.
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
   const loadHub = useCallback(async () => {
     try {
@@ -213,7 +219,14 @@ export default function RaceScreen() {
         />
       ) : null}
 
-      {state.status === 'ready' ? (
+      {state.status === 'ready' ? (() => {
+        const allEvents = [state.hub.featuredEvent, ...state.hub.upcomingEvents]
+          .filter((event): event is OfflineRaceEvent => Boolean(event));
+        const displayedEvent = allEvents.find((event) => event.id === selectedEventId)
+          ?? state.hub.featuredEvent;
+        const otherEvents = allEvents.filter((event) => event.id !== displayedEvent?.id);
+
+        return (
         <>
           {actionError ? (
             <Card style={styles.actionErrorCard}>
@@ -221,10 +234,10 @@ export default function RaceScreen() {
             </Card>
           ) : null}
 
-          {state.hub.featuredEvent ? (
+          {displayedEvent ? (
             <FeaturedEventCard
-              event={state.hub.featuredEvent}
-              busy={busyEventId === state.hub.featuredEvent.id}
+              event={displayedEvent}
+              busy={busyEventId === displayedEvent.id}
               password={joinPassword}
               onChangePassword={setJoinPassword}
               onJoin={handleJoin}
@@ -239,12 +252,20 @@ export default function RaceScreen() {
             </Card>
           )}
 
-          {state.hub.upcomingEvents.length ? (
+          {otherEvents.length ? (
             <View style={styles.section}>
               <SectionTitle>다가오는 레이스</SectionTitle>
               <Card style={styles.upcomingCard}>
-                {state.hub.upcomingEvents.map((event) => (
-                  <UpcomingEventRow key={event.id} event={event} />
+                {otherEvents.map((event) => (
+                  <UpcomingEventRow
+                    key={event.id}
+                    event={event}
+                    onPress={() => {
+                      setSelectedEventId(event.id);
+                      setJoinPassword('');
+                      setActionError(null);
+                    }}
+                  />
                 ))}
               </Card>
             </View>
@@ -268,7 +289,8 @@ export default function RaceScreen() {
             </View>
           ) : null}
         </>
-      ) : null}
+        );
+      })() : null}
     </Screen>
   );
 }
@@ -407,6 +429,11 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
+  },
+  upcomingChevron: {
+    color: colors.textTertiary,
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
   },
   upcomingRegistered: {
     color: colors.brandDeep,
