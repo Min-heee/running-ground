@@ -243,3 +243,33 @@ test('an impossible pace cannot be used as evidence', () => {
   assert.deepEqual(applyHeal(store, plan, options()), []);
   assert.equal(store.runs.find((run) => run.id === 'run-winner').matchResult.resultTone, undefined);
 });
+
+test('the dry run reads the goal from the DURABLE ROSTER, so it agrees with what applyHeal enforces', () => {
+  // 적대 검증 2026-08-11. 집행부(backFillSavedRunsWithVerifiedRoster)는 로스터의 목표 거리로
+  // 완주를 판정하는데 드라이런은 블롭의 comparedDistanceKm을 읽고 있었다. comparedDistanceKm은
+  // 화면 꺼짐 정지로 얼어붙는 값이라(중도포기자는 자기가 멈춘 지점이 목표가 되어 통과한다)
+  // 드라이런이 "막을 게 없다"고 해놓고 집행은 거절하는, 조용한 거짓 초록이 된다.
+  const store = buildFixtureStore();
+  // 중도포기자: 1.2km에서 멈췄고 compared도 거기서 얼었다 → 블롭만 보면 목표 충족으로 통과한다.
+  store.runs[1].distanceKm = 1.2;
+  store.runs[1].durationSeconds = 400;
+  store.runs[1].matchResult = { ...store.runs[1].matchResult, comparedDistanceKm: 1.2, myDurationSeconds: 400 };
+
+  // 블롭 기준(옛 동작)으로는 아무것도 안 걸린다.
+  assert.equal(findUntrustworthyRuns(store.runs).length, 0);
+  // 로스터가 아는 진짜 목표(6km)를 주면 그 기록은 증거로 쓸 수 없다.
+  assert.equal(findUntrustworthyRuns(store.runs, 6).length, 1);
+
+  // planHeal은 로스터에서 목표를 읽으므로 집행부와 같은 답을 낸다.
+  store.matchRosters = [{
+    id: MATCH_ID,
+    mode: 'duel',
+    distanceKm: 6,
+    participantIds: ROSTER,
+    createdAt: '2026-08-09T10:00:00.000Z',
+  }];
+  const plan = planHeal(store, options());
+  assert.equal(plan.untrustworthy.length, 1);
+  assert.ok(plan.blockers.some((blocker) => blocker.includes('목표 6km')));
+  assert.deepEqual(applyHeal(store, plan, options({ yes: true })), []);
+});

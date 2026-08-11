@@ -37,6 +37,32 @@ export const MATCH_SESSION_UNSTARTED_ACTIVE_GRACE_MS = 10 * 60 * 1000;
 // the device receive its echo/verdict via the direct-matchId status branch and lets the
 // save-time PENDING blob heal against a live session. TTL expiry still bounds everything.
 export const MATCH_SESSION_ALL_DONE_RETENTION_MS = 10 * 60 * 1000;
+
+// DURABLE MATCH ROSTER (2026-08-11) — the session above is pruned ~10분 뒤 사라지지만,
+// matchResult.matchId는 검증되지 않는 클라 입력이라 세션이 사라진 뒤의 저장은 "이 matchId로
+// 기록을 올린 사람들"을 참가자로 오인했다(제3자가 남의 대결 판정을 영구히 뒤집을 수 있었다).
+// 그래서 세션 생성 시점에 서버가 만든 참가자 명단을 별도 컬렉션에 박제해 prune을 살아남긴다.
+//
+// RETENTION의 시계는 '매칭 성사 시각'에서 시작한다 — matchmakingResponses가 두 러너가 짝지어진
+// 즉시 createMatchSession을 부르고, 슬롯은 최대 MATCH_BOOKING_WINDOW_DAYS(7일) 앞서 예약되기
+// 때문이다. 따라서 정당한 늦은 저장의 실제 최악은 [예약 선행 ≤7일] + [러닝] + [클라 저장 대기열
+// 7일] = 14일을 넘긴다. 적대 검증 2026-08-11이 잡은 결함: 14일로 두면 7일 앞서 예약된 대결의
+// 마지막 합법 드레인(14.04일째)이 로스터 만료 뒤에 도착해, 진짜 승자가 0P PENDING으로 굳는다.
+// (createdAt을 slotStartAt으로 옮기는 대신 보존기간을 늘린 이유: 항목의 시간 단조성이 깨지면
+// pruneMatchRosters의 O(1) prefix-drop이 성립하지 않는다.)
+export const MATCH_ROSTER_RETENTION_MS = (MATCH_BOOKING_WINDOW_DAYS + 14) * 24 * 60 * 60 * 1000;
+// LEGACY 유예 — 로스터가 "없다"는 사실의 의미가 시간에 따라 달라진다. 배포 직후에는 배포 전에
+// 만들어진 매치라는 뜻이므로 기존 동작을 보존해야 하고(정당한 늦은 저장), epoch가 이 유예를
+// 넘기면 정당한 저장은 전부 자기 로스터를 갖고 있을 수밖에 없으므로 로스터 없는 matchId는
+// 위조이거나 고대 기록이다 → PENDING(안전). 즉 legacy 구멍이 7일 뒤 스스로 닫힌다.
+// 클라 대기열 상한과 같은 값이어야 한다 — 그게 "정당한 늦은 저장"의 실제 상한이기 때문.
+export const MATCH_ROSTER_LEGACY_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+// 블롭 비대화 상한 (#209: 블롭이 커지면 FOR UPDATE 락이 길어지고 쓰기 컨보이가 생긴다).
+// 실측: 듀얼 항목 147바이트, 30인 그룹 항목 598바이트 → 5,000건의 듀얼 기준 최악 ≈ 718KB.
+// 상한을 넘겨 축출된 매치는 "로스터 없음"이 되고, epoch 성숙 후에는 PENDING(안전)으로 떨어진다
+// — 절대 무방비 경로로 떨어지지 않는다.
+export const MATCH_ROSTER_MAX_ENTRIES = 5000;
+
 export const MATCH_PARTICIPANT_RUNNING_STALE_MS = 90 * 1000;
 export const MATCH_PARTICIPANT_BACKGROUND_STALE_MS = 20 * 60 * 1000;
 export const MATCH_TEST_COUNTDOWN_SECONDS = 30;

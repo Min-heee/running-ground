@@ -210,10 +210,13 @@ export function getRunsRepository() {
       // resolver reads the live session/standings directly to overwrite or pend the result.
       // Duel → duel verdict (win/lose/draw); group → group verdict (final placement). Any
       // other shape falls through both resolvers UNCHANGED.
-      resolveMatchResult: (store, user, matchResult) => (
+      // `savingRun`(저장 중인 기록의 실측 거리/시간/케이던스)까지 넘긴다: 세션 없는 분기의
+      // 완주 판정은 내 쪽 기록도 목표 거리를 채웠는지 봐야 하는데, 그 기록은 아직 store.runs에
+      // 없어서 블롭만으로는 알 수 없다.
+      resolveMatchResult: (store, user, matchResult, savingRun = null) => (
         matchResult?.mode === 'group'
-          ? resolveSavedGroupMatchResult(store, user, matchResult)
-          : resolveSavedDuelMatchResult(store, user, matchResult)
+          ? resolveSavedGroupMatchResult(store, user, matchResult, undefined, { savingRun })
+          : resolveSavedDuelMatchResult(store, user, matchResult, undefined, { savingRun })
       ),
       // 승자 0P 근치 (오너 2026-08-09): 저장이 끝난 뒤 같은 matchId의 상대 PENDING 블롭을
       // 같은 resolver로 승격시킨다. 고쳐진 유저 id 목록을 돌려주고, 저장소가 그 유저들의

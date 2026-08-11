@@ -207,7 +207,7 @@ export function buildGroupMatchResponse(store, currentUser, { distanceKm, slotSt
   });
 
   if (joinableSession) {
-    addParticipantToMatchSession(joinableSession, {
+    addParticipantToMatchSession(store, joinableSession, {
       id: currentRunner.id,
       seedRank: joinableSession.participants.length + 1,
     });

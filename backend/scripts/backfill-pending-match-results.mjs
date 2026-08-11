@@ -97,6 +97,7 @@ import {
   backFillSavedRunsWithVerifiedRoster,
   isTrustworthyMatchEvidence,
 } from '../src/lib/runningMatchStoreHelpers.mjs';
+import { findMatchRoster, readMatchRosterGoalDistanceKm } from '../src/lib/matchRosters.mjs';
 
 // ── CLI ───────────────────────────────────────────────────────────────────────────────────
 
@@ -175,8 +176,13 @@ export function collectMatchRuns(store, matchId) {
 // at all so it cannot be checked) must never be ranked against a genuine finisher — the
 // session-less resolver compares raw elapsed only, so a quitter's short time wins. Returns the
 // offending runs. The same rule is enforced inside backFillSavedRunsWithVerifiedRoster.
-export function findUntrustworthyRuns(runs) {
-  return runs.filter((run) => !isTrustworthyMatchEvidence(run));
+// `goalDistanceKm`는 내구 로스터가 아는 진짜 목표 거리다. 이걸 넘기지 않으면 이 함수는 블롭의
+// comparedDistanceKm을 읽는데, 그 값은 화면 꺼짐 정지로 얼어붙고(중도포기자는 자기가 멈춘 지점이
+// 목표가 되어 통과한다) 그룹 블롭에는 아예 없다. 실제 집행부(backFillSavedRunsWithVerifiedRoster)는
+// 로스터 목표로 판정하므로, 여기서 안 맞추면 드라이런이 "막을 게 없다"고 해놓고 집행은 거절하거나
+// 그 반대가 된다. 기본값 null은 로스터 없는 옛 매치의 기존 동작을 그대로 유지한다.
+export function findUntrustworthyRuns(runs, goalDistanceKm = null) {
+  return runs.filter((run) => !isTrustworthyMatchEvidence(run, goalDistanceKm));
 }
 
 function userLabel(store, userId) {
@@ -215,9 +221,10 @@ export function planHeal(store, options) {
     }
   }
 
-  const untrustworthy = findUntrustworthyRuns(rosterRuns);
+  const rosterGoalDistanceKm = readMatchRosterGoalDistanceKm(findMatchRoster(store, options.matchId));
+  const untrustworthy = findUntrustworthyRuns(rosterRuns, rosterGoalDistanceKm);
   for (const run of untrustworthy) {
-    const goalKm = run.matchResult?.comparedDistanceKm;
+    const goalKm = rosterGoalDistanceKm ?? run.matchResult?.comparedDistanceKm;
     const reason = !Number.isFinite(Number(goalKm)) || Number(goalKm) <= 0
       ? '목표 거리가 기록에 없어 완주 여부를 검증할 수 없어'
       : `${run.distanceKm}km로 목표 ${goalKm}km를 채우지 못했거나 속도가 비현실적이야`;

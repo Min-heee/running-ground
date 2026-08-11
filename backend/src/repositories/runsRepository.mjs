@@ -361,6 +361,17 @@ export function preserveMatchGoalStamp(existingMatchResult, nextMatchResult) {
   return nextMatchResult;
 }
 
+// 저장 중인 기록의 '완주 근거' 조각 — 목표 거리를 실제로 채웠는지 판정하는 데 필요한 실측값만
+// 추린다. 이 기록은 아직 store.runs에 없어서(저장 직전이다) resolver가 스스로 찾을 수 없고,
+// matchResult 블롭의 comparedDistanceKm은 화면 꺼짐 정지로 얼어붙는 값이라 대신 쓸 수 없다.
+function buildSavingRunEvidence(input) {
+  return {
+    distanceKm: input?.distanceKm,
+    durationSeconds: input?.durationSeconds,
+    ...(typeof input?.cadenceSpm === 'number' ? { cadenceSpm: input.cadenceSpm } : {}),
+  };
+}
+
 // 승자 0P 근치 (오너 2026-08-09): 매치 기록이 저장된 직후, 같은 matchId를 가진 상대의
 // PENDING 블롭을 서버가 스스로 확정 판정으로 승격시킨다 (둘 다 저장된 시점 = 승패가 확정되는
 // 시점). 치유에 실패해도 저장 자체는 절대 실패하면 안 되므로 — 기록 유실 방지가 포인트 정확도보다
@@ -520,7 +531,12 @@ export function createJsonRunsRepository({
           ));
 
           if (existingRun) {
-            const reResolvedMatchResult = resolveMatchResult(store, user, input.matchResult);
+            const reResolvedMatchResult = resolveMatchResult(
+              store,
+              user,
+              input.matchResult,
+              buildSavingRunEvidence(input),
+            );
 
             if (reResolvedMatchResult && shouldOverwriteMatchResult(existingRun.matchResult, reResolvedMatchResult)) {
               existingRun.matchResult = clone(preserveMatchGoalStamp(existingRun.matchResult, reResolvedMatchResult));
@@ -553,7 +569,7 @@ export function createJsonRunsRepository({
         // overwritten by the server verdict, or replaced with a PENDING result when the verdict
         // is not yet resolvable. Group runs and non-match runs pass through untouched.
         const resolvedMatchResult = input.matchResult
-          ? resolveMatchResult(store, user, input.matchResult)
+          ? resolveMatchResult(store, user, input.matchResult, buildSavingRunEvidence(input))
           : undefined;
         const run = {
           id: nextId('run'),

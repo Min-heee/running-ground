@@ -16,6 +16,11 @@ import {
 } from './matchSessionCore.mjs';
 import { sweepStuckMatchSessionFallbacks } from './matchSessionFallbackSeals.mjs';
 import { recordVanishedMatch } from '../vanishedMatchTombstones.mjs';
+import {
+  amendMatchRoster,
+  pruneMatchRosters,
+  recordMatchRoster,
+} from '../matchRosters.mjs';
 
 // Every session dropped from the store passes through here so a device still polling
 // the vanished matchId gets a terminal 410 (match_gone) instead of retrying a 404
@@ -90,19 +95,24 @@ export function pruneMatchSessions(store, now = new Date()) {
   recordPrunedSessions(sessions, keptSessions, now);
   store.matchSessions = keptSessions;
 
+  // 세션이 사라져도 참가자 명단은 남아야 한다 — 그게 세션 없는 분기의 유일한 서버 진실이다.
+  // 여기서 도는 것은 로스터 컬렉션의 만료 정리(+ epoch 각인)뿐이고, 기록 자체는 세션 생성
+  // 시점에 이미 끝나 있다. prune은 모든 쓰기 요청에서 도므로 GC와 epoch가 항상 살아있다.
+  pruneMatchRosters(store, now);
+
   return store.matchSessions;
 }
 
-function clearUsersFromMatchSessions(store, mode, userIds) {
+function clearUsersFromMatchSessions(store, mode, userIds, now = new Date()) {
   const blockedUserIds = new Set(userIds);
-  const sessions = pruneMatchSessions(store);
+  const sessions = pruneMatchSessions(store, now);
   const keptSessions = sessions.filter((session) => (
     session.mode !== mode || !session.participants.some((participant) => (
-      blockedUserIds.has(participant.userId) && !isParticipantDoneWithMatch(participant)
+      blockedUserIds.has(participant.userId) && !isParticipantDoneWithMatch(participant, now)
     ))
   ));
 
-  recordPrunedSessions(sessions, keptSessions, new Date());
+  recordPrunedSessions(sessions, keptSessions, now);
   store.matchSessions = keptSessions;
 }
 
@@ -131,7 +141,10 @@ function buildSessionParticipant(participant, index) {
 }
 
 export function createMatchSession(store, mode, distanceKm, slotStartAt, participants, options = {}) {
-  clearUsersFromMatchSessions(store, mode, participants.map((participant) => participant.id));
+  // 시계 주입 — 로스터 항목의 나이(만료 GC의 기준)와 세션 타임스탬프가 같은 시각을 봐야 하고,
+  // 판정 경로 테스트가 결정적이려면 여기서 시간을 고정할 수 있어야 한다. 안 넘기면 기존과 동일.
+  const now = options.now instanceof Date ? options.now : new Date();
+  clearUsersFromMatchSessions(store, mode, participants.map((participant) => participant.id), now);
   const session = {
     id: nextId(`${mode}-match`),
     mode,
@@ -143,11 +156,14 @@ export function createMatchSession(store, mode, distanceKm, slotStartAt, partici
     // joiner is measured against (±GROUP_PACE_MATCH_TOLERANCE_SECONDS). Persisted at
     // creation; undefined for duels/test sessions where no anchor is supplied.
     ...(Number.isFinite(options.anchorPaceMinutes) ? { anchorPaceMinutes: options.anchorPaceMinutes } : {}),
-    createdAt: new Date().toISOString(),
-    matchedAt: new Date().toISOString(),
+    createdAt: now.toISOString(),
+    matchedAt: now.toISOString(),
     participants: participants.map((participant, index) => buildSessionParticipant(participant, index)),
   };
   ensureMatchSessions(store).push(session);
+  // 서버가 만든 참가자 명단을 세션과 분리해 박제한다 — 세션은 10분 뒤 사라지지만 정당한 늦은
+  // 저장은 최대 7일 뒤에도 온다(클라 저장 대기열). 이 한 줄이 세션 없는 분기의 로스터 출처다.
+  recordMatchRoster(store, session, now);
   return session;
 }
 
@@ -155,9 +171,12 @@ export function createMatchSession(store, mode, distanceKm, slotStartAt, partici
 // the caller already selected) onto an existing forming group session, using the same
 // shape createMatchSession produces. seedRank defaults to the next slot after the
 // current participants.
-export function addParticipantToMatchSession(session, participant) {
+// `store`를 받는 이유: 지각 합류자도 내구 로스터에 들어가야 한다. 세션에만 추가하면 세션이
+// pruned된 뒤 그 참가자는 "로스터에 없는 사람"이 되어 자기 기록이 영영 PENDING으로 남는다.
+export function addParticipantToMatchSession(store, session, participant) {
   const index = session.participants.length;
   session.participants.push(buildSessionParticipant(participant, index));
+  amendMatchRoster(store, session.id, participant?.id);
   return session;
 }
 

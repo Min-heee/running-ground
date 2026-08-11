@@ -2,6 +2,12 @@ import { ApiError } from '../response/httpResponse.mjs';
 import { parsePaceToMinutes } from './points.mjs';
 import { applyRunIntegrityCheck, classifyRunIntegrity } from './runIntegrity.mjs';
 import {
+  findMatchRoster,
+  isMatchRosterEpochMature,
+  isMatchRosterParticipant,
+  readMatchRosterGoalDistanceKm,
+} from './matchRosters.mjs';
+import {
   buildDuelVerdict,
   buildGroupVerdict,
   buildOfficialSessionStandings,
@@ -57,7 +63,7 @@ function buildAuthoritativeDuelCopy(outcome, opponentName) {
 // missing matchId, forfeit-only records the validator already shaped) is returned UNCHANGED so
 // no existing working case is altered. The §B4/forfeit verdicts already encode their outcome,
 // so they resolve here exactly as the live arena resolves them.
-export function resolveSavedDuelMatchResult(store, currentUser, matchResult, now = new Date()) {
+export function resolveSavedDuelMatchResult(store, currentUser, matchResult, now = new Date(), options = {}) {
   if (!matchResult || matchResult.mode !== 'duel') {
     return matchResult;
   }
@@ -80,13 +86,18 @@ export function resolveSavedDuelMatchResult(store, currentUser, matchResult, now
   // reconstruct the verdict SERVER-side from the durable saved runs (the same source the GET
   // /result endpoint reconstructs a pruned duel from). A real matchId NEVER survives unverified.
   if (!session || session.mode !== 'duel') {
-    return resolveDuelMatchResultFromSavedRuns(store, currentUser, matchId, matchResult);
+    return resolveDuelMatchResultFromSavedRuns(store, currentUser, matchId, matchResult, now, options);
   }
 
-  // A requester who is not a participant of this match cannot have it resolve — leave the saved
-  // value untouched (cannot server-resolve someone else's session for them).
+  // A requester who is not a participant of this match cannot have it resolve.
+  //
+  // 적대 검증 2026-08-11: 여기서 블롭을 '그대로' 반환하던 것이 구멍이었다 — 진행 중인 남의
+  // matchId로 resultTone:'win'을 올리면 그 주장이 그대로 굳어 +20P가 자가 지급됐다
+  // (getMatchBonusPoints는 저장된 블롭의 resultTone만 보고 지급한다). 남의 세션을 대신
+  // 판정해 줄 수 없다는 것과, 그 사람의 주장을 그대로 믿어준다는 것은 전혀 다른 얘기다.
+  // 검증할 수 없으면 PENDING — 세션 없는 분기가 검증 못 할 때 하는 처리와 정확히 같다.
   if (!session.participants.some((participant) => participant.userId === currentUser.id)) {
-    return matchResult;
+    return toPendingDuelMatchResult(matchResult);
   }
 
   const standings = buildOfficialSessionStandings(store, session, now);
@@ -198,7 +209,7 @@ function isForfeitGroupMatchResult(matchResult) {
 // Anything that is not a resolvable group with a known session (duel runs, missing session, missing
 // matchId, forfeit records the validator already shaped) is returned UNCHANGED. When the session is
 // pruned, the placement is reconstructed SERVER-side from the durable saved runs, mirroring the duel.
-export function resolveSavedGroupMatchResult(store, currentUser, matchResult, now = new Date()) {
+export function resolveSavedGroupMatchResult(store, currentUser, matchResult, now = new Date(), options = {}) {
   if (!matchResult || matchResult.mode !== 'group') {
     return matchResult;
   }
@@ -220,12 +231,13 @@ export function resolveSavedGroupMatchResult(store, currentUser, matchResult, no
   // No live session → the session was pruned (the normal all-done end-state). Reconstruct the
   // placement SERVER-side from the durable saved runs — never trust the client's claimed rank.
   if (!session || session.mode !== 'group') {
-    return resolveGroupMatchResultFromSavedRuns(store, currentUser, matchId, matchResult);
+    return resolveGroupMatchResultFromSavedRuns(store, currentUser, matchId, matchResult, now, options);
   }
 
-  // A requester who is not a participant cannot have it resolve — leave the saved value untouched.
+  // 비참가자는 PENDING — 듀얼 쪽(:88)과 같은 이유. 그대로 반환하면 클라가 주장한 rank가 굳어
+  // 순위 LP까지 자가 지급된다.
   if (!session.participants.some((participant) => participant.userId === currentUser.id)) {
-    return matchResult;
+    return toPendingGroupMatchResult(matchResult);
   }
 
   const standings = buildOfficialSessionStandings(store, session, now);
@@ -265,8 +277,14 @@ export function resolveSavedGroupMatchResult(store, currentUser, matchResult, no
 //   - Once all participants' runs exist, rank by their measured finish elapsed (finishers asc; a
 //     run without a usable finish sinks to the bottom) and seal this device's placement.
 // The client's claimed rank is NEVER trusted for a real matchId.
-function resolveGroupMatchResultFromSavedRuns(store, currentUser, matchId, matchResult) {
-  const savedRunsByUserId = collectSavedMatchRuns(store, matchId);
+function resolveGroupMatchResultFromSavedRuns(store, currentUser, matchId, matchResult, now = new Date(), options = {}) {
+  const matchRoster = resolveNoSessionMatchRoster(store, currentUser, matchId, now, options.rosterOverride ?? null);
+
+  if (matchRoster === REFUSE_WITHOUT_ROSTER) {
+    return toPendingGroupMatchResult(matchResult);
+  }
+
+  const savedRunsByUserId = collectSavedMatchRuns(store, matchId, matchRoster);
 
   // Build the full finisher roster: every OTHER participant's saved run + this device's own
   // in-flight save (not yet in store.runs). The expected participant count is the client-reported
@@ -274,9 +292,14 @@ function resolveGroupMatchResultFromSavedRuns(store, currentUser, matchId, match
   const myFinishElapsedSeconds = finishElapsedFromSavedRun(matchResult, null);
   const otherEntries = [...savedRunsByUserId.entries()].filter(([userId]) => userId !== currentUser.id);
 
-  const reportedCount = Number.isInteger(matchResult.participantCount) && matchResult.participantCount > 1
-    ? matchResult.participantCount
-    : null;
+  // 내구 로스터가 있으면 참가자 수의 진실은 로스터 크기다 — 클라의 participantCount가 아니다.
+  // 예전에는 클라가 보고한 수만큼 저장 기록이 모이면 봉인했는데, matchId만 알면 누구나 기록을
+  // 올릴 수 있으므로 위조 기록 하나로 그 수를 채워 남의 순위를 밀어낼 수 있었다.
+  const reportedCount = matchRoster
+    ? matchRoster.participantIds.length
+    : Number.isInteger(matchResult.participantCount) && matchResult.participantCount > 1
+      ? matchResult.participantCount
+      : null;
   const knownCount = otherEntries.length + 1;
 
   // Not every participant has saved yet → we cannot seal the final ordering. Stay PENDING rather
@@ -290,11 +313,18 @@ function resolveGroupMatchResultFromSavedRuns(store, currentUser, matchId, match
     return toPendingGroupMatchResult(matchResult);
   }
 
+  const goalDistanceKm = readMatchRosterGoalDistanceKm(matchRoster);
   const roster = [
-    { userId: currentUser.id, finishElapsedSeconds: myFinishElapsedSeconds, isMe: true },
+    {
+      userId: currentUser.id,
+      finishElapsedSeconds: myFinishElapsedSeconds,
+      completed: resolveCompletionFlag(options.savingRun ?? null, goalDistanceKm),
+      isMe: true,
+    },
     ...otherEntries.map(([userId, run]) => ({
       userId,
       finishElapsedSeconds: finishElapsedFromSavedRun(run.matchResult ?? {}, run),
+      completed: resolveCompletionFlag(run, goalDistanceKm),
       isMe: false,
     })),
   ];
@@ -302,6 +332,10 @@ function resolveGroupMatchResultFromSavedRuns(store, currentUser, matchId, match
   // Rank by measured finish elapsed asc; a missing finish sinks to the bottom (DNF after finishers),
   // mirroring buildOfficialSessionStandings' finisher-first ordering.
   roster.sort((left, right) => {
+    // 목표를 채운 참가자가 먼저 — 듀얼과 같은 이유(중도포기의 짧은 경과시간이 완주자를 밀어냈다).
+    if (left.completed !== right.completed) {
+      return left.completed ? -1 : 1;
+    }
     const leftHas = Number.isInteger(left.finishElapsedSeconds);
     const rightHas = Number.isInteger(right.finishElapsedSeconds);
     if (leftHas !== rightHas) {
@@ -327,12 +361,95 @@ function resolveGroupMatchResultFromSavedRuns(store, currentUser, matchId, match
   };
 }
 
+// The no-session branch refuses to guess: it cannot verify who was in this match.
+const REFUSE_WITHOUT_ROSTER = Symbol('refuse-without-roster');
+
+// 세션 없는 분기가 참가자 명단을 확보하는 단일 관문. 세 갈래로 답한다:
+//   - 로스터 객체 → 이 매치의 서버 명단이다. 판정은 이 명단 안에서만 이뤄진다.
+//   - REFUSE_WITHOUT_ROSTER → 명단을 확보할 수 없다. 추측 대신 PENDING으로 남긴다.
+//   - null → LEGACY. 로스터 장치가 돌기 시작한 지 유예(7일)가 안 지났으니 이 matchId는 배포 전
+//     매치일 가능성이 압도적이다. 기존 동작 그대로 둔다(정당한 늦은 저장을 지키는 쪽).
+//
+// "로스터가 없다"는 사실만으로는 위조와 배포 전 매치를 구분할 수 없다. 그래서 epoch로 시간을
+// 본다 — 정당한 늦은 저장의 상한은 클라 대기열의 7일이므로, epoch가 그보다 오래되면 정당한
+// 저장은 전부 자기 로스터를 갖고 있다. 그 시점부터 로스터 없는 matchId는 믿을 근거가 없다.
+// 결과적으로 legacy 경로는 배포 7일 뒤 운영자 조치 없이 스스로 닫힌다.
+// `rosterOverride`는 운영자가 대역 밖에서 확인한 명단이다(복구 스크립트 전용). 내구 로스터가
+// 있으면 그쪽이 우선 — 서버가 직접 만든 값이고 목표 거리까지 들고 있다. 이 인자가 없으면 epoch가
+// 성숙한 뒤 복구 스크립트가 조용히 아무것도 못 고치는 상태가 된다(설계가 잔여 PENDING의 처리를
+// 그 스크립트에 맡기고 있으므로, 그건 탈출구 자체가 막히는 것이다).
+function resolveNoSessionMatchRoster(store, currentUser, matchId, now, rosterOverride = null) {
+  const matchRoster = findMatchRoster(store, matchId) ?? rosterOverride;
+
+  if (matchRoster) {
+    // 명단이 있는데 저장하는 사람이 그 안에 없다 = 남의 대결 id를 들고 온 기록이다. 이 한 줄이
+    // "제3자가 피해자의 판정을 영구히 뒤집는" 경로를 끊는다.
+    return isMatchRosterParticipant(matchRoster, currentUser.id) ? matchRoster : REFUSE_WITHOUT_ROSTER;
+  }
+
+  return isMatchRosterEpochMature(store, now) ? REFUSE_WITHOUT_ROSTER : null;
+}
+
 // A forfeit duel record carries its OWN authoritative verdict (a 기권 badge): a forfeit is a
 // deterministic terminal outcome the live arena already sealed (the forfeiter loses, the opponent
 // wins) and the validator already shaped it. It is NEVER a finish-time race we can reconstruct, so
 // it must resolve from the saved/forfeit record itself — never be forced PENDING forever.
 function isForfeitMatchResult(matchResult) {
   return /기권/.test(String(matchResult?.badgeLabel ?? ''));
+}
+
+// 상대의 저장된 판정을 뒤집어 내 판정으로 삼는다(win↔lose, draw는 그대로). 확정 tone이 없으면
+// (PENDING) null — 그때는 아래 완주/경과시간 규칙이 정상적으로 돈다.
+//
+// 기권 블롭은 절대 거울로 삼지 않는다. 세션 없는 경로에서 기권 기록은 서버 검증 없이 그대로
+// 통과하므로(isForfeitMatchResult 조기 반환) 그 resultTone은 서버 판정이 아니라 클라가 정한
+// 값이다. 그걸 거울로 삼으면 한쪽이 '기권승'을 주장하는 것만으로 상대의 기록이 패배로 뒤집힌다
+// — 적대 검증이 제안한 원안에 있던 구멍이고, 실행으로 통과 사실을 확인해 여기서 막았다.
+function mirrorOpponentSealedOutcome(opponentMatchResult) {
+  if (!opponentMatchResult || isForfeitMatchResult(opponentMatchResult)) {
+    return null;
+  }
+
+  const tone = opponentMatchResult.resultTone;
+
+  if (tone === 'win') {
+    return 'lose';
+  }
+  if (tone === 'lose') {
+    return 'win';
+  }
+  return tone === 'draw' ? 'draw' : null;
+}
+
+// 한쪽만 목표를 채웠으면 그쪽이 이긴다. 그 외에는 null을 돌려 기존 경과시간 비교에 맡긴다:
+//   - 목표 거리를 모르면(로스터 없는 legacy 매치) 추측하지 않는다. 블롭의 comparedDistanceKm은
+//     얼어붙는 값이라 기준이 못 되고, 얼어붙은 값으로 판정하면 정반대로 뒤집힌다.
+//   - 내 기록의 실측값이 없으면(savingRun 미전달) 내 완주 여부를 알 수 없다.
+//   - 둘 다 완주했거나 둘 다 미완주면 완주 여부로는 갈리지 않는다 — 시간이 결정한다.
+//     (둘 다 미완주일 때 '먼저 그만둔 쪽이 이기는' 기존 순서는 이번 범위 밖으로 남긴다.)
+function resolveDuelCompletionOutcome(goalDistanceKm, savingRun, opponentRun) {
+  if (goalDistanceKm === null || !savingRun) {
+    return null;
+  }
+
+  const iCompleted = isTrustworthyMatchEvidence(savingRun, goalDistanceKm);
+  const opponentCompleted = isTrustworthyMatchEvidence(opponentRun, goalDistanceKm);
+
+  if (iCompleted === opponentCompleted) {
+    return null;
+  }
+
+  return iCompleted ? 'win' : 'lose';
+}
+
+// 그룹 정렬용 완주 플래그. 판정할 근거가 없으면(목표 거리 미상 / 기록 미상) true = 중립이다 —
+// 모르는 참가자를 강등시키면 기존 동작을 조용히 바꾸게 되므로, 모를 때는 아무도 안 밀어낸다.
+function resolveCompletionFlag(run, goalDistanceKm) {
+  if (goalDistanceKm === null || !run) {
+    return true;
+  }
+
+  return isTrustworthyMatchEvidence(run, goalDistanceKm);
 }
 
 // The own measured finish elapsed a save (or a saved opponent run) carries. Prefer the duel
@@ -362,13 +479,21 @@ function finishElapsedFromSavedRun(matchResult, run) {
 // The current run being saved is NOT yet in store.runs (it is pushed after this resolver returns),
 // so this device's own finish is read from the matchResult passed in, and only the OPPONENT's run
 // is looked up in the store.
-function resolveDuelMatchResultFromSavedRuns(store, currentUser, matchId, matchResult) {
+function resolveDuelMatchResultFromSavedRuns(store, currentUser, matchId, matchResult, now = new Date(), options = {}) {
   // A forfeit verdict is self-contained and already authoritative — keep it as saved.
+  // 로스터 조회보다 먼저다: 기권은 라이브 아레나가 이미 봉인한 결정적 종료 상태라 재구성 대상이
+  // 아니고, 로스터 없는 옛 기권 기록을 PENDING으로 만들면 영영 해소되지 않는다.
   if (isForfeitMatchResult(matchResult)) {
     return matchResult;
   }
 
-  const savedRunsByUserId = collectSavedMatchRuns(store, matchId);
+  const matchRoster = resolveNoSessionMatchRoster(store, currentUser, matchId, now, options.rosterOverride ?? null);
+
+  if (matchRoster === REFUSE_WITHOUT_ROSTER) {
+    return toPendingDuelMatchResult(matchResult);
+  }
+
+  const savedRunsByUserId = collectSavedMatchRuns(store, matchId, matchRoster);
   const opponentRun = [...savedRunsByUserId.entries()]
     .filter(([userId]) => userId !== currentUser.id)
     .map(([, run]) => run)[0] ?? null;
@@ -389,11 +514,33 @@ function resolveDuelMatchResultFromSavedRuns(store, currentUser, matchId, matchR
     return toPendingDuelMatchResult(matchResult);
   }
 
-  const outcome = myFinishElapsedSeconds === opponentFinishElapsedSeconds
-    ? 'draw'
-    : myFinishElapsedSeconds < opponentFinishElapsedSeconds
-      ? 'win'
-      : 'lose';
+  // 완주 우선 (2026-08-11). 순수 경과시간 비교는 중도포기를 완주자보다 위에 놓는다 — 1.2km에서
+  // 400초에 그만둔 기록이 5km를 1500초에 완주한 기록보다 "빠르기" 때문이다. 목표를 채운 쪽이
+  // 먼저이고, 그 다음이 시간이다. 라이브 세션의 §B4 폴백이 이미 "DNF는 패배"로 판정하므로 이건
+  // 새 규칙이 아니라 두 경로의 판정을 일치시키는 것이다.
+  const completionOutcome = resolveDuelCompletionOutcome(
+    readMatchRosterGoalDistanceKm(matchRoster),
+    options.savingRun ?? null,
+    opponentRun,
+  );
+
+  // 상대 블롭이 이미 서버가 확정한 판정을 들고 있으면 그 거울이 곧 내 판정이다 — 완주 우선보다
+  // 먼저 본다.
+  //
+  // 적대 검증 2026-08-11에서 실증된 이유: 완주 우선 규칙은 이 경로에만 있고 라이브 경로에는 없다
+  // (라이브는 경과시간만으로 순위를 매기고, 목표 미달인 status:'finished'도 그대로 받는다).
+  // 두 저장이 prune(10분)을 사이에 두고 갈리면 한 대결에 승자가 둘 생기고 40P가 지급된다 —
+  // 둘 다 '확정'이라 never-downgrade 가드가 영구 고정한다. 실측: 시나리오 A에서 quitter win 20P
+  // + finisher win 20P, 순서를 뒤집으면 둘 다 lose. 한 대결의 답은 하나여야 한다.
+  const mirroredOutcome = mirrorOpponentSealedOutcome(opponentMatchResult);
+
+  const outcome = mirroredOutcome ?? completionOutcome ?? (
+    myFinishElapsedSeconds === opponentFinishElapsedSeconds
+      ? 'draw'
+      : myFinishElapsedSeconds < opponentFinishElapsedSeconds
+        ? 'win'
+        : 'lose'
+  );
 
   const opponentUser = store.users.find((entry) => entry.id === opponentRun.userId) ?? null;
   const opponentName = (opponentUser?.name
@@ -551,11 +698,23 @@ function buildResultFromSession(store, session, currentUserId, now) {
 // Fallback for SAVED/old records whose live session was already pruned: rebuild the full
 // per-participant roster from every saved run carrying this matchId. Each participant's
 // own saved run is the durable record of their final official metrics (pace/time/region).
-function collectSavedMatchRuns(store, matchId) {
+//
+// `matchRoster`가 주어지면 그 명단 밖의 기록은 아예 보이지 않는다. matchId는 검증되지 않는 클라
+// 입력이라 "이 matchId로 기록을 올린 사람"과 "이 매치의 참가자"는 같은 집합이 아니다 — 이 필터가
+// 그 둘을 갈라놓는 지점이고, 세 호출자(듀얼 resolver·그룹 resolver·GET /result)가 이 한 곳을
+// 공유하므로 저장 판정과 결과 화면이 같은 명단을 본다.
+function collectSavedMatchRuns(store, matchId, matchRoster = null) {
+  const rosterUserIds = matchRoster && Array.isArray(matchRoster.participantIds)
+    ? new Set(matchRoster.participantIds)
+    : null;
   const byUserId = new Map();
 
   for (const run of store.runs) {
     if (run?.matchResult?.matchId !== matchId) {
+      continue;
+    }
+
+    if (rosterUserIds && !rosterUserIds.has(run.userId)) {
       continue;
     }
 
@@ -763,7 +922,14 @@ export function buildMatchResultByMatchId(store, currentUser, matchId, now = new
   }
 
   // Session already pruned → reconstruct from saved run records that carry this matchId.
-  const savedRunsByUserId = collectSavedMatchRuns(store, normalizedMatchId);
+  // 저장 판정과 같은 명단으로 거른다 — 안 그러면 위조 기록이 피해자의 결과 화면에 참가자 행으로
+  // 그대로 뜬다(판정은 막았는데 화면은 못 막는 상태가 된다). 로스터가 없는 옛 매치는 필터가
+  // 걸리지 않아 기존 응답 그대로다.
+  const savedRunsByUserId = collectSavedMatchRuns(
+    store,
+    normalizedMatchId,
+    findMatchRoster(store, normalizedMatchId),
+  );
   const reconstructed = buildResultFromSavedRuns(store, currentUser, normalizedMatchId, savedRunsByUserId);
 
   if (!reconstructed) {
@@ -859,8 +1025,19 @@ export const MATCH_GOAL_DISTANCE_TOLERANCE_KM = 0.6;
 // plausible. A blob carrying no recorded goal cannot be checked at all: treat that as
 // untrustworthy rather than waving it through (적대 재검증 2026-08-09 — the missing/zero
 // comparedDistanceKm case was the hole left in the first hardening pass).
-export function isTrustworthyMatchEvidence(run) {
-  const goalKm = Number(run?.matchResult?.comparedDistanceKm);
+// `goalDistanceKm`는 내구 로스터가 들고 있는 목표 거리 — 세션 생성 시점에 서버가 정한 값이다.
+// 넘기면 블롭의 comparedDistanceKm보다 우선한다.
+//
+// 왜 우선해야 하나 (오너 지적, 2026-08-11): comparedDistanceKm은 클라가 "지금까지 비교한 거리"로
+// 채우는 값이라 화면 꺼짐 정지에 얼어붙는다 — 2026-08-09 프로덕션 duel-match-e545bceb에서 6km
+// 러닝에 3.06이 박제된 것이 실증됐다. 중도포기자의 compared가 자기가 그만둔 지점에서 얼면
+// goalKm == distanceKm이 되어 "목표 충족"으로 통과하고, 완주자 우선 정렬이 통째로 무력화된다.
+// 세션 생성 시점의 목표 거리는 달리기가 시작되기도 전에 정해지므로 얼 수도, 위조될 수도 없다.
+export function isTrustworthyMatchEvidence(run, goalDistanceKm = null) {
+  const rosterGoalKm = Number(goalDistanceKm);
+  const goalKm = Number.isFinite(rosterGoalKm) && rosterGoalKm > 0
+    ? rosterGoalKm
+    : Number(run?.matchResult?.comparedDistanceKm);
   const distanceKm = Number(run?.distanceKm);
   const durationSeconds = Number(run?.durationSeconds);
 
@@ -910,7 +1087,11 @@ export function backFillSavedRunsWithVerifiedRoster(store, matchId, mode, partic
   }
 
   // Two measured finishes are the minimum a verdict can be derived from.
-  if (rosterRuns.length < 2 || !rosterRuns.every(isTrustworthyMatchEvidence)) {
+  // `.every(isTrustworthyMatchEvidence)`로 넘기면 안 된다 — every는 (element, index, array)를
+  // 넘기므로 index가 goalDistanceKm 자리에 들어가 목표 거리가 1km, 2km…로 바뀐다.
+  const goalDistanceKm = readMatchRosterGoalDistanceKm(findMatchRoster(store, matchId));
+
+  if (rosterRuns.length < 2 || !rosterRuns.every((run) => isTrustworthyMatchEvidence(run, goalDistanceKm))) {
     return [];
   }
 
@@ -932,6 +1113,12 @@ function backFillSavedRunsForMatchId(store, matchId, mode, now, participantIds) 
   }
 
   const healedUserIds = [];
+  // 호출자가 이미 검증한 명단을 resolver까지 내려보낸다. 운영자 복구 스크립트
+  // (backFillSavedRunsWithVerifiedRoster)가 다루는 매치는 세션도 내구 로스터도 없는 옛 매치라,
+  // 이걸 안 넘기면 epoch가 성숙한 뒤 resolver가 전부 PENDING으로 거절해 복구가 조용히 무력화된다
+  // — 설계가 잔여 PENDING의 처리를 그 스크립트에 맡기고 있으므로 탈출구 자체가 막힌다.
+  // 세션 기반 호출자(backFillMatchCounterpartSavedRuns)는 세션이 살아 있어 이 값이 쓰이지 않는다.
+  const verifiedRoster = { participantIds: [...participantIds] };
 
   for (const run of store.runs) {
     const matchResult = run?.matchResult;
@@ -961,9 +1148,11 @@ function backFillSavedRunsForMatchId(store, matchId, mode, now, participantIds) 
       continue;
     }
 
+    // 치유 대상의 실제 저장 기록(run)을 완주 판정 근거로 같이 넘긴다 — 저장 시점과 동일한
+    // 입력으로 같은 resolver를 돌려야 치유된 카드가 at-save 결과와 바이트 단위로 같다.
     const resolved = mode === 'group'
-      ? resolveSavedGroupMatchResult(store, owner, matchResult, now)
-      : resolveSavedDuelMatchResult(store, owner, matchResult, now);
+      ? resolveSavedGroupMatchResult(store, owner, matchResult, now, { savingRun: run, rosterOverride: verifiedRoster })
+      : resolveSavedDuelMatchResult(store, owner, matchResult, now, { savingRun: run, rosterOverride: verifiedRoster });
 
     // The resolver returns a NEW object only when it could resolve a verdict; a still-PENDING
     // result keeps the neutral "결과 집계 중" badge. Persist only a genuine upgrade (a resolved
