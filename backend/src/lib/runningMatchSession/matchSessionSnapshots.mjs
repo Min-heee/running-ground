@@ -6,7 +6,8 @@ import {
   buildProgressAveragePaceLabel,
   formatPaceMinutesLabel,
 } from '../matchFormatting.mjs';
-import { resolveCommonCheckpoint } from '../matchCheckpointHelpers.mjs';
+import { MATCH_CHECKPOINT_MAX, MATCH_CHECKPOINT_STEP_SECONDS } from '../matchConstants.mjs';
+import { highestFilledCheckpointIndex, resolveCommonCheckpoint } from '../matchCheckpointHelpers.mjs';
 import {
   projectOfficialDistanceKm,
   resolveParticipantLiveStatus,
@@ -264,7 +265,30 @@ export function buildOfficialSessionStandings(store, session, now = new Date()) 
       isActive: true,
     })),
   );
-  const hasCommonCheckpoint = commonCheckpoint.commonMaxIndex >= 0;
+  // GRID SATURATION FALLBACK (2026-08-11, group-match-73eb939d): the grid stores at most
+  // MATCH_CHECKPOINT_MAX indices, so once no active runner's grid can ever advance again the
+  // common index is pinned forever — a 33-minute 6km test race froze the whole race board
+  // (every runner's row, including one's own) at the 20-minute distances for the rest of the
+  // race. Once saturated we hand the compare back to the continuous projection path below (min
+  // live elapsed over the same active set), which keeps moving for arbitrarily long races.
+  // Fairness degrades to pre-2026-07-09 projection semantics past the grid — frozen is worse.
+  //
+  // A runner is GRID-TERMINAL when their grid cannot advance: the last slot is filled, OR their
+  // elapsed has crossed the grid horizon (appendCheckpointSample hard-no-ops past the cap and
+  // elapsed is monotonic, so a runner whose push gap spanned the FINAL 10s bucket is stuck below
+  // the last index forever). Judging "common index reached the last slot" instead — the first
+  // shape of this fix — let one runner's missed [1190,1200) bucket pin the whole board frozen
+  // below the guard, and let a reconnecting runner with a stale grid REWIND everyone (적대 검증
+  // 2026-08-11). Saturation = every active runner grid-terminal; one live-grid runner keeps the
+  // fair compare in force exactly as before.
+  const checkpointGridHorizonSeconds = MATCH_CHECKPOINT_MAX * MATCH_CHECKPOINT_STEP_SECONDS;
+  const isGridTerminal = (snapshot) =>
+    highestFilledCheckpointIndex(snapshot.checkpoints) >= MATCH_CHECKPOINT_MAX - 1
+    || (Number.isFinite(snapshot.liveElapsedSeconds)
+      && snapshot.liveElapsedSeconds >= checkpointGridHorizonSeconds);
+  const checkpointGridSaturated = liveCheckpointSnapshots.length > 0
+    && liveCheckpointSnapshots.every(isGridTerminal);
+  const hasCommonCheckpoint = commonCheckpoint.commonMaxIndex >= 0 && !checkpointGridSaturated;
   const legacyOfficialElapsedSeconds = liveCheckpointSnapshots.length > 0
     ? Math.max(0, Math.min(...liveCheckpointSnapshots.map((snapshot) => snapshot.liveElapsedSeconds)))
     : readySnapshots.length > 0

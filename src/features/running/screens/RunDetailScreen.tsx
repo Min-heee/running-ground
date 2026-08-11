@@ -41,6 +41,7 @@ export default function RunDetailScreen() {
     loading,
     mapRegion,
     matchBonusLabel,
+    matchBonusPending,
     matchResult,
     reload,
     routeCoordinates,
@@ -134,7 +135,7 @@ export default function RunDetailScreen() {
           {matchResult ? (
             <View style={styles.recordDuoRow}>
               <View style={styles.recordDuoItem}>
-                <RunPointBreakdownCard pointBreakdown={runDetail.pointBreakdown} matchBonusLabel={matchBonusLabel} />
+                <RunPointBreakdownCard pointBreakdown={runDetail.pointBreakdown} matchBonusLabel={matchBonusLabel} matchBonusPending={matchBonusPending} />
               </View>
               <View style={styles.recordDuoItem}>
                 <RunMatchResultCard
@@ -163,7 +164,7 @@ export default function RunDetailScreen() {
           ) : null}
 
           {!matchResult ? (
-            <RunPointBreakdownCard pointBreakdown={runDetail.pointBreakdown} matchBonusLabel={matchBonusLabel} />
+            <RunPointBreakdownCard pointBreakdown={runDetail.pointBreakdown} matchBonusLabel={matchBonusLabel} matchBonusPending={matchBonusPending} />
           ) : null}
 
           {runDetail.run.chase ? <ChaseResultCard chase={runDetail.run.chase} /> : null}

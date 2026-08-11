@@ -9,9 +9,10 @@ type PointBreakdown = RunDetailResponse['pointBreakdown'];
 type RunPointBreakdownCardProps = {
   pointBreakdown: PointBreakdown;
   matchBonusLabel: string;
+  matchBonusPending?: boolean;
 };
 
-export function RunPointBreakdownCard({ pointBreakdown, matchBonusLabel }: RunPointBreakdownCardProps) {
+export function RunPointBreakdownCard({ pointBreakdown, matchBonusLabel, matchBonusPending = false }: RunPointBreakdownCardProps) {
   return (
     <Card style={styles.pointBreakdownCard}>
       <Text style={styles.sectionTitle}>포인트</Text>
@@ -20,8 +21,9 @@ export function RunPointBreakdownCard({ pointBreakdown, matchBonusLabel }: RunPo
       <PointBreakdownRow label="성장 보너스" value={`+${pointBreakdown.growthPoints}P`} />
       <PointBreakdownRow
         label={matchBonusLabel}
-        value={`+${pointBreakdown.matchBonusPoints}P`}
-        highlight={pointBreakdown.matchBonusPoints > 0}
+        // 판정 미확정 창: "+0P"는 굳은 값처럼 읽힌다 — 순위 확정 후 자동 합산됨을 표기.
+        value={matchBonusPending ? '집계 중' : `+${pointBreakdown.matchBonusPoints}P`}
+        highlight={!matchBonusPending && pointBreakdown.matchBonusPoints > 0}
       />
       {(pointBreakdown.chasePoints ?? 0) > 0 ? (
         <PointBreakdownRow
@@ -34,6 +36,9 @@ export function RunPointBreakdownCard({ pointBreakdown, matchBonusLabel }: RunPo
         <Text style={styles.pointBreakdownTotalLabel}>총 획득 포인트</Text>
         <Text style={styles.pointBreakdownTotalValue}>+{pointBreakdown.totalPoints}P</Text>
       </View>
+      {matchBonusPending ? (
+        <Text style={styles.pendingCaption}>대결 포인트는 순위 확정 후 자동 합산돼요</Text>
+      ) : null}
     </Card>
   );
 }
@@ -102,5 +107,9 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: fontSizes.title,
     fontWeight: fontWeights.black,
+  },
+  pendingCaption: {
+    color: colors.textMuted,
+    fontSize: fontSizes.sm,
   },
 });

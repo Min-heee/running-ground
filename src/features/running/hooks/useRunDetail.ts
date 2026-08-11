@@ -9,6 +9,7 @@ import {
   parseMatchMode,
   useRunDetailMatchReconcile,
 } from '@/features/running/hooks/useRunDetailMatchReconcile';
+import { isMatchBonusPending } from '@/features/running/viewModels/matchBonusPending';
 
 type UseRunDetailParams = {
   friendId?: string;
@@ -100,6 +101,13 @@ export function useRunDetail({
       ? '1대1 대결 포인트'
       : '그룹 대결 포인트'
     : '매치 보너스';
+  // 판정 미확정 창(그룹에선 꼴찌가 아닌 완주자 전원이 봄)에는 "+0P" 대신 '집계 중' 표기.
+  // 기준은 반드시 SAVED 블롭이다(오버레이 아님): pointBreakdown.matchBonusPoints가 서버에서
+  // 저장 블롭으로부터 파생되므로, 오버레이(reconcile) 기준으로 걸면 판정 오버레이가 먼저
+  // 도착한 순간 '집계 중'이 "+0P"로 강등되는 창이 생긴다(적대 검증 2026-08-11). 블롭 기준이면
+  // 라벨과 숫자가 같은 fetch 스냅샷에서 나와 항상 원자적으로 일치한다 — 블롭이 치유된 재조회
+  // 한 번에 '집계 중' → "+15P"로 함께 바뀐다.
+  const matchBonusPending = isMatchBonusPending(savedMatchResult, Boolean(terminalMatchResult));
   const routeCoordinates = useMemo(() => (
     runDetail?.run.route?.map((point) => ({
       latitude: point.latitude,
@@ -121,6 +129,7 @@ export function useRunDetail({
     loading,
     mapRegion,
     matchBonusLabel,
+    matchBonusPending,
     matchResult,
     reload,
     routeCoordinates,

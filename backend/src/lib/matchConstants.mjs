@@ -107,8 +107,10 @@ export const MATCH_PROGRESS_MAX_SPEED_KM_PER_SECOND = MATCH_PROGRESS_MAX_SPEED_M
 // T = (k+1)*STEP, so no per-entry timestamp is stored — checkpoints is a compact number[]
 // (distanceKm at 2dp). The MY hero number/time/pace stays LIVE (GPS-fed) and the final
 // win/lose verdict stays server-authoritative on finishElapsedSeconds; only the compared
-// distance is quantized. MAX caps the array so the hot whole-store serialize stays cheap
-// (120 = 20 min of grid, well past every recommended race duration).
+// distance is quantized. MAX caps the array so the hot whole-store serialize stays cheap.
+// 120 = 20 min of grid — NOT past every real race (2026-08-11: a 33-min 6km race saturated it
+// and froze the race board). Past saturation matchSessionSnapshots degrades the compare to the
+// continuous projection path, so raising MAX buys checkpoint fairness, not liveness.
 export const MATCH_CHECKPOINT_STEP_SECONDS = 10;
 export const MATCH_CHECKPOINT_MAX = 120;
 // Once one duel runner finishes, the other has a bounded window to land their own
