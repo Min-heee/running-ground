@@ -28,13 +28,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     body: '러닝은 혼자 · 매칭 · 파티런 세 가지 모드가 있어요. 하나씩 볼게요.',
   },
   {
-    id: 'solo-run',
-    route: '/(tabs)/running',
-    targetId: 'solo-run',
-    title: '혼자 러닝',
-    body: '목표 거리를 정하고 RUN! 달리는 동안 뛴 만큼 링이 채워져요.',
-  },
-  {
     id: 'solo-tools',
     route: '/(tabs)/running',
     targetId: 'solo-tools',
@@ -63,10 +56,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
     body: '여기서 내 태그를 공유해 친구를 추가해요. 친구와 랭킹을 겨루고, 달리는 친구에겐 실시간 응원도 보낼 수 있어요.',
   },
   {
-    id: 'home-rank',
-    route: '/(tabs)/home',
-    targetId: 'home-rank',
-    title: '내 랭크',
-    body: '대결에서 이기면 LP가 쌓여 입문부터 엘리트까지 올라가요. 전적도 여기서 확인! 이제 달려볼까요?',
+    id: 'my-settings',
+    route: '/(tabs)/mypage',
+    targetId: 'my-settings',
+    title: '마이 탭',
+    body: '설정에서 알림을 관리하고, 음성 안내 목소리를 고르고, 애플 건강·헬스 커넥트 기록 연동도 여기서 해요. 이제 달려볼까요?',
   },
 ] as const;

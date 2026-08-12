@@ -1,4 +1,5 @@
 import { Link } from 'expo-router';
+import { TourTarget } from '@/features/tour/TourTarget';
 import { openBrowserAsync } from 'expo-web-browser';
 import { useCallback } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -43,6 +44,7 @@ export function ProfileSettingsCard({ onDebugUnlockPress }: ProfileSettingsCardP
   }, []);
 
   return (
+    <TourTarget id="my-settings">
     <Card style={styles.settingsCard}>
       <View style={styles.sectionHeaderRow}>
         <SectionTitle>설정</SectionTitle>
@@ -110,6 +112,7 @@ export function ProfileSettingsCard({ onDebugUnlockPress }: ProfileSettingsCardP
         </Pressable>
       ) : null}
     </Card>
+    </TourTarget>
   );
 }
 
