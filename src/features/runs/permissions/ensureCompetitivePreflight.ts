@@ -39,6 +39,7 @@ import {
   ensureLocationDisclosureConsent,
   markLocationDisclosureConsented,
 } from '@/features/permissions/locationDisclosure';
+import { confirmBackgroundRestrictionOnce } from '@/features/permissions/backgroundRestrictionNotice';
 import { LOCATION_DISCLOSURE_MESSAGE } from '@/features/permissions/locationDisclosureCopy';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import {
@@ -353,6 +354,13 @@ export async function ensureCompetitivePreflight(source: string): Promise<boolea
         source,
       });
       showCompetitivePreflightBlockedAlert(result.block);
+      return false;
+    }
+
+    // 삼성 "백그라운드 사용 제한" 1회 안내 (오너 2026-08-13) — 모든 차단 게이트가 통과한
+    // 직후라 다른 다이얼로그와 절대 겹치지 않는다. '설정 열기'를 고르면 이 진입만 멈춘다.
+    if (!(await confirmBackgroundRestrictionOnce())) {
+      rgPerfMark('competitive preflight paused for bg-restriction check', { source });
       return false;
     }
 
