@@ -3191,7 +3191,7 @@ await runTest('STUCK one-finisher duel: the SWEEP FINALIZES a window-closed seal
     // LP finally applies for the sealed win (host '06:12/km' vs guest '06:25/km' → 13s apart →
     // win-vs-slower / loss-vs-faster deltas), and the DNF side takes the loser delta.
     assert.equal(after.users.find((entry) => entry.id === 'host-user').rankState.lp, 50 + DUEL_LP.winVsSlower);
-    assert.equal(after.users.find((entry) => entry.id === 'guest-user').rankState.lp, 50 + DUEL_LP.lossVsFaster);
+    assert.equal(after.users.find((entry) => entry.id === 'guest-user').rankState.lp, 50 + DUEL_LP.loss);
     assert.equal((after.notifications ?? []).filter((entry) => entry.type === 'match_result').length, 2);
 
     // A second bystander poll changes nothing (finalization is one-way idempotent).

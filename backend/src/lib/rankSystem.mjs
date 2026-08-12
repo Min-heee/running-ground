@@ -3,18 +3,18 @@ export const LP_PER_TIER = 200;
 export const INITIAL_RANK = { tier: '입문', lp: 0 };
 const LEGACY_TIER_ALIASES = { '조거': '러너' };
 
+// 오너 확정 2026-08-13: 지면 깎이는 LP 폐지 — 모든 대결은 참가만 해도 오른다.
+// 승리는 상대 페이스별 3단계(강자를 잡을수록 크게), 패배는 차이 무관 일괄 +10.
 export const DUEL_LP = {
   winVsFaster: 28,
   winVsSimilar: 20,
-  winVsSlower: 12,
-  lossVsFaster: -12,
-  lossVsSimilar: -20,
-  lossVsSlower: -28,
+  winVsSlower: 15,
+  loss: 10,
 };
 
 export const RANK_PACE_SIMILAR_THRESHOLD_SEC = 8;
 
-export const GROUP_LP = { top: 20, middle: 6, bottom: -15 };
+export const GROUP_LP = { top: 25, middle: 15, bottom: 10 };
 export const GROUP_TOP_RATIO = 0.3;
 export const GROUP_BOTTOM_RATIO = 0.7;
 
@@ -91,27 +91,27 @@ export function resolveDuelMatchLpDeltas({ winnerPaceSecPerKm, loserPaceSecPerKm
   if (!isValidPaceSeconds(winnerPace) || !isValidPaceSeconds(loserPace)) {
     return {
       winnerLpDelta: DUEL_LP.winVsSimilar,
-      loserLpDelta: DUEL_LP.lossVsSimilar,
+      loserLpDelta: DUEL_LP.loss,
     };
   }
 
   if (Math.abs(loserPace - winnerPace) <= RANK_PACE_SIMILAR_THRESHOLD_SEC) {
     return {
       winnerLpDelta: DUEL_LP.winVsSimilar,
-      loserLpDelta: DUEL_LP.lossVsSimilar,
+      loserLpDelta: DUEL_LP.loss,
     };
   }
 
   if (loserPace < winnerPace) {
     return {
       winnerLpDelta: DUEL_LP.winVsFaster,
-      loserLpDelta: DUEL_LP.lossVsSlower,
+      loserLpDelta: DUEL_LP.loss,
     };
   }
 
   return {
     winnerLpDelta: DUEL_LP.winVsSlower,
-    loserLpDelta: DUEL_LP.lossVsFaster,
+    loserLpDelta: DUEL_LP.loss,
   };
 }
 

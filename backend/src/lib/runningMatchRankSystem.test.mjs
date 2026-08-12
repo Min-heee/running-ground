@@ -158,7 +158,7 @@ function createProfileSnapshot(id, averagePace = '08:00/km') {
   });
 
   assert.equal(winner.rankState.lp, 50 + DUEL_LP.winVsFaster);
-  assert.equal(loser.rankState.lp, 50 + DUEL_LP.lossVsSlower);
+  assert.equal(loser.rankState.lp, 50 + DUEL_LP.loss);
   assert.equal(session.lpApplied, true);
 }
 
@@ -225,7 +225,7 @@ function createProfileSnapshot(id, averagePace = '08:00/km') {
   leaveRunningMatch(store, loser, { matchId: session.id });
 
   assert.equal(winner.rankState.lp, 50 + DUEL_LP.winVsSimilar);
-  assert.equal(loser.rankState.lp, 50 + DUEL_LP.lossVsSimilar);
+  assert.equal(loser.rankState.lp, 50 + DUEL_LP.loss);
   assert.equal(session.lpApplied, true);
 }
 
@@ -1296,7 +1296,7 @@ function createProfileSnapshot(id, averagePace = '08:00/km') {
   // LP applied exactly once via the every-done gate (similar pace → ±20): the late runner
   // takes the win delta, the provisionally-shown winner the loss delta.
   assert.equal(laggard.rankState.lp, 50 + DUEL_LP.winVsSimilar);
-  assert.equal(finisher.rankState.lp, 50 + DUEL_LP.lossVsSimilar);
+  assert.equal(finisher.rankState.lp, 50 + DUEL_LP.loss);
   assert.equal(session.lpApplied, true);
 }
 

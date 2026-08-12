@@ -86,7 +86,7 @@ assert.deepEqual(resolveDuelMatchLpDeltas({
   loserPaceSecPerKm: 300,
 }), {
   winnerLpDelta: DUEL_LP.winVsFaster,
-  loserLpDelta: DUEL_LP.lossVsSlower,
+  loserLpDelta: DUEL_LP.loss,
 });
 
 assert.deepEqual(resolveDuelMatchLpDeltas({
@@ -94,7 +94,7 @@ assert.deepEqual(resolveDuelMatchLpDeltas({
   loserPaceSecPerKm: 337,
 }), {
   winnerLpDelta: DUEL_LP.winVsSimilar,
-  loserLpDelta: DUEL_LP.lossVsSimilar,
+  loserLpDelta: DUEL_LP.loss,
 });
 
 assert.deepEqual(resolveDuelMatchLpDeltas({
@@ -102,7 +102,7 @@ assert.deepEqual(resolveDuelMatchLpDeltas({
   loserPaceSecPerKm: 330,
 }), {
   winnerLpDelta: DUEL_LP.winVsSlower,
-  loserLpDelta: DUEL_LP.lossVsFaster,
+  loserLpDelta: DUEL_LP.loss,
 });
 
 assert.deepEqual(resolveDuelMatchLpDeltas({
@@ -110,7 +110,7 @@ assert.deepEqual(resolveDuelMatchLpDeltas({
   loserPaceSecPerKm: Number.NaN,
 }), {
   winnerLpDelta: DUEL_LP.winVsSimilar,
-  loserLpDelta: DUEL_LP.lossVsSimilar,
+  loserLpDelta: DUEL_LP.loss,
 });
 
 assert.equal(resolveGroupMatchLpDelta({ placement: 1, totalParticipants: 10 }), GROUP_LP.top);

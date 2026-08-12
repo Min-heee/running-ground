@@ -70,7 +70,7 @@ function createUser(id) {
 }
 
 // A profile run so buildMatchRunnerProfile derives the SAME average pace for every runner
-// (similar pace → deterministic ±DUEL_LP.winVsSimilar/lossVsSimilar deltas in every LP pin).
+// (similar pace → deterministic DUEL_LP.winVsSimilar/loss deltas in every LP pin).
 function createProfileRun(userId) {
   return {
     id: `${userId}-profile-run`,
@@ -227,7 +227,7 @@ test('1. late finish inside the §B4 window: no seal, faster measured elapsed wi
 
   // LP exactly once via the every-done gate (similar pace → ±20). Absolute values.
   assert.equal(iphone.rankState.lp, BASE_LP + DUEL_LP.winVsSimilar);
-  assert.equal(galaxy.rankState.lp, BASE_LP + DUEL_LP.lossVsSimilar);
+  assert.equal(galaxy.rankState.lp, BASE_LP + DUEL_LP.loss);
   assert.equal(session.lpApplied, true);
   assert.equal(countNotifications(store, 'match_result'), 2);
   assert.equal(countNotifications(store, 'rank_change'), 2);
@@ -310,7 +310,7 @@ test('3. faster late finish at seal+5m: seal annulled, winner flips once, LP/not
 
   // LP exactly once per user per match — absolute rankState values.
   assert.equal(iphone.rankState.lp, BASE_LP + DUEL_LP.winVsSimilar);
-  assert.equal(galaxy.rankState.lp, BASE_LP + DUEL_LP.lossVsSimilar);
+  assert.equal(galaxy.rankState.lp, BASE_LP + DUEL_LP.loss);
   assert.equal(countNotifications(store, 'match_result'), 2);
   assert.equal(countNotifications(store, 'rank_change'), 2);
 
@@ -354,7 +354,7 @@ test('4. slower late finish: winner unchanged, no revised flag, late runner is a
   assert.equal(response.duelVerdict.myFinishElapsedSeconds, 1700);
 
   assert.equal(galaxy.rankState.lp, BASE_LP + DUEL_LP.winVsSimilar);
-  assert.equal(iphone.rankState.lp, BASE_LP + DUEL_LP.lossVsSimilar);
+  assert.equal(iphone.rankState.lp, BASE_LP + DUEL_LP.loss);
   assert.equal(session.lpApplied, true);
 });
 
@@ -375,7 +375,7 @@ test('5. beyond-window push downgrades byte-identically; finalization already ap
   sweepStuckMatchSessionFallbacks(store);
   assert.equal(typeof session.sealFinalizedAt, 'string');
   assert.equal(galaxy.rankState.lp, BASE_LP + DUEL_LP.winVsSimilar, 'sealed win finally pays LP');
-  assert.equal(iphone.rankState.lp, BASE_LP + DUEL_LP.lossVsSimilar, 'the DNF side takes the loser delta');
+  assert.equal(iphone.rankState.lp, BASE_LP + DUEL_LP.loss, 'the DNF side takes the loser delta');
   const galaxyBlob = store.runs.find((run) => run.id === 'galaxy-pending-beyond').matchResult;
   const iphoneBlob = store.runs.find((run) => run.id === 'iphone-pending-beyond').matchResult;
   assert.equal(galaxyBlob.resultTone, 'win');
@@ -399,7 +399,7 @@ test('5. beyond-window push downgrades byte-identically; finalization already ap
   pushFinish(store, iphone.id, session.id, 1610);
   pushFinish(store, iphone.id, session.id, 1612);
   assert.equal(galaxy.rankState.lp, BASE_LP + DUEL_LP.winVsSimilar);
-  assert.equal(iphone.rankState.lp, BASE_LP + DUEL_LP.lossVsSimilar);
+  assert.equal(iphone.rankState.lp, BASE_LP + DUEL_LP.loss);
   assert.equal(countNotifications(store, 'match_result'), 2);
   assert.equal(countNotifications(store, 'rank_change'), 2);
   assert.equal(galaxyBlob.resultTone, 'win');
@@ -445,7 +445,7 @@ test('6. hammering across the timeline: sealFinalizedAt once, LP once, notificat
   assert.equal(session.sealFinalizedAt, finalizedAt);
   // LP exactly once per user — absolute values prove no re-application across the hammering.
   assert.equal(galaxy.rankState.lp, BASE_LP + DUEL_LP.winVsSimilar);
-  assert.equal(iphone.rankState.lp, BASE_LP + DUEL_LP.lossVsSimilar);
+  assert.equal(iphone.rankState.lp, BASE_LP + DUEL_LP.loss);
   assert.equal(session.lpApplied, true);
   // Notifications exactly once per user.
   assert.equal(countNotifications(store, 'match_result'), 2);
@@ -507,7 +507,7 @@ test('8. forfeit during the window: every-done LP + backfill-before-prune, no do
 
   // Immediate LP via the every-done gate (finished + forfeited).
   assert.equal(galaxy.rankState.lp, BASE_LP + DUEL_LP.winVsSimilar);
-  assert.equal(iphone.rankState.lp, BASE_LP + DUEL_LP.lossVsSimilar);
+  assert.equal(iphone.rankState.lp, BASE_LP + DUEL_LP.loss);
   assert.equal(session.lpApplied, true);
 
   // The leave's prune ran the sweep FIRST: every-done finalized the seal and back-filled the
@@ -526,7 +526,7 @@ test('8. forfeit during the window: every-done LP + backfill-before-prune, no do
   // values still exactly one delta).
   sweepStuckMatchSessionFallbacks(store, new Date(Date.now() + MATCH_SEAL_REVISION_WINDOW_MS + 60 * 1000));
   assert.equal(galaxy.rankState.lp, BASE_LP + DUEL_LP.winVsSimilar);
-  assert.equal(iphone.rankState.lp, BASE_LP + DUEL_LP.lossVsSimilar);
+  assert.equal(iphone.rankState.lp, BASE_LP + DUEL_LP.loss);
   assert.equal(countNotifications(store, 'match_result'), 2);
   assert.equal(countNotifications(store, 'rank_change'), 2);
 });
@@ -668,6 +668,6 @@ test('11. dead-heat revision resolves to draw; pre-existing draw LP semantics pi
   // standings still rank the dead-heat deterministically (earlier receipt first → Galaxy 1st),
   // and the LP core reads rank 1/2 as winner/loser.
   assert.equal(galaxy.rankState.lp, BASE_LP + DUEL_LP.winVsSimilar);
-  assert.equal(iphone.rankState.lp, BASE_LP + DUEL_LP.lossVsSimilar);
+  assert.equal(iphone.rankState.lp, BASE_LP + DUEL_LP.loss);
   assert.equal(session.lpApplied, true);
 });
