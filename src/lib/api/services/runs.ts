@@ -1,3 +1,4 @@
+import { buildLiveSharePatchBody } from '@/lib/api/services/liveShareBody';
 import {
   friendRunRecords,
   myRunRecords,
@@ -208,11 +209,9 @@ export async function updateRunningLiveShare(
 
   return apiPatch<UpdateRunningLiveShareResponse>(
     '/me/live-sharing',
-    {
-      enabled: input.enabled,
-      status: input.status,
-      locationLabel: input.locationLabel?.trim() ?? '',
-    },
+    // body 조립은 buildLiveSharePatchBody 하나뿐이다 — 8/1 출시 이후 여기 인라인 body가
+    // 좌표·거리·페이스·응원허용을 버려서 친구 라이브 지도가 영원히 스피너였다 (8/12 근치).
+    buildLiveSharePatchBody(input),
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '위치 공유 상태를 반영하지 못했어요.',
