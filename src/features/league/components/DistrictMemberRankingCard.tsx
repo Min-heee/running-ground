@@ -27,7 +27,8 @@ type DistrictMemberRankingCardProps = {
 
 type DistrictMemberRank = DistrictPersonalResponse['ranks'][number];
 
-const DEFAULT_METRIC: DistrictPersonalMetric = 'rankScore';
+// 오너 확정 2026-08-13: 이번달 거리가 왼쪽(첫) 탭 — 기본 선택도 왼쪽 탭과 일치시킨다.
+const DEFAULT_METRIC: DistrictPersonalMetric = 'monthlyDistance';
 
 const METRIC_DESCRIPTION: Record<DistrictPersonalMetric, string> = {
   rankScore: '해당 지역 회원들을 랭크 점수가 높은 순으로 정렬했어요.',

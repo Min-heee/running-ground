@@ -15,16 +15,17 @@ export const DistrictMetricSwitch = memo(function DistrictMetricSwitch({
 }: DistrictMetricSwitchProps) {
   return (
     <View style={styles.metricSwitch}>
-      <MetricButton
-        label="랭크 점수"
-        metric="rankScore"
-        active={metric === 'rankScore'}
-        onSelect={onChange}
-      />
+      {/* 오너 확정 2026-08-13: 이번달 거리가 왼쪽, 랭크 점수가 오른쪽. */}
       <MetricButton
         label="이번달 거리"
         metric="monthlyDistance"
         active={metric === 'monthlyDistance'}
+        onSelect={onChange}
+      />
+      <MetricButton
+        label="랭크 점수"
+        metric="rankScore"
+        active={metric === 'rankScore'}
         onSelect={onChange}
       />
     </View>
