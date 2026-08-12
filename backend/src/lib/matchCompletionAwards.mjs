@@ -40,7 +40,7 @@ function applyMatchLpFromStandings(store, session, standings, participants) {
     // users — a test-match bot (profileSnapshot participant) resolves to undefined and
     // throws mid-loop, which used to leave lpApplied unset and re-award the real
     // user's LP on every retry poll. Party runs keep their existing exclusion.
-    if (session.isPartyRun || isTestMatchSession(session)) {
+    if (session.isPartyRun || session.skipRankLp || isTestMatchSession(session)) {
       session.lpApplied = true;
       return;
     }
@@ -105,7 +105,7 @@ export function applyMatchLpIfComplete(store, session) {
   const participants = Array.isArray(session.participants) ? session.participants : [];
   const now = new Date();
   if (!participants.length || !participants.every((participant) => isParticipantDoneWithMatch(participant, now))) {
-    if (session.isPartyRun || isTestMatchSession(session)) {
+    if (session.isPartyRun || session.skipRankLp || isTestMatchSession(session)) {
       session.lpApplied = true;
     }
     return;

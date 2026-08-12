@@ -144,3 +144,37 @@ test('raceSealGraceUntil 유예 중엔 그룹 DNF 봉인 불가, 유예 후엔 �
   const normal = buildSession(null);
   assert.ok(sealGroupFallbackResolutionIfElapsed(normal, at('2026-08-15T12:15:00.000Z')));
 });
+
+// 오너 확정 2026-08-13: 행사는 랭크(LP)를 움직이지 않는다 — 테스트런에서 하위 30%가 −15 LP를
+// 맞은 사건의 재발 방지. 편성이 skipRankLp를 박고, LP 적용부가 그 플래그를 존중한다.
+test('레이스 세션은 skipRankLp — 완주해도 랭크 LP가 움직이지 않는다', async () => {
+  const store = buildStore();
+  formDueLiveGroupRaceSessions(store, at('2026-08-15T11:01:00.000Z'));
+  const session = store.matchSessions[0];
+  assert.equal(session.skipRankLp, true, '편성이 LP 제외 플래그를 박아야 한다');
+
+  // 프로덕션 경로 그대로: 레이스 중 첫 완료 폴(아직 전원 완주 전)이 조기 분기에서
+  // lpApplied를 선점한다 — 이후 어떤 폴/시퀀스도 LP 수학에 도달할 수 없다.
+  const { applyMatchLpIfComplete } = await import('./matchCompletionAwards.mjs');
+  for (const user of store.users) {
+    user.rankState = { tier: '러너', lp: 100 };
+  }
+
+  applyMatchLpIfComplete(store, session);
+  assert.equal(session.lpApplied, true, '레이스는 첫 폴에서 LP 제외가 선점돼야 한다');
+
+  // 전원 완주 후 재호출돼도 랭크는 불변.
+  for (const [index, participant] of session.participants.entries()) {
+    participant.liveStatus = 'finished';
+    participant.finishedAt = '2026-08-15T12:00:00.000Z';
+    participant.finishElapsedSeconds = 2700 + index;
+    participant.liveDistanceKm = 8.15;
+    participant.liveElapsedSeconds = 2700 + index;
+    participant.liveUpdatedAt = '2026-08-15T12:00:00.000Z';
+  }
+  applyMatchLpIfComplete(store, session);
+
+  for (const user of store.users) {
+    assert.deepEqual(user.rankState, { tier: '러너', lp: 100 }, `${user.id}의 LP는 불변이어야 한다`);
+  }
+});

@@ -84,6 +84,9 @@ export function formDueLiveGroupRaceSessions(store, now = new Date()) {
       ? event.runWindowMinutes
       : 180;
     session.raceSealGraceUntil = new Date(startMs + runWindowMinutes * 60 * 1000).toISOString();
+    // 오너 확정 2026-08-13: 행사는 랭크(LP)를 움직이지 않는다 — 축제에서 하위 30%가 −15 LP를
+    // 맞는 건 파티런을 LP에서 제외한 것과 같은 이유로 부당하다. 포인트/별/기록은 그대로.
+    session.skipRankLp = true;
     // createMatchSession은 매칭 큐 관례대로 거리를 소수 1자리로 정규화한다(8.15→8.2).
     // 이벤트 세션은 이벤트가 공표한 거리 그대로가 목표다 — 정확값으로 되돌린다. 하류(목표 판정·
     // 표시·체크포인트)는 전부 숫자 그대로 쓰므로 안전하다.
