@@ -2,6 +2,8 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import type { UserProfile, WeeklySummary } from '@/domain';
 import { shouldHidePastUpcomingMatch } from '@/features/home/utils/homeUpcomingMatches';
+import { useReservationArenaHandoff } from '@/features/match/hooks/useReservationArenaHandoff';
+import { isGlobalTrackerBusy } from '@/features/runs/tracking/globalTrackerActivity';
 import {
   findNextStartingMatchedMatch,
 } from '@/lib/matchCountdown';
@@ -149,6 +151,26 @@ export function useHomeScreenModel() {
     () => findNextStartingMatchedMatch(visibleUpcomingMatches, nowMs),
     [nowMs, visibleUpcomingMatches],
   );
+
+  // 815 리허설 (2026-08-11): 편성된 그룹 세션의 카운트다운이 홈 카드에서 0까지 내려가도 화면이
+  // 홈에 머물렀다 — 아레나 자동 진입(≤25s 핸드오프)이 예약 대기방 화면에만 있었기 때문. 같은
+  // 핸드오프를 홈의 다음 출발 매치에도 건다: 출발 25초 전에 러닝 탭으로 교체 진입해 카운트다운
+  // 오버레이가 끊김 없이 이어지고, 아레나가 워밍업(사전 GPS 예열)을 켠 채 정각에 출발한다.
+  // 발동 범위: freezeOnBlur 때문에 이 효과는 홈이 포커스된 동안(또는 창 안에서 홈으로 복귀한
+  // 순간)에만 발동한다 — 다른 탭 대기는 각 탭의 핸드오프(레이스 탭 등)가 맡는다.
+  useReservationArenaHandoff({
+    mode: nextStartingMatch?.match.mode ?? 'duel',
+    matchId: nextStartingMatch?.match.matchId ?? null,
+    distanceKm: nextStartingMatch?.match.distanceKm ?? null,
+    slotStartAt: nextStartingMatch?.match.slotStartAt ?? null,
+    isTestMatch: nextStartingMatch?.match.isTestMatch ?? false,
+    remainingSeconds: nextStartingMatch?.remainingSeconds ?? null,
+    // 게이트 (적대 검증 2026-08-11): ① 취소 정산 중인 매치는 핸드오프 금지(예약 방과 같은
+    // 계약), ② 트래커가 기록 중이면(워밍업 솔로런 등) 자동 진입을 포기한다 — 런타임 자체
+    // 핸드오프의 isIdle 게이트(shouldAutoFocusMatchArena)와 같은 계약. 수동 진입은 언제나 가능.
+    enabled: (!nextStartingMatch || cancelingMatchId !== nextStartingMatch.match.matchId)
+      && !isGlobalTrackerBusy(),
+  });
 
   const handleCancelUpcomingMatch = useCallback(async (match: UpcomingRunningMatchItem) => {
     try {

@@ -99,3 +99,55 @@ export function resolveRaceReminderAtMs(startsAt: string | null | undefined, now
   const reminderAtMs = startMs - RACE_REMINDER_BEFORE_START_MS;
   return reminderAtMs > nowMs ? reminderAtMs : null;
 }
+
+// 아레나 자동 핸드오프 대상 (815 리허설 2026-08-11: 카운트다운이 0이 돼도 화면이 레이스/홈에
+// 머물렀다). 신청했고 편성이 끝난(formedMatchId) 이벤트 중 출발이 가장 임박한 것 하나 —
+// 화면은 이 대상을 예약 방과 동일한 핸드오프 훅(≤25s에 러닝 탭 교체 진입)에 그대로 물린다.
+// 출발이 이미 지난 이벤트는 대상이 아니다(러닝 탭의 active 복원 경로가 맡는다).
+export function resolveRaceArenaHandoffTarget(
+  events: OfflineRaceEvent[],
+  nowMs: number,
+): { matchId: string; distanceKm: number; slotStartAt: string; remainingSeconds: number } | null {
+  const candidates = events
+    .filter((event) => event.registered && typeof event.formedMatchId === 'string' && event.formedMatchId)
+    .map((event) => {
+      const startMs = toValidMs(event.startsAt);
+      return startMs === null || startMs <= nowMs
+        ? null
+        : {
+          matchId: event.formedMatchId as string,
+          distanceKm: event.distanceKm,
+          slotStartAt: event.startsAt,
+          remainingSeconds: Math.max(1, Math.round((startMs - nowMs) / 1000)),
+        };
+    })
+    .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null)
+    .sort((left, right) => left.remainingSeconds - right.remainingSeconds);
+
+  return candidates[0] ?? null;
+}
+
+// 편성 재조회 판정 (적대 검증 2026-08-11): 레이스 탭은 포커스 때만 허브를 불러오므로, 마감
+// 전부터 탭을 켜두고 기다리는 유저는 편성(formedMatchId)을 영영 모른 채 핸드오프 창을
+// 지나친다. 신청한 이벤트가 아직 미편성인데 출발이 임박(3분 전 ~ 출발 후 10분: 서버 편성
+// 유예와 같은 창)하면 true — 화면은 스로틀(20초)을 걸고 허브를 재조회한다. 허브 GET은 서버
+// 편성 스윕도 돌리므로, 혼자 기다리는 클라이언트도 이 재조회로 편성을 스스로 촉발한다.
+export const RACE_FORMATION_REFETCH_BEFORE_MS = 3 * 60 * 1000;
+export const RACE_FORMATION_REFETCH_AFTER_MS = 10 * 60 * 1000;
+
+export function shouldRefetchForRaceFormation(events: OfflineRaceEvent[], nowMs: number): boolean {
+  return events.some((event) => {
+    if (!event.registered || event.formedMatchId) {
+      return false;
+    }
+
+    const startMs = toValidMs(event.startsAt);
+
+    if (startMs === null) {
+      return false;
+    }
+
+    return nowMs >= startMs - RACE_FORMATION_REFETCH_BEFORE_MS
+      && nowMs <= startMs + RACE_FORMATION_REFETCH_AFTER_MS;
+  });
+}

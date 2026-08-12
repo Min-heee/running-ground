@@ -62,6 +62,8 @@ export type OfflineRaceEvent = {
   entryFeePoints: number;
   operationNote: string;
   registered: boolean;
+  // live_group 이벤트가 편성된 뒤의 그룹 세션 id (미편성이면 null) — 레이스 탭 아레나 핸드오프용.
+  formedMatchId?: string | null;
   // 참가 비밀번호가 걸린 회차(테스트/비공개) — 클라는 입력창 표시 여부만 안다.
   passwordRequired?: boolean;
   status: OfflineRaceStatus;

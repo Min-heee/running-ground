@@ -7,6 +7,8 @@ import {
   RACE_REMINDER_BEFORE_START_MS,
   resolveRaceJoinAction,
   resolveRaceReminderAtMs,
+  resolveRaceArenaHandoffTarget,
+  shouldRefetchForRaceFormation,
 } from '@/features/race/raceHubModel';
 
 // 8·15런: 2026-08-15(토) 20:15 KST. 테스트는 파서가 기기 로컬 시간대로 해석하는 로컬 ISO를 쓴다
@@ -70,4 +72,72 @@ test('resolveRaceReminderAtMs: 시작 10분 전, 이미 임박했으면 예약�
   // 출발 9분 전 신청 — 과거 트리거를 예약하면 즉시 발화하므로 null이어야 한다.
   assert.equal(resolveRaceReminderAtMs(START_LOCAL_ISO, startMs - 9 * 60 * 1000), null);
   assert.equal(resolveRaceReminderAtMs('garbage', localMs('2026-08-11T09:00:00')), null);
+});
+
+test('resolveRaceArenaHandoffTarget: 신청+편성된 이벤트 중 출발이 가장 임박한 것 하나만', () => {
+  const NOW = Date.parse('2026-08-15T11:00:00.000Z');
+  const base = {
+    id: 'race-x', title: 't', subtitle: null, distanceKm: 8.15,
+    registrationClosesAt: '2026-08-15T10:45:00.000Z',
+    participationMode: null, proofMethod: null, runWindowMinutes: 120, hostLabel: null,
+    participantCount: 4, capacity: null, entryFeePoints: 0, operationNote: null,
+    passwordRequired: false, status: 'registration_open', participantPreview: [],
+  };
+  const mk = (over: Record<string, unknown>) => ({ ...base, ...over }) as never;
+
+  const target = resolveRaceArenaHandoffTarget([
+    // 미신청 — 제외.
+    mk({ id: 'a', registered: false, formedMatchId: 'group-match-a', startsAt: '2026-08-15T11:00:20.000Z' }),
+    // 미편성 — 제외.
+    mk({ id: 'b', registered: true, formedMatchId: null, startsAt: '2026-08-15T11:00:20.000Z' }),
+    // 출발이 이미 지남 — 제외 (러닝 탭 active 복원이 맡음).
+    mk({ id: 'c', registered: true, formedMatchId: 'group-match-c', startsAt: '2026-08-15T10:59:00.000Z' }),
+    // 더 먼 편성 이벤트 — 후보지만 2순위.
+    mk({ id: 'd', registered: true, formedMatchId: 'group-match-d', startsAt: '2026-08-15T12:00:00.000Z' }),
+    // 가장 임박 — 이것이 대상.
+    mk({ id: 'e', registered: true, formedMatchId: 'group-match-e', startsAt: '2026-08-15T11:00:18.000Z' }),
+  ], NOW);
+
+  assert.ok(target);
+  assert.equal(target.matchId, 'group-match-e');
+  assert.equal(target.remainingSeconds, 18);
+  assert.equal(target.distanceKm, 8.15);
+
+  // 대상이 하나도 없으면 null.
+  assert.equal(resolveRaceArenaHandoffTarget([mk({ id: 'z', registered: false, formedMatchId: null, startsAt: '2026-08-15T11:00:20.000Z' })], NOW), null);
+});
+
+test('shouldRefetchForRaceFormation: 신청+미편성+출발 임박(−3분~+10분)일 때만', () => {
+  const NOW = Date.parse('2026-08-15T11:13:00.000Z'); // 출발 11:15의 2분 전
+  const base = {
+    id: 'race-y', title: 't', subtitle: null, distanceKm: 8.15,
+    registrationClosesAt: '2026-08-15T11:00:00.000Z',
+    participationMode: null, proofMethod: null, runWindowMinutes: 120, hostLabel: null,
+    participantCount: 4, capacity: null, entryFeePoints: 0, operationNote: null,
+    passwordRequired: false, status: 'registration_closed', participantPreview: [],
+    startsAt: '2026-08-15T11:15:00.000Z',
+  };
+  const mk = (over: Record<string, unknown>) => ({ ...base, ...over }) as never;
+
+  // 신청했고 아직 미편성, 출발 2분 전 — 재조회.
+  assert.equal(shouldRefetchForRaceFormation([mk({ registered: true, formedMatchId: null })], NOW), true);
+  // 이미 편성됨 — 불필요.
+  assert.equal(shouldRefetchForRaceFormation([mk({ registered: true, formedMatchId: 'group-match-1' })], NOW), false);
+  // 미신청 — 불필요.
+  assert.equal(shouldRefetchForRaceFormation([mk({ registered: false, formedMatchId: null })], NOW), false);
+  // 출발까지 3분 넘게 남음 — 아직 불필요.
+  assert.equal(
+    shouldRefetchForRaceFormation([mk({ registered: true, formedMatchId: null })], Date.parse('2026-08-15T11:11:59.000Z')),
+    false,
+  );
+  // 출발 후 10분(서버 편성 유예) 안 — 여전히 재조회 (지각 편성 구제).
+  assert.equal(
+    shouldRefetchForRaceFormation([mk({ registered: true, formedMatchId: null })], Date.parse('2026-08-15T11:20:00.000Z')),
+    true,
+  );
+  // 유예도 지남 — 종료.
+  assert.equal(
+    shouldRefetchForRaceFormation([mk({ registered: true, formedMatchId: null })], Date.parse('2026-08-15T11:26:00.000Z')),
+    false,
+  );
 });

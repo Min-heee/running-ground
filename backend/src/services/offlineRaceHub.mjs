@@ -89,6 +89,9 @@ export function decorateOfflineRaceEvent(store, event, currentUser = null) {
     entryFeePoints: event.entryFeePoints,
     operationNote: event.operationNote,
     registered: typeof currentUserTag === 'string' ? (event.registeredUserTags ?? []).includes(currentUserTag) : false,
+    // live_group 편성 세션 id — 레이스 탭의 아레나 자동 핸드오프가 출발 직전 러닝 탭으로
+    // 넘어갈 때 focus 대상이 된다. 참가 검증은 매치 엔드포인트가 하므로 노출 자체는 안전.
+    formedMatchId: typeof event.formedMatchId === 'string' ? event.formedMatchId : null,
     // 비밀번호 자체는 절대 내보내지 않는다 — 클라는 입력창을 띄울지만 판단한다.
     passwordRequired: Boolean(event.joinPassword),
     status: getOfflineRaceStatus(event),

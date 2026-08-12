@@ -5,6 +5,7 @@ import { buildAveragePace } from '@/features/runs/tracking';
 import { type LastSyncedMatchProgress } from '@/features/runs/viewModels/matchProgress';
 import { type OfficialStartBaseline } from '@/features/runs/tracking/trackingSession';
 import { applyLiveRunSettings } from '@/features/runs/cheer/liveRunSettingsStore';
+import { setGlobalTrackerBusy } from '@/features/runs/tracking/globalTrackerActivity';
 import { fetchNotificationSettings } from '@/services';
 
 export type TrackerStatus = 'idle' | 'starting' | 'running' | 'paused' | 'saving';
@@ -40,6 +41,13 @@ export function useRunTracking() {
   const officialStartBaselineRef = useRef<OfficialStartBaseline | null>(null);
 
   const [status, setStatus] = useState<TrackerStatus>('idle');
+
+  // 홈/레이스 탭의 아레나 자동 핸드오프가 "기록 중엔 발동 금지" 게이트로 읽는 모듈 미러
+  // (globalTrackerActivity). status가 유일한 근원 — 언마운트 시엔 반드시 유휴로 되돌린다.
+  useEffect(() => {
+    setGlobalTrackerBusy(status !== 'idle');
+  }, [status]);
+  useEffect(() => () => setGlobalTrackerBusy(false), []);
   const [soloStartCountdownSeconds, setSoloStartCountdownSeconds] = useState<number | null>(null);
   const [route, setRoute] = useState<RunRoutePoint[]>([]);
   const [distanceKm, setDistanceKm] = useState(0);

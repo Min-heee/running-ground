@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Card } from '@/components/Card';
@@ -12,8 +12,12 @@ import type { OfflineRaceEvent, OfflineRaceHub } from '@/domain/match';
 import {
   buildRaceDdayLabel,
   formatRaceStartLabel,
+  resolveRaceArenaHandoffTarget,
   resolveRaceJoinAction,
+  shouldRefetchForRaceFormation,
 } from '@/features/race/raceHubModel';
+import { useReservationArenaHandoff } from '@/features/match/hooks/useReservationArenaHandoff';
+import { isGlobalTrackerBusy } from '@/features/runs/tracking/globalTrackerActivity';
 import {
   cancelRaceReminder,
   scheduleRaceReminder,
@@ -149,6 +153,38 @@ export default function RaceScreen() {
   // 이벤트가 대표 자리로 올라와 신청/취소/비밀번호 입력이 가능해진다 — 이벤트가 여러 개일 때
   // 목록 줄에는 신청 수단이 없다는 구멍(광복절 런 테스트 신청 불가)의 수정.
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  // 1초 시계 — 아레나 자동 핸드오프 창(≤25s) 판정용. freezeOnBlur 아래에서는 이 탭이 포커스된
+  // 동안(또는 창 안에서 복귀한 순간)에만 렌더가 흐른다 — 홈 카드와 같은 발동 규칙.
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 815 리허설 (2026-08-11): 레이스 탭에서 카운트다운을 보며 기다려도 정각에 아레나로 넘어가지
+  // 않았다. 신청+편성된 이벤트가 출발 25초 안이면 예약 방/홈과 같은 핸드오프로 러닝 탭에 교체
+  // 진입한다. 기록 중(워밍업 솔로런)이면 자동 진입 포기 — 런타임 isIdle 게이트와 같은 계약.
+  const handoffTarget = useMemo(
+    () => (state.status === 'ready'
+      ? resolveRaceArenaHandoffTarget(
+        [state.hub.featuredEvent, ...state.hub.upcomingEvents].filter(
+          (event): event is OfflineRaceEvent => event !== null,
+        ),
+        nowMs,
+      )
+      : null),
+    [nowMs, state],
+  );
+  useReservationArenaHandoff({
+    mode: 'group',
+    matchId: handoffTarget?.matchId ?? null,
+    distanceKm: handoffTarget?.distanceKm ?? null,
+    slotStartAt: handoffTarget?.slotStartAt ?? null,
+    isTestMatch: false,
+    remainingSeconds: handoffTarget?.remainingSeconds ?? null,
+    enabled: !isGlobalTrackerBusy(),
+  });
 
   const loadHub = useCallback(async () => {
     try {
@@ -164,6 +200,30 @@ export default function RaceScreen() {
       void loadHub();
     }, [loadHub]),
   );
+
+  // 마감 전부터 탭을 켜두고 기다리면 편성(formedMatchId)을 모른 채 핸드오프 창을 지나친다 —
+  // 신청한 이벤트가 미편성인데 출발이 임박하면 20초 스로틀로 허브를 재조회한다. 허브 GET이
+  // 서버 편성 스윕을 겸하므로 혼자 기다리는 클라이언트도 편성을 스스로 촉발한다.
+  const lastFormationRefetchMsRef = useRef(0);
+  useEffect(() => {
+    if (state.status !== 'ready') {
+      return;
+    }
+
+    const events = [state.hub.featuredEvent, ...state.hub.upcomingEvents]
+      .filter((event): event is OfflineRaceEvent => event !== null);
+
+    if (!shouldRefetchForRaceFormation(events, nowMs)) {
+      return;
+    }
+
+    if (nowMs - lastFormationRefetchMsRef.current < 20_000) {
+      return;
+    }
+
+    lastFormationRefetchMsRef.current = nowMs;
+    void loadHub();
+  }, [loadHub, nowMs, state]);
 
   const handleJoin = useCallback(async (event: OfflineRaceEvent) => {
     setBusyEventId(event.id);
