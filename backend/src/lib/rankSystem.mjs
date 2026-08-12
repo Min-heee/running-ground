@@ -6,7 +6,7 @@ const LEGACY_TIER_ALIASES = { '조거': '러너' };
 // 오너 확정 2026-08-13: 지면 깎이는 LP 폐지 — 모든 대결은 참가만 해도 오른다.
 // 승리는 상대 페이스별 3단계(강자를 잡을수록 크게), 패배는 차이 무관 일괄 +10.
 export const DUEL_LP = {
-  winVsFaster: 28,
+  winVsFaster: 25,
   winVsSimilar: 20,
   winVsSlower: 15,
   loss: 10,
