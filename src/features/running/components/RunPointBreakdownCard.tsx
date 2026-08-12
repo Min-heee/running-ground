@@ -10,9 +10,11 @@ type RunPointBreakdownCardProps = {
   pointBreakdown: PointBreakdown;
   matchBonusLabel: string;
   matchBonusPending?: boolean;
+  // 레이스 완주 보너스 행 라벨 (run.raceEvent.title — 예: "8·15 광복절 런").
+  raceEventLabel?: string | null;
 };
 
-export function RunPointBreakdownCard({ pointBreakdown, matchBonusLabel, matchBonusPending = false }: RunPointBreakdownCardProps) {
+export function RunPointBreakdownCard({ pointBreakdown, matchBonusLabel, matchBonusPending = false, raceEventLabel = null }: RunPointBreakdownCardProps) {
   return (
     <Card style={styles.pointBreakdownCard}>
       <Text style={styles.sectionTitle}>포인트</Text>
@@ -29,6 +31,13 @@ export function RunPointBreakdownCard({ pointBreakdown, matchBonusLabel, matchBo
         <PointBreakdownRow
           label="경찰과 도둑"
           value={`+${pointBreakdown.chasePoints}P`}
+          highlight
+        />
+      ) : null}
+      {(pointBreakdown.raceEventPoints ?? 0) > 0 ? (
+        <PointBreakdownRow
+          label={raceEventLabel ?? '레이스 완주'}
+          value={`+${pointBreakdown.raceEventPoints}P`}
           highlight
         />
       ) : null}

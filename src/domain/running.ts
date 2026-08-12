@@ -48,6 +48,12 @@ export type MyRunRecord = {
   startedAt?: string;
   endedAt?: string;
   matchResult?: RunMatchResult;
+  // 레이스 이벤트 완주 보상(815런): 저장 길목에서 서버가 박제 — points가 파생 합산 (오너 확정: 배지 없음, 포인트만).
+  raceEvent?: {
+    eventId: string;
+    title: string;
+    bonusPoints: number;
+  };
   // 경찰과 도둑런: 경기장 태그 + 정산 누적 (chase 러닝만).
   chase?: {
     arenaId: string;

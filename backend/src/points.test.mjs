@@ -53,6 +53,7 @@ runTest('an imported run climbs the level ladder (level points only)', () => {
     growthPoints: 0,
     matchBonusPoints: 0,
     chasePoints: 0,
+    raceEventPoints: 0,
     totalPoints: 10,
   });
   assert.equal(metrics.totalEarnedPoints, 10);

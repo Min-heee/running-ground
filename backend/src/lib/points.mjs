@@ -183,12 +183,18 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
       const chasePoints = Number.isFinite(run.chase?.bonusPoints)
         ? Math.max(0, Math.round(run.chase.bonusPoints))
         : 0;
+      // 레이스 이벤트 완주 보너스(815런) — 저장 길목의 raceEventCompletion 스탬프가 박제한 값.
+      // chase와 같은 파생 회계: 지급 함수 없음, 재계산이 언제나 스탬프에서 합산.
+      const raceEventPoints = Number.isFinite(run.raceEvent?.bonusPoints)
+        ? Math.max(0, Math.round(run.raceEvent.bonusPoints))
+        : 0;
 
       runPointsById.set(run.id, {
-        earnedPoint: levelPoints + matchBonusPoints + chasePoints,
+        earnedPoint: levelPoints + matchBonusPoints + chasePoints + raceEventPoints,
         levelPoints,
         matchBonusPoints,
         chasePoints,
+        raceEventPoints,
         streakPoints: 0,
         growthPoints: 0,
         weekKey,
@@ -409,6 +415,7 @@ export function getRunPointBreakdown(metrics, runId) {
       growthPoints: 0,
       matchBonusPoints: 0,
       chasePoints: 0,
+      raceEventPoints: 0,
       totalPoints: 0,
     };
   }
@@ -419,6 +426,7 @@ export function getRunPointBreakdown(metrics, runId) {
     growthPoints: pointEntry.growthPoints ?? 0,
     matchBonusPoints: pointEntry.matchBonusPoints ?? 0,
     chasePoints: pointEntry.chasePoints ?? 0,
+    raceEventPoints: pointEntry.raceEventPoints ?? 0,
     totalPoints: pointEntry.earnedPoint ?? 0,
   };
 }

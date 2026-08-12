@@ -1,4 +1,5 @@
 import { attachRouteToRunPayload, attachStoredRunRoute } from '../lib/runHelpers.mjs';
+import { resolveRaceEventCompletionStamp } from '../lib/raceEventCompletion.mjs';
 import { compareRunsLatestFirst } from '../lib/userStoreHelpers.mjs';
 import { applyRunIntegrityCheck } from '../lib/runIntegrity.mjs';
 import { findChaseArena } from '../lib/chase/chaseArenas.mjs';
@@ -584,6 +585,15 @@ export function createJsonRunsRepository({
           startedAt: input.startedAt,
           endedAt: input.endedAt,
           ...(resolvedMatchResult ? { matchResult: clone(resolvedMatchResult) } : {}),
+          // 레이스 이벤트 완주 보상(815런): formedMatchId가 가리키는 이벤트 + 내구 로스터
+          // 참가 + 공표 거리 완주일 때만 박제. points.mjs가 파생 합산한다 (chase와 동일 구조).
+          ...(() => {
+            const raceEvent = resolveRaceEventCompletionStamp(store, user.id, {
+              matchId: resolvedMatchResult?.matchId,
+              distanceKm: input.distanceKm,
+            });
+            return raceEvent ? { raceEvent } : {};
+          })(),
           // 경찰과 도둑런: 경기장 태그 + 정산 결과(bonusPoints/events)가 여기 박제되고,
           // points.mjs가 경쟁 러닝 재계산에 합산한다 (지급 함수 없음 — 매치 보너스와 동일 구조).
           ...(input.chaseArenaId

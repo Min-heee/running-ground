@@ -137,6 +137,7 @@ export type RunPointBreakdown = {
   matchBonusPoints: number;
   // 경찰과 도둑런 보너스 — 구버전 서버 응답에는 없으므로 optional.
   chasePoints?: number;
+  raceEventPoints?: number;
   totalPoints: number;
 };
 
