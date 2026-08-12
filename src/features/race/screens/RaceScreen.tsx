@@ -331,23 +331,6 @@ export default function RaceScreen() {
             </View>
           ) : null}
 
-          {state.hub.pastEvents.length ? (
-            <View style={styles.section}>
-              <SectionTitle>지난 레이스</SectionTitle>
-              <Card style={styles.upcomingCard}>
-                {state.hub.pastEvents.map((past) => (
-                  <View key={past.id} style={styles.upcomingRow}>
-                    <View style={styles.upcomingCopy}>
-                      <Text style={styles.upcomingTitle} numberOfLines={1}>{past.title}</Text>
-                      <Text style={styles.upcomingMeta}>
-                        {past.modeLabel} · 완주 {past.finishers}명
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </Card>
-            </View>
-          ) : null}
         </>
         );
       })() : null}
