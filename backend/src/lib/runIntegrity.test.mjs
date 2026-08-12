@@ -229,7 +229,7 @@ await runTest('vehicle with applied LP: reverses exactly this user\'s delta with
   applyRunIntegrityCheck({ store, user, run, nowIso: FIXED_NOW_ISO });
 
   // -20 from 러너/10 crosses the tier boundary: demote to 입문, lp 190 (LP_PER_TIER borrow).
-  assert.deepEqual(user.rankState, { tier: '입문', lp: 190 });
+  assert.deepEqual(user.rankState, { tier: '입문', lp: 90 });
   assert.equal(run.integrity.lpRevoked, 20);
   // Stage 2 never touches the OPPONENT's LP (stage-3 follow-up).
   assert.deepEqual(opponent.rankState, { tier: '러너', lp: 50 });
@@ -280,7 +280,7 @@ await runTest('LP not yet applied at save time: revocation retries once the rank
   applyRunIntegrityCheck({ store, user, run, nowIso: FIXED_NOW_ISO });
 
   assert.equal(run.integrity.lpRevoked, 20);
-  assert.deepEqual(user.rankState, { tier: '입문', lp: 190 });
+  assert.deepEqual(user.rankState, { tier: '입문', lp: 90 });
 });
 
 await runTest('poisoned input: a throwing run property can never fail the save (run stays un-flagged)', () => {
@@ -392,7 +392,7 @@ await runTest('save path: vehicle match run is flagged, LP revoked once across a
   assert.equal(savedRuns[0].integrity.verdict, 'vehicle');
   assert.equal(savedRuns[0].integrity.lpRevoked, 20);
   // Revoked exactly ONCE: 러너/10 - 20 → 입문/190 (not 입문/170).
-  assert.deepEqual(store.users[0].rankState, { tier: '입문', lp: 190 });
+  assert.deepEqual(store.users[0].rankState, { tier: '입문', lp: 90 });
   // The save still answers with the normal run detail payload (run is never lost).
   assert.equal(firstPayload.run.id, savedRuns[0].id);
 });

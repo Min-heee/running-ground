@@ -2,7 +2,8 @@ import type { RankState } from '@/domain';
 import { colors } from '@/theme/tokens';
 
 export const RANK_TIERS = ['입문', '러너', '페이서', '레이서', '엘리트'] as const;
-export const LP_PER_TIER = 200;
+// 백엔드 rankSystem.mjs와 동기 (오너 2026-08-13: 200 → 100).
+export const LP_PER_TIER = 100;
 export const DEFAULT_RANK_STATE: RankState = { tier: '입문', lp: 0 };
 const LEGACY_TIER_ALIASES: Record<string, (typeof RANK_TIERS)[number]> = {
   조거: '러너',

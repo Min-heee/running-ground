@@ -1,5 +1,6 @@
 export const RANK_TIERS = ['입문', '러너', '페이서', '레이서', '엘리트'];
-export const LP_PER_TIER = 200;
+// 오너 확정 2026-08-13: 티어 승급 문턱 200 → 100 LP (사다리 체감 속도 2배).
+export const LP_PER_TIER = 100;
 export const INITIAL_RANK = { tier: '입문', lp: 0 };
 const LEGACY_TIER_ALIASES = { '조거': '러너' };
 

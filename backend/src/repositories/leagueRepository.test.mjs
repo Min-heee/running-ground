@@ -311,8 +311,8 @@ await runTest('district ranks carry both rank score and monthly distance', async
   const result = await repository.getDistrictPersonal({ token: 'token-me', nodeId: 'kr-gg-01' });
   const me = result.ranks[0];
 
-  // rankScore = tierIndex(페이서=2) * LP_PER_TIER(200) + lp(40) = 440.
-  assert.equal(me.rankScore, 440);
+  // rankScore = tierIndex(페이서=2) * LP_PER_TIER(100) + lp(40) = 240.
+  assert.equal(me.rankScore, 240);
   assert.equal(me.monthlyDistanceKm, 42);
 });
 
