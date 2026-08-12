@@ -58,6 +58,7 @@ const DistrictMemberRankRow = memo(function DistrictMemberRankRow({
     <RankingItemRow
       leading={<RankMarker rank={runner.rank} />}
       name={runner.name}
+      stars={runner.stars}
       detail={formatMetricValue(runner, metric)}
       friendLabel={runner.isFriend && !runner.isMe ? '친구' : undefined}
       friend={runner.isFriend}

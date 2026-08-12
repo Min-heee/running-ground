@@ -8,6 +8,12 @@ import {
   regionAncestorsFromPath,
 } from '../lib/regionLiveStats.mjs';
 import { buildUserRunMetrics } from '../lib/points.mjs';
+import {
+  buildRankingStarCounts,
+  hasUnsealedRankingStarMonth,
+  resolveRegionNodeStarKey,
+  sweepMonthlyRankingStars,
+} from '../lib/monthlyRankingStars.mjs';
 import { ensureUserRankState } from '../lib/userStoreHelpers.mjs';
 import { LP_PER_TIER, RANK_TIERS } from '../lib/rankSystem.mjs';
 
@@ -60,13 +66,16 @@ function buildUserCityRegionKey(user) {
   ].filter(Boolean).join(' > ');
 }
 
-function buildDistrictRank(store, user, rank, currentUserId, getUserMetrics) {
+function buildDistrictRank(store, user, rank, currentUserId, getUserMetrics, memberStars) {
   const metrics = getUserMetrics(store, user.id);
+  const stars = memberStars?.get(user.id) ?? 0;
 
   return {
     id: user.id,
     rank,
     name: user.name,
+    // 월간 랭킹 우승 별 (monthlyRankingStars 원장 파생) — 0이면 필드 생략.
+    ...(stars > 0 ? { stars } : {}),
     // 표시/정렬 거리 (오너 2026-07-31): 전체 러닝 — 가져온 기록 포함 (히어로 총거리와 동일 기준).
     distanceKm: metrics.currentWeekDistanceKm,
     points: metrics.currentWeekPoints,
@@ -195,10 +204,11 @@ function resolveDistrictPersonalRegion(store, user, nodeId) {
 
 function buildDistrictPersonal(store, user, getUserMetrics, nodeId) {
   const { regionName, matchesUser } = resolveDistrictPersonalRegion(store, user, nodeId);
+  const { memberStars } = buildRankingStarCounts(store);
   const districtUsers = store.users
     .filter((entry) => matchesUser(entry))
     .sort((left, right) => compareDistrictRank(store, left, right, getUserMetrics))
-    .map((entry, index) => buildDistrictRank(store, entry, index + 1, user.id, getUserMetrics));
+    .map((entry, index) => buildDistrictRank(store, entry, index + 1, user.id, getUserMetrics, memberStars));
 
   const myRank = districtUsers.find((entry) => entry.id === user.id) ?? null;
   const myRankIndex = myRank ? districtUsers.findIndex((entry) => entry.id === user.id) : -1;
@@ -240,24 +250,30 @@ function buildRegionLeague(store, nodeId, createError, getUserMetrics) {
   // 트리에 저장된 시드 통계는 박제 값 — 유저 러닝(이번 주 경쟁 거리)에서 실시간 계산해
   // 덮어쓴다. 정렬/순위(rank)도 실시간 값 기준이 된다.
   const statsIndex = buildRegionLiveStatsIndex(store, getUserMetrics);
+  // 월간 우승 별 — 리프 노드(시/군 롤업·광역시 구)에만 붙는다.
+  const { regionStars } = buildRankingStarCounts(store);
+  const withStars = (node, ancestors) => {
+    const starKey = resolveRegionNodeStarKey(node, ancestors);
+    const stars = starKey ? regionStars.get(starKey) ?? 0 : 0;
+    const decorated = decorateRegionNodeWithLiveStats(node, ancestors, statsIndex);
+    return stars > 0 ? { ...decorated, stars } : decorated;
+  };
   const path = capRegionPathDepth(rawPath);
   const rawCurrentNode = path[path.length - 1];
   const parentNode = path[path.length - 2] ?? null;
   const siblingAncestors = regionAncestorsFromPath(path.slice(0, -1));
   const decoratedSiblings = (parentNode ? parentNode.children ?? [] : [rawCurrentNode])
-    .map((node) => decorateRegionNodeWithLiveStats(node, siblingAncestors, statsIndex));
+    .map((node) => withStars(node, siblingAncestors));
   const normalizedSiblings = normalizeRegionChildren(decoratedSiblings);
   const currentNode = normalizedSiblings.find((child) => child.id === rawCurrentNode.id)
-    ?? decorateRegionNodeWithLiveStats(rawCurrentNode, siblingAncestors, statsIndex);
+    ?? withStars(rawCurrentNode, siblingAncestors);
   const childAncestors = regionAncestorsFromPath(path);
   // City (시/군) nodes are leaves: never expose their 구/동 children so the drill
   // stops at three levels and the city's whole member ranking is shown instead.
   const children = isRegionLeafLevel(currentNode.level)
     ? []
     : normalizeRegionChildren(
-        (rawCurrentNode.children ?? []).map((node) =>
-          decorateRegionNodeWithLiveStats(node, childAncestors, statsIndex),
-        ),
+        (rawCurrentNode.children ?? []).map((node) => withStars(node, childAncestors)),
       );
 
   return {
@@ -277,18 +293,39 @@ function requireTodayRankingCategory(category, createError) {
 
 export function createJsonLeagueRepository({
   loadStore,
+  mutateStore,
   requireUserByToken,
   getUserMetrics,
   createError,
 }) {
+  // 지난달 봉인 스윕 — 랭킹 읽기 길목의 on-request 트리거. 봉인할 게 없으면(대부분의 요청)
+  // loadStore 사전 점검만으로 끝나 mutate 락을 잡지 않는다. 스윕 자체는 멱등.
+  const sweepRankingStarsIfDue = async () => {
+    if (typeof mutateStore !== 'function') {
+      return;
+    }
+
+    const store = await loadStore();
+
+    if (!hasUnsealedRankingStarMonth(store, new Date())) {
+      return;
+    }
+
+    await mutateStore((mutableStore) => {
+      sweepMonthlyRankingStars(mutableStore, new Date());
+    });
+  };
+
   return {
     async getDistrictPersonal({ token, nodeId }) {
+      await sweepRankingStarsIfDue();
       const store = await loadStore();
       const user = requireUserByToken(store, token);
       return buildDistrictPersonal(store, user, getUserMetrics, nodeId);
     },
 
     async getRegions({ token, nodeId }) {
+      await sweepRankingStarsIfDue();
       const store = await loadStore();
       requireUserByToken(store, token);
       return buildRegionLeague(store, nodeId, createError, getUserMetrics);

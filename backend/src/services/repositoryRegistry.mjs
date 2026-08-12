@@ -257,6 +257,7 @@ export function getLeagueRepository() {
   if (!leagueRepository) {
     leagueRepository = createJsonLeagueRepository({
       loadStore,
+      mutateStore,
       requireUserByToken: (store, token) => findUserByToken(store, token),
       getUserMetrics,
       createError: (statusCode, message) => new ApiError(statusCode, message),

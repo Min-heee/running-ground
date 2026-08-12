@@ -226,6 +226,9 @@ const LeagueRegionCard = memo(function LeagueRegionCard({
         </View>
       ) : null}
       <Text style={styles.regionName}>{node.name}</Text>
+      {typeof node.stars === 'number' && node.stars > 0 ? (
+        <Text style={styles.regionStars}>{node.stars <= 3 ? '★'.repeat(node.stars) : `★${node.stars}`}</Text>
+      ) : null}
       <Text style={styles.regionMeta}>총거리 {formatDistanceKm(node.totalDistanceKm)}</Text>
       <Text style={styles.regionMeta}>회원수 {formatPeopleCount(node.participants)}</Text>
     </Pressable>
@@ -422,6 +425,10 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
     fontSize: fontSizes.base,
     marginTop: 26,
+  },
+  regionStars: {
+    color: colors.podiumGold,
+    fontWeight: fontWeights.extraBold,
   },
   regionMeta: {
     color: colors.textSecondary,

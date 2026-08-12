@@ -8,6 +8,8 @@ type RankingItemRowProps = {
   leading: ReactNode;
   name: string;
   detail: string;
+  // 월간 랭킹 우승 별 개수 — 이름 옆 금색 별 (3개까지 낱개, 그 이상은 ★N).
+  stars?: number;
   friendLabel?: string;
   highlighted?: boolean;
   friend?: boolean;
@@ -20,6 +22,7 @@ export function RankingItemRow({
   leading,
   name,
   detail,
+  stars = 0,
   friendLabel,
   highlighted = false,
   friend = false,
@@ -33,6 +36,9 @@ export function RankingItemRow({
       <View style={styles.meta}>
         <View style={styles.nameRow}>
           <Text style={styles.name}>{name}</Text>
+          {stars > 0 ? (
+            <Text style={styles.stars}>{stars <= 3 ? '★'.repeat(stars) : `★${stars}`}</Text>
+          ) : null}
           {friendLabel ? (
             <View style={styles.friendBadge}>
               <Text style={styles.friendBadgeText}>{friendLabel}</Text>
@@ -98,6 +104,11 @@ const styles = StyleSheet.create({
   name: {
     color: colors.textPrimary,
     fontWeight: fontWeights.bold,
+  },
+  stars: {
+    color: colors.podiumGold,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
   friendBadge: {
     backgroundColor: colors.success,
