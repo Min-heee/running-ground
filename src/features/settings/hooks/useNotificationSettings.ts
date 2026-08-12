@@ -28,7 +28,7 @@ export function useNotificationSettings() {
         applyLiveRunSettings(settings);
       })
       .catch((loadError) => {
-        setError(getApiErrorMessage(loadError, '알림 설정을 불러오지 못했어요.'));
+        setError(getApiErrorMessage(loadError, '설정을 불러오지 못했어요.'));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -68,7 +68,7 @@ export function useNotificationSettings() {
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     } catch (saveError) {
-      setError(getApiErrorMessage(saveError, '알림 설정 저장에 실패했어요.'));
+      setError(getApiErrorMessage(saveError, '설정 저장에 실패했어요.'));
     } finally {
       setSaving(false);
     }

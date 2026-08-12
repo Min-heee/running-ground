@@ -64,7 +64,7 @@ export function ProfileSettingsCard({ onDebugUnlockPress }: ProfileSettingsCardP
       </Link>
       <Link href="/notification-settings" asChild>
         <Pressable style={styles.settingRow}>
-          <Text style={styles.settingLabel}>알림 설정</Text>
+          <Text style={styles.settingLabel}>알림 · 라이브 설정</Text>
           <Text style={styles.settingValue}>관리</Text>
         </Pressable>
       </Link>
