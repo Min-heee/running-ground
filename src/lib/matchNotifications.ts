@@ -68,8 +68,14 @@ function buildReminderTitle(match: UpcomingRunningMatchItem, minutesBefore: numb
 }
 
 function buildReminderBody(match: UpcomingRunningMatchItem, minutesBefore: number) {
+  // 오너 2026-08-13: 폰이 꺼진 채 슬롯을 맞으면 카운트다운이 무리다 — 5분 전엔 폰을 켜고
+  // 앱을 열라고, 1분 전엔 앱을 켠 채 기다리라고 명시한다.
   if (minutesBefore <= 1) {
-    return `잠시 후 ${match.counterpartLabel}과 ${match.summary}가 시작돼요.`;
+    return `잠시 후 ${match.counterpartLabel}과 대결이 시작돼요. 앱을 켠 채로 기다려 주세요!`;
+  }
+
+  if (minutesBefore <= 5) {
+    return `${minutesBefore}분 뒤 ${match.counterpartLabel}과 대결이 시작돼요. 핸드폰을 켜고 러닝그라운드 앱을 열어 주세요.`;
   }
 
   return `${minutesBefore}분 뒤 ${match.counterpartLabel}과 ${match.summary}가 시작돼요.`;
@@ -102,7 +108,10 @@ export async function syncScheduledMatchNotifications(matches: UpcomingRunningMa
   }
 
   const now = Date.now();
-  const reservableMatches = matches.filter((match) => match.status === 'matched');
+  // 레이스 편성 세션 제외 (적대 검증 2026-08-13): 레이스는 자체 4연발(대기실 오픈·10/5/1분,
+  // raceReminderNotification)이 슬롯의 주인이다 — 여기서 또 잡으면 5분/1분에 이중 알림이 울리고
+  // '<이벤트명>과 대결이 시작돼요' 같은 어색한 카피가 나간다.
+  const reservableMatches = matches.filter((match) => match.status === 'matched' && !match.raceEventId);
 
   for (const match of reservableMatches) {
     const slotStartAtMs = new Date(match.slotStartAt).getTime();

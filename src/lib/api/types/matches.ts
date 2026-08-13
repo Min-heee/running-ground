@@ -246,6 +246,9 @@ export type RunningMatchStatusResponse = {
 
 export type UpcomingRunningMatchItem = {
   matchId: string;
+  // 레이스 이벤트 편성 세션이면 이벤트 정체 — 홈 카드 라벨/대기실 라우팅용 (오너 2026-08-13).
+  raceEventId?: string;
+  raceEventTitle?: string;
   roomId?: string;
   mode: 'duel' | 'group';
   isTestMatch?: boolean;

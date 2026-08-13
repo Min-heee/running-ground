@@ -38,12 +38,29 @@ export function MatchStartCountdownOverlay({
           </>
         ) : null}
         <Text style={styles.countdown}>{displayedSecondsRemaining}</Text>
+        {/* 오너 2026-08-13: 출발 직후 화면을 바로 꺼서 GPS/동기화가 자리 잡기 전에 얼어붙는
+            사고 예방 — 숫자 밑 고정 안내. centered(투명 배경)에서도 읽히게 자체 필을 깐다. */}
+        <View style={styles.keepOnPill}>
+          <Text style={styles.keepOnText}>출발 후 1분은 화면을 켠 채 달려 주세요</Text>
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  keepOnPill: {
+    backgroundColor: 'rgba(17, 24, 39, 0.55)',
+    borderRadius: 999,
+    marginTop: spacing.s10,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.sm + 2,
+  },
+  keepOnText: {
+    color: '#FFFFFF',
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
+  },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(109, 94, 247, 0.96)',

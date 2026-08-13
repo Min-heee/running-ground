@@ -9,6 +9,8 @@ import {
   resolveRaceReminderAtMs,
   resolveRaceArenaHandoffTarget,
   shouldRefetchForRaceFormation,
+  isRaceLobbyOpen,
+  resolveRaceReminderSchedule,
 } from '@/features/race/raceHubModel';
 
 // 8·15런: 2026-08-15(토) 20:15 KST. 테스트는 파서가 기기 로컬 시간대로 해석하는 로컬 ISO를 쓴다
@@ -140,4 +142,28 @@ test('shouldRefetchForRaceFormation: 신청+미편성+출발 임박(−3분~+10�
     shouldRefetchForRaceFormation([mk({ registered: true, formedMatchId: null })], Date.parse('2026-08-15T11:26:00.000Z')),
     false,
   );
+});
+
+test('레이스 대기실은 출발 24시간 전 ~ 출발 후 10분까지 열린다', () => {
+  const START = '2026-08-15T11:15:00.000Z';
+  assert.equal(isRaceLobbyOpen(START, Date.parse('2026-08-14T11:14:00.000Z')), false); // 24시간 1분 전
+  assert.equal(isRaceLobbyOpen(START, Date.parse('2026-08-14T11:15:00.000Z')), true);  // 정확히 24시간 전
+  assert.equal(isRaceLobbyOpen(START, Date.parse('2026-08-15T11:20:00.000Z')), true);  // 출발 직후
+  assert.equal(isRaceLobbyOpen(START, Date.parse('2026-08-15T11:26:00.000Z')), false); // 유예 지남
+  assert.equal(isRaceLobbyOpen(null, Date.parse('2026-08-15T11:00:00.000Z')), false);
+});
+
+test('레이스 알림 세트: 대기실 오픈·10분·5분·1분 — 지난 시각은 제외', () => {
+  const START = '2026-08-15T11:15:00.000Z';
+  // 신청이 이틀 전이면 4개 전부.
+  const full = resolveRaceReminderSchedule(START, Date.parse('2026-08-13T00:00:00.000Z'));
+  assert.deepEqual(full.map((entry) => entry.key), ['lobby-open', 't-10m', 't-5m', 't-1m']);
+  assert.equal(full[0].atMs, Date.parse('2026-08-14T11:15:00.000Z'));
+  assert.equal(full[3].atMs, Date.parse('2026-08-15T11:14:00.000Z'));
+
+  // 출발 7분 전 신청이면 5분·1분만.
+  const late = resolveRaceReminderSchedule(START, Date.parse('2026-08-15T11:08:00.000Z'));
+  assert.deepEqual(late.map((entry) => entry.key), ['t-5m', 't-1m']);
+
+  assert.deepEqual(resolveRaceReminderSchedule(null, 0), []);
 });

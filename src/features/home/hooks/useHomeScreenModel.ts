@@ -192,6 +192,14 @@ export function useHomeScreenModel() {
   }, []);
 
   const handleOpenRunningMatch = useCallback((match: UpcomingRunningMatchItem) => {
+    // 레이스 편성 세션의 예약 카드는 '출발 전'에만 레이스 대기실로 (오너 2026-08-13) —
+    // 출발 25초 전 아레나 자동 진입은 대기실이 그대로 이어받는다. 출발 후(active)에는 기존
+    // 러닝 탭 복원 경로 유지 (적대 검증: 앱이 죽었다 살아난 참가자의 아레나 재진입이 이 길이다).
+    if (match.raceEventId && match.status === 'matched') {
+      router.push({ pathname: '/race-lobby', params: { raceId: match.raceEventId } });
+      return;
+    }
+
     router.push({
       pathname: '/(tabs)/running',
       params: {

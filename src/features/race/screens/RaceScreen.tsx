@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
 import { SectionTitle } from '@/components/SectionTitle';
@@ -12,6 +12,7 @@ import type { OfflineRaceEvent, OfflineRaceHub } from '@/domain/match';
 import {
   buildRaceDdayLabel,
   formatRaceStartLabel,
+  isRaceLobbyOpen,
   resolveRaceArenaHandoffTarget,
   resolveRaceJoinAction,
   shouldRefetchForRaceFormation,
@@ -114,6 +115,14 @@ function FeaturedEventCard({
         />
       ) : null}
 
+      {/* 레이스 대기실 (오너 2026-08-13): 신청자에게 출발 24시간 전부터 입장 버튼. */}
+      {event.registered && isRaceLobbyOpen(event.startsAt, Date.now()) ? (
+        <PrimaryButton
+          label="대기실 입장"
+          onPress={() => router.push({ pathname: '/race-lobby', params: { raceId: event.id } })}
+        />
+      ) : null}
+
       {action.kind === 'cancel' ? (
         <SecondaryButton label={busy ? '처리 중…' : action.label} onPress={() => onCancel(event)} disabled={busy} />
       ) : (
@@ -190,6 +199,14 @@ export default function RaceScreen() {
     try {
       const hub = await fetchOfflineRaceHub();
       setState({ status: 'ready', hub });
+      // 알림 세트 재동기화 (오너 2026-08-13): 신청 시점이 언제였든, 허브를 열 때마다 신청한
+      // 이벤트의 사전 알림(대기실 오픈·10분·5분·1분)을 멱등 재예약 — 구버전 단일 예약도 이때
+      // 새 세트로 교체된다.
+      for (const event of [hub.featuredEvent, ...hub.upcomingEvents]) {
+        if (event?.registered) {
+          void scheduleRaceReminder({ eventId: event.id, title: event.title, startsAt: event.startsAt });
+        }
+      }
     } catch {
       setState((previous) => (previous.status === 'ready' ? previous : { status: 'error' }));
     }

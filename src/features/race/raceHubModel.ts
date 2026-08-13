@@ -151,3 +151,44 @@ export function shouldRefetchForRaceFormation(events: OfflineRaceEvent[], nowMs:
       && nowMs <= startMs + RACE_FORMATION_REFETCH_AFTER_MS;
   });
 }
+
+// 레이스 대기실 (오너 2026-08-13): 대기자 명단 없는 참가자 대기 공간 — 출발 24시간 전에 열리고,
+// 출발 후 편성 유예(10분)까지는 유효하다(그 뒤는 아레나/결과 경로가 맡는다).
+export const RACE_LOBBY_OPEN_BEFORE_MS = 24 * 60 * 60 * 1000;
+export const RACE_LOBBY_STALE_AFTER_START_MS = 10 * 60 * 1000;
+
+export function isRaceLobbyOpen(startsAt: string | null | undefined, nowMs: number): boolean {
+  const startMs = toValidMs(startsAt);
+
+  if (startMs === null) {
+    return false;
+  }
+
+  return nowMs >= startMs - RACE_LOBBY_OPEN_BEFORE_MS && nowMs <= startMs + RACE_LOBBY_STALE_AFTER_START_MS;
+}
+
+// 레이스 로컬 알림 세트 (오너 2026-08-13): 대기실 오픈(24시간 전) · 10분 · 5분 · 1분 전.
+// 이미 지난 시각은 예약하지 않는다(과거 트리거 방지). 카피는 알림 모듈이 key로 매핑한다.
+export type RaceReminderKey = 'lobby-open' | 't-10m' | 't-5m' | 't-1m';
+
+const RACE_REMINDER_OFFSETS: { key: RaceReminderKey; beforeMs: number }[] = [
+  { key: 'lobby-open', beforeMs: RACE_LOBBY_OPEN_BEFORE_MS },
+  { key: 't-10m', beforeMs: 10 * 60 * 1000 },
+  { key: 't-5m', beforeMs: 5 * 60 * 1000 },
+  { key: 't-1m', beforeMs: 60 * 1000 },
+];
+
+export function resolveRaceReminderSchedule(
+  startsAt: string | null | undefined,
+  nowMs: number,
+): { key: RaceReminderKey; atMs: number }[] {
+  const startMs = toValidMs(startsAt);
+
+  if (startMs === null) {
+    return [];
+  }
+
+  return RACE_REMINDER_OFFSETS
+    .map(({ key, beforeMs }) => ({ key, atMs: startMs - beforeMs }))
+    .filter((entry) => entry.atMs > nowMs);
+}

@@ -62,17 +62,21 @@ export function buildUpcomingRunningMatchesResponse(store, currentUser) {
       const participants = buildSessionGroupParticipants(store, session, now);
       const isTestMatch = isTestMatchSession(session);
       const cancelableUntilAt = buildMatchCancellationDeadline(session.slotStartAt, { isTestMatch }).toISOString();
+      // 레이스 이벤트 편성 세션이면 이벤트 정체를 실어 보낸다 — 홈 예약 카드가 이벤트명을
+      // 보여주고, 탭 시 러닝 탭 대신 레이스 대기실로 라우팅한다 (오너 2026-08-13).
+      const raceEvent = (store.offlineRaceEvents ?? []).find((event) => event.formedMatchId === session.id);
       return {
         matchId: session.id,
         ...(linkedRoom ? { roomId: linkedRoom.id } : {}),
         mode: 'group',
         ...(isTestMatch ? { isTestMatch: true } : {}),
+        ...(raceEvent ? { raceEventId: raceEvent.id, raceEventTitle: raceEvent.title } : {}),
         distanceKm: session.distanceKm,
         slotStartAt: session.slotStartAt,
         slotLabel: formatDuelSlotLabelFromDateTime(session.slotStartAt),
         status: state,
         participantCount: participants.length,
-        counterpartLabel: `${participants.length}명 그룹`,
+        counterpartLabel: raceEvent ? raceEvent.title : `${participants.length}명 그룹`,
         summary: `${buildMatchSlotDateLabel(session.slotStartAt)} ${formatDuelSlotLabelFromDateTime(session.slotStartAt)} · ${session.distanceKm.toFixed(1)}km`,
         canCancel: state === 'matched' && now.getTime() < new Date(cancelableUntilAt).getTime(),
         cancelableUntilAt,
