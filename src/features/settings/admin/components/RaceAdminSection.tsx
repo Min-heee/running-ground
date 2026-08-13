@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { Text, View } from 'react-native';
 import { Card } from '@/components/Card';
@@ -56,6 +56,10 @@ const RaceEventRow = memo(function RaceEventRow({
 }) {
   const handleEdit = useCallback(() => onEdit(event), [event, onEdit]);
   const handleDelete = useCallback(() => onDelete(event), [event, onDelete]);
+  // 레이스 명단 (오너 2026-08-13): 행마다 접었다 펴는 신청자 목록 — 이름 (태그), 이름 미해석은 태그만.
+  const [rosterOpen, setRosterOpen] = useState(false);
+  const registrants = event.registrants ?? [];
+  const handleToggleRoster = useCallback(() => setRosterOpen((current) => !current), []);
 
   return (
     <View style={styles.listCard}>
@@ -67,6 +71,12 @@ const RaceEventRow = memo(function RaceEventRow({
           </Text>
         </View>
         <View style={styles.inlineActions}>
+          <ActionButton
+            label={rosterOpen ? '명단 접기' : `명단 ${registrants.length}명`}
+            variant="secondary"
+            onPress={handleToggleRoster}
+            disabled={registrants.length === 0}
+          />
           <ActionButton label="편집" variant="secondary" onPress={handleEdit} disabled={submitting} />
           <ActionButton label="삭제" variant="danger" onPress={handleDelete} disabled={submitting} />
         </View>
@@ -74,6 +84,15 @@ const RaceEventRow = memo(function RaceEventRow({
       <Text style={styles.listInfo}>출발 {formatDateTime(event.startsAt)} · 마감 {formatDateTime(event.registrationClosesAt)}</Text>
       <Text style={styles.listInfo}>{event.participationMode} · {event.proofMethod}</Text>
       <Text style={styles.listInfo}>{event.operationNote}</Text>
+      {rosterOpen ? (
+        <View style={styles.rosterList}>
+          {registrants.map((registrant, index) => (
+            <Text key={registrant.tag} style={styles.listInfo}>
+              {index + 1}. {registrant.name ? `${registrant.name} (${registrant.tag})` : registrant.tag}
+            </Text>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 });

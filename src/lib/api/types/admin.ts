@@ -151,6 +151,8 @@ export type AdminOfflineRaceEvent = {
   entryFeePoints: number;
   operationNote: string;
   status: 'registration_open' | 'registration_closing' | 'registration_closed' | 'live' | 'finished';
+  // 신청 명단 — 이름은 태그 해석 결과(탈퇴 등으로 없을 수 있음).
+  registrants?: { tag: string; name?: string }[];
 };
 
 export type AdminOfflineRaceEventsResponse = {

@@ -290,6 +290,13 @@ export const styles = StyleSheet.create({
     color: colors.textMuted,
     lineHeight: 20,
   },
+  rosterList: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(148, 163, 184, 0.25)',
+    gap: 2,
+    marginTop: 6,
+    paddingTop: 6,
+  },
   inlineActions: {
     flexDirection: 'row',
     gap: spacing.xxl,

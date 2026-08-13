@@ -134,6 +134,12 @@ export function buildAdminOfflineRaceEvent(store, event) {
     entryFeePoints: event.entryFeePoints,
     operationNote: event.operationNote,
     status: getOfflineRaceStatus(event),
+    // 레이스 명단 (오너 2026-08-13): 신청 태그를 이름으로 해석해 관리자 화면에 보여준다.
+    // 탈퇴/개명으로 못 찾는 태그는 이름 없이 태그만 — 명단에서 지우지 않는다(신청 사실 보존).
+    registrants: [...new Set(event.registeredUserTags ?? [])].map((tag) => {
+      const user = (store.users ?? []).find((entry) => entry.publicTag === tag);
+      return { tag, ...(user ? { name: user.name } : {}) };
+    }),
   };
 }
 
