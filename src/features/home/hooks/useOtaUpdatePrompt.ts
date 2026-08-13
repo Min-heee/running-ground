@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { AppState } from 'react-native';
 import * as Updates from 'expo-updates';
 import { hasAnyLiveMatchMarkedMounted } from '@/features/runs/lifecycle/liveMatchMountedRegistry';
 import { getLastActiveRoomCheck } from '@/features/runs/sync/activeRoomCheckRequestRegistry';
 import type { ActiveRoomCheckSource } from '@/features/runs/sync/activeRoomCheckTypes';
 import { getBackgroundRunTrackingSnapshot, subscribeBackgroundRunTracking } from '@/features/runs/tracking/background';
-import { isRoomCheckSignalActive, shouldOfferOtaUpdate, shouldRunOtaUpdateCheck } from '@/features/home/utils/otaUpdatePrompt';
+import { isRoomCheckSignalActive, shouldAutoApplyOtaUpdate, shouldOfferOtaUpdate, shouldRunOtaUpdateCheck } from '@/features/home/utils/otaUpdatePrompt';
 
 // OTA update adoption prompt (P1-5). Today a published OTA fix only applies after
 // TWO cold starts (fallbackToCacheTimeout 0 + default background check). This hook
@@ -25,6 +26,11 @@ import { isRoomCheckSignalActive, shouldOfferOtaUpdate, shouldRunOtaUpdateCheck 
 
 // Module-level so a HOME tab remount does not reset the throttle.
 let lastOtaCheckAtMs: number | null = null;
+
+// 자동 적용 (오너 2026-08-13): 런치 창 판정용 앱 시작 시각 + 세션당 1회 플래그
+// (reload 실패 시 재시도 루프 차단 — 성공하면 새 세션이라 자연히 리셋).
+const appStartedAtMs = Date.now();
+let otaAutoAppliedThisSession = false;
 
 // Defer the first (launch) OTA check off the cold-start critical path. The bundle
 // download and check compete for the JS thread / network right when HOME first
@@ -80,6 +86,18 @@ export function isRunPossiblyActive(): boolean {
 export function useOtaUpdatePrompt() {
   const [hasUpdateReady, setHasUpdateReady] = useState(false);
   const [isRunActive, setIsRunActive] = useState(() => isRunPossiblyActive());
+  // 자동 적용은 홈 탭이 포커스일 때만 (적대 검증 2026-08-13): freezeOnBlur는 타이머를 멈추지
+  // 않아서, 런치 창 안에 다른 화면(폼 작성 등)으로 이동한 유저의 화면을 리셋할 수 있었다.
+  // 홈 밖이면 카드로 강등 — 홈에 돌아오면 카드가 보인다.
+  const isHomeFocusedRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      isHomeFocusedRef.current = true;
+      return () => {
+        isHomeFocusedRef.current = false;
+      };
+    }, []),
+  );
 
   // Track the active-run signal reactively: the tracking snapshot store emits on
   // every start/pause/finish (and on GPS frames while running), which also gives
@@ -133,6 +151,26 @@ export function useOtaUpdatePrompt() {
         return;
       }
       await Updates.fetchUpdateAsync();
+
+      // 자동 적용 (오너 2026-08-13): 앱을 켠 직후(런치 창 안)에 받은 업데이트는 묻지 않고
+      // 바로 reload — "강제종료 두 번" 제거. 다운로드에 걸린 시간 동안 러닝이 시작됐을 수
+      // 있으므로 fetch 후 신호를 다시 읽는다. 창 밖(사용 중)·러닝 중이면 기존 카드로 강등.
+      if (isHomeFocusedRef.current && shouldAutoApplyOtaUpdate({
+        isDev: __DEV__,
+        isRunActive: isRunPossiblyActive(),
+        hasUpdateReady: true,
+        appAgeMs: Date.now() - appStartedAtMs,
+        autoAppliedThisSession: otaAutoAppliedThisSession,
+      })) {
+        otaAutoAppliedThisSession = true;
+        try {
+          await Updates.reloadAsync();
+          return;
+        } catch {
+          // reload 실패는 비치명 — 아래 카드 경로로 강등되고 다음 콜드 스타트에 적용된다.
+        }
+      }
+
       setHasUpdateReady(true);
     } catch {
       // Update checks must never crash or block the app — swallow everything

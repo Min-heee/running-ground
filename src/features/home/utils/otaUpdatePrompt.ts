@@ -98,3 +98,33 @@ export function isRoomCheckSignalActive({ roomId, completedAtMs, nowMs }: RoomCh
 
   return nowMs - completedAtMs <= OTA_ROOM_SIGNAL_FRESH_MS;
 }
+
+
+// 자동 적용 (오너 2026-08-13): "강제종료 두 번" 없이 최신이 되게 — 앱을 켠 직후(런치 창 안)에
+// 다운로드가 끝난 업데이트는 묻지 않고 바로 reload한다. 창 밖(포그라운드 복귀 등 사용 중일 때)
+// 이나 러닝/대결 신호가 있으면 기존 카드로 강등 — 갑작스러운 화면 리셋은 켠 직후에만 허용.
+// 세션당 1회: reload 실패 시 재시도 루프를 막는다 (성공하면 새 세션이라 자연히 리셋).
+export const OTA_AUTO_APPLY_LAUNCH_WINDOW_MS = 60_000;
+
+export type OtaAutoApplyInput = {
+  isDev: boolean;
+  isRunActive: boolean;
+  hasUpdateReady: boolean;
+  // 앱 프로세스 시작 후 경과 ms.
+  appAgeMs: number;
+  autoAppliedThisSession: boolean;
+};
+
+export function shouldAutoApplyOtaUpdate({
+  isDev,
+  isRunActive,
+  hasUpdateReady,
+  appAgeMs,
+  autoAppliedThisSession,
+}: OtaAutoApplyInput): boolean {
+  if (isDev || isRunActive || !hasUpdateReady || autoAppliedThisSession) {
+    return false;
+  }
+
+  return Number.isFinite(appAgeMs) && appAgeMs >= 0 && appAgeMs <= OTA_AUTO_APPLY_LAUNCH_WINDOW_MS;
+}
