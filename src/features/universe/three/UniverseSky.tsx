@@ -14,6 +14,7 @@ import {
   getNebulaTexture,
   getStarPointTexture,
 } from '@/features/universe/three/textures';
+import { GalaxyDisk } from '@/features/universe/three/GalaxyDisk';
 
 // 3D 우주 레이어 (오너 2026-08-15: "실제 우주처럼"). 겹친 반투명 View로 내던 발광체를
 // 진짜 구체 + 가산합성 후광으로 바꾼다.
@@ -30,11 +31,18 @@ export type SkyOrb = {
   diameter: number;
   // 0~1, 서버 계산값.
   brightness: number;
-  palette: 'galaxy' | 'planet' | 'star' | 'protostar';
+  palette: 'group' | 'galaxy' | 'planet' | 'star' | 'protostar';
   highlighted?: boolean;
 };
 
+// 은하·은하군은 파티클 원반이라 구체 팔레트와 색 규칙이 다르다(핵 → 팔 그라데이션).
+const DISK_COLORS: Record<'group' | 'galaxy', { core: string; arm: string }> = {
+  galaxy: { core: '#FFF0CE', arm: '#6E86FF' },
+  group: { core: '#FFE7D8', arm: '#A672FF' },
+};
+
 const PALETTE_COLORS: Record<SkyOrb['palette'], { core: string; glow: string; emissive: number }> = {
+  group: { core: '#FFE9C4', glow: '#A672FF', emissive: 0.85 },
   galaxy: { core: '#FFE9C4', glow: '#8AA8FF', emissive: 0.85 },
   planet: { core: '#B7E2FF', glow: '#5F96F0', emissive: 0.55 },
   star: { core: '#FFD467', glow: '#FF9E3D', emissive: 1.5 },
@@ -179,6 +187,27 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
   const glowScale = radius * (orb.palette === 'star' ? 13 : 8.5);
   const coreColor = new Color(colors.core);
   const glowColor = new Color(colors.glow);
+
+  // 은하·은하군은 발광체가 아니라 수천 개 별이 모인 구조물이다 — 구체 대신 원반을 그린다.
+  if (orb.palette === 'galaxy' || orb.palette === 'group') {
+    const disk = DISK_COLORS[orb.palette];
+    // 문자열 id를 안정적인 시드로 — 같은 지역은 항상 같은 기울기·회전을 갖는다.
+    const seed = Array.from(orb.id).reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 2147483647, 7);
+
+    return (
+      <group position={[worldX, worldY, 0]}>
+        <GalaxyDisk
+          radius={radius * 2.1}
+          brightness={orb.brightness}
+          kind={orb.palette}
+          seed={seed}
+          coreColor={disk.core}
+          armColor={disk.arm}
+          highlighted={orb.highlighted}
+        />
+      </group>
+    );
+  }
 
   return (
     <group position={[worldX, worldY, 0]}>

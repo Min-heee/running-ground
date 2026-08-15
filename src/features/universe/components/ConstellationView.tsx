@@ -55,7 +55,7 @@ function ConstellationViewComponent({
       y: height / 2 + slot.unitY * radius,
       diameter,
       brightness: body.brightness,
-      palette: 'galaxy' as const,
+      palette: (body.level === 'group' ? 'group' : 'galaxy') as 'group' | 'galaxy',
       highlighted: body.isMine,
     }];
   }), [height, maxRadius, ordered, ringCount, slots, width]);
