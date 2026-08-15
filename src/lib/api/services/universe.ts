@@ -80,7 +80,48 @@ function buildMockUniverseResponse(nodeId?: string): UniverseResponse {
     nationwideAverageDistanceKm: regionDrilldownTree.averageDistanceKm,
     me: { userId: 'mock-user', galaxyNodeId: null, galaxyName: null },
     bodies: level === 'galaxy' ? [] : buildMockUniverseBodies(currentNode.children ?? []),
-    galaxy: level === 'galaxy' ? { star: null, planets: [], nebula: null } : null,
+    galaxy: level === 'galaxy' ? buildMockGalaxy(currentNode) : null,
+  };
+}
+
+
+// 목 전용 은하 내부 — 실서버에선 universeBuilder가 채운다. 오프라인에서 행성/항성/원시성
+// 렌더를 눈으로 확인할 수 있게 결정적(회원수 기반) 샘플을 만든다. 진짜 공식은 백엔드에만 있다.
+function buildMockGalaxy(node: { id: string; name: string; participants: number; averageDistanceKm: number }): {
+  star: { monthKey: string; champions: { userId: string; userName: string; distanceKm: number }[] } | null;
+  planets: {
+    userId: string; userName: string; lifetimeDistanceKm: number; monthDistanceKm: number;
+    scale: number; brightness: number; stars: number; isStar: boolean; isProtostar: boolean; isMine: boolean;
+  }[];
+  nebula: { memberCount: number; totalLifetimeDistanceKm: number } | null;
+} {
+  const NAMES = ['민병희', '회원F', '회원K', '회원I', '회원G', '회원C', '회원J', '회원H', '한강러너', '새벽조깅', '언덕왕', '페이스메이커'];
+  const visible = Math.max(0, Math.min(NAMES.length, node.participants));
+  const planets = Array.from({ length: visible }, (_, index) => {
+    const monthDistanceKm = Number((node.averageDistanceKm * (1.9 - index * 0.13)).toFixed(1));
+    const lifetimeDistanceKm = Number((monthDistanceKm * (14 + index * 3)).toFixed(0));
+    return {
+      userId: `${node.id}-mock-${index}`,
+      userName: NAMES[index],
+      lifetimeDistanceKm,
+      monthDistanceKm,
+      scale: Number((0.55 + 0.45 * (1 - index / NAMES.length)).toFixed(2)),
+      brightness: Number((0.35 + 0.65 * (1 - index / NAMES.length)).toFixed(2)),
+      stars: index === 0 ? 2 : index === 1 ? 1 : 0,
+      isStar: index === 0,
+      isProtostar: index === 1,
+      isMine: index === 3,
+    };
+  });
+
+  return {
+    star: planets.length > 0
+      ? { monthKey: '2026-07', champions: [{ userId: planets[0].userId, userName: planets[0].userName, distanceKm: planets[0].monthDistanceKm }] }
+      : null,
+    planets,
+    nebula: node.participants > visible
+      ? { memberCount: node.participants - visible, totalLifetimeDistanceKm: (node.participants - visible) * 180 }
+      : null,
   };
 }
 

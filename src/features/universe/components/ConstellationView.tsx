@@ -1,8 +1,8 @@
 import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { CelestialOrb } from '@/features/universe/components/CelestialOrb';
-import { StarField } from '@/features/universe/components/StarField';
+import { UniverseCanvas } from '@/features/universe/three/UniverseCanvas';
+import type { SkyOrb } from '@/features/universe/three/UniverseSky';
 import {
   buildOrbitSlots,
   countRings,
@@ -37,9 +37,32 @@ function ConstellationViewComponent({
   const ringCount = useMemo(() => countRings(slots), [slots]);
   const maxRadius = Math.max(0, Math.min(width, height) / 2 - 54);
 
+  // 3D 레이어가 받을 천체 명세 — RN 레이어와 완전히 같은 좌표를 쓴다(두 벌이 어긋나면
+  // 레이블이 천체를 벗어난다). 여기서 계산해 두고, 아래 Pressable은 같은 식을 재사용한다.
+  const skyOrbs = useMemo<SkyOrb[]>(() => ordered.flatMap((body, index) => {
+    const slot = slots[index];
+
+    if (!slot) {
+      return [];
+    }
+
+    const radius = ringRadius(slot.ring, ringCount, maxRadius);
+    const diameter = BASE_DIAMETER * body.scale;
+
+    return [{
+      id: body.id,
+      x: width / 2 + slot.unitX * radius,
+      y: height / 2 + slot.unitY * radius,
+      diameter,
+      brightness: body.brightness,
+      palette: 'galaxy' as const,
+      highlighted: body.isMine,
+    }];
+  }), [height, maxRadius, ordered, ringCount, slots, width]);
+
   return (
     <View style={[styles.canvas, { width, height }]}>
-      <StarField width={width} height={height} />
+      <UniverseCanvas orbs={skyOrbs} width={width} height={height} />
 
       {ordered.map((body, index) => {
         const slot = slots[index];
@@ -65,12 +88,9 @@ function ConstellationViewComponent({
               },
             ]}
           >
-            <CelestialOrb
-              diameter={diameter}
-              brightness={body.brightness}
-              palette="galaxy"
-              highlighted={body.isMine}
-            />
+            {/* 천체 자체는 3D 레이어가 그린다. 여기서는 같은 크기의 빈 자리만 잡아
+                레이블이 예전과 같은 위치에 오도록 한다(후광 지름 = 지름 × 2.7). */}
+            <View style={{ width: diameter * 2.7, height: diameter * 2.7 }} pointerEvents="none" />
             <Text style={styles.name} numberOfLines={1}>
               {body.name}
             </Text>

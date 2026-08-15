@@ -11,8 +11,11 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
-import { getIsSignedIn } from '@/lib/session';
-import { registerPushToken, unregisterPushToken } from '@/services';
+// 순환 import 차단 (2026-08-15): 배럴(@/services, @/lib/session)을 거치면
+// session → authSessionFacade → 이 파일 → @/services → authService → session 으로
+// 고리가 닫혀 웹 번들이 초기화 중 undefined를 읽고 크래시한다. 구체 모듈을 직접 가리킨다.
+import { getIsSignedIn } from '@/lib/session/sessionState';
+import { registerPushToken, unregisterPushToken } from '@/services/profileService';
 
 let lastRegisteredToken: string | null = null;
 
