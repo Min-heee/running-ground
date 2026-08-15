@@ -19,6 +19,7 @@
 // 켜기 전에 반드시 이식(켜면 봉인이 조용히 멈춘다). ② 행정구역 통합 마이그레이션은 유저
 // 지역명만 바꾸므로, 원장(regionKey 동결 문자열)도 함께 재작성해야 별이 증발하지 않는다.
 
+import { roundDistanceKm } from './distancePrecision.mjs';
 export const RANKING_STARS_FIRST_MONTH_KEY = '2026-07'; // 서비스 출시 달 — 그 전엔 데이터 없음.
 
 // 봉인 유예 (적대 검증 2026-08-13): 자정 직후 봉인하면 대기열에 밤새 걸린 말일 러닝이 영구
@@ -113,8 +114,9 @@ export function resolveRegionNodeStarKey(node, ancestors) {
   return null;
 }
 
+// distancePrecision 단일 근원 — regionLiveStats와 반드시 같은 반올림이어야 한다.
 function toFixed1(value) {
-  return Number(value.toFixed(1));
+  return roundDistanceKm(value);
 }
 
 // 과거 달을 '봉인 시점의 현재 상태'로 재구성할 때의 시간 오염 차단 (적대 검증 2026-08-13):

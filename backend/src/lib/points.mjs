@@ -1,8 +1,10 @@
 import { isCompetitiveRun } from './competitiveRuns.mjs';
 import { formatKstDateKey } from './kstDate.mjs';
 
+// 거리 반올림은 distancePrecision이 단일 근원 — 이름을 유지해 호출부 20곳을 건드리지 않는다.
+import { roundDistanceKm } from './distancePrecision.mjs';
 function toFixed1(value) {
-  return Number(value.toFixed(1));
+  return roundDistanceKm(value);
 }
 
 function parseRunDate(value) {

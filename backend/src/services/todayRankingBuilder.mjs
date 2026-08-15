@@ -1,3 +1,4 @@
+import { roundDistanceKm } from '../lib/distancePrecision.mjs';
 import { formatKstDateKey } from '../lib/kstDate.mjs';
 
 const TODAY_RANKING_LIMIT = 50;
@@ -10,8 +11,9 @@ function getDateKey(date) {
   return `${year}-${month}-${day}`;
 }
 
+// distancePrecision 단일 근원 — '오늘' 보드가 8.15를 8.2로 반올림하던 자리.
 function toFixed1(value) {
-  return Number(value.toFixed(1));
+  return roundDistanceKm(value);
 }
 
 function normalizeOptionalString(value) {

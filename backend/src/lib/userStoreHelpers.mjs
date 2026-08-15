@@ -14,6 +14,7 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+import { roundDistanceKm } from './distancePrecision.mjs';
 export function findUserById(store, userId) {
   const user = store.users.find((entry) => entry.id === userId);
 
@@ -58,7 +59,7 @@ export function getRunsForUser(store, userId) {
 }
 
 export function getTotalDistance(runs) {
-  return Number(runs.reduce((sum, run) => sum + run.distanceKm, 0).toFixed(1));
+  return roundDistanceKm(runs.reduce((sum, run) => sum + run.distanceKm, 0));
 }
 
 export function getUserMetrics(store, userId) {

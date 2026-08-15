@@ -166,6 +166,7 @@ export function validateDateOnly(value, message, now = new Date()) {
   return date;
 }
 
+import { roundDistanceKm } from './distancePrecision.mjs';
 export function validateDistanceKm(value, message) {
   const distanceKm = typeof value === 'number' ? value : Number(value);
 
@@ -177,7 +178,7 @@ export function validateDistanceKm(value, message) {
     throw new ApiError(400, '거리는 200km 이하로 입력해주세요.');
   }
 
-  return Number(distanceKm.toFixed(1));
+  return roundDistanceKm(distanceKm);
 }
 
 export function validateRunningMatchProgressDistanceKm(value, message) {

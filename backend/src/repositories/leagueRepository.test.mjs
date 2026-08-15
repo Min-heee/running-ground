@@ -442,7 +442,7 @@ await runTest('region board stats are LIVE sums of member weekly competitive dis
   assert.equal(goyang.totalDistanceKm, 12.5);
   assert.equal(goyang.participants, 3); // 클라 라벨 '회원수' = 지역 소속 인원
   assert.equal(goyang.memberCount, 3);
-  assert.equal(goyang.averageDistanceKm, 4.2); // 12.5/3
+  assert.equal(goyang.averageDistanceKm, 4.17); // 12.5/3 — 거리 정밀도 2자리(distancePrecision)
   assert.equal(goyang.participationRate, 67); // 이번 달 달린 2/3
 
   // 루트 보드: 경기도 노드도 실시간 합.

@@ -9,12 +9,14 @@
 // 3.1 vs 5.1처럼 어긋났다). 포인트/LP는 별개 정책으로 계속 경쟁 러닝 기준.
 // participants 필드는 클라 라벨('회원수')에 맞춰 지역 소속 회원 수를 담는다.
 
+import { roundDistanceKm } from './distancePrecision.mjs';
 function normalizeName(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+// distancePrecision 단일 근원 — monthlyRankingStars와 반드시 같은 반올림이어야 한다.
 function toFixed1(value) {
-  return Number(value.toFixed(1));
+  return roundDistanceKm(value);
 }
 
 // 유저 1-pass로 지역 키별 {members, active, totalKm} 인덱스를 만든다.
