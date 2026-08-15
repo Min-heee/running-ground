@@ -63,6 +63,7 @@ export default function TabsLayout() {
     friends: buildTabInputListeners('friends'),
     home: buildTabInputListeners('home'),
     league: buildTabInputListeners('league'),
+    universe: buildTabInputListeners('universe'),
     market: buildTabInputListeners('market'),
     race: buildTabInputListeners('race'),
     mypage: buildTabInputListeners('mypage'),
@@ -72,6 +73,7 @@ export default function TabsLayout() {
     friends: getTabScreenOptions('friends'),
     home: getTabScreenOptions('home'),
     league: getTabScreenOptions('league'),
+    universe: getTabScreenOptions('universe'),
     market: getTabScreenOptions('market'),
     race: getTabScreenOptions('race'),
     mypage: getTabScreenOptions('mypage'),
@@ -83,6 +85,7 @@ export default function TabsLayout() {
       screenOptions={screenOptions}
     >
       <Tabs.Screen name="league" options={tabOptions.league} listeners={tabListeners.league} />
+      <Tabs.Screen name="universe" options={tabOptions.universe} listeners={tabListeners.universe} />
       <Tabs.Screen name="friends" options={tabOptions.friends} listeners={tabListeners.friends} />
       <Tabs.Screen name="running" options={tabOptions.running} listeners={tabListeners.running} />
       <Tabs.Screen name="home" options={tabOptions.home} listeners={tabListeners.home} />

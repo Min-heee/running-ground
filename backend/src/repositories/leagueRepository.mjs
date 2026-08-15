@@ -16,6 +16,7 @@ import {
 } from '../lib/monthlyRankingStars.mjs';
 import { ensureUserRankState } from '../lib/userStoreHelpers.mjs';
 import { LP_PER_TIER, RANK_TIERS } from '../lib/rankSystem.mjs';
+import { buildUniverse } from '../lib/universeBuilder.mjs';
 
 // The region drill is capped at three levels (country -> province -> city).
 // Any node at the city level (시/군) is treated as a leaf, so its sub-regions
@@ -329,6 +330,22 @@ export function createJsonLeagueRepository({
       const store = await loadStore();
       requireUserByToken(store, token);
       return buildRegionLeague(store, nodeId, createError, getUserMetrics);
+    },
+
+    // 우주 탭 — 지역 보드와 같은 원장/집계를 천체로 번역해서 내려준다. 별 봉인 스윕을 같이
+    // 태우는 이유는 랭킹 읽기 경로와 동일: 우주로만 들어온 유저도 봉인을 늦추면 안 된다.
+    async getUniverse({ token, nodeId }) {
+      await sweepRankingStarsIfDue();
+      const store = await loadStore();
+      const user = requireUserByToken(store, token);
+
+      return buildUniverse({
+        store,
+        currentUserId: user.id,
+        nodeId,
+        getUserMetrics,
+        createError,
+      });
     },
 
     async getTodayRankings({ token, category }) {

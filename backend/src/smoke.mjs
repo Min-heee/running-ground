@@ -426,6 +426,58 @@ async function main() {
     assert(districtPersonal.myPoints === expectedMetrics.currentWeekPoints, '구 내 개인 경쟁 포인트가 예상과 달라.');
     logStep('league flow ok');
 
+    // 우주 탭 — 은하단(대한민국) → 은하군 → 은하 3단 드릴이 실제 라우트에서 도는지.
+    const universeCluster = await request('/universe', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    assert(universeCluster.level === 'cluster', '우주 최상위가 은하단이 아니에요.');
+    assert(universeCluster.bodies.length > 0, '은하단에 은하군이 하나도 없어요.');
+    assert(
+      universeCluster.bodies.every((body) => body.level === 'group'),
+      '은하단의 자식이 은하군이 아니에요.',
+    );
+    assert(universeCluster.me.galaxyNodeId, '내 소속 은하(워프 목적지)가 비어 있어요.');
+
+    const myGroup = universeCluster.bodies.find((body) => body.isMine);
+    assert(myGroup, '내 소속 은하군에 표식이 없어요.');
+
+    const universeGroup = await request(`/universe?nodeId=${encodeURIComponent(myGroup.id)}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    assert(universeGroup.level === 'group', '은하군 드릴 결과가 은하군이 아니에요.');
+    assert(
+      universeGroup.bodies.every((body) => body.level === 'galaxy'),
+      '은하군의 자식이 은하가 아니에요.',
+    );
+
+    const universeGalaxy = await request(
+      `/universe?nodeId=${encodeURIComponent(universeCluster.me.galaxyNodeId)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    );
+    assert(universeGalaxy.level === 'galaxy', '은하 드릴 결과가 은하가 아니에요.');
+    assert(universeGalaxy.galaxy, '은하 페이로드가 비어 있어요.');
+
+    const myPlanet = universeGalaxy.galaxy.planets.find((planet) => planet.isMine);
+    assert(myPlanet, '내 은하에 내 행성이 없어요.');
+    // 행성 크기 = 평생 누적 총거리(임포트 포함) — 홈 기록 카드와 같은 원값이어야 한다.
+    assert(
+      myPlanet.lifetimeDistanceKm === expectedMetrics.lifetimeDistanceKm,
+      '행성 평생 거리가 홈 기준(전체 러닝)과 맞지 않아요.',
+    );
+    assert(
+      myPlanet.monthDistanceKm === expectedMetrics.currentMonthDistanceKm,
+      '행성 이번 달 거리가 지역 보드 기준과 맞지 않아요.',
+    );
+    logStep('universe flow ok');
+
     const integrationSources = await request('/integrations/sources', {
       headers: {
         Authorization: `Bearer ${accessToken}`,

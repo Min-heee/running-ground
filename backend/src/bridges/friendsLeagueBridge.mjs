@@ -219,6 +219,16 @@ export function createFriendsLeagueBridge({
       };
     },
 
+    // 우주 탭은 JSON 리포 전용이다. postgres 정규화 리그 리포에는 월간 우승 봉인 스윕도 별
+    // 장식도 아직 없어서(monthlyRankingStars.mjs 이관 주의 참고) 거기서 읽으면 항성이 통째로
+    // 증발한다 — LEAGUE_READS를 켤 때 스윕/별과 함께 이 경로도 같이 이식해야 한다.
+    async getUniverse({ token, nodeId }) {
+      return {
+        payload: await leagueRepository.getUniverse({ token, nodeId }),
+        source: 'json',
+      };
+    },
+
     async getTodayRankings({
       store,
       token,
