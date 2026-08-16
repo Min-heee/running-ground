@@ -104,16 +104,18 @@ function PlanetBody({
   });
 
   return (
-    <group rotation={[0, 0, traits.tilt]}>
+    // 구체는 반지름 1로 만들고 배율로 키운다 — 화면 크기를 반지름에 넣으면 배율이 바뀔
+    // 때마다 정점 수천 개짜리 버퍼를 새로 만든다.
+    <group rotation={[0, 0, traits.tilt]} scale={radius}>
       <group ref={bodyRef}>
         <mesh>
-          <sphereGeometry args={[radius, segments, segments]} />
+          <sphereGeometry args={[1, segments, segments]} />
           <meshStandardMaterial
             map={surface}
             color={new Color(traits.tint)}
             // 표면 요철 — 같은 텍스처를 높이로도 쓴다. 명암 경계에서 지형이 살아난다.
             bumpMap={detailed ? surface : undefined}
-            bumpScale={detailed ? radius * 0.035 : 0}
+            bumpScale={detailed ? 0.035 : 0}
             roughness={traits.kind === 'gas' ? 0.95 : 0.82}
             metalness={0.02}
             // 완전한 암흑면을 피할 만큼만 — 이게 크면 조명이 무의미해져 스티커처럼 보인다.
@@ -128,7 +130,7 @@ function PlanetBody({
       {detailed && traits.kind === 'terrestrial' ? (
         <group ref={cloudRef}>
           <mesh>
-            <sphereGeometry args={[radius * 1.022, segments, segments]} />
+            <sphereGeometry args={[1.022, segments, segments]} />
             <meshStandardMaterial
               map={getCloudTexture()}
               transparent
@@ -142,13 +144,13 @@ function PlanetBody({
 
       {detailed && traits.atmosphere ? (
         <mesh material={atmosphere}>
-          <sphereGeometry args={[radius * 1.09, segments, segments]} />
+          <sphereGeometry args={[1.09, segments, segments]} />
         </mesh>
       ) : null}
 
       {detailed && traits.ring ? (
         <mesh rotation={[Math.PI / 2 - traits.ring.tilt, 0, 0]}>
-          <ringGeometry args={[radius * traits.ring.inner, radius * traits.ring.outer, 96]} />
+          <ringGeometry args={[traits.ring.inner, traits.ring.outer, 96]} />
           <meshBasicMaterial
             map={getRingTexture()}
             transparent
@@ -191,10 +193,10 @@ function StarBody({
   });
 
   return (
-    <group>
+    <group scale={radius}>
       {/* 코로나 — 표면보다 훨씬 넓게 퍼지는 빛. 항성을 '밝은 공'이 아니라 광원으로 만든다. */}
-      <mesh position={[0, 0, -2]}>
-        <planeGeometry args={[radius * traits.corona * 2, radius * traits.corona * 2]} />
+      <mesh position={[0, 0, -2 / Math.max(1e-6, radius)]}>
+        <planeGeometry args={[traits.corona * 2, traits.corona * 2]} />
         <meshBasicMaterial
           map={getGlowTexture()}
           color={new Color(traits.coronaColor)}
@@ -207,7 +209,7 @@ function StarBody({
 
       <group ref={bodyRef}>
         <mesh>
-          <sphereGeometry args={[radius, segments, segments]} />
+          <sphereGeometry args={[1, segments, segments]} />
           {/* 항성은 스스로 빛난다 — 조명을 받지 않으므로 basic 재질에 표면 무늬만 곱한다. */}
           <meshBasicMaterial
             map={getStarSurface()}
@@ -219,11 +221,11 @@ function StarBody({
       </group>
 
       <mesh material={limb}>
-        <sphereGeometry args={[radius * 1.06, segments, segments]} />
+        <sphereGeometry args={[1.06, segments, segments]} />
       </mesh>
 
       {lit ? (
-        <pointLight color={color} intensity={260} distance={radius * 90} decay={2} />
+        <pointLight color={color} intensity={260} distance={90} decay={2} />
       ) : null}
     </group>
   );

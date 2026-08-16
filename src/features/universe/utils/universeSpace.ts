@@ -12,16 +12,18 @@
 // 봤을 때 그것이 뭉친 덩어리인지 풀린 무리인지. 둘 다 순수 함수다.
 
 import { buildOrbitSlots, countRings } from './universeLayout';
+import type { MapPoint } from './koreaMapPositions';
 
 // 부모 반지름 중 자식들이 쓰는 몫. 나머지는 가장자리 여백 — 원반 팔이 부모 밖으로 삐져나가
 // 이웃과 섞이지 않게 한다.
-const CHILD_FILL = 0.74;
+const CHILD_FILL = 0.92;
 // 자식 반지름 상한 = (궤도 간격, 같은 궤도의 각도 간격) 중 좁은 쪽 × 이 비율. 형제끼리
 // 겹치지 않게 하는 유일한 장치다.
 //
-// 0.44에서 낮췄다 (오너 2026-08-16: "너무 따닥따닥 붙어 있고"). 겹치지만 않으면 되는 게
-// 아니라, 천체 사이에 **빈 하늘이 보여야** 우주로 읽힌다 — 실제로 별 사이는 별보다 훨씬 넓다.
-const CHILD_CLEARANCE = 0.3;
+// 0.44 → 0.3 → 0.16으로 계속 낮췄다 (오너 2026-08-16: "훨씬 거리를 벌려줘, 원래 우주는
+// 광활하잖아"). 겹치지만 않으면 되는 게 아니라 천체 사이에 **빈 하늘이 압도적으로 넓어야**
+// 우주로 읽힌다 — 실제 별 사이 거리는 별 지름의 수천만 배다.
+const CHILD_CLEARANCE = 0.16;
 // 자식이 하나뿐이면 궤도가 의미 없다 — 부모 중심에 앉힌다.
 const SINGLE_CHILD_RADIUS = 0.55;
 // 크기 차이는 보이되 큰 쪽이 이웃을 삼키지는 않게: 상한의 55~100% 사이에서만 논다.
@@ -36,9 +38,9 @@ export const UNIVERSE_ROOT_RADIUS = 1000;
 // 배율은 '나라 전체가 화면에 꽉 차는 배율'의 배수로 잰다. 화면 크기가 바뀌어도 이 배수는
 // 그대로라 체감이 같다.
 export const UNIVERSE_MIN_ZOOM_FACTOR = 0.35;
-// 위쪽이 이렇게 큰 건 이 공간이 4겹이기 때문이다 — 나라를 담은 상태에서 한 사람의 행성까지
-// 가려면 수백 배가 필요하다.
-export const UNIVERSE_MAX_ZOOM_FACTOR = 600;
+// 위쪽이 이렇게 큰 건 이 공간이 4겹인데다 사이가 아주 넓기 때문이다 — 나라를 담은
+// 상태에서 한 사람의 행성까지 가려면 수천 배가 필요하다.
+export const UNIVERSE_MAX_ZOOM_FACTOR = 6000;
 
 // 나라 전체가 화면에 들어차는 배율.
 export function fitZoomFor(canvasWidth: number, canvasHeight: number): number {
@@ -57,8 +59,9 @@ export type SpacePlacement = {
 };
 
 // 깊이 퍼짐(부모 반지름 대비). 이게 0이면 우주가 종이처럼 납작해진다 (오너 2026-08-16:
-// "아직 우주가 이질적이야 너무 평면화 되어있거든").
-const DEPTH_SPREAD = 0.26;
+// "아직 우주가 이질적이야 너무 평면화 되어있거든"). 원근 카메라로 옮기면서 키웠다 —
+// 이제 깊이는 크기 흉내가 아니라 실제로 카메라가 지나가는 거리다.
+const DEPTH_SPREAD = 0.55;
 // 궤도를 흐트러뜨리는 정도 — **남는 틈** 대비 비율이다. 궤도 반지름 대비로 잡으면 바깥
 // 궤도에서 흔들림이 간격보다 커져 천체가 서로를 삼킨다. 완벽한 동심원은 우주가 아니라
 // 도표로 읽히지만, 흐트러뜨리는 값은 언제나 빈 자리 안에서만 놀아야 한다.
@@ -76,6 +79,50 @@ function jitter(index: number, salt: number): number {
 // 첫째(가장 큰 것)는 부모의 **한가운데**에 앉는다. 실제 은하단이 그렇게 생겼기도 하지만,
 // 더 중요한 이유는 중심이 비어 있으면 안 되기 때문이다: 중심을 겨눠 확대하면 아무것도 없는
 // 허공으로 떨어져 "확대할수록 풀린다"가 "확대하면 사라진다"가 된다.
+// 지도 자리에 앉히기 — 시/도처럼 실제 위치가 있는 층에만 쓴다.
+//
+// 크기는 이웃까지의 거리에서 나온다. 지도 배치는 간격이 제멋대로라(수도권은 붙어 있고
+// 제주는 멀리 떨어져 있다) 고정된 반지름을 주면 서울과 인천이 곧바로 겹친다.
+export function placeOnMap(
+  parent: SpacePlacement,
+  points: (MapPoint | null)[],
+  scales: number[],
+): SpacePlacement[] {
+  const reach = parent.radius * CHILD_FILL;
+  const placed = points.map((point, index) => ({
+    x: parent.x + (point?.x ?? 0) * reach,
+    y: parent.y + (point?.y ?? 0) * reach,
+    z: parent.z + jitter(index, 1.3) * parent.radius * DEPTH_SPREAD,
+    radius: 0,
+  }));
+  const maxScale = scales.reduce((max, scale) => Math.max(max, scale), 0);
+
+  return placed.map((body, index) => {
+    let nearest = parent.radius;
+
+    for (let other = 0; other < placed.length; other += 1) {
+      if (other !== index) {
+        nearest = Math.min(nearest, Math.hypot(body.x - placed[other].x, body.y - placed[other].y));
+      }
+    }
+
+    const sizeFactor = maxScale > 0
+      ? SIZE_FLOOR + (1 - SIZE_FLOOR) * Math.min(1, scales[index] / maxScale)
+      : 1;
+
+    return {
+      ...body,
+      // 이웃까지 거리의 절반 안쪽으로 잡되, 위아래를 묶는다. 지도 간격은 극단적으로
+      // 불규칙해서(수도권은 붙어 있고 제주는 홀로 떨어져 있다) 비례만 시키면 서울은 점이
+      // 되고 제주는 화면을 덮는다.
+      radius: Math.max(
+        parent.radius * 0.022,
+        Math.min(parent.radius * 0.075, nearest * 0.42),
+      ) * sizeFactor,
+    };
+  });
+}
+
 export function placeChildren(parent: SpacePlacement, scales: number[]): SpacePlacement[] {
   const count = scales.length;
 
@@ -121,7 +168,12 @@ export function placeChildren(parent: SpacePlacement, scales: number[]): SpacePl
       const reserved = ringGap * CHILD_CLEARANCE * 2;
       const radialFree = Math.max(0, ringGap - reserved);
       const angularFree = Math.max(0, angleStep - reserved / baseOrbit);
-      const orbit = baseOrbit + jitter(index, 3.1) * radialFree * JITTER_OF_FREE_SPACE;
+      // 흔들려도 궤도가 가장 바깥 테두리를 넘지 않게 묶는다 — 넘으면 자식이 부모 밖으로
+      // 나가고, 그러면 '부모 밖이면 가지 전체를 건너뛴다'는 컬링 전제가 깨진다.
+      const orbit = Math.max(
+        ringGap * 0.5,
+        Math.min(span, baseOrbit + jitter(index, 3.1) * radialFree * JITTER_OF_FREE_SPACE),
+      );
       const angle = slot.angle + jitter(index, 7.7) * angularFree * JITTER_OF_FREE_SPACE;
       const angularGap = angleStep * orbit;
       // 세 가지 상한: 안팎 궤도와의 간격, 같은 궤도 이웃과의 간격, 그리고 부모의 테두리.

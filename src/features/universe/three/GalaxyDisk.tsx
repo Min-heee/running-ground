@@ -120,18 +120,21 @@ function GalaxyDiskComponent({
 }) {
   const groupRef = useRef<Group>(null);
 
-  // 파티클 수는 크기에 비례하되 상한을 둔다 — 25개 은하가 한 화면에 뜨므로 총량이 중요하다.
-  const count = Math.round(Math.min(1700, Math.max(420, radius * 26)));
+  // 원반은 **반지름 1**로 만들고 그룹 배율로 키운다. 화면 크기를 그대로 반지름에 넣으면
+  // 배율이 조금만 바뀌어도 수천 개 파티클 버퍼를 매 프레임 다시 만들게 된다.
+  //
+  // 파티클 수도 화면 크기를 따라가되 계단으로 끊는다 — 연속으로 따라가면 같은 문제가 난다.
+  const count = 420 * Math.min(4, Math.max(1, Math.round(pointSize)));
   const geometry = useMemo(
     () => buildDiskGeometry({
       count,
-      radius,
+      radius: 1,
       kind,
       seed,
       coreColor: new Color(coreColor),
       armColor: new Color(armColor),
     }),
-    [armColor, coreColor, count, kind, radius, seed],
+    [armColor, coreColor, count, kind, seed],
   );
 
   // 파티클 버퍼는 우리가 만들었으므로 우리가 치운다. r3f는 prop으로 받은 geometry를
@@ -159,12 +162,12 @@ function GalaxyDiskComponent({
   });
 
   return (
-    <group rotation={[0, 0, yaw]} scale={[1, Math.cos(tilt), 1]}>
+    <group rotation={[0, 0, yaw]} scale={[radius, radius * Math.cos(tilt), radius]}>
       {/* 핵 — 원반 중심의 밝은 덩어리. 이게 없으면 팔만 떠 있어 은하로 안 읽힌다.
           너무 크게 잡으면 알파가 거의 0인 면적이 화면을 덮은 채 매 프레임 가산 합성으로
           다시 칠해진다 — 눈엔 안 보이고 비용만 든다. */}
       <mesh>
-        <planeGeometry args={[radius * 1.7, radius * 1.7]} />
+        <planeGeometry args={[1.7, 1.7]} />
         <meshBasicMaterial
           map={getGlowTexture()}
           color={new Color(coreColor)}
@@ -193,7 +196,7 @@ function GalaxyDiskComponent({
       {/* 내 지역 — 원반을 감싸는 얇은 링(정면으로 눕혀 원반과 같은 평면에 놓는다). */}
       {highlighted ? (
         <mesh>
-          <ringGeometry args={[radius * 1.5, radius * 1.62, 64]} />
+          <ringGeometry args={[1.5, 1.62, 64]} />
           <meshBasicMaterial color="#FFFFFF" transparent opacity={0.85 * opacity} depthWrite={false} />
         </mesh>
       ) : null}

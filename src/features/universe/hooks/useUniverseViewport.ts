@@ -6,6 +6,11 @@ import {
   UNIVERSE_MAX_ZOOM_FACTOR,
   UNIVERSE_MIN_ZOOM_FACTOR,
 } from '@/features/universe/utils/universeSpace';
+import { panToHold } from '@/features/universe/utils/universeProjection';
+
+// 확대 앵커 아래에 있는 천체 — 화면이 알려준다. 확대는 곧 그리로 다가가는 일이라,
+// 카메라의 깊이와 이동량을 이 천체를 기준으로 정한다.
+export type AnchorTarget = { x: number; y: number; z: number };
 
 // 우주 뷰포트 — 확대/축소와 이동.
 //
@@ -22,6 +27,9 @@ export type UniverseViewport = {
   zoom: number;
   panX: number;
   panY: number;
+  // 카메라가 지금 지나고 있는 깊이. 확대해 들어갈수록 파고든 층의 깊이를 따라간다 —
+  // 이게 없으면 앞쪽 천체를 통과하지 못하고 영영 그 앞에 멈춰 있게 된다.
+  camDepth: number;
 };
 
 function clampZoomTo(zoom: number, fitZoom: number): number {
@@ -37,19 +45,40 @@ export function zoomAroundPoint(
   nextZoomRaw: number,
   anchorX: number,
   anchorY: number,
-  centerX: number,
-  centerY: number,
+  canvasWidth: number,
+  canvasHeight: number,
   fitZoom: number,
+  anchor: AnchorTarget | null,
 ): UniverseViewport {
   const nextZoom = clampZoomTo(nextZoomRaw, fitZoom);
   const ratio = nextZoom / viewport.zoom;
 
-  // 앵커의 화면 위치가 불변이 되도록 pan을 역산한다.
-  return {
-    zoom: nextZoom,
-    panX: anchorX - centerX - ratio * (anchorX - centerX - viewport.panX),
-    panY: anchorY - centerY - ratio * (anchorY - centerY - viewport.panY),
-  };
+  // 카메라 깊이는 배율이 변한 만큼만 목표에 다가간다 — 배율이 두 배가 되면 절반을 간다.
+  // 이 규칙이면 애니메이션 루프 없이도 확대가 곧 전진이 되고, 축소하면 중립면으로 물러난다.
+  const target = anchor?.z ?? viewport.camDepth;
+  const approach = ratio > 1 ? 1 - 1 / ratio : 0;
+  const retreat = ratio < 1 ? 1 - ratio : 0;
+  const camDepth = viewport.camDepth
+    + (target - viewport.camDepth) * approach
+    - viewport.camDepth * retreat;
+  const moved = { ...viewport, camDepth, zoom: nextZoom };
+
+  // 겨눈 천체가 있으면 그 천체가 제자리에 남도록 이동량을 역산한다. 없으면 초점면
+  // (z = camDepth)을 기준으로 — 그 평면에서는 예전 아핀 공식과 정확히 같다.
+  const held = panToHold(
+    anchor ?? {
+      x: (anchorX - canvasWidth / 2) / viewport.zoom - viewport.panX / viewport.zoom,
+      y: (anchorY - canvasHeight / 2) / viewport.zoom + viewport.panY / viewport.zoom,
+      z: viewport.camDepth,
+    },
+    anchorX,
+    anchorY,
+    moved,
+    canvasWidth,
+    canvasHeight,
+  );
+
+  return { ...moved, panX: held.panX, panY: held.panY };
 }
 
 function touchDistance(touches: { pageX: number; pageY: number }[]): number {
@@ -57,7 +86,18 @@ function touchDistance(touches: { pageX: number; pageY: number }[]): number {
   return Math.hypot(first.pageX - second.pageX, first.pageY - second.pageY);
 }
 
-export function useUniverseViewport({ width, height }: { width: number; height: number }) {
+export function useUniverseViewport({
+  width,
+  height,
+  depthAt,
+}: {
+  width: number;
+  height: number;
+  // 화면의 한 점 아래에 있는 천체 — 장면이 알려준다.
+  depthAt?: (screenX: number, screenY: number) => AnchorTarget | null;
+}) {
+  const depthAtRef = useRef(depthAt);
+  depthAtRef.current = depthAt;
   // 화면에 나라가 꽉 차는 배율. 화면이 바뀌면 이 값도 바뀌지만, **이미 정해진 배율·이동은
   // 건드리지 않는다** — 세계 좌표는 화면과 무관하므로 보고 있던 자리가 그대로 있어야 한다.
   // 이 값은 처음 배율과 한계를 정하는 데만 쓴다.
@@ -65,7 +105,7 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
   const fitZoomRef = useRef(fitZoom);
   fitZoomRef.current = fitZoom;
   const [viewport, setViewport] = useState<UniverseViewport>(
-    () => ({ zoom: fitZoomFor(width, height), panX: 0, panY: 0 }),
+    () => ({ zoom: fitZoomFor(width, height), panX: 0, panY: 0, camDepth: 0 }),
   );
   // 제스처 중에는 렌더마다 최신 값이 필요하다 — state는 비동기라 ref로 같이 들고 간다.
   const viewportRef = useRef(viewport);
@@ -95,7 +135,7 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
 
   // 처음 자리로 — 나라 전체가 화면에 들어차는 배율, 중앙.
   const reset = useCallback(() => {
-    setViewport({ zoom: fitZoomRef.current, panX: 0, panY: 0 });
+    setViewport({ zoom: fitZoomRef.current, panX: 0, panY: 0, camDepth: 0 });
   }, []);
 
   const apply = useCallback((next: UniverseViewport) => {
@@ -110,12 +150,14 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
   }, []);
 
   // 우주 좌표의 한 점을 화면 한가운데로 가져온다 — 검색 착지·'내 행성으로'·천체 두 번 누르기.
-  const focusOn = useCallback((targetX: number, targetY: number, zoom: number) => {
+  const focusOn = useCallback((targetX: number, targetY: number, targetZ: number, zoom: number) => {
     const nextZoom = clampZoomTo(zoom, fitZoomRef.current);
     setViewport({
       zoom: nextZoom,
       panX: -targetX * nextZoom,
       panY: -targetY * nextZoom,
+      // 날아간 곳의 깊이로 카메라도 함께 옮긴다 — 안 그러면 그 천체가 카메라 뒤에 있다.
+      camDepth: targetZ,
     });
   }, []);
 
@@ -174,14 +216,15 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
           start.viewport.zoom * (nextDistance / start.distance),
           anchorX,
           anchorY,
-          centerX,
-          centerY,
+          width,
+          height,
           fitZoomRef.current,
+          depthAtRef.current?.(anchorX, anchorY) ?? null,
         ));
         return;
       }
 
-      // 끌기는 배율도 조준점도 바꾸지 않는다 — 겨눈 대상은 확대할 때만 정해진다.
+      // 끌기는 배율도 깊이도 바꾸지 않는다 — 옆으로 흐를 뿐이다.
       apply({
         ...start.viewport,
         panX: start.viewport.panX + (gesture.dx - start.dx),
@@ -194,7 +237,7 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
     onPanResponderTerminate: () => {
       gestureStartRef.current = null;
     },
-  }), [apply, centerX, centerY, measureContainer]);
+  }), [apply, height, measureContainer, width]);
 
   // 웹 휠 확대 — RN View에는 onWheel이 없어 DOM 리스너로 붙인다(웹에서만 동작).
   // 네이티브에서 원점을 재는 것과 **같은 View**를 가리킨다: 확대 중심의 기준이 두 벌이 되면
@@ -219,20 +262,22 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
       const factor = Math.exp(-wheel.deltaY * 0.0026);
       const anchorX = wheel.clientX - rect.left;
       const anchorY = wheel.clientY - rect.top;
+      const anchor = depthAtRef.current?.(anchorX, anchorY) ?? null;
       step((previous) => zoomAroundPoint(
         previous,
         previous.zoom * factor,
         anchorX,
         anchorY,
-        centerX,
-        centerY,
+        width,
+        height,
         fitZoomRef.current,
+        anchor,
       ));
     };
 
     node.addEventListener('wheel', handleWheel, { passive: false });
     return () => node.removeEventListener?.('wheel', handleWheel);
-  }, [centerX, centerY, step]);
+  }, [height, step, width]);
 
   return {
     viewport,

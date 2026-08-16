@@ -20,9 +20,9 @@ import { CelestialSphere } from '@/features/universe/three/CelestialSphere';
 // 3D 우주 레이어 (오너 2026-08-15: "실제 우주처럼"). 겹친 반투명 View로 내던 발광체를
 // 진짜 구체 + 가산합성 후광으로 바꾼다.
 //
-// 좌표계: 직교 카메라(zoom 1)라 월드 1 = 화면 1픽셀이다. 그래서 기존 배치 수학
-// (universeLayout)이 준 화면 좌표를 그대로 받아 쓸 수 있고, 레이블·터치 영역은 RN View로
-// 위에 그대로 남는다 — 텍스트는 선명하게, 히트 판정은 검증된 경로를 유지한다.
+// 좌표계: 직교 카메라(zoom 1)라 월드 1 = 화면 1픽셀이다. 원근 투영은 장면(UniverseScene)이
+// 이미 끝낸 뒤 **화면 좌표**로 넘겨주고, 여기서는 그 자리에 그리기만 한다 — 투영이 두 벌이면
+// 이름표가 천체를 벗어난다. 레이블·터치 영역은 RN View로 위에 그대로 남는다.
 
 export type SkyOrb = {
   id: string;
@@ -201,8 +201,7 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
   }
 
   const morph = Math.max(0, Math.min(1, orb.morph));
-  // 깊이는 배율로 나눠 넘긴다 — 이 그룹이 통째로 배율만큼 커지므로, 나누지 않으면 앞뒤
-  // 간격이 수십만 단위로 벌어져 카메라의 깊이 범위를 넘어간다.
+  // 깊이는 화면 단위로 온다 — 겹친 천체의 가림 순서를 정하는 데만 쓴다.
   const depth = orb.depth ?? 0;
 
   return (
@@ -337,8 +336,10 @@ function UniverseSkyComponent({
         ))}
       </group>
 
-      {/* 천체는 뷰포트를 그대로 따른다 — RN 레이블 레이어와 같은 변환식(useUniverseViewport). */}
-      <group position={[panX, -panY, 0]} scale={zoom}>
+      {/* 천체는 이미 투영된 화면 좌표로 온다 — 여기서 다시 변환하지 않는다. 원근 투영은
+          아핀이 아니라 그룹 변환으로 표현할 수 없고, 무엇보다 이름표 레이어와 같은 숫자를
+          써야 이름이 천체를 벗어나지 않는다. */}
+      <group>
         {orbs.map((orb) => (
           <CelestialBody key={orb.id} orb={orb} width={width} height={height} />
         ))}

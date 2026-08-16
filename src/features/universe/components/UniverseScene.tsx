@@ -11,16 +11,17 @@ import {
   BODY_LABEL_PX,
   BODY_RESOLVE_PX,
   cloudOpacity,
-  depthDimFor,
-  depthScaleFor,
   labelOpacity,
   placeChildren,
+  placeOnMap,
   resolveProgress,
   smoothStep,
   UNIVERSE_ROOT_RADIUS,
   zoomToFrame,
   type SpacePlacement,
 } from '@/features/universe/utils/universeSpace';
+import { hasMapPoint, mapPointFor } from '@/features/universe/utils/koreaMapPositions';
+import { projectPoint } from '@/features/universe/utils/universeProjection';
 import type { UniverseBody, UniversePlanet } from '@/lib/api/types';
 
 // 하나의 연속된 우주 (오너 2026-08-16: "확대한다고 전환되는 게 아니라, 뭉쳐 있던 게 점점
@@ -73,6 +74,8 @@ export type SceneBody = {
   // 우주 좌표.
   x: number;
   y: number;
+  // 우주 좌표의 깊이 — 그리로 날아갈 때 카메라를 같은 깊이로 옮기는 데 쓴다.
+  universeZ: number;
   radius: number;
   screenX: number;
   screenY: number;
@@ -126,6 +129,22 @@ function sortedChildren(entry: TreeEntry): (UniverseBody | UniversePlanet)[] {
   return ordered;
 }
 
+// 자식 배치 — 시/도처럼 실제 지도 자리가 있는 층은 그 자리에, 나머지는 궤도에.
+// 걷기와 검색 착지가 **같은 함수**를 써야 엉뚱한 천체 앞에 내려앉지 않는다.
+function placeChildrenOf(
+  placement: SpacePlacement,
+  children: (UniverseBody | UniversePlanet)[],
+): SpacePlacement[] {
+  const scales = children.map((child) => child.scale);
+  const named = children.filter((child): child is UniverseBody => 'name' in child);
+  const mappable = named.length === children.length
+    && named.filter((child) => hasMapPoint(child.name)).length >= Math.ceil(children.length * 0.6);
+
+  return mappable
+    ? placeOnMap(placement, named.map((child) => mapPointFor(child.name)), scales)
+    : placeChildren(placement, scales);
+}
+
 function paletteForPlanet(planet: UniversePlanet): SkyOrb['palette'] {
   if (planet.isStar) {
     return 'star';
@@ -160,6 +179,28 @@ function UniverseSceneComponent({
   // 화면 위쪽 버튼들이 카메라를 부리는 통로 — 검색 착지, '내 행성으로', 처음 자리로.
   controlsRef?: { current: UniverseSceneControls | null };
 }) {
+  // 확대 앵커 아래에 있는 천체의 깊이를 뷰포트에 알려준다 — 확대가 곧 그리로 다가가는
+  // 일이 되려면 카메라가 어느 깊이로 들어가야 하는지 알아야 한다.
+  const bodiesRef = useRef<SceneBody[]>([]);
+  const depthAt = useCallback((screenX: number, screenY: number) => {
+    let best: SceneBody | null = null;
+    let bestGap = Number.POSITIVE_INFINITY;
+
+    for (const body of bodiesRef.current) {
+      // 천체 표면까지의 거리 — 안에 있으면 음수라 자연스럽게 우선한다. 정확히 그 위를
+      // 겨눴을 때만 쳐주면 빈 하늘을 확대할 때 카메라가 제자리에 멈춰 원근이 어긋난다.
+      // 가장 가까운 것을 향해서라도 계속 나아가야 한다.
+      const gap = Math.hypot(body.screenX - screenX, body.screenY - screenY) - body.screenRadius;
+
+      if (gap < bestGap - 1 || (best !== null && Math.abs(gap - bestGap) <= 1 && body.depth > best.depth)) {
+        bestGap = Math.min(bestGap, gap);
+        best = body;
+      }
+    }
+
+    return best ? { x: best.x, y: best.y, z: best.universeZ } : null;
+  }, []);
+
   const {
     viewport,
     fitZoom,
@@ -168,15 +209,18 @@ function UniverseSceneComponent({
     panHandlers,
     containerRef,
     onContainerLayout,
-  } = useUniverseViewport({ width, height });
+  } = useUniverseViewport({ width, height, depthAt });
 
   const centerX = width / 2;
   const centerY = height / 2;
   const { zoom, panX, panY } = viewport;
 
-  // 우주 좌표 → 화면 좌표. 3D 레이어의 group 변환과 같은 식이어야 이름이 천체를 벗어나지 않는다.
-  const toScreenX = useCallback((x: number) => centerX + x * zoom + panX, [centerX, panX, zoom]);
-  const toScreenY = useCallback((y: number) => centerY + y * zoom + panY, [centerY, panY, zoom]);
+  // 우주 좌표 → 화면 좌표. 원근 투영이라 깊이에 따라 크기와 자리가 함께 달라진다.
+  // 3D 레이어는 여기서 나온 화면 좌표를 그대로 받아 그린다 — 투영이 두 벌이면 반드시 어긋난다.
+  const project = useCallback(
+    (x: number, y: number, z: number) => projectPoint(x, y, z, viewport, width, height),
+    [height, viewport, width],
+  );
 
   // 공간을 걸어 내려가며 지금 보이는 것만 모은다. 자식은 항상 부모 원 안에 있으므로, 부모가
   // 화면 밖이면 그 가지 전체를 건너뛸 수 있다 — 이게 전국 규모를 감당하는 유일한 이유다.
@@ -212,26 +256,23 @@ function UniverseSceneComponent({
 
     // 다음에 걸어갈 곳들 — 큰 것부터 차례로 빠져나간다(너비 우선).
     type Pending =
-      | { kind: 'planet'; planet: UniversePlanet; placement: SpacePlacement; depth: number; near: number }
+      | { kind: 'planet'; planet: UniversePlanet; placement: SpacePlacement; depth: number }
       | {
         kind: 'region';
         nodeId: string;
         meta: { name: string; level: string; scale: number; brightness: number; stars: number; isMine: boolean; averageDistanceKm: number };
         placement: SpacePlacement;
         depth: number;
-        // 부모 대비 앞뒤 정도 — 원근(크기·밝기)을 여기서 뽑는다.
-        near: number;
       };
     const queue: Pending[] = [];
 
-    // 화면 밖이거나 한 점도 안 되면 그 가지는 통째로 없는 셈 친다.
-    const isVisible = (placement: SpacePlacement, screenRadius: number) => {
+    // 화면 밖이거나 한 점도 안 되면 그 가지는 통째로 없는 셈 친다. 카메라 뒤로 넘어간
+    // 것도 여기서 걸러진다(투영이 visible=false를 준다).
+    const isVisible = (screenX: number, screenY: number, screenRadius: number) => {
       if (screenRadius < BODY_CULL_PX) {
         return false;
       }
 
-      const screenX = toScreenX(placement.x);
-      const screenY = toScreenY(placement.y);
       const footprint = screenRadius * CULL_FOOTPRINT_SCALE;
 
       return screenX + footprint >= 0
@@ -240,21 +281,17 @@ function UniverseSceneComponent({
         && screenY - footprint <= height;
     };
 
-    const visitPlanet = (
-      planet: UniversePlanet,
-      placement: SpacePlacement,
-      depth: number,
-      near: number,
-    ) => {
-      const perspective = depthScaleFor(near);
-      const screenRadius = placement.radius * zoom * perspective;
+    const visitPlanet = (planet: UniversePlanet, placement: SpacePlacement, depth: number) => {
+      const projected = project(placement.x, placement.y, placement.z);
+      const screenRadius = placement.radius * projected.scale;
 
-      if (!isVisible(placement, screenRadius)) {
+      if (!projected.visible || !isVisible(projected.screenX, projected.screenY, screenRadius)) {
         return;
       }
 
-      const screenX = toScreenX(placement.x);
-      const screenY = toScreenY(placement.y);
+      const { screenX, screenY } = projected;
+      // 가까울수록(투영 배율이 초점면보다 클수록) 밝다 — 사이의 먼지가 하는 일.
+      const nearness = projected.scale / zoom;
 
       push({
         key: `planet:${planet.userId}`,
@@ -264,13 +301,14 @@ function UniverseSceneComponent({
         detail: `이번 달 ${planet.monthDistanceKm}km`,
         x: placement.x,
         y: placement.y,
+        universeZ: placement.z,
         radius: placement.radius,
         screenX,
         screenY,
         screenRadius,
         depth,
-        z: near * DEPTH_SCREEN_SPAN,
-        opacity: depthDimFor(perspective),
+        z: Math.max(-1, Math.min(1, 1 - 1 / Math.max(0.2, nearness))) * DEPTH_SCREEN_SPAN,
+        opacity: Math.max(0.5, Math.min(1, 0.5 + 0.5 * nearness)),
         nameOpacity: 1,
         morph: smoothStep(
           SPHERE_MIN_SCREEN_RADIUS * 0.55,
@@ -290,17 +328,16 @@ function UniverseSceneComponent({
       meta: { name: string; level: string; scale: number; brightness: number; stars: number; isMine: boolean; averageDistanceKm: number },
       placement: SpacePlacement,
       depth: number,
-      near: number,
     ) => {
-      const perspective = depthScaleFor(near);
-      const screenRadius = placement.radius * zoom * perspective;
+      const projected = project(placement.x, placement.y, placement.z);
+      const screenRadius = placement.radius * projected.scale;
 
-      if (!isVisible(placement, screenRadius)) {
+      if (!projected.visible || !isVisible(projected.screenX, projected.screenY, screenRadius)) {
         return;
       }
 
-      const screenX = toScreenX(placement.x);
-      const screenY = toScreenY(placement.y);
+      const { screenX, screenY } = projected;
+      const nearness = projected.scale / zoom;
       const entry = entryFor(nodeId);
 
       // 풀릴 만큼 커졌는데 아직 안이 없으면 그때 부탁한다 — 보이지도 않는 것을 미리 받지 않는다.
@@ -325,13 +362,14 @@ function UniverseSceneComponent({
         detail: `인당 ${meta.averageDistanceKm}km`,
         x: placement.x,
         y: placement.y,
+        universeZ: placement.z,
         radius: placement.radius,
         screenX,
         screenY,
         screenRadius,
         depth,
-        z: near * DEPTH_SCREEN_SPAN,
-        opacity: cloudOpacity(progress) * depthDimFor(perspective),
+        z: Math.max(-1, Math.min(1, 1 - 1 / Math.max(0.2, nearness))) * DEPTH_SCREEN_SPAN,
+        opacity: cloudOpacity(progress) * Math.max(0.5, Math.min(1, 0.5 + 0.5 * nearness)),
         nameOpacity: labelOpacity(progress),
         morph: smoothStep(
           DISK_MIN_SCREEN_RADIUS * 0.55,
@@ -349,7 +387,7 @@ function UniverseSceneComponent({
         return;
       }
 
-      const placements = placeChildren(placement, children.map((child) => child.scale));
+      const placements = placeChildrenOf(placement, children);
 
       children.forEach((child, index) => {
         const childPlacement = placements[index];
@@ -358,18 +396,12 @@ function UniverseSceneComponent({
           return;
         }
 
-        // 부모 반지름으로 정규화한 앞뒤 — 어느 층에서 보든 깊이감이 같아야 한다.
-        const childNear = placement.radius > 0
-          ? (childPlacement.z - placement.z) / placement.radius
-          : 0;
-
         if ('userId' in child) {
           queue.push({
             kind: 'planet',
             planet: child as UniversePlanet,
             placement: childPlacement,
             depth: depth + 1,
-            near: childNear,
           });
           return;
         }
@@ -389,7 +421,6 @@ function UniverseSceneComponent({
           },
           placement: childPlacement,
           depth: depth + 1,
-          near: childNear,
         });
       });
     };
@@ -408,7 +439,6 @@ function UniverseSceneComponent({
       },
       placement: { x: 0, y: 0, z: 0, radius: UNIVERSE_ROOT_RADIUS },
       depth: 0,
-      near: 0,
     });
 
     while (queue.length > 0 && collected.length < MAX_BODIES) {
@@ -419,14 +449,14 @@ function UniverseSceneComponent({
       }
 
       if (next.kind === 'planet') {
-        visitPlanet(next.planet, next.placement, next.depth, next.near);
+        visitPlanet(next.planet, next.placement, next.depth);
       } else {
-        visitRegion(next.nodeId, next.meta, next.placement, next.depth, next.near);
+        visitRegion(next.nodeId, next.meta, next.placement, next.depth);
       }
     }
 
     return { bodies: collected, needed: wanted, focused: deepestAtCenter as SceneBody | null };
-  }, [centerX, centerY, entryFor, height, revision, rootId, toScreenX, toScreenY, width, zoom]);
+  }, [centerX, centerY, entryFor, height, project, revision, rootId, width, zoom]);
 
   // 렌더 중에 요청하지 않는다 — 부탁 목록만 모아두고 커밋 후에 보낸다. 목록은 매 렌더 새
   // 배열이라, 내용이 같으면 effect가 다시 돌지 않게 문자열로 묶어 비교한다.
@@ -439,6 +469,8 @@ function UniverseSceneComponent({
       request(nodeId);
     }
   }, [neededKey, request]);
+
+  bodiesRef.current = bodies;
 
   const focusedKey = focused?.key ?? null;
   const onFocusChangeRef = useRef(onFocusChange);
@@ -476,7 +508,7 @@ function UniverseSceneComponent({
         return false;
       }
 
-      placement = placeChildren(placement, siblings.map((child) => child.scale))[index];
+      placement = placeChildrenOf(placement, siblings)[index];
       currentId = nextId;
     }
 
@@ -490,11 +522,11 @@ function UniverseSceneComponent({
       const index = siblings.findIndex((child) => 'userId' in child && child.userId === userId);
 
       if (index >= 0) {
-        placement = placeChildren(placement, siblings.map((child) => child.scale))[index];
+        placement = placeChildrenOf(placement, siblings)[index];
       }
     }
 
-    focusOn(placement.x, placement.y, zoomToFrame(placement.radius, width, height));
+    focusOn(placement.x, placement.y, placement.z, zoomToFrame(placement.radius, width, height));
     return true;
   }, [entryFor, focusOn, height, rootId, width]);
 
@@ -513,21 +545,19 @@ function UniverseSceneComponent({
 
   const orbs = useMemo<SkyOrb[]>(() => bodies.map((body) => ({
     id: body.key,
-    x: centerX + body.x,
-    y: centerY + body.y,
-    // 3D 레이어는 배율 1 기준 값을 받고 그룹이 통째로 확대한다 — 원근으로 커진 몫만
-    // 여기서 되돌려 넣는다.
-    diameter: (body.screenRadius / zoom) * 2,
+    // 이미 투영된 화면 좌표·화면 크기를 그대로 넘긴다. 3D 레이어는 변환하지 않는다.
+    x: body.screenX,
+    y: body.screenY,
+    diameter: body.screenRadius * 2,
     screenDiameter: body.screenRadius * 2,
-    // 그룹이 z에도 배율을 곱하므로 미리 나눠 둔다.
-    depth: body.z / zoom,
+    depth: body.z,
     brightness: body.brightness,
     palette: body.palette,
     shape: body.shape,
     morph: body.morph,
     highlighted: body.isMine || body.key === selectedKey,
     opacity: body.opacity,
-  })), [bodies, centerX, selectedKey, zoom]);
+  })), [bodies, selectedKey]);
 
   // 이름은 큰 것부터 자리를 잡고, 겹치면 접는다. 확대하면 사이가 벌어져 접혔던 이름이 돌아온다.
   const labelled = useMemo(() => {
@@ -566,7 +596,7 @@ function UniverseSceneComponent({
   const handlePress = useCallback((body: SceneBody) => {
     // 한 번 누르면 정보, 이미 고른 것을 다시 누르면 그리로 날아간다.
     if (body.key === selectedKey) {
-      focusOn(body.x, body.y, zoomToFrame(body.radius, width, height));
+      focusOn(body.x, body.y, body.universeZ, zoomToFrame(body.radius, width, height));
       return;
     }
 
