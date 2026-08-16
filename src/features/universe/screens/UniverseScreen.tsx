@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
-  BackHandler,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,53 +12,28 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandLoadingView } from '@/components/BrandLoadingView';
 import { StateMessageCard } from '@/components/ui/StateMessageCard';
-import { ConstellationView } from '@/features/universe/components/ConstellationView';
-import { GalaxyView } from '@/features/universe/components/GalaxyView';
-import { useUniverse } from '@/features/universe/hooks/useUniverse';
+import { UniverseScene, type SceneBody } from '@/features/universe/components/UniverseScene';
+import { useUniverseTree } from '@/features/universe/hooks/useUniverseTree';
 import {
   UNIVERSE_SEARCH_MIN_LENGTH,
   useUniverseSearch,
 } from '@/features/universe/hooks/useUniverseSearch';
-import type { UniverseBody, UniversePlanet, UniverseSearchResult } from '@/lib/api/types';
+import type { UniverseSearchResult } from '@/lib/api/types';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
 
 // 우주는 테마와 무관하게 항상 어둡다 — 라이트 모드라고 흰 우주를 그릴 수는 없어서, 이
 // 화면만 고정 우주색을 쓴다 (다른 탭은 colors 토큰을 그대로 따른다).
 const SPACE_BACKGROUND = '#05060F';
 
-// 확대·축소로 층을 넘은 뒤 이 시간 동안은 다시 넘지 않는다 — 관성 스크롤의 꼬리가 한
-// 동작으로 여러 층을 뚫는 걸 막는 유일한 방어선이다.
-const ZOOM_NAVIGATION_COOLDOWN_MS = 700;
-
 export default function UniverseScreen() {
   useTabWarmupTrace('universe');
-  const {
-    universe,
-    loading,
-    error,
-    breadcrumb,
-    canGoBack,
-    openNode,
-    goBack,
-    warpToMyGalaxy,
-    retry,
-  } = useUniverse();
+  const tree = useUniverseTree();
   const search = useUniverseSearch();
   const [canvas, setCanvas] = useState({ width: 0, height: 0 });
-  // 선택은 '어느 은하에서 고른 것인지'와 함께 들고 있는다. 층이 바뀔 때 effect로 비우면,
-  // 검색 착지가 자식 effect에서 고른 행성을 부모 effect가 곧바로 지워버린다(자식 → 부모 순).
-  const [selection, setSelection] = useState<{ nodeId?: string; planet: UniversePlanet } | null>(null);
-  const [focusUserId, setFocusUserId] = useState<string | null>(null);
-
-  const currentNodeId = universe?.node.id;
-  const selectedPlanet = selection && selection.nodeId === currentNodeId ? selection.planet : null;
-
-  // 안드로이드 물리 뒤로가기 = 한 층 줌아웃. 최상위(은하단)에서는 앱 기본 동작에 넘긴다.
-  useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => goBack());
-
-    return () => subscription.remove();
-  }, [goBack]);
+  const [selected, setSelected] = useState<SceneBody | null>(null);
+  const [focused, setFocused] = useState<SceneBody | null>(null);
+  // 장면이 좌표 계산을 맡는다 — 화면은 "이 경로로 데려가 줘"라고만 부탁한다.
+  const flyToRef = useRef<((path: string[], userId?: string) => boolean) | null>(null);
 
   const handleCanvasLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -68,81 +42,42 @@ export default function UniverseScreen() {
       : { width, height }));
   }, []);
 
-  const handleSelectBody = useCallback((body: UniverseBody) => {
-    openNode(body.id);
-  }, [openNode]);
+  // 목적지의 좌표는 조상이 전부 있어야 나온다 — 먼저 사슬을 채우고 나서 날아간다.
+  const flyTo = useCallback(async (nodeId: string, userId?: string) => {
+    const path = await tree.ensurePath(nodeId);
 
-  // 확대·축소로 층을 오가는 것에만 걸리는 쿨다운.
-  //
-  // 트랙패드 한 번의 튕김은 관성으로 수백 ms 동안 휠 이벤트를 계속 뿜는다. 층이 바뀌면 배율이
-  // 1로 돌아가는데, 남은 관성이 곧바로 다시 문턱을 넘겨 한 동작에 최상위까지 빠져나가 버렸다.
-  // 걸쇠(ref)로는 못 막는다 — 층이 바뀔 때 화면이 통째로 다시 마운트되며 걸쇠도 새로 태어난다.
-  // 그래서 층을 넘나드는 쪽(화면)이 시간을 들고 있어야 한다. 손가락 탭에는 걸지 않는다.
-  const lastZoomNavAtRef = useRef(0);
-  const runZoomNavigation = useCallback((navigate: () => void) => {
-    const now = Date.now();
-
-    if (now - lastZoomNavAtRef.current < ZOOM_NAVIGATION_COOLDOWN_MS) {
-      return;
+    if (path) {
+      flyToRef.current?.(path, userId);
     }
+  }, [tree]);
 
-    lastZoomNavAtRef.current = now;
-    navigate();
-  }, []);
-
-  // 축소로 한 층 나가기 — 물리 뒤로가기와 완전히 같은 경로를 쓴다(되돌아갈 곳의 정의가
-  // 두 벌이 되면 브레드크럼과 화면이 어긋난다).
-  const handleAscend = useCallback(() => {
-    runZoomNavigation(() => goBack());
-  }, [goBack, runZoomNavigation]);
-
-  const handleZoomEnter = useCallback((body: UniverseBody) => {
-    runZoomNavigation(() => openNode(body.id));
-  }, [openNode, runZoomNavigation]);
-
-  const handleSelectPlanet = useCallback((planet: UniversePlanet) => {
-    setSelection((previous) => (previous?.planet.userId === planet.userId && previous.nodeId === currentNodeId
-      ? null
-      : { nodeId: currentNodeId, planet }));
-  }, [currentNodeId]);
-
-  const handleFocusHandled = useCallback(() => setFocusUserId(null), []);
-
-  // 검색 결과 착지 — 그 사람의 은하를 열고, 그 안에서 행성을 조준하게 표시를 남긴다.
   const handleSelectSearchResult = useCallback((result: UniverseSearchResult) => {
-    setFocusUserId(result.userId);
     search.clear();
-    openNode(result.galaxyNodeId);
-  }, [openNode, search]);
+    void flyTo(result.galaxyNodeId, result.userId);
+  }, [flyTo, search]);
+
+  const handleWarp = useCallback(() => {
+    const galaxyNodeId = tree.me?.galaxyNodeId;
+
+    if (galaxyNodeId) {
+      void flyTo(galaxyNodeId, tree.me?.userId);
+    }
+  }, [flyTo, tree.me]);
 
   const hasCanvas = canvas.width > 0 && canvas.height > 0;
+  // 아래 카드는 고른 것을 먼저 보여주고, 아무것도 안 골랐으면 지금 화면 한가운데의 것을 보여준다.
+  const shown = selected ?? focused;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <Text style={styles.title}>우주</Text>
-          {universe?.me.galaxyNodeId ? (
-            <Pressable onPress={warpToMyGalaxy} hitSlop={8} style={styles.warpButton}>
+          {tree.me?.galaxyNodeId ? (
+            <Pressable onPress={handleWarp} hitSlop={8} style={styles.warpButton}>
               <Text style={styles.warpLabel}>내 행성으로</Text>
             </Pressable>
           ) : null}
-        </View>
-
-        <View style={styles.breadcrumbRow}>
-          {breadcrumb.map((node, index) => (
-            <View key={node.id} style={styles.breadcrumbItem}>
-              {index > 0 ? <Text style={styles.breadcrumbSeparator}>›</Text> : null}
-              <Pressable onPress={() => openNode(index === 0 ? undefined : node.id)} hitSlop={6}>
-                <Text
-                  style={index === breadcrumb.length - 1 ? styles.breadcrumbCurrent : styles.breadcrumbLink}
-                  numberOfLines={1}
-                >
-                  {node.name}
-                </Text>
-              </Pressable>
-            </View>
-          ))}
         </View>
       </View>
 
@@ -195,78 +130,57 @@ export default function UniverseScreen() {
       ) : null}
 
       <View style={styles.canvasWrap} onLayout={handleCanvasLayout}>
-        {loading ? <BrandLoadingView style={styles.loading} edges={[]} /> : null}
+        {tree.loading ? <BrandLoadingView style={styles.loading} edges={[]} /> : null}
 
-        {!loading && error ? (
+        {!tree.loading && tree.error ? (
           <View style={styles.errorWrap}>
             <StateMessageCard
               title="우주를 열지 못했어요"
-              message={error}
+              message={tree.error}
               actionLabel="다시 시도"
-              onAction={retry}
+              onAction={tree.retry}
               tone="danger"
             />
           </View>
         ) : null}
 
-        {!loading && !error && universe && hasCanvas ? (
-          universe.level === 'galaxy' && universe.galaxy ? (
-            <GalaxyView
-              galaxy={universe.galaxy}
-              width={canvas.width}
-              height={canvas.height}
-              onSelectPlanet={handleSelectPlanet}
-              onAscend={canGoBack ? handleAscend : undefined}
-              focusUserId={focusUserId}
-              onFocusHandled={handleFocusHandled}
-              selectedUserId={selectedPlanet?.userId ?? null}
-            />
-          ) : (
-            <ConstellationView
-              bodies={universe.bodies}
-              width={canvas.width}
-              height={canvas.height}
-              onSelect={handleSelectBody}
-              onZoomEnter={handleZoomEnter}
-              onAscend={canGoBack ? handleAscend : undefined}
-            />
-          )
+        {!tree.loading && !tree.error && hasCanvas ? (
+          <UniverseScene
+            rootId={tree.rootId}
+            entryFor={tree.entryFor}
+            request={tree.request}
+            revision={tree.revision}
+            width={canvas.width}
+            height={canvas.height}
+            selectedKey={selected?.key ?? null}
+            onSelect={setSelected}
+            onFocusChange={setFocused}
+            flyToRef={flyToRef}
+          />
         ) : null}
       </View>
 
       <View style={styles.footer}>
-        {selectedPlanet ? (
+        {shown ? (
           <View style={styles.infoCard}>
             <View style={styles.infoHeader}>
               <Text style={styles.infoName} numberOfLines={1}>
-                {selectedPlanet.userName}
-                {selectedPlanet.stars > 0 ? ` ★${selectedPlanet.stars}` : ''}
+                {shown.name}
+                {shown.stars > 0 ? ` ★${shown.stars}` : ''}
               </Text>
-              {selectedPlanet.isStar ? <Text style={styles.infoBadge}>항성</Text> : null}
-              {selectedPlanet.isProtostar ? <Text style={styles.infoBadge}>이번 달 1등</Text> : null}
+              {shown.planet?.isStar ? <Text style={styles.infoBadge}>항성</Text> : null}
+              {shown.planet?.isProtostar ? <Text style={styles.infoBadge}>이번 달 1등</Text> : null}
             </View>
             <Text style={styles.infoMetrics}>
-              평생 {selectedPlanet.lifetimeDistanceKm}km · 이번 달 {selectedPlanet.monthDistanceKm}km
-            </Text>
-          </View>
-        ) : universe ? (
-          <View style={styles.infoCard}>
-            <Text style={styles.infoName} numberOfLines={1}>
-              {universe.node.name}
-              {universe.node.stars > 0 ? ` ★${universe.node.stars}` : ''}
-            </Text>
-            <Text style={styles.infoMetrics}>
-              러너 {universe.node.memberCount}명 · 이번 달 {universe.node.totalDistanceKm}km · 인당 {universe.node.averageDistanceKm}km
+              {shown.planet
+                ? `평생 ${shown.planet.lifetimeDistanceKm}km · 이번 달 ${shown.planet.monthDistanceKm}km`
+                : shown.detail}
             </Text>
           </View>
         ) : null}
 
         <Text style={styles.hint}>
-          {universe?.level === 'galaxy'
-            ? '행성을 누르면 기록이 보여요'
-            : canGoBack
-              ? '천체를 누르면 들어가고, 뒤로가기로 나와요'
-              : '천체를 누르면 그 안으로 들어가요'}
+          확대하면 뭉쳐 있던 별이 풀려요 · 천체를 누르면 기록, 한 번 더 누르면 그리로 갑니다
         </Text>
       </View>
     </SafeAreaView>
@@ -281,7 +195,6 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingTop: 8,
-    gap: 6,
   },
   headerRow: {
     flexDirection: 'row',
@@ -305,29 +218,6 @@ const styles = StyleSheet.create({
     color: 'rgba(214, 228, 255, 0.95)',
     fontSize: 12,
     fontWeight: '600',
-  },
-  breadcrumbRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-  },
-  breadcrumbItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  breadcrumbSeparator: {
-    color: 'rgba(150, 170, 210, 0.6)',
-    fontSize: 13,
-    paddingHorizontal: 6,
-  },
-  breadcrumbLink: {
-    color: 'rgba(158, 186, 240, 0.9)',
-    fontSize: 13,
-  },
-  breadcrumbCurrent: {
-    color: 'rgba(238, 244, 255, 0.98)',
-    fontSize: 13,
-    fontWeight: '700',
   },
   searchRow: {
     flexDirection: 'row',

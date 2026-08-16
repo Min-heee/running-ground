@@ -25,16 +25,24 @@ import { GalaxyDisk } from '@/features/universe/three/GalaxyDisk';
 
 export type SkyOrb = {
   id: string;
-  // 화면 좌표(좌상단 원점) — RN 레이어와 같은 값.
+  // 화면 좌표(배율 1 기준, 좌상단 원점) — RN 레이어와 같은 값.
   x: number;
   y: number;
   diameter: number;
   // 0~1, 서버 계산값.
   brightness: number;
   palette: 'group' | 'galaxy' | 'planet' | 'star' | 'protostar';
+  // 무엇으로 그릴지. 팔레트와 분리해 둔 이유: 같은 은하라도 멀면 뿌연 덩어리 하나로,
+  // 가까우면 수천 점의 나선으로 그려야 한다. 팔레트에 묶어두면 그 선택을 할 수가 없다.
+  //   disk   — 나선/타원 파티클 원반 (수백~수천 점, 비싸다)
+  //   glow   — 발광 스프라이트 한 장 (아주 작게 보일 때. 나선을 그려도 어차피 안 보인다)
+  //   sphere — 구체 (행성·항성)
+  shape: 'disk' | 'glow' | 'sphere';
   highlighted?: boolean;
-  // LOD 교차 페이드 (0~1). 생략하면 1 — 기존 호출부는 그대로 동작한다.
+  // 해상 교차 페이드 (0~1). 생략하면 1.
   opacity?: number;
+  // 지금 화면에서의 지름(px) — 파티클 점 크기를 정하는 데만 쓴다.
+  screenDiameter?: number;
 };
 
 // 은하·은하군은 파티클 원반이라 구체 팔레트와 색 규칙이 다르다(핵 → 팔 그라데이션).
@@ -190,17 +198,20 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
   const coreColor = new Color(colors.core);
   const glowColor = new Color(colors.glow);
 
-  // 은하·은하군은 발광체가 아니라 수천 개 별이 모인 구조물이다 — 구체 대신 원반을 그린다.
   const fade = orb.opacity ?? 1;
 
   if (fade <= 0.02) {
     return null;
   }
 
-  if (orb.palette === 'galaxy' || orb.palette === 'group') {
-    const disk = DISK_COLORS[orb.palette];
+  // 은하·은하군은 발광체가 아니라 수천 개 별이 모인 구조물이다 — 구체 대신 원반을 그린다.
+  if (orb.shape === 'disk') {
+    const disk = DISK_COLORS[orb.palette === 'galaxy' ? 'galaxy' : 'group'];
     // 문자열 id를 안정적인 시드로 — 같은 지역은 항상 같은 기울기·회전을 갖는다.
     const seed = Array.from(orb.id).reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 2147483647, 7);
+    // 점 크기는 화면 기준. 작게 보일 때 점까지 작으면 은하가 사라지고, 크게 볼 때 점이 크면
+    // 별이 아니라 물감 덩어리가 된다.
+    const pointSize = Math.max(1.1, Math.min(3.4, (orb.screenDiameter ?? orb.diameter) * 0.017));
 
     return (
       <group position={[worldX, worldY, 0]}>
@@ -208,13 +219,32 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
           radius={radius * 2.1}
           brightness={orb.brightness}
           opacity={fade}
-          kind={orb.palette}
+          kind={orb.palette === 'galaxy' ? 'galaxy' : 'group'}
           seed={seed}
           coreColor={disk.core}
           armColor={disk.arm}
           highlighted={orb.highlighted}
+          pointSize={pointSize}
         />
       </group>
+    );
+  }
+
+  // 아주 작게 보이는 것은 스프라이트 한 장으로 — 이 크기에서는 나선을 그려도 점 하나로
+  // 뭉개진다. 한 화면에 수백 개가 떠 있을 수 있어서 이 갈래가 성능의 전부다.
+  if (orb.shape === 'glow') {
+    return (
+      <mesh position={[worldX, worldY, 0]}>
+        <planeGeometry args={[radius * 6, radius * 6]} />
+        <meshBasicMaterial
+          map={getGlowTexture()}
+          color={glowColor}
+          transparent
+          opacity={(0.32 + 0.5 * orb.brightness) * fade}
+          depthWrite={false}
+          blending={AdditiveBlending}
+        />
+      </mesh>
     );
   }
 
@@ -257,10 +287,13 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
         </mesh>
       ) : null}
 
-      {/* 항성은 스스로 주변을 밝힌다 — 옆 행성에 실제로 빛이 닿는다. */}
-      {orb.palette === 'star' || orb.palette === 'protostar' ? (
-        <pointLight color={coreColor} intensity={orb.palette === 'star' ? 260 : 120} distance={520} decay={2} />
-      ) : null}
+      {/* 항성은 스스로 주변을 밝힌다 — 옆 행성에 실제로 빛이 닿는다.
+          가까이 왔을 때만 켠다: 전국의 항성이 전부 광원이 되면 셰이더가 광원 수마다 다시
+          컴파일되고 프레임이 무너진다. 멀리 있는 항성은 후광만으로도 충분히 항성으로 읽힌다. */}
+      {(orb.palette === 'star' || orb.palette === 'protostar')
+        && (orb.screenDiameter ?? orb.diameter) >= 44 ? (
+          <pointLight color={coreColor} intensity={orb.palette === 'star' ? 260 : 120} distance={520} decay={2} />
+        ) : null}
     </group>
   );
 }
@@ -289,8 +322,18 @@ function UniverseSkyComponent({
       <directionalLight position={[420, -280, -360]} intensity={1.5} color="#7FA8FF" />
 
       {/* 배경은 시차 — pan의 일부만 따라오고 확대에는 거의 반응하지 않는다. 멀리 있는 것이
-          덜 움직여야 깊이가 생긴다. */}
-      <group position={[panX * 0.18, -panY * 0.18, 0]} scale={1 + (zoom - 1) * 0.06}>
+          덜 움직여야 깊이가 생긴다.
+          이동·확대 모두 상한을 둔다: 이 우주는 배율 400배까지 가고 그때 pan은 수만 픽셀이라,
+          비례로 따라가면 배경 별밭이 화면 밖으로 통째로 밀려나 칠흑만 남고 성운은 25배로
+          부풀어 화면을 하얗게 덮는다. */}
+      <group
+        position={[
+          Math.max(-width, Math.min(width, panX * 0.18)),
+          -Math.max(-height, Math.min(height, panY * 0.18)),
+          0,
+        ]}
+        scale={Math.min(1.8, 1 + Math.log2(Math.max(0.25, zoom)) * 0.06)}
+      >
         <Nebula width={width} height={height} />
 
         {STAR_LAYERS.map((layer, index) => (

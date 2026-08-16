@@ -103,6 +103,7 @@ function GalaxyDiskComponent({
   armColor,
   highlighted = false,
   opacity = 1,
+  pointSize = 2,
 }: {
   radius: number;
   brightness: number;
@@ -111,8 +112,11 @@ function GalaxyDiskComponent({
   coreColor: string;
   armColor: string;
   highlighted?: boolean;
-  // LOD 페이드 — 은하 내부가 드러날수록 원반이 옅어진다.
+  // 뭉침이 풀릴수록 원반이 옅어진다.
   opacity?: number;
+  // 점 하나의 화면 크기(px). 점은 배율을 따라 커지지 않는다 — 실제 별처럼 서로 멀어지기만
+  // 하고 크기는 그대로여야 '가까이 갈수록 낱개로 풀리는' 느낌이 난다.
+  pointSize?: number;
 }) {
   const groupRef = useRef<Group>(null);
 
@@ -163,7 +167,7 @@ function GalaxyDiskComponent({
       <group ref={groupRef}>
         <points geometry={geometry}>
           <pointsMaterial
-            size={Math.max(1.6, radius * 0.14)}
+            size={pointSize}
             map={getStarPointTexture()}
             vertexColors
             transparent

@@ -1,52 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Platform } from 'react-native';
 
-import { UNIVERSE_MAX_ZOOM, UNIVERSE_MIN_ZOOM } from '@/features/universe/utils/universeLod';
+import { UNIVERSE_MAX_ZOOM, UNIVERSE_MIN_ZOOM } from '@/features/universe/utils/universeSpace';
 
-// 우주 뷰포트 — 확대/축소와 이동 (오너 2026-08-15: "확대할수록 항성·행성에 가까워지게").
+// 우주 뷰포트 — 확대/축소와 이동.
 //
 // 하나의 상태를 3D 레이어와 RN 레이블 레이어가 **같이** 쓴다. 두 레이어가 각자 변환을 갖는
 // 순간 이름이 천체를 벗어나므로, 여기서 나온 값만이 두 곳의 유일한 근원이다.
 //
-// 화면 좌표 변환 규약 (두 레이어가 반드시 동일하게 적용):
-//   screen = (base - center) * zoom + center + pan
+// 좌표 변환 규약 (두 레이어가 반드시 동일하게 적용):
+//   screen = canvasCenter + universe * zoom + pan
 // 3D는 같은 식을 group scale=zoom, position=[panX, -panY]로 표현한다(부호는 y축 반전 때문).
+//
+// 확대는 그저 카메라를 가까이 가져갈 뿐이다 — 어떤 문턱도, 층 전환도 여기엔 없다.
 
-// 배율 한계는 LOD 문턱들과 같은 파일(universeLod)에 산다 — 두 벌이 되면 "확대해도 안
-// 들어가지는" 조합이 조용히 생긴다. 여기서는 다시 내보내기만 한다.
-export { UNIVERSE_MAX_ZOOM, UNIVERSE_MIN_ZOOM } from '@/features/universe/utils/universeLod';
+export { UNIVERSE_MAX_ZOOM, UNIVERSE_MIN_ZOOM } from '@/features/universe/utils/universeSpace';
 
 export type UniverseViewport = {
   zoom: number;
   panX: number;
   panY: number;
-  // 조준점(기저 좌표) — 마지막으로 확대한 지점 아래에 있던 천체 위치.
-  //
-  // 화면 중앙이 아니라 이 값이 "무엇을 향해 파고드는가"의 답이다. 커서/손가락을 고정하는
-  // 확대에서는 겨눈 천체가 중앙이 아니라 **앵커 아래**에 머물기 때문에, 중앙으로 재면
-  // 확대할수록 겨눈 것이 중앙에서 멀어져 영영 열리지 않는다.
-  aimX: number;
-  aimY: number;
 };
 
-const IDENTITY: Omit<UniverseViewport, 'aimX' | 'aimY'> = { zoom: 1, panX: 0, panY: 0 };
+const IDENTITY: UniverseViewport = { zoom: 1, panX: 0, panY: 0 };
 
 function clampZoom(zoom: number): number {
   return Math.min(UNIVERSE_MAX_ZOOM, Math.max(UNIVERSE_MIN_ZOOM, zoom));
-}
-
-// 화면 좌표 → 기저 좌표. screen = (base - center) * zoom + center + pan 의 역.
-export function toBasePoint(
-  viewport: UniverseViewport,
-  screenX: number,
-  screenY: number,
-  centerX: number,
-  centerY: number,
-): { x: number; y: number } {
-  return {
-    x: centerX + (screenX - centerX - viewport.panX) / viewport.zoom,
-    y: centerY + (screenY - centerY - viewport.panY) / viewport.zoom,
-  };
 }
 
 // 한 점(앵커)을 화면에 고정한 채 배율만 바꾼다 — 커서/손가락 아래가 안 밀리는 확대.
@@ -60,16 +39,12 @@ export function zoomAroundPoint(
 ): UniverseViewport {
   const nextZoom = clampZoom(nextZoomRaw);
   const ratio = nextZoom / viewport.zoom;
-  // 앵커 아래의 기저 점은 확대해도 그대로다 — 그래서 이것이 곧 조준점이다.
-  const aim = toBasePoint(viewport, anchorX, anchorY, centerX, centerY);
 
   // 앵커의 화면 위치가 불변이 되도록 pan을 역산한다.
   return {
     zoom: nextZoom,
     panX: anchorX - centerX - ratio * (anchorX - centerX - viewport.panX),
     panY: anchorY - centerY - ratio * (anchorY - centerY - viewport.panY),
-    aimX: aim.x,
-    aimY: aim.y,
   };
 }
 
@@ -79,12 +54,7 @@ function touchDistance(touches: { pageX: number; pageY: number }[]): number {
 }
 
 export function useUniverseViewport({ width, height }: { width: number; height: number }) {
-  // 아무것도 안 겨눈 처음의 조준점은 화면 한가운데다.
-  const identity = useMemo<UniverseViewport>(
-    () => ({ ...IDENTITY, aimX: width / 2, aimY: height / 2 }),
-    [height, width],
-  );
-  const [viewport, setViewport] = useState<UniverseViewport>(identity);
+  const [viewport, setViewport] = useState<UniverseViewport>(IDENTITY);
   // 제스처 중에는 렌더마다 최신 값이 필요하다 — state는 비동기라 ref로 같이 들고 간다.
   const viewportRef = useRef(viewport);
   viewportRef.current = viewport;
@@ -97,8 +67,8 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
     touchCount: number;
   } | null>(null);
   // 캔버스의 화면상 원점. 터치의 pageX/pageY는 **루트 뷰** 기준이라 그대로 쓰면 헤더·안전
-  // 영역 높이만큼 어긋난 자리를 확대 중심으로 잡는다(확대할수록 장면이 밀려나고, 결국 초점이
-  // 풀려 LOD가 열리지 않는다). 웹 휠 경로가 getBoundingClientRect를 빼는 것과 같은 보정이다.
+  // 영역 높이만큼 어긋난 자리를 확대 중심으로 잡는다 — 손가락 아래가 고정되지 않고 장면이
+  // 계속 밀려난다. 웹 휠 경로가 getBoundingClientRect를 빼는 것과 같은 보정이다.
   const containerOriginRef = useRef({ x: 0, y: 0 });
   const containerRef = useRef<{ measureInWindow?: (callback: (x: number, y: number) => void) => void } | null>(null);
   const centerX = width / 2;
@@ -111,7 +81,7 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
     });
   }, []);
 
-  const reset = useCallback(() => setViewport(identity), [identity]);
+  const reset = useCallback(() => setViewport(IDENTITY), []);
 
   const apply = useCallback((next: UniverseViewport) => {
     setViewport(next);
@@ -124,17 +94,15 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
     setViewport(reduce);
   }, []);
 
-  // 특정 지점으로 날아간다 — 검색 결과나 '내 행성으로'가 쓸 진입점. 날아간 곳이 곧 조준점.
+  // 우주 좌표의 한 점을 화면 한가운데로 가져온다 — 검색 착지·'내 행성으로'·천체 두 번 누르기.
   const focusOn = useCallback((targetX: number, targetY: number, zoom: number) => {
     const nextZoom = clampZoom(zoom);
     setViewport({
       zoom: nextZoom,
-      panX: -(targetX - width / 2) * nextZoom,
-      panY: -(targetY - height / 2) * nextZoom,
-      aimX: targetX,
-      aimY: targetY,
+      panX: -targetX * nextZoom,
+      panY: -targetY * nextZoom,
     });
-  }, [height, width]);
+  }, []);
 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => false,
