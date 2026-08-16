@@ -560,17 +560,21 @@ function UniverseSceneComponent({
     return true;
   }, [entryFor, focusOn, height, rootId, width]);
 
-  useEffect(() => {
-    if (controlsRef) {
-      controlsRef.current = { flyTo, reset };
-    }
+  // 조종간은 **렌더 중에** 꽂는다. effect로 하면 flyTo가 새로 만들어질 때마다(캔버스 크기나
+  // 최상위 노드가 바뀔 때마다) 정리 함수가 먼저 돌아 ref를 잠깐 비운다.
+  //
+  // 그 틈이 실제로 문제가 됐다: '내 행성으로'는 조상 데이터를 await한 뒤에야 조종간을
+  // 부르는데, 그 사이 리렌더가 끼면 ref가 비어 있어 **아무 일도 안 일어난 채 조용히 끝났다**.
+  // 확대를 많이 한 뒤일수록 리렌더가 잦아 더 자주 걸렸고, 새로고침 직후에는 멀쩡했다.
+  if (controlsRef) {
+    controlsRef.current = { flyTo, reset };
+  }
 
-    return () => {
-      if (controlsRef) {
-        controlsRef.current = null;
-      }
-    };
-  }, [controlsRef, flyTo, reset]);
+  useEffect(() => () => {
+    if (controlsRef) {
+      controlsRef.current = null;
+    }
+  }, [controlsRef]);
 
 
   const orbs = useMemo<SkyOrb[]>(() => bodies.map((body) => ({

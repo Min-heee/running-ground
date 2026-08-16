@@ -49,12 +49,24 @@ export default function UniverseScreen() {
   }, []);
 
   // 목적지의 좌표는 조상이 전부 있어야 나온다 — 먼저 사슬을 채우고 나서 날아간다.
+  //
+  // 한 번 더 시도하는 이유: 사슬을 채우는 동안 장면이 다시 그려지면서 방금 도착한 자식들이
+  // 반영되기까지 한 프레임이 걸릴 수 있다. 첫 시도가 좌표를 못 만들면(false) 그 프레임을
+  // 기다렸다 한 번만 더 부른다 — 실패를 삼키면 버튼이 아무 반응 없는 것처럼 보인다.
   const flyTo = useCallback(async (nodeId: string, userId?: string) => {
     const path = await tree.ensurePath(nodeId);
 
-    if (path) {
-      controlsRef.current?.flyTo(path, userId);
+    if (!path) {
+      return;
     }
+
+    if (controlsRef.current?.flyTo(path, userId)) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      controlsRef.current?.flyTo(path, userId);
+    });
   }, [tree]);
 
   const handleSelectSearchResult = useCallback((result: UniverseSearchResult) => {
