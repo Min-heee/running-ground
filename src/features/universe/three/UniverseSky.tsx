@@ -258,10 +258,16 @@ function UniverseSkyComponent({
   orbs,
   width,
   height,
+  zoom = 1,
+  panX = 0,
+  panY = 0,
 }: {
   orbs: SkyOrb[];
   width: number;
   height: number;
+  zoom?: number;
+  panX?: number;
+  panY?: number;
 }) {
   return (
     <>
@@ -271,21 +277,28 @@ function UniverseSkyComponent({
       {/* 림 라이트: 카메라 반대편에서 스쳐 들어와 천체 가장자리에 얇은 빛 띠를 남긴다. */}
       <directionalLight position={[420, -280, -360]} intensity={1.5} color="#7FA8FF" />
 
-      <Nebula width={width} height={height} />
+      {/* 배경은 시차 — pan의 일부만 따라오고 확대에는 거의 반응하지 않는다. 멀리 있는 것이
+          덜 움직여야 깊이가 생긴다. */}
+      <group position={[panX * 0.18, -panY * 0.18, 0]} scale={1 + (zoom - 1) * 0.06}>
+        <Nebula width={width} height={height} />
 
-      {STAR_LAYERS.map((layer, index) => (
-        <StarLayer
-          key={`star-layer-${index}`}
-          {...layer}
-          width={width}
-          height={height}
-          seed={7919 + index * 104729}
-        />
-      ))}
+        {STAR_LAYERS.map((layer, index) => (
+          <StarLayer
+            key={`star-layer-${index}`}
+            {...layer}
+            width={width}
+            height={height}
+            seed={7919 + index * 104729}
+          />
+        ))}
+      </group>
 
-      {orbs.map((orb) => (
-        <CelestialBody key={orb.id} orb={orb} width={width} height={height} />
-      ))}
+      {/* 천체는 뷰포트를 그대로 따른다 — RN 레이블 레이어와 같은 변환식(useUniverseViewport). */}
+      <group position={[panX, -panY, 0]} scale={zoom}>
+        {orbs.map((orb) => (
+          <CelestialBody key={orb.id} orb={orb} width={width} height={height} />
+        ))}
+      </group>
     </>
   );
 }

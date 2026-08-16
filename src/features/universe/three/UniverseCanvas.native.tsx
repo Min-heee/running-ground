@@ -12,10 +12,16 @@ function UniverseCanvasComponent({
   orbs,
   width,
   height,
+  zoom = 1,
+  panX = 0,
+  panY = 0,
 }: {
   orbs: SkyOrb[];
   width: number;
   height: number;
+  zoom?: number;
+  panX?: number;
+  panY?: number;
 }) {
   if (width <= 0 || height <= 0) {
     return null;
@@ -29,7 +35,7 @@ function UniverseCanvasComponent({
         gl={{ antialias: true, alpha: true }}
         style={{ width, height }}
       >
-        <UniverseSky orbs={orbs} width={width} height={height} />
+        <UniverseSky orbs={orbs} width={width} height={height} zoom={zoom} panX={panX} panY={panY} />
       </Canvas>
     </View>
   );

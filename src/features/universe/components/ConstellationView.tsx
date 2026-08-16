@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { UniverseCanvas } from '@/features/universe/three/UniverseCanvas';
 import type { SkyOrb } from '@/features/universe/three/UniverseSky';
+import { useUniverseViewport } from '@/features/universe/hooks/useUniverseViewport';
 import {
   buildOrbitSlots,
   countRings,
@@ -36,6 +37,13 @@ function ConstellationViewComponent({
   const slots = useMemo(() => buildOrbitSlots(ordered.length), [ordered.length]);
   const ringCount = useMemo(() => countRings(slots), [slots]);
   const maxRadius = Math.max(0, Math.min(width, height) / 2 - 54);
+  // 확대/축소·이동 (오너 2026-08-15). 3D와 레이블이 이 하나의 값을 공유한다.
+  const { viewport, panHandlers, webWheelRef } = useUniverseViewport({ width, height });
+  // screen = (base - center) * zoom + center + pan — UniverseSky의 group 변환과 같은 식.
+  const project = (baseX: number, baseY: number) => ({
+    x: (baseX - width / 2) * viewport.zoom + width / 2 + viewport.panX,
+    y: (baseY - height / 2) * viewport.zoom + height / 2 + viewport.panY,
+  });
 
   // 3D 레이어가 받을 천체 명세 — RN 레이어와 완전히 같은 좌표를 쓴다(두 벌이 어긋나면
   // 레이블이 천체를 벗어난다). 여기서 계산해 두고, 아래 Pressable은 같은 식을 재사용한다.
@@ -61,8 +69,19 @@ function ConstellationViewComponent({
   }), [height, maxRadius, ordered, ringCount, slots, width]);
 
   return (
-    <View style={[styles.canvas, { width, height }]}>
-      <UniverseCanvas orbs={skyOrbs} width={width} height={height} />
+    <View
+      style={[styles.canvas, { width, height }]}
+      ref={webWheelRef as never}
+      {...panHandlers}
+    >
+      <UniverseCanvas
+        orbs={skyOrbs}
+        width={width}
+        height={height}
+        zoom={viewport.zoom}
+        panX={viewport.panX}
+        panY={viewport.panY}
+      />
 
       {ordered.map((body, index) => {
         const slot = slots[index];
@@ -73,6 +92,7 @@ function ConstellationViewComponent({
 
         const radius = ringRadius(slot.ring, ringCount, maxRadius);
         const diameter = BASE_DIAMETER * body.scale;
+        const projected = project(width / 2 + slot.unitX * radius, height / 2 + slot.unitY * radius);
 
         return (
           <Pressable
@@ -83,14 +103,17 @@ function ConstellationViewComponent({
               styles.slot,
               {
                 width: LABEL_SLOT_WIDTH,
-                left: width / 2 + slot.unitX * radius - LABEL_SLOT_WIDTH / 2,
-                top: height / 2 + slot.unitY * radius - diameter * 1.35,
+                left: projected.x - LABEL_SLOT_WIDTH / 2,
+                top: projected.y - diameter * 1.35 * viewport.zoom,
               },
             ]}
           >
             {/* 천체 자체는 3D 레이어가 그린다. 여기서는 같은 크기의 빈 자리만 잡아
                 레이블이 예전과 같은 위치에 오도록 한다(후광 지름 = 지름 × 2.7). */}
-            <View style={{ width: diameter * 2.7, height: diameter * 2.7 }} pointerEvents="none" />
+            <View
+              style={{ width: diameter * 2.7 * viewport.zoom, height: diameter * 2.7 * viewport.zoom }}
+              pointerEvents="none"
+            />
             <Text style={styles.name} numberOfLines={1}>
               {body.name}
             </Text>
