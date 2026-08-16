@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { Canvas } from '@react-three/fiber';
 
 import { UniverseSky, type SkyOrb } from '@/features/universe/three/UniverseSky';
+import { UniverseBloom } from '@/features/universe/three/UniverseBloom';
 
 // 웹 진입점. 네이티브는 UniverseCanvas.native.tsx가 '@react-three/fiber/native'(expo-gl)를
 // 쓴다 — 번들러가 플랫폼 확장자로 갈라준다. 두 파일의 차이는 Canvas import 한 줄뿐이다.
@@ -53,6 +54,8 @@ function UniverseCanvasComponent({
           panY={panY}
           zoomFactor={zoomFactor}
         />
+        {/* 밝은 것 주위로 빛이 번진다 — 웹에서만. 네이티브 진입점(.native.tsx)에는 없다. */}
+        <UniverseBloom />
       </Canvas>
     </View>
   );

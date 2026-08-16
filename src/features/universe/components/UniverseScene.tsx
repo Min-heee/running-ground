@@ -207,10 +207,14 @@ function UniverseSceneComponent({
       }
     }
 
-    // 아무것도 품고 있지 않으면(빈 하늘) 가장 가까운 것을 향해서라도 나아간다.
+    // 빈 하늘이면 '가장 가까운 것'을 깊이의 길잡이로만 쓴다. 그 천체를 커서에 붙들면
+    // 안 된다 — 엉뚱한 방향에 있는 천체가 커서에 고정되면서 화면 전체가 그쪽으로 끌려간다.
+    // (오너 2026-08-16: "가고 싶은 곳을 중간에 두고 확대하는데 다른 방향으로 이동한다")
     const best = inside ?? nearest;
 
-    return best ? { x: best.x, y: best.y, z: best.universeZ } : null;
+    return best
+      ? { x: best.x, y: best.y, z: best.universeZ, onBody: best === inside }
+      : null;
   }, []);
 
   const {

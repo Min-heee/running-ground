@@ -10,7 +10,14 @@ import { panToHold } from '@/features/universe/utils/universeProjection';
 
 // 확대 앵커 아래에 있는 천체 — 화면이 알려준다. 확대는 곧 그리로 다가가는 일이라,
 // 카메라의 깊이와 이동량을 이 천체를 기준으로 정한다.
-export type AnchorTarget = { x: number; y: number; z: number };
+export type AnchorTarget = {
+  x: number;
+  y: number;
+  z: number;
+  // 커서·손가락이 **실제로 그 천체 위에** 있는가. 빈 하늘이면 false — 그때는 깊이의
+  // 길잡이로만 쓰고, 화면에 붙들지는 않는다.
+  onBody: boolean;
+};
 
 // 우주 뷰포트 — 확대/축소와 이동.
 //
@@ -66,10 +73,11 @@ export function zoomAroundPoint(
     - viewport.camDepth * retreat;
   const moved = { ...viewport, camDepth, zoom: nextZoom };
 
-  // 겨눈 천체가 있으면 그 천체가 제자리에 남도록 이동량을 역산한다. 없으면 초점면
-  // (z = camDepth)을 기준으로 — 그 평면에서는 예전 아핀 공식과 정확히 같다.
+  // 겨눈 천체가 있으면 그 천체가 제자리에 남도록 이동량을 역산한다. 빈 하늘이면 커서
+  // 아래의 **초점면 위 한 점**을 붙든다 — 그 평면에서는 예전 아핀 공식과 정확히 같고,
+  // 무엇보다 엉뚱한 방향의 천체를 끌어오지 않는다.
   const held = panToHold(
-    anchor ?? {
+    anchor?.onBody ? anchor : {
       x: (anchorX - canvasWidth / 2) / viewport.zoom - viewport.panX / viewport.zoom,
       y: (anchorY - canvasHeight / 2) / viewport.zoom + viewport.panY / viewport.zoom,
       z: viewport.camDepth,

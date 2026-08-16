@@ -79,3 +79,17 @@ test('역투영은 투영을 정확히 되돌린다', () => {
   assert.ok(Math.abs(back.screenY - 300) < 1e-6);
   assert.ok(focalLengthFor(H) > 0);
 });
+
+test('빈 하늘을 확대하면 초점면의 그 점이 붙들린다 — 엉뚱한 천체를 끌어오지 않는다', () => {
+  const view = { zoom: 3, panX: 40, panY: -25, camDepth: 8 };
+  const cursor = { x: 300, y: 180 };
+  // 커서 아래에 아무것도 없을 때 붙드는 대상 = 초점면 위의 그 점.
+  const point = unprojectOnFocalPlane(cursor.x, cursor.y, view, W, H);
+
+  const moved = { ...view, zoom: 9 };
+  const held = panToHold({ ...point, z: view.camDepth }, cursor.x, cursor.y, moved, W, H);
+  const after = projectPoint(point.x, point.y, view.camDepth, { ...moved, ...held }, W, H);
+
+  assert.ok(Math.abs(after.screenX - cursor.x) < 1e-6);
+  assert.ok(Math.abs(after.screenY - cursor.y) < 1e-6);
+});
