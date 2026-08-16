@@ -33,17 +33,21 @@ export type SkyOrb = {
   // 0~1, 서버 계산값.
   brightness: number;
   palette: 'group' | 'galaxy' | 'planet' | 'star' | 'protostar';
-  // 무엇으로 그릴지. 팔레트와 분리해 둔 이유: 같은 은하라도 멀면 뿌연 덩어리 하나로,
-  // 가까우면 수천 점의 나선으로 그려야 한다. 팔레트에 묶어두면 그 선택을 할 수가 없다.
+  // 가까이서의 모습. 같은 은하라도 멀면 뿌연 덩어리 하나로, 가까우면 수천 점의 나선으로
+  // 그려야 한다 — 팔레트에 묶어두면 그 선택을 할 수가 없어서 따로 둔다.
   //   disk   — 나선/타원 파티클 원반 (수백~수천 점, 비싸다)
-  //   glow   — 발광 스프라이트 한 장 (아주 작게 보일 때. 나선을 그려도 어차피 안 보인다)
   //   sphere — 구체 (행성·항성)
-  shape: 'disk' | 'glow' | 'sphere';
+  shape: 'disk' | 'sphere';
+  // 0이면 아직 먼 빛 한 점, 1이면 완전한 모습. 사이에서는 **둘을 겹쳐** 섞는다.
+  // 문턱에서 툭 갈아치우면 확대가 연속이 아니라 전환으로 느껴진다.
+  morph: number;
   highlighted?: boolean;
   // 해상 교차 페이드 (0~1). 생략하면 1.
   opacity?: number;
-  // 지금 화면에서의 지름(px) — 파티클 점 크기를 정하는 데만 쓴다.
+  // 지금 화면에서의 지름(px) — 파티클 점 크기와 정밀도를 정하는 데 쓴다.
   screenDiameter?: number;
+  // 깊이(화면 단위). 앞뒤가 겹칠 때 누가 가리는지를 정한다.
+  depth?: number;
 };
 
 // 은하·은하군은 파티클 원반이라 구체 팔레트와 색 규칙이 다르다(핵 → 팔 그라데이션).
@@ -196,81 +200,79 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
     return null;
   }
 
-  // 은하·은하군은 발광체가 아니라 수천 개 별이 모인 구조물이다 — 구체 대신 원반을 그린다.
-  if (orb.shape === 'disk') {
-    const disk = DISK_COLORS[orb.palette === 'galaxy' ? 'galaxy' : 'group'];
-    // 문자열 id를 안정적인 시드로 — 같은 지역은 항상 같은 기울기·회전을 갖는다.
-    const seed = Array.from(orb.id).reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 2147483647, 7);
-    // 점 크기는 화면 기준. 작게 보일 때 점까지 작으면 은하가 사라지고, 크게 볼 때 점이 크면
-    // 별이 아니라 물감 덩어리가 된다.
-    const pointSize = Math.max(1.1, Math.min(3.4, screenDiameter * 0.017));
-
-    return (
-      <group position={[worldX, worldY, 0]}>
-        <GalaxyDisk
-          radius={radius * 2.1}
-          brightness={orb.brightness}
-          opacity={fade}
-          kind={orb.palette === 'galaxy' ? 'galaxy' : 'group'}
-          seed={seed}
-          coreColor={disk.core}
-          armColor={disk.arm}
-          highlighted={orb.highlighted}
-          pointSize={pointSize}
-        />
-      </group>
-    );
-  }
-
-  // 아주 작게 보이는 것은 스프라이트 한 장으로 — 이 크기에서는 나선을 그려도 점 하나로
-  // 뭉개진다. 한 화면에 수백 개가 떠 있을 수 있어서 이 갈래가 성능의 전부다.
-  if (orb.shape === 'glow') {
-    return (
-      <mesh position={[worldX, worldY, 0]}>
-        <planeGeometry args={[radius * 6, radius * 6]} />
-        <meshBasicMaterial
-          map={getGlowTexture()}
-          color={glowColor}
-          transparent
-          opacity={(0.32 + 0.5 * orb.brightness) * fade}
-          depthWrite={false}
-          blending={AdditiveBlending}
-        />
-      </mesh>
-    );
-  }
+  const morph = Math.max(0, Math.min(1, orb.morph));
+  // 깊이는 배율로 나눠 넘긴다 — 이 그룹이 통째로 배율만큼 커지므로, 나누지 않으면 앞뒤
+  // 간격이 수십만 단위로 벌어져 카메라의 깊이 범위를 넘어간다.
+  const depth = orb.depth ?? 0;
 
   return (
-    <group position={[worldX, worldY, 0]}>
-      {/* 행성 주변의 옅은 빛 — 항성은 자기 코로나를 따로 갖고 있어 여기선 뺀다. */}
-      {orb.palette === 'planet' ? (
-        <mesh position={[0, 0, -2]}>
-          <planeGeometry args={[glowScale, glowScale]} />
+    <group position={[worldX, worldY, depth]}>
+      {/* 멀리 있는 동안의 모습 — 빛 한 점. 가까워질수록 물러나며 아래의 진짜 모습에
+          자리를 내준다. 둘을 겹쳐 섞기 때문에 그 사이에 '갈아치우는 순간'이 없다. */}
+      {morph < 0.995 ? (
+        <mesh>
+          <planeGeometry args={[radius * 6, radius * 6]} />
           <meshBasicMaterial
             map={getGlowTexture()}
             color={glowColor}
             transparent
-            opacity={(0.16 + 0.24 * orb.brightness) * fade}
+            opacity={(0.32 + 0.5 * orb.brightness) * fade * (1 - morph)}
             depthWrite={false}
             blending={AdditiveBlending}
           />
         </mesh>
       ) : null}
 
-      <CelestialSphere
-        id={orb.id}
-        palette={orb.palette === 'star' ? 'star' : orb.palette === 'protostar' ? 'protostar' : 'planet'}
-        radius={radius}
-        screenDiameter={screenDiameter}
-        brightness={orb.brightness}
-        fade={fade}
-      />
+      {morph > 0.005 && orb.shape === 'disk' ? (
+        <GalaxyDisk
+          radius={radius * 2.1}
+          brightness={orb.brightness}
+          opacity={fade * morph}
+          kind={orb.palette === 'galaxy' ? 'galaxy' : 'group'}
+          // 문자열 id를 안정적인 시드로 — 같은 지역은 항상 같은 기울기·회전을 갖는다.
+          seed={Array.from(orb.id).reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 2147483647, 7)}
+          coreColor={DISK_COLORS[orb.palette === 'galaxy' ? 'galaxy' : 'group'].core}
+          armColor={DISK_COLORS[orb.palette === 'galaxy' ? 'galaxy' : 'group'].arm}
+          highlighted={orb.highlighted}
+          // 점 크기는 화면 기준. 작게 보일 때 점까지 작으면 은하가 사라지고, 크게 볼 때
+          // 점이 크면 별이 아니라 물감 덩어리가 된다.
+          pointSize={Math.max(1.1, Math.min(3.4, screenDiameter * 0.017))}
+        />
+      ) : null}
+
+      {morph > 0.005 && orb.shape === 'sphere' ? (
+        <>
+          {/* 행성 주변의 옅은 빛 — 항성은 자기 코로나를 따로 갖고 있어 여기선 뺀다. */}
+          {orb.palette === 'planet' ? (
+            <mesh position={[0, 0, -2]}>
+              <planeGeometry args={[glowScale, glowScale]} />
+              <meshBasicMaterial
+                map={getGlowTexture()}
+                color={glowColor}
+                transparent
+                opacity={(0.16 + 0.24 * orb.brightness) * fade * morph}
+                depthWrite={false}
+                blending={AdditiveBlending}
+              />
+            </mesh>
+          ) : null}
+
+          <CelestialSphere
+            id={orb.id}
+            palette={orb.palette === 'star' ? 'star' : orb.palette === 'protostar' ? 'protostar' : 'planet'}
+            radius={radius}
+            screenDiameter={screenDiameter}
+            brightness={orb.brightness}
+            fade={fade * morph}
+          />
+        </>
+      ) : null}
 
       {/* 내 천체 — 얇은 링. 색을 바꾸지 않는 건 밝기 정보를 죽이지 않기 위해서다. */}
       {orb.highlighted ? (
         <mesh position={[0, 0, radius * 1.6]}>
           <ringGeometry args={[radius * 1.5, radius * 1.66, 64]} />
-          <meshBasicMaterial color="#FFFFFF" transparent opacity={0.9} depthWrite={false} />
+          <meshBasicMaterial color="#FFFFFF" transparent opacity={0.9 * fade} depthWrite={false} />
         </mesh>
       ) : null}
     </group>

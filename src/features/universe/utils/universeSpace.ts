@@ -50,8 +50,26 @@ export function fitZoomFor(canvasWidth: number, canvasHeight: number): number {
 export type SpacePlacement = {
   x: number;
   y: number;
+  // 깊이. 부모 반지름에 비례하는 범위 안에서만 논다 — 어느 층에서 보든 깊이감이 같으려면
+  // 절대값이 아니라 그 층의 크기에 대한 비율이어야 한다.
+  z: number;
   radius: number;
 };
+
+// 깊이 퍼짐(부모 반지름 대비). 이게 0이면 우주가 종이처럼 납작해진다 (오너 2026-08-16:
+// "아직 우주가 이질적이야 너무 평면화 되어있거든").
+const DEPTH_SPREAD = 0.26;
+// 궤도를 흐트러뜨리는 정도 — **남는 틈** 대비 비율이다. 궤도 반지름 대비로 잡으면 바깥
+// 궤도에서 흔들림이 간격보다 커져 천체가 서로를 삼킨다. 완벽한 동심원은 우주가 아니라
+// 도표로 읽히지만, 흐트러뜨리는 값은 언제나 빈 자리 안에서만 놀아야 한다.
+const JITTER_OF_FREE_SPACE = 0.45;
+
+// 시드 난수 — 같은 부모·같은 자식이면 언제나 같은 자리. 위치가 렌더마다 흔들리면 별이
+// 춤을 춘다.
+function jitter(index: number, salt: number): number {
+  const value = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43758.5453;
+  return (value - Math.floor(value)) * 2 - 1;
+}
 
 // 자식들을 부모 원 안에 앉힌다. 호출자는 큰 것부터 정렬해서 넘긴다.
 //
@@ -66,7 +84,7 @@ export function placeChildren(parent: SpacePlacement, scales: number[]): SpacePl
   }
 
   if (count === 1) {
-    return [{ x: parent.x, y: parent.y, radius: parent.radius * SINGLE_CHILD_RADIUS }];
+    return [{ x: parent.x, y: parent.y, z: parent.z, radius: parent.radius * SINGLE_CHILD_RADIUS }];
   }
 
   const slots = buildOrbitSlots(count - 1);
@@ -88,6 +106,7 @@ export function placeChildren(parent: SpacePlacement, scales: number[]): SpacePl
   const center: SpacePlacement = {
     x: parent.x,
     y: parent.y,
+    z: parent.z,
     radius: ringGap * CHILD_CLEARANCE * sizeFactorFor(0),
   };
 
@@ -95,9 +114,16 @@ export function placeChildren(parent: SpacePlacement, scales: number[]): SpacePl
     center,
     ...slots.map((slot, slotIndex) => {
       const index = slotIndex + 1;
-      const orbit = ringGap * (slot.ring + 1);
       const inRing = countByRing.get(slot.ring) ?? 1;
-      const angularGap = (Math.PI * 2 * orbit) / inRing;
+      const baseOrbit = ringGap * (slot.ring + 1);
+      const angleStep = (Math.PI * 2) / inRing;
+      // 이웃에게 줄 몫을 뺀 '빈 자리' 안에서만 흔든다.
+      const reserved = ringGap * CHILD_CLEARANCE * 2;
+      const radialFree = Math.max(0, ringGap - reserved);
+      const angularFree = Math.max(0, angleStep - reserved / baseOrbit);
+      const orbit = baseOrbit + jitter(index, 3.1) * radialFree * JITTER_OF_FREE_SPACE;
+      const angle = slot.angle + jitter(index, 7.7) * angularFree * JITTER_OF_FREE_SPACE;
+      const angularGap = angleStep * orbit;
       // 세 가지 상한: 안팎 궤도와의 간격, 같은 궤도 이웃과의 간격, 그리고 부모의 테두리.
       // 마지막이 없으면 궤도가 하나뿐일 때(자식 2~7개) 자식이 부모 밖으로 삐져나간다.
       const room = Math.min(
@@ -107,8 +133,11 @@ export function placeChildren(parent: SpacePlacement, scales: number[]): SpacePl
       );
 
       return {
-        x: parent.x + slot.unitX * orbit,
-        y: parent.y + slot.unitY * orbit,
+        x: parent.x + Math.cos(angle) * orbit,
+        y: parent.y + Math.sin(angle) * orbit,
+        // 깊이 — 이것 때문에 어떤 천체는 앞에, 어떤 천체는 뒤에 놓인다. 화면에서 겹칠 수
+        // 있게 되는 것이 핵심이다: 절대 안 겹치는 배치는 그 자체로 평면처럼 읽힌다.
+        z: parent.z + jitter(index, 1.3) * parent.radius * DEPTH_SPREAD,
         radius: room * sizeFactorFor(index),
       };
     }),
@@ -125,6 +154,37 @@ export const BODY_RESOLVE_PX = 46;
 export const BODY_RESOLVED_PX = 150;
 // 이름은 이 크기부터 읽을 만하다.
 export const BODY_LABEL_PX = 10;
+
+// 깊이에 따른 원근. 직교 카메라라 three가 대신 해 주지 않으므로 여기서 손으로 준다 —
+// 가까운 것은 크고 밝게, 먼 것은 작고 어둡게. 이 한 가지가 '한 판 위에 늘어놓은 도표'와
+// '앞뒤가 있는 하늘'을 가른다.
+//
+// 위치까지 밀어내지는 않는다: 화면 변환이 아핀(screen = 중심 + 좌표×배율 + 이동)으로
+// 유지돼야 검색 착지·탭 이동이 좌표 하나로 성립한다. 크기와 밝기만으로도 앞뒤는 읽힌다.
+const PERSPECTIVE_DISTANCE = 2.2;
+
+// 부모 반지름으로 정규화한 깊이(-DEPTH_SPREAD ~ +DEPTH_SPREAD)를 배율로.
+export function depthScaleFor(normalizedDepth: number): number {
+  const clamped = Math.max(-0.9, Math.min(0.9, normalizedDepth));
+  return PERSPECTIVE_DISTANCE / (PERSPECTIVE_DISTANCE - clamped);
+}
+
+// 먼 것은 흐려진다 — 사이의 성간 먼지가 하는 일.
+export function depthDimFor(depthScale: number): number {
+  return Math.max(0.55, Math.min(1.15, 0.35 + 0.65 * depthScale));
+}
+
+// 매끄러운 문턱 — 두 그림 방식 사이를 오갈 때 이 값으로 겹쳐 섞는다. 툭 바뀌면 확대가
+// 연속이 아니라 '전환'으로 느껴진다 (오너 2026-08-16: "확대할 때 약간 이질적으로 변해서
+// 들어가는 게 있어").
+export function smoothStep(edge0: number, edge1: number, value: number): number {
+  if (!Number.isFinite(value) || edge1 <= edge0) {
+    return value >= edge1 ? 1 : 0;
+  }
+
+  const t = Math.max(0, Math.min(1, (value - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
 
 // 0(뭉쳐 있음) ~ 1(완전히 풀림).
 export function resolveProgress(screenRadius: number): number {
