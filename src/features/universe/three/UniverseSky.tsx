@@ -16,6 +16,7 @@ import {
   getStarPointTexture,
 } from '@/features/universe/three/textures';
 import { GalaxyDisk } from '@/features/universe/three/GalaxyDisk';
+import { smoothStep } from '@/features/universe/utils/universeSpace';
 import { CelestialSphere } from '@/features/universe/three/CelestialSphere';
 
 // 3D 우주 레이어 (오너 2026-08-15: "실제 우주처럼"). 겹친 반투명 View로 내던 발광체를
@@ -303,6 +304,9 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
           coreColor={DISK_COLORS[orb.palette === 'galaxy' ? 'galaxy' : 'group'].core}
           armColor={DISK_COLORS[orb.palette === 'galaxy' ? 'galaxy' : 'group'].arm}
           highlighted={orb.highlighted}
+          // 화면을 덮기 시작하면 핵을 접는다 — 그 크기에서 핵은 후광이 아니라 장막이고,
+          // 확대된 방사형 텍스처의 끝이 원형 테두리로 드러난다.
+          coreFade={1 - smoothStep(0.55, 1, screenDiameter / Math.max(1, Math.min(width, height)))}
           // 점 크기는 화면 기준. 작게 보일 때 점까지 작으면 은하가 사라지고, 크게 볼 때
           // 점이 크면 별이 아니라 물감 덩어리가 된다.
           pointSize={Math.max(1.1, Math.min(3.4, screenDiameter * 0.017))}

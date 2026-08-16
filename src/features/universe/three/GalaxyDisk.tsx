@@ -110,6 +110,7 @@ function GalaxyDiskComponent({
   armColor,
   highlighted = false,
   opacity = 1,
+  coreFade = 1,
   pointSize = 2,
 }: {
   radius: number;
@@ -121,6 +122,8 @@ function GalaxyDiskComponent({
   highlighted?: boolean;
   // 뭉침이 풀릴수록 원반이 옅어진다.
   opacity?: number;
+  // 핵을 얼마나 살릴지(0~1). 은하가 화면을 덮을 만큼 커지면 장면이 정한다 — 아래 참고.
+  coreFade?: number;
   // 점 하나의 화면 크기(px). 점은 배율을 따라 커지지 않는다 — 실제 별처럼 서로 멀어지기만
   // 하고 크기는 그대로여야 '가까이 갈수록 낱개로 풀리는' 느낌이 난다.
   pointSize?: number;
@@ -176,18 +179,25 @@ function GalaxyDiskComponent({
 
           핵은 **원반보다 한참 작아야** 핵이다. 원반만 하게 퍼뜨리면 은하 전체가 고르게
           뿌예져서, 화면을 채운 회색 안개에 별들이 잠긴다 (오너 2026-08-17: "너무 밝아").
-          가장 큰 은하는 나라 전체라 화면을 덮으므로, 이 한 값이 곧 하늘의 밝기 바닥이다. */}
+
+          그리고 화면을 덮을 만큼 커지면 아예 그리지 않는다(coreFade). 그만큼 확대된
+          방사형 텍스처는 알파가 화면의 표시 한계(1/255) 아래로 떨어지는 자리가 **원형
+          테두리**로 드러나서, 우주에 회색 원을 오려 붙인 것처럼 보인다 — 오너가 두 번
+          짚은 "가운데 유독 밝은 원"이 이것이었다. 그때쯤이면 우리는 이미 그 은하 **안에**
+          있고, 은하를 이루는 건 핵이 아니라 눈앞의 별들이다. */}
+      {coreFade > 0.01 ? (
       <mesh>
         <planeGeometry args={[1.05, 1.05]} />
         <meshBasicMaterial
           map={getGlowTexture()}
           color={new Color(coreColor)}
           transparent
-          opacity={(0.22 + 0.26 * brightness) * opacity}
+          opacity={(0.22 + 0.26 * brightness) * opacity * coreFade}
           depthWrite={false}
           blending={AdditiveBlending}
         />
       </mesh>
+      ) : null}
 
       <group ref={groupRef}>
         <points geometry={geometry}>

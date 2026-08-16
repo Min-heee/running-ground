@@ -4,7 +4,6 @@ import {
   BloomEffect,
   EffectComposer,
   EffectPass,
-  KernelSize,
   RenderPass,
 } from 'postprocessing';
 
@@ -22,10 +21,18 @@ import {
 
 // 이 밝기를 넘는 부분만 번진다. 0.42로 잡았더니 배경 성운까지 번져 화면 전체가 보랏빛으로
 // 떠올랐다 — 검은 하늘이 검게 남아야 밝은 것이 밝아 보인다.
-const LUMINANCE_THRESHOLD = 0.72;
+const LUMINANCE_THRESHOLD = 0.93;
 // 문턱 근처를 부드럽게 — 낮으면 번지는 영역의 경계가 눈에 보인다.
-const LUMINANCE_SMOOTHING = 0.28;
-const INTENSITY = 1.05;
+const LUMINANCE_SMOOTHING = 0.1;
+const INTENSITY = 1.6;
+
+// **번지는 반경을 정하는 건 이 값이다.** mipmapBlur를 켜면 kernelSize는 조용히 무시되므로
+// (예전에 KernelSize.LARGE를 넘기던 건 아무 일도 하지 않았다), 밉 단계 수가 곧 반경이다.
+// 기본값 8이면 가장 거친 밉이 화면의 1/256이고 그걸 화면 전체로 늘려 더한다 — 밝은 것 하나가
+// 화면 절반에 옅게 발린다. 블룸은 밝은 것에 **붙어** 있어야 눈부심으로 읽힌다.
+const LEVELS = 3;
+// 밉을 겹칠 때의 번짐 폭. 낮출수록 후광이 코어에 붙는다.
+const RADIUS = 0.62;
 
 export function UniverseBloom() {
   const gl = useThree((state) => state.gl);
@@ -37,14 +44,16 @@ export function UniverseBloom() {
   const composer = useMemo(() => {
     const instance = new EffectComposer(gl);
     instance.addPass(new RenderPass(scene, camera));
-    instance.addPass(new EffectPass(camera, new BloomEffect({
+    const bloom = new BloomEffect({
       intensity: INTENSITY,
       luminanceThreshold: LUMINANCE_THRESHOLD,
       luminanceSmoothing: LUMINANCE_SMOOTHING,
-      // 밉맵 기반이라 큰 반경을 싸게 얻는다 — 커널을 키우는 것보다 훨씬 가볍다.
+      // 밉맵 기반이라 반경을 싸게 얻는다 — 커널을 키우는 것보다 훨씬 가볍다.
       mipmapBlur: true,
-      kernelSize: KernelSize.LARGE,
-    })));
+      levels: LEVELS,
+      radius: RADIUS,
+    });
+    instance.addPass(new EffectPass(camera, bloom));
 
     return instance;
   }, [camera, gl, scene]);
