@@ -60,34 +60,3 @@ export function ringRadius(ring: number, ringCount: number, maxRadius: number): 
 
   return (maxRadius * (ring + 1)) / ringCount;
 }
-
-export type StarFieldDot = {
-  // 캔버스 대비 0~1 비율 — 화면 크기가 바뀌어도 같은 자리에 뜬다.
-  x: number;
-  y: number;
-  size: number;
-  opacity: number;
-};
-
-// 배경 별 — 렌더마다 자리가 바뀌면 우주가 지진 난 것처럼 보이므로 시드 고정 난수를 쓴다.
-export function buildStarField(count: number, seed = 20260815): StarFieldDot[] {
-  const dots: StarFieldDot[] = [];
-  let state = seed;
-
-  const next = () => {
-    // 선형 합동 생성기 — 재현만 되면 되므로 품질은 중요하지 않다.
-    state = (state * 1664525 + 1013904223) % 4294967296;
-    return state / 4294967296;
-  };
-
-  for (let index = 0; index < count; index += 1) {
-    dots.push({
-      x: next(),
-      y: next(),
-      size: 1 + Math.round(next() * 1.6),
-      opacity: 0.18 + next() * 0.42,
-    });
-  }
-
-  return dots;
-}

@@ -21,6 +21,8 @@ export const LOD_FULL_ZOOM = 5;
 // 미리보기만으로는 오너가 말한 "확대할수록 항성·행성에 가까워지는" 연속감이 두 번째 층에서
 // 끊긴다. 미리보기(LOD)는 다리, 이 문턱이 그 다리의 끝이다.
 export const LOD_COMMIT_ZOOM = 7.5;
+// 반대 방향 — 이 배율 아래로 줄이면 한 층 위로 나간다. 들어온 길을 그대로 되짚게.
+export const LOD_ASCEND_ZOOM = 0.72;
 
 export type LodCandidate = {
   id: string;

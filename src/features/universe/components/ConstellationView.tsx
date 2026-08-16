@@ -7,6 +7,7 @@ import { useUniverseViewport } from '@/features/universe/hooks/useUniverseViewpo
 import { useNodeInterior } from '@/features/universe/hooks/useNodeInterior';
 import {
   computeLodReveal,
+  LOD_ASCEND_ZOOM,
   LOD_COMMIT_RADIUS_RATIO,
   LOD_COMMIT_ZOOM,
   LOD_FOCUS_RADIUS_RATIO,
@@ -32,11 +33,13 @@ function ConstellationViewComponent({
   width,
   height,
   onSelect,
+  onAscend,
 }: {
   bodies: UniverseBody[];
   width: number;
   height: number;
   onSelect: (body: UniverseBody) => void;
+  onAscend?: () => void;
 }) {
   // 크기 큰 순으로 안쪽 궤도부터 — 중심에 가까울수록 잘 달린 동네다.
   const ordered = useMemo(
@@ -111,6 +114,7 @@ function ConstellationViewComponent({
   // 렌더 중이 아니라 effect에서 부르는 이유: onSelect가 부모 상태를 갈아치우므로 렌더 도중
   // 호출하면 React가 렌더 중 업데이트로 경고하고, 최악엔 같은 프레임에서 두 번 들어간다.
   const descendedRef = useRef<string | null>(null);
+  const ascendedRef = useRef(false);
   // 진입 판정도 기저 거리로 — 화면 중앙에 실제로 놓였을 때만 열린다.
   const focusedBaseDistance = focused?.distance ?? Number.POSITIVE_INFINITY;
   const commitRadius = Math.min(width, height) * LOD_COMMIT_RADIUS_RATIO;
@@ -138,7 +142,18 @@ function ConstellationViewComponent({
   // 층이 바뀌면(=목록이 갈리면) 재진입 걸쇠를 푼다 — 뒤로 나왔다가 같은 천체로 다시 들어갈 수 있게.
   useEffect(() => {
     descendedRef.current = null;
+    ascendedRef.current = false;
   }, [ordered]);
+
+  // 반대 방향 — 축소하면 한 층 위로. 들어온 길을 그대로 되짚는다.
+  useEffect(() => {
+    if (!onAscend || ascendedRef.current || viewport.zoom > LOD_ASCEND_ZOOM) {
+      return;
+    }
+
+    ascendedRef.current = true;
+    onAscend();
+  }, [onAscend, viewport.zoom]);
   // 초점 은하만 옅어진다 — 나머지는 그대로 남아 어디서 확대 중인지 맥락이 유지된다.
   const fadedSkyOrbs = useMemo<SkyOrb[]>(
     () => skyOrbs.map((orb) => (orb.id === focusedBodyId ? { ...orb, opacity: lodOpacity.disk } : orb)),

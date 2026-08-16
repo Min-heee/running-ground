@@ -1,8 +1,10 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { CelestialOrb } from '@/features/universe/components/CelestialOrb';
-import { StarField } from '@/features/universe/components/StarField';
+import { UniverseCanvas } from '@/features/universe/three/UniverseCanvas';
+import type { SkyOrb } from '@/features/universe/three/UniverseSky';
+import { useUniverseViewport } from '@/features/universe/hooks/useUniverseViewport';
+import { LOD_ASCEND_ZOOM } from '@/features/universe/utils/universeLod';
 import {
   buildOrbitSlots,
   countRings,
@@ -10,52 +12,20 @@ import {
 } from '@/features/universe/utils/universeLayout';
 import type { UniverseGalaxy, UniversePlanet } from '@/lib/api/types';
 
-// 은하 내부 — 중심에 항성(봉인된 지난달 1등), 둘레에 행성들이 돈다.
+// 은하 내부 — 중심에 항성(봉인된 지난달 1등), 둘레에 행성들.
 //
-// 회전은 전부 Animated + useNativeDriver의 transform이다. setState 루프는 단 하나도 돌지
-// 않는다 — 예전에 1Hz setNowMs가 전체 트리를 리렌더시켜 매치 화면이 버벅인 전례가 있어서,
-// 우주는 JS 스레드를 아예 건드리지 않는 방식만 쓴다.
+// 천체는 3D 레이어(UniverseCanvas)가 그리고, 이름과 터치 영역만 RN View로 위에 남긴다 —
+// 바깥 층(ConstellationView)과 완전히 같은 구조다. 우주 전체가 한 가지 방식으로 그려져야
+// 확대해서 내려올 때 재질이 바뀌는 이질감이 없다.
 //
-// 공전 주기가 아주 느린 건(1바퀴 96~216초) 의도다: 살아 있어 보이되 행성을 누르기 쉬워야 한다.
+// 예전엔 행성이 궤도를 돌았다(Animated + 네이티브 드라이버). 3D로 옮기며 공전을 멈춘 이유:
+// 궤도를 three의 렌더 루프로 돌리면 RN 레이블은 Animated 시계로 따라가야 하는데, 두 시계는
+// 시작 시점이 달라 이름이 제 행성을 벗어난다. 대신 구체가 자전하고 배경 성운·별밭이 표류해
+// 화면은 여전히 살아 있다. (JS 스레드 setState 루프는 여기서도 단 하나도 돌지 않는다.)
 
-const MAX_RINGS = 5;
-const RING_PERIOD_MS = [96000, 126000, 156000, 186000, 216000];
 const PLANET_BASE_DIAMETER = 20;
 const STAR_DIAMETER = 40;
 const PLANET_SLOT_WIDTH = 84;
-
-function usePlanetOrbitSpins() {
-  const spins = useRef(
-    Array.from({ length: MAX_RINGS }, () => new Animated.Value(0)),
-  ).current;
-
-  useEffect(() => {
-    const loops = spins.map((spin, index) => {
-      spin.setValue(0);
-
-      return Animated.loop(
-        Animated.timing(spin, {
-          toValue: 1,
-          duration: RING_PERIOD_MS[index],
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-      );
-    });
-
-    for (const loop of loops) {
-      loop.start();
-    }
-
-    return () => {
-      for (const loop of loops) {
-        loop.stop();
-      }
-    };
-  }, [spins]);
-
-  return spins;
-}
 
 function PlanetLabel({ planet }: { planet: UniversePlanet }) {
   // 이름을 다 띄우면 회원이 늘수록 글자밭이 된다 — 항성·원시성·나만 이름을 달고
@@ -74,57 +44,22 @@ function PlanetLabel({ planet }: { planet: UniversePlanet }) {
   );
 }
 
-function ProtostarPulse({ children }: { children: React.ReactNode }) {
-  const pulse = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 1400,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 0,
-          duration: 1400,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-
-    loop.start();
-
-    return () => loop.stop();
-  }, [pulse]);
-
-  return (
-    <Animated.View
-      style={{
-        opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }),
-      }}
-    >
-      {children}
-    </Animated.View>
-  );
-}
-
 function GalaxyViewComponent({
   galaxy,
   width,
   height,
   onSelectPlanet,
+  onAscend,
 }: {
   galaxy: UniverseGalaxy;
   width: number;
   height: number;
   onSelectPlanet: (planet: UniversePlanet) => void;
+  onAscend?: () => void;
 }) {
-  const spins = usePlanetOrbitSpins();
+  const { viewport, panHandlers, webWheelRef } = useUniverseViewport({ width, height });
 
-  // 항성은 궤도를 돌지 않는다 — 중심이 항성의 자리다.
+  // 항성은 궤도에 앉지 않는다 — 중심이 항성의 자리다.
   const centerPlanets = useMemo(
     () => galaxy.planets.filter((planet) => planet.isStar),
     [galaxy.planets],
@@ -135,132 +70,154 @@ function GalaxyViewComponent({
   );
 
   const slots = useMemo(() => buildOrbitSlots(orbitPlanets.length), [orbitPlanets.length]);
-  const ringCount = useMemo(() => Math.min(MAX_RINGS, countRings(slots)), [slots]);
+  const ringCount = useMemo(() => countRings(slots), [slots]);
   const maxRadius = Math.max(0, Math.min(width, height) / 2 - 46);
 
-  const planetsByRing = useMemo(() => {
-    const grouped: { planet: UniversePlanet; unitX: number; unitY: number }[][] = Array.from(
-      { length: MAX_RINGS },
-      () => [],
-    );
+  // 기저 좌표(확대 전) — 3D와 레이블이 같은 값을 쓴다.
+  const placed = useMemo(() => orbitPlanets.flatMap((planet, index) => {
+    const slot = slots[index];
 
-    orbitPlanets.forEach((planet, index) => {
-      const slot = slots[index];
+    if (!slot) {
+      return [];
+    }
 
-      if (!slot) {
-        return;
-      }
+    const radius = ringRadius(slot.ring, ringCount, maxRadius);
 
-      grouped[Math.min(slot.ring, MAX_RINGS - 1)].push({
-        planet,
-        unitX: slot.unitX,
-        unitY: slot.unitY,
-      });
-    });
+    return [{
+      planet,
+      x: width / 2 + slot.unitX * radius,
+      y: height / 2 + slot.unitY * radius,
+      diameter: PLANET_BASE_DIAMETER * planet.scale,
+    }];
+  }), [height, maxRadius, orbitPlanets, ringCount, slots, width]);
 
-    return grouped;
-  }, [orbitPlanets, slots]);
+  const placedStars = useMemo(() => centerPlanets.map((planet) => ({
+    planet,
+    x: width / 2,
+    y: height / 2,
+    diameter: STAR_DIAMETER * Math.max(0.8, planet.scale),
+  })), [centerPlanets, height, width]);
+
+  const orbs = useMemo<SkyOrb[]>(() => [
+    ...placedStars.map(({ planet, x, y, diameter }) => ({
+      id: planet.userId,
+      x,
+      y,
+      diameter,
+      brightness: Math.max(0.75, planet.brightness),
+      palette: 'star' as const,
+      highlighted: planet.isMine,
+    })),
+    ...placed.map(({ planet, x, y, diameter }) => ({
+      id: planet.userId,
+      x,
+      y,
+      diameter,
+      brightness: planet.brightness,
+      palette: planet.isProtostar ? ('protostar' as const) : ('planet' as const),
+      highlighted: planet.isMine,
+    })),
+  ], [placed, placedStars]);
+
+  // screen = (base - center) * zoom + center + pan — UniverseSky의 group 변환과 같은 식.
+  const project = (baseX: number, baseY: number) => ({
+    x: (baseX - width / 2) * viewport.zoom + width / 2 + viewport.panX,
+    y: (baseY - height / 2) * viewport.zoom + height / 2 + viewport.panY,
+  });
+
+  // 축소하면 한 층 위로 — 확대로 들어온 길을 그대로 되짚는다.
+  const ascendedRef = useRef(false);
+  useEffect(() => {
+    if (!onAscend || ascendedRef.current || viewport.zoom > LOD_ASCEND_ZOOM) {
+      return;
+    }
+
+    ascendedRef.current = true;
+    onAscend();
+  }, [onAscend, viewport.zoom]);
 
   return (
-    <View style={[styles.canvas, { width, height }]}>
-      <StarField width={width} height={height} />
+    <View
+      style={[styles.canvas, { width, height }]}
+      ref={webWheelRef as never}
+      {...panHandlers}
+    >
+      <UniverseCanvas
+        orbs={orbs}
+        width={width}
+        height={height}
+        zoom={viewport.zoom}
+        panX={viewport.panX}
+        panY={viewport.panY}
+      />
 
-      {planetsByRing.map((ringPlanets, ring) => {
-        if (ringPlanets.length === 0) {
-          return null;
-        }
-
-        const radius = ringRadius(ring, ringCount, maxRadius);
-        const spin = spins[ring];
-        const forward = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-        const backward = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-360deg'] });
+      {placedStars.map(({ planet, x, y, diameter }) => {
+        const projected = project(x, y);
 
         return (
-          <Animated.View
-            key={ring}
+          <Pressable
+            key={planet.userId}
+            onPress={() => onSelectPlanet(planet)}
+            hitSlop={12}
             style={[
-              styles.ring,
+              styles.slot,
               {
-                width: radius * 2,
-                height: radius * 2,
-                left: width / 2 - radius,
-                top: height / 2 - radius,
-                transform: [{ rotate: forward }],
+                width: PLANET_SLOT_WIDTH * 1.5,
+                left: projected.x - (PLANET_SLOT_WIDTH * 1.5) / 2,
+                top: projected.y - diameter * 0.7 * viewport.zoom,
               },
             ]}
           >
-            {ringPlanets.map(({ planet, unitX, unitY }) => {
-              const diameter = PLANET_BASE_DIAMETER * planet.scale;
-
-              return (
-                <Animated.View
-                  key={planet.userId}
-                  style={[
-                    styles.planetSlot,
-                    {
-                      width: PLANET_SLOT_WIDTH,
-                      left: radius + unitX * radius - PLANET_SLOT_WIDTH / 2,
-                      top: radius + unitY * radius - diameter * 1.35,
-                      // 궤도가 도는 만큼 되돌려서 이름이 뒤집히지 않게 한다.
-                      transform: [{ rotate: backward }],
-                    },
-                  ]}
-                >
-                  <Pressable onPress={() => onSelectPlanet(planet)} hitSlop={12} style={styles.planetPress}>
-                    {planet.isProtostar ? (
-                      <ProtostarPulse>
-                        <CelestialOrb
-                          diameter={diameter}
-                          brightness={planet.brightness}
-                          palette="protostar"
-                          highlighted={planet.isMine}
-                        />
-                      </ProtostarPulse>
-                    ) : (
-                      <CelestialOrb
-                        diameter={diameter}
-                        brightness={planet.brightness}
-                        palette="planet"
-                        highlighted={planet.isMine}
-                      />
-                    )}
-                    <PlanetLabel planet={planet} />
-                  </Pressable>
-                </Animated.View>
-              );
-            })}
-          </Animated.View>
+            {/* 천체 자체는 3D 레이어가 그린다 — 여기서는 이름이 앉을 자리만 비워 둔다. */}
+            <View
+              style={{ width: diameter * viewport.zoom, height: diameter * 1.4 * viewport.zoom }}
+              pointerEvents="none"
+            />
+            <Text style={styles.starName} numberOfLines={1}>
+              {planet.userName}
+            </Text>
+            <Text style={styles.starTag}>
+              {galaxy.star ? `${galaxy.star.monthKey.replace('-', '년 ')}월 항성` : '항성'}
+            </Text>
+          </Pressable>
         );
       })}
 
-      <View style={[styles.center, { left: width / 2 - 60, top: height / 2 - 52 }]}>
-        {centerPlanets.length > 0 ? (
-          centerPlanets.map((planet) => (
-            <Pressable key={planet.userId} onPress={() => onSelectPlanet(planet)} hitSlop={12} style={styles.starPress}>
-              <CelestialOrb
-                diameter={STAR_DIAMETER * Math.max(0.8, planet.scale)}
-                brightness={Math.max(0.75, planet.brightness)}
-                palette="star"
-                highlighted={planet.isMine}
-              />
-              <Text style={styles.starName} numberOfLines={1}>
-                {planet.userName}
-              </Text>
-              <Text style={styles.starTag}>
-                {galaxy.star ? `${galaxy.star.monthKey.replace('-', '년 ')}월 항성` : '항성'}
-              </Text>
-            </Pressable>
-          ))
-        ) : (
-          <View style={styles.emptyStar}>
-            <View style={styles.emptyStarCore} />
-            <Text style={styles.emptyStarText}>아직 항성 없음</Text>
-          </View>
-        )}
-      </View>
+      {placedStars.length === 0 ? (
+        <View style={[styles.emptyStar, { left: width / 2 - 60, top: height / 2 - 20 }]}>
+          <View style={styles.emptyStarCore} />
+          <Text style={styles.emptyStarText}>아직 항성 없음</Text>
+        </View>
+      ) : null}
+
+      {placed.map(({ planet, x, y, diameter }) => {
+        const projected = project(x, y);
+
+        return (
+          <Pressable
+            key={planet.userId}
+            onPress={() => onSelectPlanet(planet)}
+            hitSlop={12}
+            style={[
+              styles.slot,
+              {
+                width: PLANET_SLOT_WIDTH,
+                left: projected.x - PLANET_SLOT_WIDTH / 2,
+                top: projected.y - diameter * 0.7 * viewport.zoom,
+              },
+            ]}
+          >
+            <View
+              style={{ width: diameter * viewport.zoom, height: diameter * 1.4 * viewport.zoom }}
+              pointerEvents="none"
+            />
+            <PlanetLabel planet={planet} />
+          </Pressable>
+        );
+      })}
 
       {galaxy.nebula ? (
-        <View style={[styles.nebula, { width: width * 0.62, left: width * 0.19 }]}>
+        <View style={[styles.nebula, { width: width * 0.62, left: width * 0.19 }]} pointerEvents="none">
           <Text style={styles.nebulaText}>
             성운 · 러너 {galaxy.nebula.memberCount}명
           </Text>
@@ -275,14 +232,8 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
-  ring: {
+  slot: {
     position: 'absolute',
-  },
-  planetSlot: {
-    position: 'absolute',
-    alignItems: 'center',
-  },
-  planetPress: {
     alignItems: 'center',
   },
   planetName: {
@@ -297,14 +248,6 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '600',
   },
-  center: {
-    position: 'absolute',
-    width: 120,
-    alignItems: 'center',
-  },
-  starPress: {
-    alignItems: 'center',
-  },
   starName: {
     marginTop: 4,
     color: 'rgba(255, 244, 220, 0.98)',
@@ -318,6 +261,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   emptyStar: {
+    position: 'absolute',
+    width: 120,
     alignItems: 'center',
   },
   emptyStarCore: {

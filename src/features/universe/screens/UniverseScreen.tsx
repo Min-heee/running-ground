@@ -61,6 +61,12 @@ export default function UniverseScreen() {
     openNode(body.id);
   }, [openNode]);
 
+  // 축소로 한 층 나가기 — 물리 뒤로가기와 완전히 같은 경로를 쓴다(되돌아갈 곳의 정의가
+  // 두 벌이 되면 브레드크럼과 화면이 어긋난다).
+  const handleAscend = useCallback(() => {
+    goBack();
+  }, [goBack]);
+
   const handleSelectPlanet = useCallback((planet: UniversePlanet) => {
     setSelectedPlanet((previous) => (previous?.userId === planet.userId ? null : planet));
   }, []);
@@ -118,6 +124,7 @@ export default function UniverseScreen() {
               width={canvas.width}
               height={canvas.height}
               onSelectPlanet={handleSelectPlanet}
+              onAscend={canGoBack ? handleAscend : undefined}
             />
           ) : (
             <ConstellationView
@@ -125,6 +132,7 @@ export default function UniverseScreen() {
               width={canvas.width}
               height={canvas.height}
               onSelect={handleSelectBody}
+              onAscend={canGoBack ? handleAscend : undefined}
             />
           )
         ) : null}

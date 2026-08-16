@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   computeLodReveal,
+  LOD_ASCEND_ZOOM,
   LOD_COMMIT_RADIUS_RATIO,
   LOD_COMMIT_ZOOM,
   LOD_FOCUS_RADIUS_RATIO,
@@ -11,6 +12,7 @@ import {
   resolveFocusedBody,
   resolveLodOpacity,
   UNIVERSE_MAX_ZOOM,
+  UNIVERSE_MIN_ZOOM,
 } from '@/features/universe/utils/universeLod';
 
 // 줌 LOD 계약: 어떤 은하가 풀릴지와 얼마나 풀릴지. 이게 흔들리면 확대할 때마다 엉뚱한
@@ -33,6 +35,10 @@ test('문턱 순서: 미리보기가 다 끝난 뒤에 들어가고, 들어갈 �
   assert.ok(LOD_ENTER_ZOOM < LOD_FULL_ZOOM);
   assert.ok(LOD_FULL_ZOOM < LOD_COMMIT_ZOOM);
   assert.ok(LOD_COMMIT_ZOOM < UNIVERSE_MAX_ZOOM);
+  // 나가는 문턱은 축소 한계보다 위, 기본 배율보다 아래 — 아니면 영영 못 나가거나
+  // 들어오자마자 도로 튕겨 나간다.
+  assert.ok(UNIVERSE_MIN_ZOOM < LOD_ASCEND_ZOOM);
+  assert.ok(LOD_ASCEND_ZOOM < 1);
 });
 
 test('초점: 화면 중앙에 가장 가까운 은하, 너무 멀면 초점 없음', () => {

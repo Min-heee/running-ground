@@ -3,7 +3,6 @@ import test from 'node:test';
 
 import {
   buildOrbitSlots,
-  buildStarField,
   countRings,
   ringRadius,
 } from './universeLayout';
@@ -44,18 +43,4 @@ test('가장 바깥 궤도가 최대 반지름에 닿는다', () => {
   assert.equal(ringRadius(0, 3, 120), 40);
   assert.equal(ringRadius(0, 0, 120), 0);
   assert.equal(ringRadius(0, 3, 0), 0);
-});
-
-test('배경 별은 시드가 같으면 항상 같은 자리 — 렌더마다 흔들리면 안 된다', () => {
-  assert.deepEqual(buildStarField(20), buildStarField(20));
-  assert.notDeepEqual(buildStarField(20, 1), buildStarField(20, 2));
-});
-
-test('배경 별은 캔버스 안에 머문다', () => {
-  for (const dot of buildStarField(120)) {
-    assert.ok(dot.x >= 0 && dot.x <= 1);
-    assert.ok(dot.y >= 0 && dot.y <= 1);
-    assert.ok(dot.opacity > 0 && dot.opacity <= 1);
-    assert.ok(dot.size >= 1);
-  }
 });
