@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   BackHandler,
   Pressable,
@@ -26,6 +26,10 @@ import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
 // 우주는 테마와 무관하게 항상 어둡다 — 라이트 모드라고 흰 우주를 그릴 수는 없어서, 이
 // 화면만 고정 우주색을 쓴다 (다른 탭은 colors 토큰을 그대로 따른다).
 const SPACE_BACKGROUND = '#05060F';
+
+// 확대·축소로 층을 넘은 뒤 이 시간 동안은 다시 넘지 않는다 — 관성 스크롤의 꼬리가 한
+// 동작으로 여러 층을 뚫는 걸 막는 유일한 방어선이다.
+const ZOOM_NAVIGATION_COOLDOWN_MS = 700;
 
 export default function UniverseScreen() {
   useTabWarmupTrace('universe');
@@ -68,11 +72,33 @@ export default function UniverseScreen() {
     openNode(body.id);
   }, [openNode]);
 
+  // 확대·축소로 층을 오가는 것에만 걸리는 쿨다운.
+  //
+  // 트랙패드 한 번의 튕김은 관성으로 수백 ms 동안 휠 이벤트를 계속 뿜는다. 층이 바뀌면 배율이
+  // 1로 돌아가는데, 남은 관성이 곧바로 다시 문턱을 넘겨 한 동작에 최상위까지 빠져나가 버렸다.
+  // 걸쇠(ref)로는 못 막는다 — 층이 바뀔 때 화면이 통째로 다시 마운트되며 걸쇠도 새로 태어난다.
+  // 그래서 층을 넘나드는 쪽(화면)이 시간을 들고 있어야 한다. 손가락 탭에는 걸지 않는다.
+  const lastZoomNavAtRef = useRef(0);
+  const runZoomNavigation = useCallback((navigate: () => void) => {
+    const now = Date.now();
+
+    if (now - lastZoomNavAtRef.current < ZOOM_NAVIGATION_COOLDOWN_MS) {
+      return;
+    }
+
+    lastZoomNavAtRef.current = now;
+    navigate();
+  }, []);
+
   // 축소로 한 층 나가기 — 물리 뒤로가기와 완전히 같은 경로를 쓴다(되돌아갈 곳의 정의가
   // 두 벌이 되면 브레드크럼과 화면이 어긋난다).
   const handleAscend = useCallback(() => {
-    goBack();
-  }, [goBack]);
+    runZoomNavigation(() => goBack());
+  }, [goBack, runZoomNavigation]);
+
+  const handleZoomEnter = useCallback((body: UniverseBody) => {
+    runZoomNavigation(() => openNode(body.id));
+  }, [openNode, runZoomNavigation]);
 
   const handleSelectPlanet = useCallback((planet: UniversePlanet) => {
     setSelection((previous) => (previous?.planet.userId === planet.userId && previous.nodeId === currentNodeId
@@ -201,6 +227,7 @@ export default function UniverseScreen() {
               width={canvas.width}
               height={canvas.height}
               onSelect={handleSelectBody}
+              onZoomEnter={handleZoomEnter}
               onAscend={canGoBack ? handleAscend : undefined}
             />
           )

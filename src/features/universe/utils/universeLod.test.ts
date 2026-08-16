@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   computeLodReveal,
+  isWithinCommitRadius,
   LOD_ASCEND_ZOOM,
   LOD_COMMIT_RADIUS_RATIO,
   LOD_COMMIT_ZOOM,
@@ -41,24 +42,32 @@ test('문턱 순서: 미리보기가 다 끝난 뒤에 들어가고, 들어갈 �
   assert.ok(LOD_ASCEND_ZOOM < 1);
 });
 
-test('초점: 화면 중앙에 가장 가까운 은하, 너무 멀면 초점 없음', () => {
+test('초점: 조준점에 가장 가까운 은하, 너무 멀면 초점 없음', () => {
   const bodies = [
-    { id: 'far', screenX: 900, screenY: 900 },
-    { id: 'near', screenX: 420, screenY: 380 },
+    { id: 'far', baseX: 900, baseY: 900 },
+    { id: 'near', baseX: 420, baseY: 380 },
   ];
 
   const near = resolveFocusedBody(bodies, 400, 400, 200);
   assert.equal(near?.id, 'near');
-  // 진입 판정이 쓰는 거리도 같이 돌려준다 — 화면에 얼마나 가까운지로 문을 잠근다.
+  // 진입 판정이 쓰는 거리도 같이 돌려준다.
   assert.ok(near !== null && Math.abs(near.distance - Math.hypot(20, 20)) < 1e-9);
-  // 중앙 근처에 아무것도 없으면 아무것도 열지 않는다.
+  // 조준점 근처에 아무것도 없으면 아무것도 열지 않는다.
   assert.equal(resolveFocusedBody([bodies[0]], 400, 400, 200), null);
   assert.equal(resolveFocusedBody([], 400, 400, 200), null);
 });
 
-test('진입 반경은 초점 반경보다 좁다 — 빈 우주를 확대하다 끌려 들어가지 않게', () => {
+test('진입 반경은 궤도 간격보다 좁다 — 빈 곳을 겨눠 확대해도 이웃으로 끌려가지 않게', () => {
+  const minSide = 390;
+  // 17개 배치의 궤도 간격은 약 47(기저). 그 절반만 떨어져 있어도 '가리켰다'고 보면 안 된다.
+  assert.equal(isWithinCommitRadius(47 / 2, minSide), false);
+  // 정말 그 천체를 겨눴을 때만 열린다.
+  assert.equal(isWithinCommitRadius(2, minSide), true);
+  // 문턱은 화면 짧은 변에 비례한다.
+  assert.equal(isWithinCommitRadius(minSide * LOD_COMMIT_RADIUS_RATIO, minSide), true);
+  assert.equal(isWithinCommitRadius(minSide * LOD_COMMIT_RADIUS_RATIO + 1, minSide), false);
+  // 진입은 초점보다 반드시 좁다 — 미리보기가 열리기도 전에 층이 갈리면 안 된다.
   assert.ok(LOD_COMMIT_RADIUS_RATIO < LOD_FOCUS_RADIUS_RATIO);
-  assert.ok(LOD_COMMIT_RADIUS_RATIO > 0);
 });
 
 test('불투명도: 원반은 흔적을 남기고, 행성은 reveal을 따른다', () => {

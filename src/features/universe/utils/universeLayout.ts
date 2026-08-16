@@ -60,3 +60,54 @@ export function ringRadius(ring: number, ringCount: number, maxRadius: number): 
 
   return (maxRadius * (ring + 1)) / ringCount;
 }
+
+// 이름표 솎아내기 — 서울처럼 25개가 한 화면에 들어오면 이름이 서로 겹쳐 아무것도 못 읽는다.
+//
+// 규칙: 중요한 것부터(호출자가 그 순서로 넘긴다) 자리를 잡고, 이미 놓인 이름과 겹치거나
+// 화면 밖이면 그 이름은 접는다. 천체와 누를 자리는 그대로 남는다 — 이름만 사라진다.
+// 확대하면 사이가 벌어져 접혔던 이름이 저절로 돌아온다(그 자체가 '확대할수록 더 보인다').
+export type LabelBox = {
+  id: string;
+  // 이름표 상자의 화면 좌표(중심 x, 위쪽 y).
+  centerX: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+export function pickVisibleLabels(
+  boxes: LabelBox[],
+  canvasWidth: number,
+  canvasHeight: number,
+): Set<string> {
+  const visible = new Set<string>();
+  const placed: { left: number; right: number; top: number; bottom: number }[] = [];
+
+  for (const box of boxes) {
+    const rect = {
+      left: box.centerX - box.width / 2,
+      right: box.centerX + box.width / 2,
+      top: box.top,
+      bottom: box.top + box.height,
+    };
+
+    // 화면 밖은 애초에 읽을 수 없다 — 겹침 계산에서도 빼서 안쪽 이름을 잡아먹지 않게 한다.
+    if (rect.right < 0 || rect.left > canvasWidth || rect.bottom < 0 || rect.top > canvasHeight) {
+      continue;
+    }
+
+    const collides = placed.some((other) => rect.left < other.right
+      && rect.right > other.left
+      && rect.top < other.bottom
+      && rect.bottom > other.top);
+
+    if (collides) {
+      continue;
+    }
+
+    placed.push(rect);
+    visible.add(box.id);
+  }
+
+  return visible;
+}

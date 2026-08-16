@@ -26,16 +26,29 @@ export const LOD_ASCEND_ZOOM = 0.72;
 
 export type LodCandidate = {
   id: string;
-  // 기저 좌표(뷰포트 변환 전). 아래 resolveFocusedBody 주석 참고.
-  screenX: number;
-  screenY: number;
+  // 기저 좌표(뷰포트 변환 전) — 조준점과 같은 좌표계.
+  baseX: number;
+  baseY: number;
 };
 
-// 초점으로 인정할 최대 거리 — 화면 짧은 변의 이 비율(기저 좌표 기준).
+// 모든 거리는 **기저 좌표**에서, **조준점**(마지막으로 확대한 지점)으로부터 잰다.
+//
+// 화면 중앙으로 재면 안 된다: 커서·손가락을 고정하는 확대에서 겨눈 천체는 앵커 아래에
+// 머물지 중앙으로 오지 않는다. 그래서 중앙 기준으로는 확대할수록 겨눈 것이 멀어져,
+// 정확히 겨눴는데도 진입이 막히고(정상 동작 불가) 아무것도 안 겨눈 확대는 이웃 천체가
+// 우연히 가까워 열리는(오작동) 뒤집힌 판정이 된다.
+
+// 초점으로 인정할 최대 거리 — 화면 짧은 변의 이 비율.
 export const LOD_FOCUS_RADIUS_RATIO = 0.35;
-// 진입은 더 좁게 — 화면에서 실제로 가까울 때만. 텅 빈 우주를 확대하다 엉뚱한 지역으로
-// 빨려 들어가는 걸 막는다.
-export const LOD_COMMIT_RADIUS_RATIO = 0.2;
+// 진입은 훨씬 좁게 — 사실상 '그 천체를 가리키고 있을 때만'. 궤도 간격의 절반보다 작아야
+// 두 천체 사이의 빈 곳을 확대하다 한쪽으로 빨려 들어가지 않는다(간격은 기저 47 안팎).
+//
+// 좁아 보여도 손가락에는 넉넉하다: 진입 배율(7.5배 이상)에서 이 반경은 화면상 100px이 넘는다.
+export const LOD_COMMIT_RADIUS_RATIO = 0.05;
+
+export function isWithinCommitRadius(baseDistance: number, minCanvasSide: number): boolean {
+  return baseDistance <= minCanvasSide * LOD_COMMIT_RADIUS_RATIO;
+}
 
 // 0(닫힘) ~ 1(완전히 풀림).
 export function computeLodReveal(zoom: number): number {
@@ -50,22 +63,18 @@ export function computeLodReveal(zoom: number): number {
   return (zoom - LOD_ENTER_ZOOM) / (LOD_FULL_ZOOM - LOD_ENTER_ZOOM);
 }
 
-// 초점 은하 = 화면 중앙에 가장 가까운 것. 단, 중앙에서 너무 멀면 초점이 없다 — 아무것도
-// 조준하지 않은 채 확대만 한 상태에서 엉뚱한 은하가 풀리는 걸 막는다.
-//
-// 거리는 **기저 좌표**로 재야 한다(호출자가 화면 거리를 배율로 나눠 넘긴다). 화면 거리로
-// 재면 커서 고정 확대가 천체를 중앙에서 밀어내면서 배율이 오를수록 초점이 스스로 풀린다 —
-// 확대할수록 열려야 하는데 확대할수록 닫히는 뒤집힌 동작이 된다.
+// 초점 은하 = 조준점에 가장 가까운 것. 너무 멀면 초점이 없다 — 아무것도 겨누지 않은 채
+// 확대만 한 상태에서 엉뚱한 은하가 풀리는 걸 막는다.
 export function resolveFocusedBody(
   candidates: LodCandidate[],
-  centerX: number,
-  centerY: number,
+  aimX: number,
+  aimY: number,
   maxDistance: number,
 ): { id: string; distance: number } | null {
   let best: { id: string; distance: number } | null = null;
 
   for (const candidate of candidates) {
-    const distance = Math.hypot(candidate.screenX - centerX, candidate.screenY - centerY);
+    const distance = Math.hypot(candidate.baseX - aimX, candidate.baseY - aimY);
 
     if (!best || distance < best.distance) {
       best = { id: candidate.id, distance };

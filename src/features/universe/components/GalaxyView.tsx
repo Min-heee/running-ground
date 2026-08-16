@@ -28,6 +28,14 @@ const STAR_DIAMETER = 40;
 const PLANET_SLOT_WIDTH = 84;
 // 검색으로 날아왔을 때의 배율 — 그 행성이 주인공으로 보이되 이웃도 화면에 남는 정도.
 const SEARCH_FOCUS_ZOOM = 2.4;
+// 손가락 최소 크기 — 아무리 축소해도 이보다 작아지지 않는다.
+const MIN_TOUCH_SIZE = 44;
+
+// 누르는 자리는 천체와 함께 커지고 작아진다. 폭이 고정이면 확대할수록 구체보다 훨씬 좁은
+// 곳만 눌리고, 축소할수록 이웃의 몫까지 먹어 엉뚱한 행성이 열린다.
+function slotWidthFor(baseWidth: number, zoom: number) {
+  return Math.max(MIN_TOUCH_SIZE, baseWidth * zoom);
+}
 
 function PlanetLabel({ planet, selected }: { planet: UniversePlanet; selected: boolean }) {
   // 이름을 다 띄우면 회원이 늘수록 글자밭이 된다 — 항성·원시성·나, 그리고 지금 고른 행성만
@@ -70,7 +78,13 @@ function GalaxyViewComponent({
   // 지금 카드에 떠 있는 행성 — 화면에서도 같은 것이 지목돼 있어야 짝이 맞는다.
   selectedUserId?: string | null;
 }) {
-  const { viewport, focusOn, panHandlers, webWheelRef } = useUniverseViewport({ width, height });
+  const {
+    viewport,
+    focusOn,
+    panHandlers,
+    containerRef,
+    onContainerLayout,
+  } = useUniverseViewport({ width, height });
 
   // 항성은 궤도에 앉지 않는다 — 중심이 항성의 자리다.
   const centerPlanets = useMemo(
@@ -172,7 +186,8 @@ function GalaxyViewComponent({
   return (
     <View
       style={[styles.canvas, { width, height }]}
-      ref={webWheelRef as never}
+      ref={containerRef as never}
+      onLayout={onContainerLayout}
       {...panHandlers}
     >
       <UniverseCanvas
@@ -186,6 +201,7 @@ function GalaxyViewComponent({
 
       {placedStars.map(({ planet, x, y, diameter }) => {
         const projected = project(x, y);
+        const slotWidth = slotWidthFor(PLANET_SLOT_WIDTH * 1.5, viewport.zoom);
 
         return (
           <Pressable
@@ -195,8 +211,8 @@ function GalaxyViewComponent({
             style={[
               styles.slot,
               {
-                width: PLANET_SLOT_WIDTH * 1.5,
-                left: projected.x - (PLANET_SLOT_WIDTH * 1.5) / 2,
+                width: slotWidth,
+                left: projected.x - slotWidth / 2,
                 top: projected.y - diameter * 0.7 * viewport.zoom,
               },
             ]}
@@ -225,6 +241,7 @@ function GalaxyViewComponent({
 
       {placed.map(({ planet, x, y, diameter }) => {
         const projected = project(x, y);
+        const slotWidth = slotWidthFor(PLANET_SLOT_WIDTH, viewport.zoom);
 
         return (
           <Pressable
@@ -234,8 +251,8 @@ function GalaxyViewComponent({
             style={[
               styles.slot,
               {
-                width: PLANET_SLOT_WIDTH,
-                left: projected.x - PLANET_SLOT_WIDTH / 2,
+                width: slotWidth,
+                left: projected.x - slotWidth / 2,
                 top: projected.y - diameter * 0.7 * viewport.zoom,
               },
             ]}

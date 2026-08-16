@@ -7,8 +7,8 @@ import { useUniverseViewport } from '@/features/universe/hooks/useUniverseViewpo
 import { useNodeInterior } from '@/features/universe/hooks/useNodeInterior';
 import {
   computeLodReveal,
+  isWithinCommitRadius,
   LOD_ASCEND_ZOOM,
-  LOD_COMMIT_RADIUS_RATIO,
   LOD_COMMIT_ZOOM,
   LOD_FOCUS_RADIUS_RATIO,
   resolveFocusedBody,
@@ -17,6 +17,7 @@ import {
 import {
   buildOrbitSlots,
   countRings,
+  pickVisibleLabels,
   ringRadius,
 } from '@/features/universe/utils/universeLayout';
 import type { UniverseBody } from '@/lib/api/types';
@@ -27,18 +28,34 @@ import type { UniverseBody } from '@/lib/api/types';
 
 const BASE_DIAMETER = 26;
 const LABEL_SLOT_WIDTH = 96;
+// 이름표가 실제로 차지하는 크기(이름 + 수치 두 줄). 겹침 판정에만 쓴다.
+//
+// 폭은 이름 길이로 어림한다 — 한 값으로 고정하면 '서울특별시'가 '전북특별자치도'만큼
+// 넓다고 보고 안 겹치는 이름까지 접어버린다.
+const LABEL_CHAR_WIDTH = 12;
+const LABEL_TEXT_MAX_WIDTH = 96;
+const LABEL_TEXT_HEIGHT = 28;
+
+function labelWidthFor(name: string) {
+  return Math.min(LABEL_TEXT_MAX_WIDTH, name.length * LABEL_CHAR_WIDTH + 6);
+}
 
 function ConstellationViewComponent({
   bodies,
   width,
   height,
   onSelect,
+  onZoomEnter,
   onAscend,
 }: {
   bodies: UniverseBody[];
   width: number;
   height: number;
+  // 눌러서 들어가기.
   onSelect: (body: UniverseBody) => void;
+  // 확대해서 들어가기 — 탭과 분리해 둔다. 관성 스크롤 한 번이 여러 층을 뚫는 걸 막는
+  // 쿨다운이 이쪽에만 걸리고, 손가락으로 누른 것은 언제나 즉시 반응해야 하기 때문이다.
+  onZoomEnter: (body: UniverseBody) => void;
   onAscend?: () => void;
 }) {
   // 크기 큰 순으로 안쪽 궤도부터 — 중심에 가까울수록 잘 달린 동네다.
@@ -50,7 +67,13 @@ function ConstellationViewComponent({
   const ringCount = useMemo(() => countRings(slots), [slots]);
   const maxRadius = Math.max(0, Math.min(width, height) / 2 - 54);
   // 확대/축소·이동 (오너 2026-08-15). 3D와 레이블이 이 하나의 값을 공유한다.
-  const { viewport, reset, panHandlers, webWheelRef } = useUniverseViewport({ width, height });
+  const {
+    viewport,
+    reset,
+    panHandlers,
+    containerRef,
+    onContainerLayout,
+  } = useUniverseViewport({ width, height });
   // screen = (base - center) * zoom + center + pan — UniverseSky의 group 변환과 같은 식.
   const project = (baseX: number, baseY: number) => ({
     x: (baseX - width / 2) * viewport.zoom + width / 2 + viewport.panX,
@@ -83,25 +106,11 @@ function ConstellationViewComponent({
 
   // --- LOD: 확대가 깊어지면 화면 중앙 은하가 그 자리에서 풀린다 (universeLod) ---
   const reveal = computeLodReveal(viewport.zoom);
-  // 거리는 배율로 나눠 기저 좌표로 환산한다 — 확대해도 초점이 스스로 풀리지 않게.
+  // 판정은 전부 기저 좌표에서, 조준점(마지막으로 확대한 지점) 기준으로 한다.
   const focused = reveal <= 0 ? null : resolveFocusedBody(
-    ordered.flatMap((body, index) => {
-      const slot = slots[index];
-
-      if (!slot) {
-        return [];
-      }
-
-      const radius = ringRadius(slot.ring, ringCount, maxRadius);
-      const projected = project(width / 2 + slot.unitX * radius, height / 2 + slot.unitY * radius);
-      return [{
-        id: body.id,
-        screenX: width / 2 + (projected.x - width / 2) / viewport.zoom,
-        screenY: height / 2 + (projected.y - height / 2) / viewport.zoom,
-      }];
-    }),
-    width / 2,
-    height / 2,
+    skyOrbs.map((orb) => ({ id: orb.id, baseX: orb.x, baseY: orb.y })),
+    viewport.aimX,
+    viewport.aimY,
     Math.min(width, height) * LOD_FOCUS_RADIUS_RATIO,
   );
   const focusedBodyId = focused?.id ?? null;
@@ -115,14 +124,13 @@ function ConstellationViewComponent({
   // 호출하면 React가 렌더 중 업데이트로 경고하고, 최악엔 같은 프레임에서 두 번 들어간다.
   const descendedRef = useRef<string | null>(null);
   const ascendedRef = useRef(false);
-  // 진입 판정도 기저 거리로 — 화면 중앙에 실제로 놓였을 때만 열린다.
-  const focusedBaseDistance = focused?.distance ?? Number.POSITIVE_INFINITY;
-  const commitRadius = Math.min(width, height) * LOD_COMMIT_RADIUS_RATIO;
+  // 진입은 초점보다 훨씬 좁은 반경 — 사실상 그 천체를 가리키고 있을 때만 열린다.
+  const canCommit = focused !== null && isWithinCommitRadius(focused.distance, Math.min(width, height));
   useEffect(() => {
     if (
       !focusedBodyId
       || viewport.zoom < LOD_COMMIT_ZOOM
-      || focusedBaseDistance > commitRadius
+      || !canCommit
       || descendedRef.current === focusedBodyId
     ) {
       return;
@@ -136,8 +144,8 @@ function ConstellationViewComponent({
 
     descendedRef.current = focusedBodyId;
     reset();
-    onSelect(body);
-  }, [commitRadius, focusedBaseDistance, focusedBodyId, onSelect, ordered, reset, viewport.zoom]);
+    onZoomEnter(body);
+  }, [canCommit, focusedBodyId, onZoomEnter, ordered, reset, viewport.zoom]);
 
   // 층이 바뀌면(=목록이 갈리면) 재진입 걸쇠를 푼다 — 뒤로 나왔다가 같은 천체로 다시 들어갈 수 있게.
   useEffect(() => {
@@ -159,6 +167,34 @@ function ConstellationViewComponent({
     () => skyOrbs.map((orb) => (orb.id === focusedBodyId ? { ...orb, opacity: lodOpacity.disk } : orb)),
     [focusedBodyId, lodOpacity.disk, skyOrbs],
   );
+
+  // 겹치는 이름은 접는다 — 서울(25개 구)처럼 빽빽한 층에서 이름밭이 되지 않게. 크기 큰
+  // 순(ordered)으로 자리를 잡으므로 잘 달린 동네의 이름이 먼저 살아남고, 확대하면 사이가
+  // 벌어져 접혔던 이름이 돌아온다.
+  const visibleLabelIds = useMemo(() => pickVisibleLabels(
+    ordered.flatMap((body, index) => {
+      const slot = slots[index];
+
+      if (!slot) {
+        return [];
+      }
+
+      const radius = ringRadius(slot.ring, ringCount, maxRadius);
+      const diameter = BASE_DIAMETER * body.scale;
+      const projected = project(width / 2 + slot.unitX * radius, height / 2 + slot.unitY * radius);
+
+      return [{
+        id: body.id,
+        centerX: projected.x,
+        // 이름은 천체 아래에 온다(위 렌더의 빈 자리 높이 = 지름 × 2.7).
+        top: projected.y - diameter * 1.35 * viewport.zoom + diameter * 2.7 * viewport.zoom,
+        width: labelWidthFor(body.name),
+        height: LABEL_TEXT_HEIGHT,
+      }];
+    }),
+    width,
+    height,
+  ), [height, maxRadius, ordered, project, ringCount, slots, viewport.zoom, width]);
 
   // 풀린 천체의 '안' — 리프면 회원 행성, 그 위면 하위 지역. 초점 천체의 자리를 중심으로
   // 궤도에 앉힌다(기저 좌표계 — 뷰포트 변환은 3D 레이어가 통째로 건다).
@@ -208,7 +244,11 @@ function ConstellationViewComponent({
     const childSlots = buildOrbitSlots(children.length);
     const childRings = countRings(childSlots);
     // 풀릴수록 궤도가 벌어진다 — 천체 하나가 화면을 차지하며 열리는 느낌.
-    const orbitRadius = BASE_DIAMETER * (1.4 + 3.4 * reveal);
+    //
+    // 배율로 나누는 이유: 기저 좌표에 고정하면 화면에 그려질 때 배율만큼 곱해져, 깊이
+    // 확대할수록 자식들이 화면 밖으로 날아가 정작 파고드는 자리가 텅 비었다. 화면에서 본
+    // 크기를 정해 놓고 기저로 되돌린다.
+    const orbitRadius = (Math.min(width, height) * (0.05 + 0.22 * reveal)) / viewport.zoom;
 
     return children.flatMap((child, index) => {
       const childSlot = childSlots[index];
@@ -230,12 +270,13 @@ function ConstellationViewComponent({
         opacity: lodOpacity.planets,
       }];
     });
-  }, [focusedBodyId, height, interior, lodOpacity.planets, maxRadius, ordered, reveal, ringCount, slots, width]);
+  }, [focusedBodyId, height, interior, lodOpacity.planets, maxRadius, ordered, reveal, ringCount, slots, viewport.zoom, width]);
 
   return (
     <View
       style={[styles.canvas, { width, height }]}
-      ref={webWheelRef as never}
+      ref={containerRef as never}
+      onLayout={onContainerLayout}
       {...panHandlers}
     >
       <UniverseCanvas
@@ -257,6 +298,10 @@ function ConstellationViewComponent({
         const radius = ringRadius(slot.ring, ringCount, maxRadius);
         const diameter = BASE_DIAMETER * body.scale;
         const projected = project(width / 2 + slot.unitX * radius, height / 2 + slot.unitY * radius);
+        const showLabel = visibleLabelIds.has(body.id);
+        // 누르는 자리도 배율을 따라간다 — 폭이 고정이면 확대할수록 천체보다 훨씬 좁은 곳만
+        // 눌리고, 축소할수록 이웃의 몫까지 먹는다.
+        const slotWidth = Math.max(44, LABEL_SLOT_WIDTH * viewport.zoom);
 
         return (
           <Pressable
@@ -266,8 +311,8 @@ function ConstellationViewComponent({
             style={[
               styles.slot,
               {
-                width: LABEL_SLOT_WIDTH,
-                left: projected.x - LABEL_SLOT_WIDTH / 2,
+                width: slotWidth,
+                left: projected.x - slotWidth / 2,
                 top: projected.y - diameter * 1.35 * viewport.zoom,
               },
             ]}
@@ -278,13 +323,17 @@ function ConstellationViewComponent({
               style={{ width: diameter * 2.7 * viewport.zoom, height: diameter * 2.7 * viewport.zoom }}
               pointerEvents="none"
             />
-            <Text style={styles.name} numberOfLines={1}>
-              {body.name}
-            </Text>
-            <Text style={styles.metric} numberOfLines={1}>
-              {body.averageDistanceKm}km
-              {body.stars > 0 ? ` ★${body.stars}` : ''}
-            </Text>
+            {showLabel ? (
+              <>
+                <Text style={styles.name} numberOfLines={1}>
+                  {body.name}
+                </Text>
+                <Text style={styles.metric} numberOfLines={1}>
+                  {body.averageDistanceKm}km
+                  {body.stars > 0 ? ` ★${body.stars}` : ''}
+                </Text>
+              </>
+            ) : null}
           </Pressable>
         );
       })}
