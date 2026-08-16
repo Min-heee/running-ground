@@ -6,6 +6,7 @@ import {
   focalLengthFor,
   panToHold,
   projectPoint,
+  unprojectAt,
   unprojectOnFocalPlane,
 } from './universeProjection';
 
@@ -92,4 +93,40 @@ test('빈 하늘을 확대하면 초점면의 그 점이 붙들린다 — 엉뚱
 
   assert.ok(Math.abs(after.screenX - cursor.x) < 1e-6);
   assert.ok(Math.abs(after.screenY - cursor.y) < 1e-6);
+});
+
+test('역투영은 어느 깊이에서도 투영을 되돌린다 — 두 축이 같은 부호로', () => {
+  // 이동량이 두 축 모두 0이 아닌 상태여야 부호 실수가 드러난다. 예전에 손으로 베낀 사본이
+  // y만 옛 부호로 남아, 겨눈 자리가 세로로만 튀었다.
+  const view = { zoom: 2.5, panX: -140, panY: 260, camDepth: 12 };
+
+  for (const z of [view.camDepth, view.camDepth - 40, view.camDepth + 9]) {
+    const point = unprojectAt(410, 300, view, W, H, z);
+    const back = projectPoint(point.x, point.y, z, view, W, H);
+
+    assert.ok(Math.abs(back.screenX - 410) < 1e-6, `z=${z} 에서 x가 안 맞음`);
+    assert.ok(Math.abs(back.screenY - 300) < 1e-6, `z=${z} 에서 y가 안 맞음`);
+  }
+});
+
+test('확대 앵커는 커서 아래의 자리를 붙든다 — 천체의 중심이 아니라', () => {
+  // 커서가 천체 안이지만 중심에서 벗어난 흔한 경우. 중심을 붙들면 그 천체가 커서로
+  // 순간이동하면서 장면이 반지름만큼 통째로 튄다.
+  const view = { zoom: 3, panX: 80, panY: -40, camDepth: 5 };
+  const bodyCentre = { x: 20, y: 12, z: 30 };
+  const centreOnScreen = projectPoint(bodyCentre.x, bodyCentre.y, bodyCentre.z, view, W, H);
+  const cursorX = centreOnScreen.screenX + 70;
+  const cursorY = centreOnScreen.screenY - 45;
+
+  const underCursor = unprojectAt(cursorX, cursorY, view, W, H, bodyCentre.z);
+  const moved = { ...view, zoom: 6 };
+  const held = panToHold(underCursor, cursorX, cursorY, moved, W, H);
+  const after = projectPoint(underCursor.x, underCursor.y, bodyCentre.z, { ...moved, ...held }, W, H);
+
+  assert.ok(Math.abs(after.screenX - cursorX) < 1e-6);
+  assert.ok(Math.abs(after.screenY - cursorY) < 1e-6);
+
+  // 중심을 붙들었다면 천체가 커서로 끌려왔을 것이다 — 그러지 않았음을 확인한다.
+  const centreAfter = projectPoint(bodyCentre.x, bodyCentre.y, bodyCentre.z, { ...moved, ...held }, W, H);
+  assert.ok(Math.abs(centreAfter.screenX - cursorX) > 1);
 });

@@ -104,16 +104,37 @@ export function panToHold(
   };
 }
 
-// 화면의 한 점이 초점면(z = camDepth)에서 어느 우주 좌표인지 — 확대 앵커를 잡을 때 쓴다.
+// 화면의 한 점이 **주어진 깊이**에서 어느 우주 좌표인지. 확대 앵커를 잡을 때 쓴다.
+//
+// 확대는 커서 **아래의 그 자리**를 붙들어야 한다. 천체의 중심을 붙들면, 중심은 대개 커서
+// 아래가 아니므로 첫 칸에서 장면이 그 천체의 반지름만큼 통째로 튄다 — 겨눈 곳이 아니라
+// 엉뚱한 방향으로 밀리는 것처럼 보인다.
+export function unprojectAt(
+  screenX: number,
+  screenY: number,
+  camera: Camera,
+  canvasWidth: number,
+  canvasHeight: number,
+  z: number,
+): { x: number; y: number; z: number } {
+  const focal = focalLengthFor(canvasHeight);
+  const viewDepth = camera.camDepth + focal / Math.max(1e-6, camera.zoom) - z;
+  const scale = focal / Math.max(1e-6, viewDepth);
+
+  return {
+    x: (screenX - canvasWidth / 2) / scale - camera.panX / camera.zoom,
+    y: (screenY - canvasHeight / 2) / scale - camera.panY / camera.zoom,
+    z,
+  };
+}
+
+// 초점면(z = camDepth) 위의 점 — 겨눈 천체가 없을 때의 기준.
 export function unprojectOnFocalPlane(
   screenX: number,
   screenY: number,
   camera: Camera,
   canvasWidth: number,
   canvasHeight: number,
-): { x: number; y: number } {
-  return {
-    x: (screenX - canvasWidth / 2) / camera.zoom - camera.panX / camera.zoom,
-    y: (screenY - canvasHeight / 2) / camera.zoom - camera.panY / camera.zoom,
-  };
+): { x: number; y: number; z: number } {
+  return unprojectAt(screenX, screenY, camera, canvasWidth, canvasHeight, camera.camDepth);
 }

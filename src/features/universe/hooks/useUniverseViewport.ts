@@ -1,96 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Platform } from 'react-native';
 
+import { fitZoomFor } from '@/features/universe/utils/universeSpace';
 import {
-  fitZoomFor,
-  UNIVERSE_MAX_ZOOM_FACTOR,
-  UNIVERSE_MIN_ZOOM_FACTOR,
-} from '@/features/universe/utils/universeSpace';
-import { panToHold } from '@/features/universe/utils/universeProjection';
-
-// 확대 앵커 아래에 있는 천체 — 화면이 알려준다. 확대는 곧 그리로 다가가는 일이라,
-// 카메라의 깊이와 이동량을 이 천체를 기준으로 정한다.
-export type AnchorTarget = {
-  x: number;
-  y: number;
-  z: number;
-  // 커서·손가락이 **실제로 그 천체 위에** 있는가. 빈 하늘이면 false — 그때는 깊이의
-  // 길잡이로만 쓰고, 화면에 붙들지는 않는다.
-  onBody: boolean;
-};
+  clampZoomTo,
+  zoomAroundPoint,
+  type AnchorTarget,
+  type UniverseViewport,
+} from '@/features/universe/utils/universeZoom';
 
 // 우주 뷰포트 — 확대/축소와 이동.
 //
 // 하나의 상태를 3D 레이어와 RN 레이블 레이어가 **같이** 쓴다. 두 레이어가 각자 변환을 갖는
 // 순간 이름이 천체를 벗어나므로, 여기서 나온 값만이 두 곳의 유일한 근원이다.
 //
-// 좌표 변환 규약 (두 레이어가 반드시 동일하게 적용):
-//   screen = canvasCenter + universe * zoom + pan
-// 3D는 같은 식을 group scale=zoom, position=[panX, -panY]로 표현한다(부호는 y축 반전 때문).
-//
-// 확대는 그저 카메라를 가까이 가져갈 뿐이다 — 어떤 문턱도, 층 전환도 여기엔 없다.
+// 확대는 그저 카메라를 가까이 가져갈 뿐이다 — 어떤 문턱도, 층 전환도 여기엔 없다. 실제
+// 계산은 universeZoom에 있다(테스트가 react-native 없이 돌아야 해서).
 
-export type UniverseViewport = {
-  zoom: number;
-  panX: number;
-  panY: number;
-  // 카메라가 지금 지나고 있는 깊이. 확대해 들어갈수록 파고든 층의 깊이를 따라간다 —
-  // 이게 없으면 앞쪽 천체를 통과하지 못하고 영영 그 앞에 멈춰 있게 된다.
-  camDepth: number;
-};
+export type { AnchorTarget, UniverseViewport };
 
 // 한 프레임에 남은 거리의 몇 할을 갈지. 크면 반응이 날카롭고 작으면 흐늘거린다.
 const ZOOM_GLIDE = 0.22;
-
-function clampZoomTo(zoom: number, fitZoom: number): number {
-  return Math.min(
-    fitZoom * UNIVERSE_MAX_ZOOM_FACTOR,
-    Math.max(fitZoom * UNIVERSE_MIN_ZOOM_FACTOR, zoom),
-  );
-}
-
-// 한 점(앵커)을 화면에 고정한 채 배율만 바꾼다 — 커서/손가락 아래가 안 밀리는 확대.
-export function zoomAroundPoint(
-  viewport: UniverseViewport,
-  nextZoomRaw: number,
-  anchorX: number,
-  anchorY: number,
-  canvasWidth: number,
-  canvasHeight: number,
-  fitZoom: number,
-  anchor: AnchorTarget | null,
-): UniverseViewport {
-  const nextZoom = clampZoomTo(nextZoomRaw, fitZoom);
-  const ratio = nextZoom / viewport.zoom;
-
-  // 카메라 깊이는 배율이 변한 만큼만 목표에 다가간다 — 배율이 두 배가 되면 절반을 간다.
-  // 이 규칙이면 애니메이션 루프 없이도 확대가 곧 전진이 되고, 축소하면 중립면으로 물러난다.
-  const target = anchor?.z ?? viewport.camDepth;
-  const approach = ratio > 1 ? 1 - 1 / ratio : 0;
-  const retreat = ratio < 1 ? 1 - ratio : 0;
-  const camDepth = viewport.camDepth
-    + (target - viewport.camDepth) * approach
-    - viewport.camDepth * retreat;
-  const moved = { ...viewport, camDepth, zoom: nextZoom };
-
-  // 겨눈 천체가 있으면 그 천체가 제자리에 남도록 이동량을 역산한다. 빈 하늘이면 커서
-  // 아래의 **초점면 위 한 점**을 붙든다 — 그 평면에서는 예전 아핀 공식과 정확히 같고,
-  // 무엇보다 엉뚱한 방향의 천체를 끌어오지 않는다.
-  const held = panToHold(
-    anchor?.onBody ? anchor : {
-      x: (anchorX - canvasWidth / 2) / viewport.zoom - viewport.panX / viewport.zoom,
-      y: (anchorY - canvasHeight / 2) / viewport.zoom + viewport.panY / viewport.zoom,
-      z: viewport.camDepth,
-    },
-    anchorX,
-    anchorY,
-    moved,
-    canvasWidth,
-    canvasHeight,
-  );
-
-  return { ...moved, panX: held.panX, panY: held.panY };
-}
 
 function touchDistance(touches: { pageX: number; pageY: number }[]): number {
   const [first, second] = touches;
@@ -195,11 +125,15 @@ export function useUniverseViewport({
     }
 
     const current = viewportRef.current;
-    const remaining = Math.log(goal.zoom / current.zoom);
+    // 목표도 지금의 한계로 다시 묶는다. 목표는 휠을 굴린 순간의 한계로 잘렸는데, 활공
+    // 도중 캔버스 크기가 바뀌면 한계가 목표 아래로 내려올 수 있다 — 그러면 실제 배율은
+    // 한계에 붙박이고 남은 거리는 상수로 남아, 영원히 끝나지 않는 프레임 루프가 된다.
+    const goalZoom = clampZoomTo(goal.zoom, fitZoomRef.current);
+    const remaining = Math.log(goalZoom / current.zoom);
     // 남은 거리가 한 프레임 몫도 안 되면 목표에 딱 맞추고 끝낸다 — 안 그러면 영원히
     // 0에 수렴하며 매 프레임 리렌더한다.
     const done = Math.abs(remaining) < 0.004;
-    const nextZoom = done ? goal.zoom : current.zoom * Math.exp(remaining * ZOOM_GLIDE);
+    const nextZoom = done ? goalZoom : current.zoom * Math.exp(remaining * ZOOM_GLIDE);
 
     setViewport(zoomAroundPoint(
       current,
@@ -250,6 +184,9 @@ export function useUniverseViewport({
     ),
     onPanResponderGrant: (event, gesture) => {
       const touches = event.nativeEvent.touches ?? [];
+      // 손이 개입하면 휠 활공은 끝이다 — 안 멈추면 매 프레임 활공이 pan을 덮어써서
+      // 끌어도 제자리로 돌아오고, 배율이 계속 되돌려져 활공이 영영 수렴하지 못한다.
+      stopGlideRef.current?.();
       measureContainer();
       gestureStartRef.current = {
         viewport: viewportRef.current,

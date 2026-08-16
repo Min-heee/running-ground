@@ -490,7 +490,10 @@ function UniverseSceneComponent({
 
   // 렌더 중에 요청하지 않는다 — 부탁 목록만 모아두고 커밋 후에 보낸다. 목록은 매 렌더 새
   // 배열이라, 내용이 같으면 effect가 다시 돌지 않게 문자열로 묶어 비교한다.
-  const neededKey = needed.join('|');
+  // revision을 같이 넣는 이유: 요청 목록이 그대로여도(같은 노드를 계속 원해도) 저장소 쪽에서
+  // 무언가 바뀌면 다시 두드려야 한다. 특히 한 번 실패한 노드는 잠깐 쉬었다 다시 받아야 하는데,
+  // 목록이 안 변하면 이 effect가 영영 다시 돌지 않아 그 지역만 영구히 비어 있었다.
+  const neededKey = `${needed.join('|')}@${revision}`;
   const neededRef = useRef(needed);
   neededRef.current = needed;
 

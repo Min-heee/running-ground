@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
   AdditiveBlending,
@@ -51,11 +51,16 @@ void main() {
 }
 `;
 
+// 재질은 색과 세기가 바뀔 때만 새로 만들고, 매 프레임 달라지는 페이드는 **유니폼만** 고친다.
+//
+// 페이드는 화면 크기·깊이에서 나오는 연속값이라 의존성에 넣으면 확대·이동하는 내내 프레임마다
+// 새 ShaderMaterial이 만들어진다. 그 재질들은 아무도 정리하지 않아 GPU 프로그램과 유니폼이
+// 그대로 쌓인다.
 function useAtmosphereMaterial(color: string, strength: number, fade: number) {
-  return useMemo(() => new ShaderMaterial({
+  const material = useMemo(() => new ShaderMaterial({
     uniforms: {
       uColor: { value: new Color(color) },
-      uStrength: { value: strength * fade * 0.45 },
+      uStrength: { value: 0 },
     },
     vertexShader: ATMOSPHERE_VERTEX,
     fragmentShader: ATMOSPHERE_FRAGMENT,
@@ -64,7 +69,13 @@ function useAtmosphereMaterial(color: string, strength: number, fade: number) {
     blending: AdditiveBlending,
     // 안쪽 면을 그려야 구 뒤쪽 가장자리가 앞으로 비쳐 테두리가 완성된다.
     side: BackSide,
-  }), [color, fade, strength]);
+  }), [color]);
+
+  material.uniforms.uStrength.value = strength * fade * 0.45;
+
+  useEffect(() => () => material.dispose(), [material]);
+
+  return material;
 }
 
 function PlanetBody({
