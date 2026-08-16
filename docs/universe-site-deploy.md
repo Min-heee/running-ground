@@ -4,6 +4,24 @@
 독립 웹으로 나간다. 방문자는 로그인 없이 전국 우주를 볼 수 있고, 자기 별을 가지려면
 그때 로그인한다.
 
+## 지금 막히는 지점 (2026-08-16 실측)
+
+배포된 서버를 직접 찔러 확인한 것:
+
+    GET https://api.running-ground.com/api/universe          → 404
+    GET https://api.running-ground.com/api/public/universe   → 404
+    GET https://api.running-ground.com/api/health            → 200 (ACAO 헤더 없음)
+
+즉 두 가지가 동시에 막고 있다.
+
+1. **우주 백엔드가 서버에 아예 없다.** 공개 경로만이 아니라 인증 경로(`/api/universe`)도
+   404다 — 이 기능은 `feat/universe`에만 있고 배포 브랜치에 올라간 적이 없다.
+2. **CORS가 사이트 오리진을 막는다.** `applyCorsHeaders`는 모든 요청 맨 앞에서 도는데
+   `/api/health`에 어떤 오리진을 보내도 `Access-Control-Allow-Origin`이 안 돌아온다.
+   드롭릿의 `BACKEND_CORS_ORIGIN`이 `https://api.running-ground.com` 하나로 잠겨 있다.
+   여기 사이트 오리진이 없으면 브라우저가 요청 자체를 막아서, 화면에는
+   "서버에 연결하지 못했어요"만 뜨고 **서버 로그에는 아무것도 안 남는다.**
+
 ## 지금 상태
 
 - 앱: 우주 탭 제거됨. `app/universe.tsx`는 남아 있고 **공개 라우트**다(rootAuthGate).
