@@ -102,6 +102,7 @@ function GalaxyDiskComponent({
   coreColor,
   armColor,
   highlighted = false,
+  opacity = 1,
 }: {
   radius: number;
   brightness: number;
@@ -110,6 +111,8 @@ function GalaxyDiskComponent({
   coreColor: string;
   armColor: string;
   highlighted?: boolean;
+  // LOD 페이드 — 은하 내부가 드러날수록 원반이 옅어진다.
+  opacity?: number;
 }) {
   const groupRef = useRef<Group>(null);
 
@@ -151,7 +154,7 @@ function GalaxyDiskComponent({
           map={getGlowTexture()}
           color={new Color(coreColor)}
           transparent
-          opacity={0.5 + 0.45 * brightness}
+          opacity={(0.5 + 0.45 * brightness) * opacity}
           depthWrite={false}
           blending={AdditiveBlending}
         />
@@ -164,7 +167,7 @@ function GalaxyDiskComponent({
             map={getStarPointTexture()}
             vertexColors
             transparent
-            opacity={0.55 + 0.45 * brightness}
+            opacity={(0.55 + 0.45 * brightness) * opacity}
             depthWrite={false}
             blending={AdditiveBlending}
             sizeAttenuation={false}
@@ -176,7 +179,7 @@ function GalaxyDiskComponent({
       {highlighted ? (
         <mesh>
           <ringGeometry args={[radius * 1.5, radius * 1.62, 64]} />
-          <meshBasicMaterial color="#FFFFFF" transparent opacity={0.85} depthWrite={false} />
+          <meshBasicMaterial color="#FFFFFF" transparent opacity={0.85 * opacity} depthWrite={false} />
         </mesh>
       ) : null}
     </group>

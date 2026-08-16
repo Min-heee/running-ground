@@ -33,6 +33,8 @@ export type SkyOrb = {
   brightness: number;
   palette: 'group' | 'galaxy' | 'planet' | 'star' | 'protostar';
   highlighted?: boolean;
+  // LOD 교차 페이드 (0~1). 생략하면 1 — 기존 호출부는 그대로 동작한다.
+  opacity?: number;
 };
 
 // 은하·은하군은 파티클 원반이라 구체 팔레트와 색 규칙이 다르다(핵 → 팔 그라데이션).
@@ -189,6 +191,12 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
   const glowColor = new Color(colors.glow);
 
   // 은하·은하군은 발광체가 아니라 수천 개 별이 모인 구조물이다 — 구체 대신 원반을 그린다.
+  const fade = orb.opacity ?? 1;
+
+  if (fade <= 0.02) {
+    return null;
+  }
+
   if (orb.palette === 'galaxy' || orb.palette === 'group') {
     const disk = DISK_COLORS[orb.palette];
     // 문자열 id를 안정적인 시드로 — 같은 지역은 항상 같은 기울기·회전을 갖는다.
@@ -199,6 +207,7 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
         <GalaxyDisk
           radius={radius * 2.1}
           brightness={orb.brightness}
+          opacity={fade}
           kind={orb.palette}
           seed={seed}
           coreColor={disk.core}
@@ -218,7 +227,7 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
           map={getGlowTexture()}
           color={glowColor}
           transparent
-          opacity={0.45 + 0.5 * orb.brightness}
+          opacity={(0.45 + 0.5 * orb.brightness) * fade}
           depthWrite={false}
           blending={AdditiveBlending}
         />
@@ -234,6 +243,8 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
             emissiveIntensity={colors.emissive * (0.1 + 0.28 * orb.brightness)}
             roughness={0.72}
             metalness={0.02}
+            transparent={fade < 1}
+            opacity={fade}
           />
         </mesh>
       </group>

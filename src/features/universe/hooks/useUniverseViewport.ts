@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Platform } from 'react-native';
 
+import { UNIVERSE_MAX_ZOOM, UNIVERSE_MIN_ZOOM } from '@/features/universe/utils/universeLod';
+
 // 우주 뷰포트 — 확대/축소와 이동 (오너 2026-08-15: "확대할수록 항성·행성에 가까워지게").
 //
 // 하나의 상태를 3D 레이어와 RN 레이블 레이어가 **같이** 쓴다. 두 레이어가 각자 변환을 갖는
@@ -10,8 +12,9 @@ import { PanResponder, Platform } from 'react-native';
 //   screen = (base - center) * zoom + center + pan
 // 3D는 같은 식을 group scale=zoom, position=[panX, -panY]로 표현한다(부호는 y축 반전 때문).
 
-export const UNIVERSE_MIN_ZOOM = 0.6;
-export const UNIVERSE_MAX_ZOOM = 12;
+// 배율 한계는 LOD 문턱들과 같은 파일(universeLod)에 산다 — 두 벌이 되면 "확대해도 안
+// 들어가지는" 조합이 조용히 생긴다. 여기서는 다시 내보내기만 한다.
+export { UNIVERSE_MAX_ZOOM, UNIVERSE_MIN_ZOOM } from '@/features/universe/utils/universeLod';
 
 export type UniverseViewport = {
   zoom: number;
@@ -63,6 +66,13 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
 
   const apply = useCallback((next: UniverseViewport) => {
     setViewport(next);
+  }, []);
+
+  // 직전 값에서 이어서 계산해야 하는 변화(휠처럼 한 프레임에 여러 번 들어오는 것)는 반드시
+  // 함수형으로 — ref를 읽으면 같은 프레임의 이벤트가 전부 같은 시작값을 써서 대부분이 삼켜진다
+  // (트랙패드로 빠르게 굴리면 확대가 거의 안 되던 증상).
+  const step = useCallback((reduce: (previous: UniverseViewport) => UniverseViewport) => {
+    setViewport(reduce);
   }, []);
 
   // 특정 지점으로 날아간다 — 검색 결과나 '내 행성으로'가 쓸 진입점.
@@ -144,11 +154,13 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
       const rect = node.getBoundingClientRect?.() ?? { left: 0, top: 0 };
       // 휠 한 칸을 배율로 — 지수라 어느 배율에서도 체감이 같다.
       const factor = Math.exp(-wheel.deltaY * 0.0016);
-      apply(zoomAroundPoint(
-        viewportRef.current,
-        viewportRef.current.zoom * factor,
-        wheel.clientX - rect.left,
-        wheel.clientY - rect.top,
+      const anchorX = wheel.clientX - rect.left;
+      const anchorY = wheel.clientY - rect.top;
+      step((previous) => zoomAroundPoint(
+        previous,
+        previous.zoom * factor,
+        anchorX,
+        anchorY,
         centerX,
         centerY,
       ));
@@ -156,7 +168,7 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
 
     node.addEventListener('wheel', handleWheel, { passive: false });
     return () => node.removeEventListener?.('wheel', handleWheel);
-  }, [apply, centerX, centerY]);
+  }, [centerX, centerY, step]);
 
   return {
     viewport,
