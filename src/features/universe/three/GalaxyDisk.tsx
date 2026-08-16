@@ -82,7 +82,14 @@ function buildDiskGeometry({
     // 두께는 화면 깊이 방향(z)으로만 — 원반이 화면과 나란해 정면으로 보인다.
     positions[index * 3 + 2] = scatterZ * flatten;
 
-    mixed.copy(coreColor).lerp(armColor, Math.min(1, distance / radius));
+    const reach = Math.min(1, distance / radius);
+    // 가장자리는 서서히 꺼진다. 밀도만으로 끝을 내면 반지름에서 딱 잘려서, 멀어져 점들이
+    // 한 덩어리로 뭉쳤을 때 은하가 아니라 **오려낸 회색 원**으로 보인다 — 테두리가 눈에
+    // 보이는 순간 그건 천체가 아니라 도형이다 (오너 2026-08-17: "중앙에 빛이 모여서 유독
+    // 밝은 건가?"). 점 하나하나를 어둡게 하는 편이 밀도를 건드리는 것보다 매끄럽다.
+    const rim = 1 - Math.max(0, (reach - 0.5) / 0.5) ** 1.7;
+
+    mixed.copy(coreColor).lerp(armColor, reach).multiplyScalar(rim);
     colors[index * 3] = mixed.r;
     colors[index * 3 + 1] = mixed.g;
     colors[index * 3 + 2] = mixed.b;
@@ -176,7 +183,7 @@ function GalaxyDiskComponent({
           map={getGlowTexture()}
           color={new Color(coreColor)}
           transparent
-          opacity={(0.3 + 0.32 * brightness) * opacity}
+          opacity={(0.22 + 0.26 * brightness) * opacity}
           depthWrite={false}
           blending={AdditiveBlending}
         />
