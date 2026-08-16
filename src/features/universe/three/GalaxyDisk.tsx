@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
   AdditiveBlending,
@@ -134,7 +134,16 @@ function GalaxyDiskComponent({
     [armColor, coreColor, count, kind, radius, seed],
   );
 
-  // 기울기 — 정면(-PI/2)에서 조금 틀어 원반이 타원으로 보이게. 시드로 은하마다 다르게.
+  // 파티클 버퍼는 우리가 만들었으므로 우리가 치운다. r3f는 prop으로 받은 geometry를
+  // 정리해 주지 않아서(Points에는 dispose가 없다), 확대하며 원반이 수백 번 생겼다 사라지는
+  // 이 화면에서는 GPU 버퍼가 그대로 쌓인다.
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  // 기울기 — 정면에서 조금 틀어 원반이 타원으로 보이게. 시드로 은하마다 다르게.
+  //
+  // 회전이 아니라 **납작하게 눌러서** 만든다. 실제로 기울이면 원반의 y 폭이 깊이(z)로
+  // 들어가고, 장면 전체가 배율(최대 수백 배)로 확대되면서 카메라의 near/far 밖으로 밀려나
+  // 통째로 잘려 나간다. 직교 투영이라 눌러도 보이는 모양은 같다.
   const tilt = useMemo(() => {
     const random = seeded(seed + 977);
     // 0.35~0.85 rad(20~49°) — 원반이 타원으로 보이되 선으로 찌그러지지 않는 범위.
@@ -150,15 +159,17 @@ function GalaxyDiskComponent({
   });
 
   return (
-    <group rotation={[tilt, 0, yaw]}>
-      {/* 핵 — 원반 중심의 밝은 덩어리. 이게 없으면 팔만 떠 있어 은하로 안 읽힌다. */}
+    <group rotation={[0, 0, yaw]} scale={[1, Math.cos(tilt), 1]}>
+      {/* 핵 — 원반 중심의 밝은 덩어리. 이게 없으면 팔만 떠 있어 은하로 안 읽힌다.
+          너무 크게 잡으면 알파가 거의 0인 면적이 화면을 덮은 채 매 프레임 가산 합성으로
+          다시 칠해진다 — 눈엔 안 보이고 비용만 든다. */}
       <mesh>
-        <planeGeometry args={[radius * 2.6, radius * 2.6]} />
+        <planeGeometry args={[radius * 1.7, radius * 1.7]} />
         <meshBasicMaterial
           map={getGlowTexture()}
           color={new Color(coreColor)}
           transparent
-          opacity={(0.5 + 0.45 * brightness) * opacity}
+          opacity={(0.62 + 0.38 * brightness) * opacity}
           depthWrite={false}
           blending={AdditiveBlending}
         />

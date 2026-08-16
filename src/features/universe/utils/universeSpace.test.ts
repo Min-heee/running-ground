@@ -7,8 +7,11 @@ import {
   cloudOpacity,
   labelOpacity,
   placeChildren,
+  fitZoomFor,
   resolveProgress,
-  rootRadiusFor,
+  UNIVERSE_MAX_ZOOM_FACTOR,
+  UNIVERSE_MIN_ZOOM_FACTOR,
+  UNIVERSE_ROOT_RADIUS,
   zoomToFrame,
 } from './universeSpace';
 
@@ -96,8 +99,28 @@ test('풀려도 뭉침의 흔적은 남고, 이름은 먼저 물러난다', () =
   assert.equal(labelOpacity(1), 0);
 });
 
-test('화면 크기 계산: 최상위는 화면에 들어차고, 겨냥한 천체는 화면을 채운다', () => {
-  assert.ok(rootRadiusFor(1280, 434) < 434 / 2);
+test('세계 크기는 화면과 무관하다 — 화면이 바뀌어도 좌표가 움직이면 안 된다', () => {
+  // 이게 화면에서 나오면, 키보드가 올라오거나 기기를 돌리는 순간 모든 천체가 한꺼번에
+  // 다시 계산되는데 카메라는 그대로라, 보고 있던 것이 화면 밖으로 날아간다.
+  const small = placeChildren({ x: 0, y: 0, radius: UNIVERSE_ROOT_RADIUS }, [2, 1, 1, 1]);
+  const large = placeChildren({ x: 0, y: 0, radius: UNIVERSE_ROOT_RADIUS }, [2, 1, 1, 1]);
+  assert.deepEqual(small, large);
+
+  // 화면에 맞추는 일은 배율이 한다.
+  const fit = fitZoomFor(390, 620);
+  assert.ok(UNIVERSE_ROOT_RADIUS * fit < 390 / 2);
+  assert.ok(UNIVERSE_ROOT_RADIUS * fit > 390 / 2 - 40);
+  // 크기를 못 재는 순간(레이아웃 전)에도 안전한 값이 나와야 한다.
+  assert.equal(fitZoomFor(0, 0), 1);
+});
+
+test('배율 한계는 배수로 잰다 — 어느 화면에서도 체감이 같게', () => {
+  assert.ok(UNIVERSE_MIN_ZOOM_FACTOR < 1);
+  // 나라에서 한 사람까지 4겹을 파고들 만큼은 되어야 한다.
+  assert.ok(UNIVERSE_MAX_ZOOM_FACTOR > 200);
+});
+
+test('겨냥한 천체는 화면을 채운다', () => {
   const radius = 3;
   const zoom = zoomToFrame(radius, 390, 600);
   assert.ok(radius * zoom > 100 && radius * zoom < 195);

@@ -12,7 +12,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandLoadingView } from '@/components/BrandLoadingView';
 import { StateMessageCard } from '@/components/ui/StateMessageCard';
-import { UniverseScene, type SceneBody } from '@/features/universe/components/UniverseScene';
+import {
+  UniverseScene,
+  type SceneBody,
+  type UniverseSceneControls,
+} from '@/features/universe/components/UniverseScene';
 import { useUniverseTree } from '@/features/universe/hooks/useUniverseTree';
 import {
   UNIVERSE_SEARCH_MIN_LENGTH,
@@ -33,7 +37,7 @@ export default function UniverseScreen() {
   const [selected, setSelected] = useState<SceneBody | null>(null);
   const [focused, setFocused] = useState<SceneBody | null>(null);
   // 장면이 좌표 계산을 맡는다 — 화면은 "이 경로로 데려가 줘"라고만 부탁한다.
-  const flyToRef = useRef<((path: string[], userId?: string) => boolean) | null>(null);
+  const controlsRef = useRef<UniverseSceneControls | null>(null);
 
   const handleCanvasLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -47,7 +51,7 @@ export default function UniverseScreen() {
     const path = await tree.ensurePath(nodeId);
 
     if (path) {
-      flyToRef.current?.(path, userId);
+      controlsRef.current?.flyTo(path, userId);
     }
   }, [tree]);
 
@@ -64,6 +68,11 @@ export default function UniverseScreen() {
     }
   }, [flyTo, tree.me]);
 
+  const handleResetView = useCallback(() => {
+    setSelected(null);
+    controlsRef.current?.reset();
+  }, []);
+
   const hasCanvas = canvas.width > 0 && canvas.height > 0;
   // 아래 카드는 고른 것을 먼저 보여주고, 아무것도 안 골랐으면 지금 화면 한가운데의 것을 보여준다.
   const shown = selected ?? focused;
@@ -73,11 +82,17 @@ export default function UniverseScreen() {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <Text style={styles.title}>우주</Text>
-          {tree.me?.galaxyNodeId ? (
-            <Pressable onPress={handleWarp} hitSlop={8} style={styles.warpButton}>
-              <Text style={styles.warpLabel}>내 행성으로</Text>
+          <View style={styles.headerActions}>
+            {/* 끌다가 우주 밖으로 나가면 돌아올 길이 이것뿐이다 — 그래서 항상 떠 있다. */}
+            <Pressable onPress={handleResetView} hitSlop={8} style={styles.ghostButton}>
+              <Text style={styles.ghostLabel}>전체 보기</Text>
             </Pressable>
-          ) : null}
+            {tree.me?.galaxyNodeId ? (
+              <Pressable onPress={handleWarp} hitSlop={8} style={styles.warpButton}>
+                <Text style={styles.warpLabel}>내 행성으로</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
       </View>
 
@@ -155,7 +170,7 @@ export default function UniverseScreen() {
             selectedKey={selected?.key ?? null}
             onSelect={setSelected}
             onFocusChange={setFocused}
-            flyToRef={flyToRef}
+            controlsRef={controlsRef}
           />
         ) : null}
       </View>
@@ -205,6 +220,20 @@ const styles = StyleSheet.create({
     color: 'rgba(242, 246, 255, 0.98)',
     fontSize: 24,
     fontWeight: '700',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  ghostButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  ghostLabel: {
+    color: 'rgba(158, 186, 240, 0.9)',
+    fontSize: 12,
+    fontWeight: '600',
   },
   warpButton: {
     paddingHorizontal: 12,

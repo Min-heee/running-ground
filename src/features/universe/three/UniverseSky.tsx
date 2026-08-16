@@ -194,6 +194,8 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
     }
   });
 
+  const screenDiameter = orb.screenDiameter ?? orb.diameter;
+  const sphereSegments = screenDiameter > 130 ? 32 : screenDiameter > 44 ? 20 : 12;
   const glowScale = radius * (orb.palette === 'star' ? 13 : 8.5);
   const coreColor = new Color(colors.core);
   const glowColor = new Color(colors.glow);
@@ -211,7 +213,7 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
     const seed = Array.from(orb.id).reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 2147483647, 7);
     // 점 크기는 화면 기준. 작게 보일 때 점까지 작으면 은하가 사라지고, 크게 볼 때 점이 크면
     // 별이 아니라 물감 덩어리가 된다.
-    const pointSize = Math.max(1.1, Math.min(3.4, (orb.screenDiameter ?? orb.diameter) * 0.017));
+    const pointSize = Math.max(1.1, Math.min(3.4, screenDiameter * 0.017));
 
     return (
       <group position={[worldX, worldY, 0]}>
@@ -263,10 +265,12 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
         />
       </mesh>
 
-      {/* 본체 — 방향광이 만드는 명암 경계선이 '원'을 '구'로 읽히게 하는 핵심이다. */}
+      {/* 본체 — 방향광이 만드는 명암 경계선이 '원'을 '구'로 읽히게 하는 핵심이다.
+          면 수는 화면 크기를 따라간다: 몇 픽셀짜리 점에 정점 1089개를 쓰면 한 화면에 수백
+          개가 뜨는 이 우주에서는 그것만으로 프레임이 무너진다. */}
       <group ref={groupRef}>
         <mesh>
-          <sphereGeometry args={[radius, 32, 32]} />
+          <sphereGeometry args={[radius, sphereSegments, sphereSegments]} />
           <meshStandardMaterial
             color={coreColor}
             emissive={coreColor}
@@ -290,8 +294,7 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
       {/* 항성은 스스로 주변을 밝힌다 — 옆 행성에 실제로 빛이 닿는다.
           가까이 왔을 때만 켠다: 전국의 항성이 전부 광원이 되면 셰이더가 광원 수마다 다시
           컴파일되고 프레임이 무너진다. 멀리 있는 항성은 후광만으로도 충분히 항성으로 읽힌다. */}
-      {(orb.palette === 'star' || orb.palette === 'protostar')
-        && (orb.screenDiameter ?? orb.diameter) >= 44 ? (
+      {(orb.palette === 'star' || orb.palette === 'protostar') && screenDiameter >= 44 ? (
           <pointLight color={coreColor} intensity={orb.palette === 'star' ? 260 : 120} distance={520} decay={2} />
         ) : null}
     </group>

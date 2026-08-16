@@ -24,22 +24,31 @@ const SINGLE_CHILD_RADIUS = 0.55;
 // 크기 차이는 보이되 큰 쪽이 이웃을 삼키지는 않게: 상한의 55~100% 사이에서만 논다.
 const SIZE_FLOOR = 0.55;
 
-// 배율 범위. 위쪽이 이렇게 큰 건 이 공간이 4겹이기 때문이다 — 나라를 화면에 담은 상태에서
-// 한 사람의 행성까지 가려면 수백 배가 필요하다. 아래쪽은 나라 전체가 하나의 성단으로 뭉쳐
-// 보이는 자리다.
-export const UNIVERSE_MIN_ZOOM = 0.32;
-export const UNIVERSE_MAX_ZOOM = 420;
+// 우주의 크기는 **고정**이다. 화면 크기로 정하면 안 된다: 키보드가 올라오거나 검색 목록이
+// 펼쳐지거나 기기를 돌리는 순간 모든 좌표가 한꺼번에 다시 계산되는데 카메라는 그대로라,
+// 보고 있던 천체가 아무 동작 없이 화면 밖 수천 픽셀로 날아간다. 화면에 맞추는 일은 카메라가
+// (배율로) 한다 — 세계는 가만히 있는다.
+export const UNIVERSE_ROOT_RADIUS = 1000;
+
+// 배율은 '나라 전체가 화면에 꽉 차는 배율'의 배수로 잰다. 화면 크기가 바뀌어도 이 배수는
+// 그대로라 체감이 같다.
+export const UNIVERSE_MIN_ZOOM_FACTOR = 0.35;
+// 위쪽이 이렇게 큰 건 이 공간이 4겹이기 때문이다 — 나라를 담은 상태에서 한 사람의 행성까지
+// 가려면 수백 배가 필요하다.
+export const UNIVERSE_MAX_ZOOM_FACTOR = 600;
+
+// 나라 전체가 화면에 들어차는 배율.
+export function fitZoomFor(canvasWidth: number, canvasHeight: number): number {
+  const half = Math.min(canvasWidth, canvasHeight) / 2;
+
+  return half > 0 ? (half * 0.92) / UNIVERSE_ROOT_RADIUS : 1;
+}
 
 export type SpacePlacement = {
   x: number;
   y: number;
   radius: number;
 };
-
-// 대한민국(최상위)의 반지름 — 처음 열었을 때 화면에 딱 들어차는 크기.
-export function rootRadiusFor(canvasWidth: number, canvasHeight: number): number {
-  return (Math.min(canvasWidth, canvasHeight) / 2) * 0.92;
-}
 
 // 자식들을 부모 원 안에 앉힌다. 호출자는 큰 것부터 정렬해서 넘긴다.
 //

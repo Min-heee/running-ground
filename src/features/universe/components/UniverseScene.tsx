@@ -14,7 +14,7 @@ import {
   labelOpacity,
   placeChildren,
   resolveProgress,
-  rootRadiusFor,
+  UNIVERSE_ROOT_RADIUS,
   zoomToFrame,
   type SpacePlacement,
 } from '@/features/universe/utils/universeSpace';
@@ -31,14 +31,32 @@ import type { UniverseBody, UniversePlanet } from '@/lib/api/types';
 // 이보다 작게 보이면 나선 대신 발광 스프라이트 한 장으로 그린다 — 이 크기에서는 어차피
 // 점으로 뭉개지고, 한 화면에 수백 개가 떠 있을 수 있다.
 const DISK_MIN_SCREEN_RADIUS = 13;
-// 누를 수 있는 최소 크기.
+// 행성도 마찬가지다. 이보다 작으면 구체(정점 1089개)를 만들 이유가 없다 — 몇 픽셀짜리
+// 점에 조명을 계산하는 셈이라, 한 화면에 수백 개가 뜨면 그것만으로 프레임이 무너진다.
+const SPHERE_MIN_SCREEN_RADIUS = 7;
+// 실제로 그려지는 범위는 천체 반지름보다 훨씬 넓다(후광·나선 팔이 몇 배로 퍼진다). 잘라낼
+// 때 이 배수만큼 여유를 두지 않으면, 화면 밖으로 나가는 순간 팔과 후광이 통째로 사라져
+// 가장자리에서 툭툭 끊긴다.
+const CULL_FOOTPRINT_SCALE = 7;
+// 누를 수 있는 최소 크기와, 그 상한. 상한이 없으면 화면을 덮은 거대한 천체의 터치 영역이
+// 빈 하늘까지 삼켜 아무 데나 눌러도 그리로 날아간다.
 const MIN_TOUCH_RADIUS = 18;
+const MAX_TOUCH_RADIUS = 72;
 // 한 프레임에 그리는 천체 수 상한 — 배율에 따라 수천 개가 후보가 될 수 있다.
 const MAX_BODIES = 520;
-// 이름표 크기(겹침 판정용).
+// 이름표 크기. LABEL_BOX_WIDTH는 실제로 그려지는 상자의 폭(가장 긴 지역명이 안 잘리는
+// 크기), 나머지 둘은 겹침 판정에 쓰는 어림값 — 이름 길이에 따라 실제 차지하는 폭이 다르다.
+const LABEL_BOX_WIDTH = 116;
 const LABEL_CHAR_WIDTH = 12;
-const LABEL_MAX_WIDTH = 96;
+const LABEL_MAX_WIDTH = 108;
 const LABEL_HEIGHT = 28;
+
+export type UniverseSceneControls = {
+  // 경로대로 날아간다. 조상 데이터가 아직이면 false — 호출자가 채운 뒤 다시 부른다.
+  flyTo: (path: string[], userId?: string) => boolean;
+  // 나라 전체가 보이는 처음 자리로. 끌다가 우주 밖으로 나갔을 때의 유일한 귀환 수단이다.
+  reset: () => void;
+};
 
 export type SceneBody = {
   key: string;
@@ -115,7 +133,7 @@ function UniverseSceneComponent({
   selectedKey,
   onSelect,
   onFocusChange,
-  flyToRef,
+  controlsRef,
 }: {
   rootId: string | null;
   entryFor: (nodeId: string) => TreeEntry | null;
@@ -128,18 +146,18 @@ function UniverseSceneComponent({
   onSelect: (body: SceneBody | null) => void;
   // 화면 한가운데를 품은 가장 깊은 천체 — 아래 카드가 "지금 어디인지"를 보여준다.
   onFocusChange: (body: SceneBody | null) => void;
-  // 검색·워프가 좌표를 모른 채 "이 경로로 데려가 줘"라고 부탁하는 통로.
-  flyToRef?: { current: ((path: string[], userId?: string) => boolean) | null };
+  // 화면 위쪽 버튼들이 카메라를 부리는 통로 — 검색 착지, '내 행성으로', 처음 자리로.
+  controlsRef?: { current: UniverseSceneControls | null };
 }) {
   const {
     viewport,
     focusOn,
+    reset,
     panHandlers,
     containerRef,
     onContainerLayout,
   } = useUniverseViewport({ width, height });
 
-  const rootRadius = rootRadiusFor(width, height);
   const centerX = width / 2;
   const centerY = height / 2;
   const { zoom, panX, panY } = viewport;
@@ -200,11 +218,12 @@ function UniverseSceneComponent({
 
       const screenX = toScreenX(placement.x);
       const screenY = toScreenY(placement.y);
+      const footprint = screenRadius * CULL_FOOTPRINT_SCALE;
 
-      return screenX + screenRadius >= 0
-        && screenX - screenRadius <= width
-        && screenY + screenRadius >= 0
-        && screenY - screenRadius <= height;
+      return screenX + footprint >= 0
+        && screenX - footprint <= width
+        && screenY + footprint >= 0
+        && screenY - footprint <= height;
     };
 
     const visitPlanet = (planet: UniversePlanet, placement: SpacePlacement, depth: number) => {
@@ -232,7 +251,7 @@ function UniverseSceneComponent({
         depth,
         opacity: 1,
         nameOpacity: 1,
-        shape: 'sphere',
+        shape: screenRadius >= SPHERE_MIN_SCREEN_RADIUS ? 'sphere' : 'glow',
         palette: paletteForPlanet(planet),
         brightness: planet.brightness,
         isMine: planet.isMine,
@@ -264,7 +283,11 @@ function UniverseSceneComponent({
       // 큰 것부터 — placeChildren이 첫째를 한가운데에 앉히므로 순서가 곧 배치다. 동점은
       // id로 갈라 매 렌더 같은 자리에 오게 한다(순서가 흔들리면 별이 자리를 바꿔 튄다).
       const children = entry ? sortedChildren(entry) : [];
-      const progress = children.length > 0 ? resolveProgress(screenRadius) : 0;
+      // 안이 아직 안 왔으면 옅어지다 만다 — 다 왔다는 듯 사라졌다가 자식이 도착하는 순간
+      // 화면이 튀는 대신, 절반쯤 흐려진 채 기다리다 자연스럽게 이어진다.
+      const progress = children.length > 0
+        ? resolveProgress(screenRadius)
+        : resolveProgress(screenRadius) * 0.35;
 
       push({
         key: `node:${nodeId}`,
@@ -342,7 +365,7 @@ function UniverseSceneComponent({
         isMine: false,
         averageDistanceKm: rootEntry.node.averageDistanceKm,
       },
-      placement: { x: 0, y: 0, radius: rootRadius },
+      placement: { x: 0, y: 0, radius: UNIVERSE_ROOT_RADIUS },
       depth: 0,
     });
 
@@ -361,7 +384,7 @@ function UniverseSceneComponent({
     }
 
     return { bodies: collected, needed: wanted, focused: deepestAtCenter as SceneBody | null };
-  }, [centerX, centerY, entryFor, height, revision, rootId, rootRadius, toScreenX, toScreenY, width, zoom]);
+  }, [centerX, centerY, entryFor, height, revision, rootId, toScreenX, toScreenY, width, zoom]);
 
   // 렌더 중에 요청하지 않는다 — 부탁 목록만 모아두고 커밋 후에 보낸다. 목록은 매 렌더 새
   // 배열이라, 내용이 같으면 effect가 다시 돌지 않게 문자열로 묶어 비교한다.
@@ -393,7 +416,7 @@ function UniverseSceneComponent({
       return false;
     }
 
-    let placement: SpacePlacement = { x: 0, y: 0, radius: rootRadiusFor(width, height) };
+    let placement: SpacePlacement = { x: 0, y: 0, radius: UNIVERSE_ROOT_RADIUS };
     let currentId = rootId;
 
     // 배치와 **같은 순서**로 재구성해야 한다 — 정렬이 어긋나면 엉뚱한 천체 앞에 착지한다.
@@ -415,21 +438,18 @@ function UniverseSceneComponent({
       currentId = nextId;
     }
 
+    // 사람까지 찍어 왔다면 그 행성 앞에 선다. 다만 못 찾아도 실패로 끝내지 않는다: 백엔드는
+    // 한 은하에 그릴 행성 수를 제한하고 나머지를 성운으로 접는데(universeBuilder의
+    // PLANET_RENDER_CAP), 검색은 명부 전체를 뒤지므로 접힌 사람이 결과로 나올 수 있다.
+    // 그때 아무 일도 안 일어나면 검색이 고장 난 것처럼 보인다 — 적어도 그 동네까지는 간다.
     if (userId) {
       const entry = entryFor(currentId);
-
-      if (!entry) {
-        return false;
-      }
-
-      const siblings = sortedChildren(entry);
+      const siblings = entry ? sortedChildren(entry) : [];
       const index = siblings.findIndex((child) => 'userId' in child && child.userId === userId);
 
-      if (index < 0) {
-        return false;
+      if (index >= 0) {
+        placement = placeChildren(placement, siblings.map((child) => child.scale))[index];
       }
-
-      placement = placeChildren(placement, siblings.map((child) => child.scale))[index];
     }
 
     focusOn(placement.x, placement.y, zoomToFrame(placement.radius, width, height));
@@ -437,16 +457,17 @@ function UniverseSceneComponent({
   }, [entryFor, focusOn, height, rootId, width]);
 
   useEffect(() => {
-    if (flyToRef) {
-      flyToRef.current = flyTo;
+    if (controlsRef) {
+      controlsRef.current = { flyTo, reset };
     }
 
     return () => {
-      if (flyToRef) {
-        flyToRef.current = null;
+      if (controlsRef) {
+        controlsRef.current = null;
       }
     };
-  }, [flyTo, flyToRef]);
+  }, [controlsRef, flyTo, reset]);
+
 
   const orbs = useMemo<SkyOrb[]>(() => bodies.map((body) => ({
     id: body.key,
@@ -470,7 +491,7 @@ function UniverseSceneComponent({
       candidates.map((body) => ({
         id: body.key,
         centerX: body.screenX,
-        top: body.screenY + body.screenRadius + 4,
+        top: body.screenY + Math.min(body.screenRadius, MAX_TOUCH_RADIUS) + 4,
         width: labelWidthFor(body.name),
         height: LABEL_HEIGHT,
       })),
@@ -520,39 +541,53 @@ function UniverseSceneComponent({
         panY={panY}
       />
 
+      {/* 누를 자리 — 천체 위에 얹는 투명한 상자. 이름과 분리해 둔다: 예전엔 이름이 이 상자
+          안에 들어 있어서 상자 폭에 맞춰 잘렸고, 작은 천체는 '서울특별시'가 '서울…'이 됐다. */}
       {touchable.map((body) => {
-        const touchRadius = Math.max(MIN_TOUCH_RADIUS, body.screenRadius);
-        const showLabel = labelledKeys.has(body.key);
+        const touchRadius = Math.min(
+          MAX_TOUCH_RADIUS,
+          Math.max(MIN_TOUCH_RADIUS, body.screenRadius),
+        );
 
         return (
           <Pressable
             key={body.key}
             onPress={() => handlePress(body)}
             style={[
-              styles.slot,
+              styles.touch,
               {
                 width: touchRadius * 2,
+                height: touchRadius * 2,
                 left: body.screenX - touchRadius,
                 top: body.screenY - touchRadius,
               },
             ]}
-          >
-            {/* 천체는 3D 레이어가 그린다 — 여기는 누를 자리와 이름만. */}
-            <View style={{ height: touchRadius * 2 }} pointerEvents="none" />
-            {showLabel ? (
-              <View style={[styles.label, { opacity: body.nameOpacity }]} pointerEvents="none">
-                <Text style={styles.name} numberOfLines={1}>
-                  {body.name}
-                  {body.stars > 0 ? ` ★${body.stars}` : ''}
-                </Text>
-                <Text style={styles.detail} numberOfLines={1}>
-                  {body.detail}
-                </Text>
-              </View>
-            ) : null}
-          </Pressable>
+          />
         );
       })}
+
+      {labelled.map((body) => (
+        <View
+          key={`label:${body.key}`}
+          style={[
+            styles.label,
+            {
+              left: body.screenX - LABEL_BOX_WIDTH / 2,
+              top: body.screenY + Math.min(body.screenRadius, MAX_TOUCH_RADIUS) + 4,
+              opacity: body.nameOpacity,
+            },
+          ]}
+          pointerEvents="none"
+        >
+          <Text style={styles.name} numberOfLines={1}>
+            {body.name}
+            {body.stars > 0 ? ` ★${body.stars}` : ''}
+          </Text>
+          <Text style={styles.detail} numberOfLines={1}>
+            {body.detail}
+          </Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -562,13 +597,13 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
-  slot: {
+  touch: {
     position: 'absolute',
-    alignItems: 'center',
   },
   label: {
+    position: 'absolute',
+    width: LABEL_BOX_WIDTH,
     alignItems: 'center',
-    marginTop: 2,
   },
   name: {
     color: 'rgba(238, 244, 255, 0.94)',

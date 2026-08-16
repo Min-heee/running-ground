@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Platform } from 'react-native';
 
-import { UNIVERSE_MAX_ZOOM, UNIVERSE_MIN_ZOOM } from '@/features/universe/utils/universeSpace';
+import {
+  fitZoomFor,
+  UNIVERSE_MAX_ZOOM_FACTOR,
+  UNIVERSE_MIN_ZOOM_FACTOR,
+} from '@/features/universe/utils/universeSpace';
 
 // 우주 뷰포트 — 확대/축소와 이동.
 //
@@ -14,18 +18,17 @@ import { UNIVERSE_MAX_ZOOM, UNIVERSE_MIN_ZOOM } from '@/features/universe/utils/
 //
 // 확대는 그저 카메라를 가까이 가져갈 뿐이다 — 어떤 문턱도, 층 전환도 여기엔 없다.
 
-export { UNIVERSE_MAX_ZOOM, UNIVERSE_MIN_ZOOM } from '@/features/universe/utils/universeSpace';
-
 export type UniverseViewport = {
   zoom: number;
   panX: number;
   panY: number;
 };
 
-const IDENTITY: UniverseViewport = { zoom: 1, panX: 0, panY: 0 };
-
-function clampZoom(zoom: number): number {
-  return Math.min(UNIVERSE_MAX_ZOOM, Math.max(UNIVERSE_MIN_ZOOM, zoom));
+function clampZoomTo(zoom: number, fitZoom: number): number {
+  return Math.min(
+    fitZoom * UNIVERSE_MAX_ZOOM_FACTOR,
+    Math.max(fitZoom * UNIVERSE_MIN_ZOOM_FACTOR, zoom),
+  );
 }
 
 // 한 점(앵커)을 화면에 고정한 채 배율만 바꾼다 — 커서/손가락 아래가 안 밀리는 확대.
@@ -36,8 +39,9 @@ export function zoomAroundPoint(
   anchorY: number,
   centerX: number,
   centerY: number,
+  fitZoom: number,
 ): UniverseViewport {
-  const nextZoom = clampZoom(nextZoomRaw);
+  const nextZoom = clampZoomTo(nextZoomRaw, fitZoom);
   const ratio = nextZoom / viewport.zoom;
 
   // 앵커의 화면 위치가 불변이 되도록 pan을 역산한다.
@@ -54,7 +58,15 @@ function touchDistance(touches: { pageX: number; pageY: number }[]): number {
 }
 
 export function useUniverseViewport({ width, height }: { width: number; height: number }) {
-  const [viewport, setViewport] = useState<UniverseViewport>(IDENTITY);
+  // 화면에 나라가 꽉 차는 배율. 화면이 바뀌면 이 값도 바뀌지만, **이미 정해진 배율·이동은
+  // 건드리지 않는다** — 세계 좌표는 화면과 무관하므로 보고 있던 자리가 그대로 있어야 한다.
+  // 이 값은 처음 배율과 한계를 정하는 데만 쓴다.
+  const fitZoom = fitZoomFor(width, height);
+  const fitZoomRef = useRef(fitZoom);
+  fitZoomRef.current = fitZoom;
+  const [viewport, setViewport] = useState<UniverseViewport>(
+    () => ({ zoom: fitZoomFor(width, height), panX: 0, panY: 0 }),
+  );
   // 제스처 중에는 렌더마다 최신 값이 필요하다 — state는 비동기라 ref로 같이 들고 간다.
   const viewportRef = useRef(viewport);
   viewportRef.current = viewport;
@@ -81,7 +93,10 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
     });
   }, []);
 
-  const reset = useCallback(() => setViewport(IDENTITY), []);
+  // 처음 자리로 — 나라 전체가 화면에 들어차는 배율, 중앙.
+  const reset = useCallback(() => {
+    setViewport({ zoom: fitZoomRef.current, panX: 0, panY: 0 });
+  }, []);
 
   const apply = useCallback((next: UniverseViewport) => {
     setViewport(next);
@@ -96,7 +111,7 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
 
   // 우주 좌표의 한 점을 화면 한가운데로 가져온다 — 검색 착지·'내 행성으로'·천체 두 번 누르기.
   const focusOn = useCallback((targetX: number, targetY: number, zoom: number) => {
-    const nextZoom = clampZoom(zoom);
+    const nextZoom = clampZoomTo(zoom, fitZoomRef.current);
     setViewport({
       zoom: nextZoom,
       panX: -targetX * nextZoom,
@@ -107,7 +122,14 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => false,
     // 살짝의 흔들림은 탭으로 남긴다 — 천체를 누르는 동작을 뺏지 않기 위해.
-    onMoveShouldSetPanResponder: (_event, gesture) => Math.hypot(gesture.dx, gesture.dy) > 6,
+    //
+    // 다만 손가락이 둘이면 흔들림과 무관하게 곧바로 가져온다. RN의 dx/dy는 움직인 터치들의
+    // **중점** 이동량이라, 좌우로 고르게 벌리는 전형적인 핀치에서는 두 손가락의 변화가 서로
+    // 상쇄돼 dx/dy가 0 근처에 머문다 — 문턱을 못 넘어 확대가 통째로 무시되고, 손을 떼면
+    // 그 아래 천체의 탭으로 처리되던 버그가 여기서 나왔다.
+    onMoveShouldSetPanResponder: (event, gesture) => (
+      (event.nativeEvent.touches ?? []).length >= 2 || Math.hypot(gesture.dx, gesture.dy) > 6
+    ),
     onPanResponderGrant: (event, gesture) => {
       const touches = event.nativeEvent.touches ?? [];
       measureContainer();
@@ -154,6 +176,7 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
           anchorY,
           centerX,
           centerY,
+          fitZoomRef.current,
         ));
         return;
       }
@@ -191,8 +214,9 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
       const wheel = event as unknown as { deltaY: number; clientX: number; clientY: number; preventDefault: () => void };
       wheel.preventDefault();
       const rect = node.getBoundingClientRect?.() ?? { left: 0, top: 0 };
-      // 휠 한 칸을 배율로 — 지수라 어느 배율에서도 체감이 같다.
-      const factor = Math.exp(-wheel.deltaY * 0.0016);
+      // 휠 한 칸을 배율로 — 지수라 어느 배율에서도 체감이 같다. 나라에서 한 사람까지가
+      // 600배라, 한 칸이 너무 작으면 끝까지 가는 데 서른 번을 굴려야 한다.
+      const factor = Math.exp(-wheel.deltaY * 0.0026);
       const anchorX = wheel.clientX - rect.left;
       const anchorY = wheel.clientY - rect.top;
       step((previous) => zoomAroundPoint(
@@ -202,6 +226,7 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
         anchorY,
         centerX,
         centerY,
+        fitZoomRef.current,
       ));
     };
 

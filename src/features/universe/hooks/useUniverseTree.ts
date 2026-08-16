@@ -23,6 +23,8 @@ import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionE
 const UNIVERSE_INITIAL_FETCH_DEFER_MS = 120;
 // 동시에 날리는 요청 수 — 한 배율에서 여러 은하가 동시에 풀리므로 상한이 없으면 몰린다.
 const MAX_IN_FLIGHT = 4;
+// 실패한 노드를 다시 열어 보기까지 쉬는 시간.
+const RETRY_AFTER_FAILURE_MS = 6000;
 
 export type TreeEntry = {
   node: UniverseNode;
@@ -46,7 +48,8 @@ export function useUniverseTree() {
   const entriesRef = useRef(new Map<string, TreeEntry>());
   const inFlightRef = useRef(new Set<string>());
   const queueRef = useRef<string[]>([]);
-  const failedRef = useRef(new Set<string>());
+  // 실패한 노드 → 다시 시도해도 되는 시각.
+  const failedRef = useRef(new Map<string, number>());
   const [rootId, setRootId] = useState<string | null>(null);
   const [me, setMe] = useState<UniverseMe | null>(null);
   const [loading, setLoading] = useState(true);
@@ -80,9 +83,13 @@ export function useUniverseTree() {
           bump();
         })
         .catch(() => {
-          // 한 가지를 못 받아도 우주는 계속 돈다. 다만 무한 재시도는 막는다 — 확대할 때마다
-          // 같은 실패를 다시 부르면 네트워크가 끊긴 채로 요청 폭풍이 된다.
-          failedRef.current.add(nodeId);
+          // 한 가지를 못 받아도 우주는 계속 돈다. 다만 곧바로 다시 부르지는 않는다 — 확대할
+          // 때마다 같은 실패를 반복하면 네트워크가 끊긴 채 요청 폭풍이 된다.
+          //
+          // 영구 차단도 안 된다: 터널을 지나는 동안 한 번 실패했다고 그 지역이 앱을 껐다 켤
+          // 때까지 영영 안 열리면, 사용자에겐 "저 은하만 고장 난" 우주가 된다. 잠깐 쉬었다
+          // 다시 열어 준다.
+          failedRef.current.set(nodeId, Date.now() + RETRY_AFTER_FAILURE_MS);
         })
         .finally(() => {
           inFlightRef.current.delete(nodeId);
@@ -93,10 +100,19 @@ export function useUniverseTree() {
 
   // 화면이 "이 안이 필요하다"고 알려주는 통로. 렌더 중에 불려도 안전해야 한다(상태를 안 만짐).
   const request = useCallback((nodeId: string) => {
+    const retryAt = failedRef.current.get(nodeId);
+
+    if (retryAt !== undefined) {
+      if (Date.now() < retryAt) {
+        return;
+      }
+
+      failedRef.current.delete(nodeId);
+    }
+
     if (
       entriesRef.current.has(nodeId)
       || inFlightRef.current.has(nodeId)
-      || failedRef.current.has(nodeId)
       || queueRef.current.includes(nodeId)
     ) {
       return;
