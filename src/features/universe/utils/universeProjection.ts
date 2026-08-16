@@ -64,8 +64,13 @@ export function projectPoint(
   // pan은 화면 픽셀 단위의 카메라 이동이다. 초점면에서 예전과 같은 양만큼 움직이도록
   // 우주 단위로 되돌린 뒤(÷zoom) 다시 이 천체의 배율로 투영한다 — 그래서 가까운 것이
   // 먼 것보다 더 많이 흐른다(시차).
+  //
+  // 두 축의 부호는 **같다**. 화면 좌표계의 y가 아래로 증가한다는 사실은 이미 배치가 그렇게
+  // 만들어져 있어서(우주 y도 아래가 +) 여기서 다시 뒤집으면 안 된다. 한쪽만 뒤집혀 있던
+  // 동안 x는 정확히 가운데에 오는데 y만 수십만 픽셀 밖으로 나갔다 — '내 행성으로'가 허공에
+  // 내려앉고, 확대해도 겨눈 곳으로 안 가지던 것이 전부 이 한 글자였다.
   const camX = -camera.panX / camera.zoom;
-  const camY = camera.panY / camera.zoom;
+  const camY = -camera.panY / camera.zoom;
 
   return {
     screenX: canvasWidth / 2 + (x - camX) * scale,
@@ -95,7 +100,7 @@ export function panToHold(
 
   return {
     panX: ((anchorScreenX - canvasWidth / 2) / scale - target.x) * camera.zoom,
-    panY: (target.y - (anchorScreenY - canvasHeight / 2) / scale) * camera.zoom,
+    panY: ((anchorScreenY - canvasHeight / 2) / scale - target.y) * camera.zoom,
   };
 }
 
@@ -109,6 +114,6 @@ export function unprojectOnFocalPlane(
 ): { x: number; y: number } {
   return {
     x: (screenX - canvasWidth / 2) / camera.zoom - camera.panX / camera.zoom,
-    y: (screenY - canvasHeight / 2) / camera.zoom + camera.panY / camera.zoom,
+    y: (screenY - canvasHeight / 2) / camera.zoom - camera.panY / camera.zoom,
   };
 }

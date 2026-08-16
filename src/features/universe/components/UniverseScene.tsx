@@ -183,20 +183,32 @@ function UniverseSceneComponent({
   // 일이 되려면 카메라가 어느 깊이로 들어가야 하는지 알아야 한다.
   const bodiesRef = useRef<SceneBody[]>([]);
   const depthAt = useCallback((screenX: number, screenY: number) => {
-    let best: SceneBody | null = null;
-    let bestGap = Number.POSITIVE_INFINITY;
+    let inside: SceneBody | null = null;
+    let nearest: SceneBody | null = null;
+    let nearestGap = Number.POSITIVE_INFINITY;
 
     for (const body of bodiesRef.current) {
-      // 천체 표면까지의 거리 — 안에 있으면 음수라 자연스럽게 우선한다. 정확히 그 위를
-      // 겨눴을 때만 쳐주면 빈 하늘을 확대할 때 카메라가 제자리에 멈춰 원근이 어긋난다.
-      // 가장 가까운 것을 향해서라도 계속 나아가야 한다.
-      const gap = Math.hypot(body.screenX - screenX, body.screenY - screenY) - body.screenRadius;
+      const distance = Math.hypot(body.screenX - screenX, body.screenY - screenY);
 
-      if (gap < bestGap - 1 || (best !== null && Math.abs(gap - bestGap) <= 1 && body.depth > best.depth)) {
-        bestGap = Math.min(bestGap, gap);
-        best = body;
+      // 겨눈 점을 품은 것 중 **가장 깊은** 것이 목표다.
+      //
+      // 표면까지의 거리로 고르면 안 된다: 화면을 통째로 덮은 조상(나라·시도)은 거리가 크게
+      // 음수라 언제나 이기고, 그러면 확대할 때마다 카메라가 그 조상의 깊이로 도로 끌려간다.
+      // "확대해도 중간에 안 가진다"가 정확히 이 증상이었다.
+      if (distance <= body.screenRadius && (!inside || body.depth > inside.depth)) {
+        inside = body;
+      }
+
+      const gap = distance - body.screenRadius;
+
+      if (gap < nearestGap) {
+        nearestGap = gap;
+        nearest = body;
       }
     }
+
+    // 아무것도 품고 있지 않으면(빈 하늘) 가장 가까운 것을 향해서라도 나아간다.
+    const best = inside ?? nearest;
 
     return best ? { x: best.x, y: best.y, z: best.universeZ } : null;
   }, []);
@@ -331,8 +343,16 @@ function UniverseSceneComponent({
     ) => {
       const projected = project(placement.x, placement.y, placement.z);
       const screenRadius = placement.radius * projected.scale;
+      // 카메라 **뒤**에 있는 것과 화면 **밖**에 있는 것은 전혀 다르다.
+      //
+      // 화면 밖이면 그 안의 것들도 화면 밖이니 가지 전체를 건너뛰어도 된다. 하지만 카메라가
+      // 그 천체를 지나쳐 안으로 들어간 경우(=뒤에 있는 경우)는 그 안의 것들이 바로 눈앞에
+      // 있다. 둘을 같이 잘라내는 바람에, 파고들면 지나친 부모와 함께 자식들까지 통째로
+      // 사라져 허공만 남았다 — '내 행성으로'가 빈 공간에 내려놓던 것도 같은 이유다.
+      const behindCamera = !projected.visible;
 
-      if (!projected.visible || !isVisible(projected.screenX, projected.screenY, screenRadius)) {
+
+      if (!behindCamera && !isVisible(projected.screenX, projected.screenY, screenRadius)) {
         return;
       }
 
@@ -350,11 +370,15 @@ function UniverseSceneComponent({
       const children = entry ? sortedChildren(entry) : [];
       // 안이 아직 안 왔으면 옅어지다 만다 — 다 왔다는 듯 사라졌다가 자식이 도착하는 순간
       // 화면이 튀는 대신, 절반쯤 흐려진 채 기다리다 자연스럽게 이어진다.
-      const progress = children.length > 0
-        ? resolveProgress(screenRadius)
-        : resolveProgress(screenRadius) * 0.35;
+      const progress = behindCamera
+        // 이미 지나쳐 들어온 것은 완전히 풀린 상태다 — 그 안이 지금 눈앞에 있다.
+        ? 1
+        : children.length > 0
+          ? resolveProgress(screenRadius)
+          : resolveProgress(screenRadius) * 0.35;
 
-      push({
+      if (!behindCamera) {
+        push({
         key: `node:${nodeId}`,
         nodeId,
         planet: null,
@@ -379,9 +403,11 @@ function UniverseSceneComponent({
         shape: 'disk',
         palette: paletteForRegion(meta.level),
         brightness: meta.brightness,
-        isMine: meta.isMine,
-        stars: meta.stars,
-      });
+          isMine: meta.isMine,
+          stars: meta.stars,
+        });
+      }
+
 
       if (progress <= 0 || children.length === 0) {
         return;
@@ -591,7 +617,6 @@ function UniverseSceneComponent({
       .sort((left, right) => left.depth - right.depth);
   }, [bodies, labelled, selectedKey]);
 
-  const labelledKeys = useMemo(() => new Set(labelled.map((body) => body.key)), [labelled]);
 
   const handlePress = useCallback((body: SceneBody) => {
     // 한 번 누르면 정보, 이미 고른 것을 다시 누르면 그리로 날아간다.
