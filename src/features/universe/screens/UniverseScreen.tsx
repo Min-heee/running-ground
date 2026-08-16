@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   BackHandler,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   type LayoutChangeEvent,
 } from 'react-native';
@@ -14,7 +16,11 @@ import { StateMessageCard } from '@/components/ui/StateMessageCard';
 import { ConstellationView } from '@/features/universe/components/ConstellationView';
 import { GalaxyView } from '@/features/universe/components/GalaxyView';
 import { useUniverse } from '@/features/universe/hooks/useUniverse';
-import type { UniverseBody, UniversePlanet } from '@/lib/api/types';
+import {
+  UNIVERSE_SEARCH_MIN_LENGTH,
+  useUniverseSearch,
+} from '@/features/universe/hooks/useUniverseSearch';
+import type { UniverseBody, UniversePlanet, UniverseSearchResult } from '@/lib/api/types';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
 
 // 우주는 테마와 무관하게 항상 어둡다 — 라이트 모드라고 흰 우주를 그릴 수는 없어서, 이
@@ -34,14 +40,15 @@ export default function UniverseScreen() {
     warpToMyGalaxy,
     retry,
   } = useUniverse();
+  const search = useUniverseSearch();
   const [canvas, setCanvas] = useState({ width: 0, height: 0 });
-  const [selectedPlanet, setSelectedPlanet] = useState<UniversePlanet | null>(null);
+  // 선택은 '어느 은하에서 고른 것인지'와 함께 들고 있는다. 층이 바뀔 때 effect로 비우면,
+  // 검색 착지가 자식 effect에서 고른 행성을 부모 effect가 곧바로 지워버린다(자식 → 부모 순).
+  const [selection, setSelection] = useState<{ nodeId?: string; planet: UniversePlanet } | null>(null);
+  const [focusUserId, setFocusUserId] = useState<string | null>(null);
 
   const currentNodeId = universe?.node.id;
-
-  useEffect(() => {
-    setSelectedPlanet(null);
-  }, [currentNodeId]);
+  const selectedPlanet = selection && selection.nodeId === currentNodeId ? selection.planet : null;
 
   // 안드로이드 물리 뒤로가기 = 한 층 줌아웃. 최상위(은하단)에서는 앱 기본 동작에 넘긴다.
   useEffect(() => {
@@ -68,8 +75,19 @@ export default function UniverseScreen() {
   }, [goBack]);
 
   const handleSelectPlanet = useCallback((planet: UniversePlanet) => {
-    setSelectedPlanet((previous) => (previous?.userId === planet.userId ? null : planet));
-  }, []);
+    setSelection((previous) => (previous?.planet.userId === planet.userId && previous.nodeId === currentNodeId
+      ? null
+      : { nodeId: currentNodeId, planet }));
+  }, [currentNodeId]);
+
+  const handleFocusHandled = useCallback(() => setFocusUserId(null), []);
+
+  // 검색 결과 착지 — 그 사람의 은하를 열고, 그 안에서 행성을 조준하게 표시를 남긴다.
+  const handleSelectSearchResult = useCallback((result: UniverseSearchResult) => {
+    setFocusUserId(result.userId);
+    search.clear();
+    openNode(result.galaxyNodeId);
+  }, [openNode, search]);
 
   const hasCanvas = canvas.width > 0 && canvas.height > 0;
 
@@ -102,6 +120,54 @@ export default function UniverseScreen() {
         </View>
       </View>
 
+      <View style={styles.searchRow}>
+        <TextInput
+          value={search.query}
+          onChangeText={search.setQuery}
+          placeholder="러너 이름으로 찾기"
+          placeholderTextColor="rgba(150, 170, 210, 0.6)"
+          style={styles.searchInput}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+        />
+        {search.query.length > 0 ? (
+          <Pressable onPress={search.clear} hitSlop={10} style={styles.searchClear}>
+            <Text style={styles.searchClearLabel}>지우기</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      {search.query.trim().length >= UNIVERSE_SEARCH_MIN_LENGTH ? (
+        <View style={styles.searchPanel}>
+          {search.error ? (
+            <Text style={styles.searchNotice}>{search.error}</Text>
+          ) : search.results.length === 0 ? (
+            <Text style={styles.searchNotice}>
+              {search.searching ? '찾는 중…' : '그런 이름의 러너가 없어요'}
+            </Text>
+          ) : (
+            <ScrollView style={styles.searchList} keyboardShouldPersistTaps="handled">
+              {search.results.map((result) => (
+                <Pressable
+                  key={result.userId}
+                  onPress={() => handleSelectSearchResult(result)}
+                  style={styles.searchItem}
+                >
+                  <Text style={styles.searchName} numberOfLines={1}>
+                    {result.userName}
+                    {result.isMine ? ' · 나' : ''}
+                  </Text>
+                  <Text style={styles.searchMeta} numberOfLines={1}>
+                    {result.regionPath} · 이번 달 {result.monthDistanceKm}km
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      ) : null}
+
       <View style={styles.canvasWrap} onLayout={handleCanvasLayout}>
         {loading ? <BrandLoadingView style={styles.loading} edges={[]} /> : null}
 
@@ -125,6 +191,9 @@ export default function UniverseScreen() {
               height={canvas.height}
               onSelectPlanet={handleSelectPlanet}
               onAscend={canGoBack ? handleAscend : undefined}
+              focusUserId={focusUserId}
+              onFocusHandled={handleFocusHandled}
+              selectedUserId={selectedPlanet?.userId ?? null}
             />
           ) : (
             <ConstellationView
@@ -232,6 +301,65 @@ const styles = StyleSheet.create({
     color: 'rgba(238, 244, 255, 0.98)',
     fontSize: 13,
     fontWeight: '700',
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: 38,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(122, 152, 220, 0.13)',
+    borderWidth: 1,
+    borderColor: 'rgba(140, 170, 235, 0.22)',
+    color: 'rgba(240, 246, 255, 0.98)',
+    fontSize: 13,
+  },
+  searchClear: {
+    paddingHorizontal: 4,
+  },
+  searchClearLabel: {
+    color: 'rgba(158, 186, 240, 0.9)',
+    fontSize: 12,
+  },
+  // 캔버스 위에 겹치지 않고 그 위쪽에 자리를 차지한다 — 목록을 스크롤하다 우주를
+  // 끌어버리는 제스처 충돌을 원천에서 없앤다.
+  searchPanel: {
+    marginTop: 6,
+    marginHorizontal: 16,
+    borderRadius: 14,
+    backgroundColor: 'rgba(18, 24, 44, 0.96)',
+    borderWidth: 1,
+    borderColor: 'rgba(140, 170, 235, 0.22)',
+    overflow: 'hidden',
+  },
+  searchList: {
+    maxHeight: 208,
+  },
+  searchItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 2,
+  },
+  searchName: {
+    color: 'rgba(240, 246, 255, 0.98)',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  searchMeta: {
+    color: 'rgba(170, 190, 225, 0.78)',
+    fontSize: 11,
+  },
+  searchNotice: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: 'rgba(170, 190, 225, 0.78)',
+    fontSize: 12,
   },
   canvasWrap: {
     flex: 1,

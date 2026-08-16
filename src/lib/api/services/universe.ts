@@ -8,6 +8,7 @@ import type {
   UniverseBody,
   UniverseLevel,
   UniverseResponse,
+  UniverseSearchResponse,
 } from '../types';
 
 import {
@@ -135,5 +136,55 @@ export async function fetchUniverse(nodeId?: string): Promise<UniverseResponse> 
   return apiGet<UniverseResponse>(`/universe${query}`, {
     accessToken: await requireAccessToken(),
     fallbackMessage: '우주를 불러오지 못했어요.',
+  });
+}
+
+// 목 전용 검색 — 지역 트리의 리프를 돌며 buildMockGalaxy가 만드는 이름들에서 찾는다.
+// 진짜 명부는 백엔드에만 있다(lib/universeSearch.mjs).
+function searchMockUniverse(query: string): UniverseSearchResponse {
+  const normalized = query.trim().toLowerCase().replace(/\s+/g, '');
+
+  if (normalized.length < 2) {
+    return { query: normalized, results: [] };
+  }
+
+  const results: UniverseSearchResponse['results'] = [];
+  const visit = (node: typeof regionDrilldownTree, trail: string[]) => {
+    if (isRegionLeafLevel(node.level as never)) {
+      for (const planet of buildMockGalaxy(node).planets) {
+        if (planet.userName.toLowerCase().replace(/\s+/g, '').includes(normalized)) {
+          results.push({
+            userId: planet.userId,
+            userName: planet.userName,
+            galaxyNodeId: node.id,
+            galaxyName: node.name,
+            regionPath: [...trail, node.name].join(' · '),
+            monthDistanceKm: planet.monthDistanceKm,
+            isMine: planet.isMine,
+          });
+        }
+      }
+
+      return;
+    }
+
+    for (const child of node.children ?? []) {
+      visit(child as typeof regionDrilldownTree, node.level === 'country' ? trail : [...trail, node.name]);
+    }
+  };
+
+  visit(regionDrilldownTree, []);
+
+  return { query: normalized, results: results.slice(0, 12) };
+}
+
+export async function searchUniverse(query: string): Promise<UniverseSearchResponse> {
+  if (USE_MOCK_API) {
+    return searchMockUniverse(query);
+  }
+
+  return apiGet<UniverseSearchResponse>(`/universe/search?q=${encodeURIComponent(query)}`, {
+    accessToken: await requireAccessToken(),
+    fallbackMessage: '검색하지 못했어요.',
   });
 }

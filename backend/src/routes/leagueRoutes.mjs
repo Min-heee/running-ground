@@ -10,6 +10,7 @@ export async function routeLeagueRequest({
   buildRegionLeagueReadPayload,
   buildTodayRankingReadPayload,
   buildUniverseReadPayload,
+  buildUniverseSearchReadPayload,
 }) {
   if (pathname === '/api/league/district-personal' && method === 'GET') {
     sendJson(
@@ -22,6 +23,12 @@ export async function routeLeagueRequest({
 
   if (pathname === '/api/league/regions' && method === 'GET') {
     sendJson(response, 200, await buildRegionLeagueReadPayload(request, url.searchParams.get('nodeId') ?? undefined));
+    return true;
+  }
+
+  // 더 구체적인 경로가 먼저 — '/api/universe'가 먼저 걸리면 검색이 영영 안 잡힌다.
+  if (pathname === '/api/universe/search' && method === 'GET') {
+    sendJson(response, 200, await buildUniverseSearchReadPayload(request, url.searchParams.get('q') ?? ''));
     return true;
   }
 

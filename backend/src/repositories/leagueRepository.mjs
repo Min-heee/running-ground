@@ -17,6 +17,7 @@ import {
 import { ensureUserRankState } from '../lib/userStoreHelpers.mjs';
 import { LP_PER_TIER, RANK_TIERS } from '../lib/rankSystem.mjs';
 import { buildUniverse } from '../lib/universeBuilder.mjs';
+import { searchUniverse } from '../lib/universeSearch.mjs';
 
 // The region drill is capped at three levels (country -> province -> city).
 // Any node at the city level (시/군) is treated as a leaf, so its sub-regions
@@ -345,6 +346,21 @@ export function createJsonLeagueRepository({
         nodeId,
         getUserMetrics,
         createError,
+      });
+    },
+
+    // 이름으로 러너 찾기 — 목적지 은하만 돌려준다. 봉인 스윕을 태우지 않는 이유: 검색은
+    // 타자 한 글자마다 들어오는 경로라 매번 스윕을 돌리면 저장소 쓰기가 폭주한다. 항성
+    // 표시는 여기서 안 쓰므로 늦은 봉인이 결과를 틀리게 만들지도 않는다.
+    async searchUniverse({ token, query }) {
+      const store = await loadStore();
+      const user = requireUserByToken(store, token);
+
+      return searchUniverse({
+        store,
+        query,
+        currentUserId: user.id,
+        getUserMetrics,
       });
     },
 

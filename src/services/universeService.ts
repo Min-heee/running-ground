@@ -1,1 +1,1 @@
-export { fetchUniverse } from '@/lib/api/services/universe';
+export { fetchUniverse, searchUniverse } from '@/lib/api/services/universe';

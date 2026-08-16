@@ -72,6 +72,24 @@ export type UniverseMe = {
   galaxyName: string | null;
 };
 
+// 검색 결과 — 좌표가 아니라 '어느 은하로 가야 하나'만 온다. 좌표는 화면 크기·회원 수마다
+// 달라져 서버가 알 수 없다 (백엔드 lib/universeSearch.mjs).
+export type UniverseSearchResult = {
+  userId: string;
+  userName: string;
+  galaxyNodeId: string;
+  galaxyName: string;
+  // '서울특별시 · 송파구' — 같은 이름의 동네를 구분해서 읽히게.
+  regionPath: string;
+  monthDistanceKm: number;
+  isMine: boolean;
+};
+
+export type UniverseSearchResponse = {
+  query: string;
+  results: UniverseSearchResult[];
+};
+
 export type UniverseResponse = {
   level: UniverseLevel;
   node: UniverseNode;

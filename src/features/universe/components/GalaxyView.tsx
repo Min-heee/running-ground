@@ -26,11 +26,16 @@ import type { UniverseGalaxy, UniversePlanet } from '@/lib/api/types';
 const PLANET_BASE_DIAMETER = 20;
 const STAR_DIAMETER = 40;
 const PLANET_SLOT_WIDTH = 84;
+// 검색으로 날아왔을 때의 배율 — 그 행성이 주인공으로 보이되 이웃도 화면에 남는 정도.
+const SEARCH_FOCUS_ZOOM = 2.4;
 
-function PlanetLabel({ planet }: { planet: UniversePlanet }) {
-  // 이름을 다 띄우면 회원이 늘수록 글자밭이 된다 — 항성·원시성·나만 이름을 달고
-  // 나머지는 눌러서 확인한다.
-  if (!planet.isMine && !planet.isStar && !planet.isProtostar) {
+function PlanetLabel({ planet, selected }: { planet: UniversePlanet; selected: boolean }) {
+  // 이름을 다 띄우면 회원이 늘수록 글자밭이 된다 — 항성·원시성·나, 그리고 지금 고른 행성만
+  // 이름을 달고 나머지는 눌러서 확인한다.
+  //
+  // 고른 행성이 이름을 달아야 하는 이유: 검색해서 날아오면 도착지가 이름 없는 점 하나라
+  // 아래 카드의 이름과 화면의 어느 구슬이 같은 사람인지 알 방법이 없었다.
+  if (!selected && !planet.isMine && !planet.isStar && !planet.isProtostar) {
     return null;
   }
 
@@ -50,14 +55,22 @@ function GalaxyViewComponent({
   height,
   onSelectPlanet,
   onAscend,
+  focusUserId,
+  onFocusHandled,
+  selectedUserId,
 }: {
   galaxy: UniverseGalaxy;
   width: number;
   height: number;
   onSelectPlanet: (planet: UniversePlanet) => void;
   onAscend?: () => void;
+  // 검색으로 지목된 행성 — 한 번 날아가서 조준한다.
+  focusUserId?: string | null;
+  onFocusHandled?: () => void;
+  // 지금 카드에 떠 있는 행성 — 화면에서도 같은 것이 지목돼 있어야 짝이 맞는다.
+  selectedUserId?: string | null;
 }) {
-  const { viewport, panHandlers, webWheelRef } = useUniverseViewport({ width, height });
+  const { viewport, focusOn, panHandlers, webWheelRef } = useUniverseViewport({ width, height });
 
   // 항성은 궤도에 앉지 않는다 — 중심이 항성의 자리다.
   const centerPlanets = useMemo(
@@ -106,7 +119,7 @@ function GalaxyViewComponent({
       diameter,
       brightness: Math.max(0.75, planet.brightness),
       palette: 'star' as const,
-      highlighted: planet.isMine,
+      highlighted: planet.isMine || planet.userId === selectedUserId,
     })),
     ...placed.map(({ planet, x, y, diameter }) => ({
       id: planet.userId,
@@ -115,15 +128,35 @@ function GalaxyViewComponent({
       diameter,
       brightness: planet.brightness,
       palette: planet.isProtostar ? ('protostar' as const) : ('planet' as const),
-      highlighted: planet.isMine,
+      highlighted: planet.isMine || planet.userId === selectedUserId,
     })),
-  ], [placed, placedStars]);
+  ], [placed, placedStars, selectedUserId]);
 
   // screen = (base - center) * zoom + center + pan — UniverseSky의 group 변환과 같은 식.
   const project = (baseX: number, baseY: number) => ({
     x: (baseX - width / 2) * viewport.zoom + width / 2 + viewport.panX,
     y: (baseY - height / 2) * viewport.zoom + height / 2 + viewport.panY,
   });
+
+  // 검색 착지 — 지목된 행성을 화면 중앙으로 데려오고 정보 카드를 띄운다. 한 번만 날아간다:
+  // 착지 후 사용자가 이동·축소한 걸 다시 끌어당기면 화면이 손에서 빠져나간다.
+  const flownToRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusUserId || flownToRef.current === focusUserId) {
+      return;
+    }
+
+    const target = [...placedStars, ...placed].find(({ planet }) => planet.userId === focusUserId);
+
+    if (!target) {
+      return;
+    }
+
+    flownToRef.current = focusUserId;
+    focusOn(target.x, target.y, SEARCH_FOCUS_ZOOM);
+    onSelectPlanet(target.planet);
+    onFocusHandled?.();
+  }, [focusOn, focusUserId, onFocusHandled, onSelectPlanet, placed, placedStars]);
 
   // 축소하면 한 층 위로 — 확대로 들어온 길을 그대로 되짚는다.
   const ascendedRef = useRef(false);
@@ -211,7 +244,7 @@ function GalaxyViewComponent({
               style={{ width: diameter * viewport.zoom, height: diameter * 1.4 * viewport.zoom }}
               pointerEvents="none"
             />
-            <PlanetLabel planet={planet} />
+            <PlanetLabel planet={planet} selected={planet.userId === selectedUserId} />
           </Pressable>
         );
       })}

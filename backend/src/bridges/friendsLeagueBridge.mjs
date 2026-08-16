@@ -229,6 +229,14 @@ export function createFriendsLeagueBridge({
       };
     },
 
+    // 검색도 같은 이유로 JSON 리포 전용 — 목적지 은하가 우주 트리와 어긋나면 안 된다.
+    async searchUniverse({ token, query }) {
+      return {
+        payload: await leagueRepository.searchUniverse({ token, query }),
+        source: 'json',
+      };
+    },
+
     async getTodayRankings({
       store,
       token,

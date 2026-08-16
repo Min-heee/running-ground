@@ -347,6 +347,7 @@ const routeRequest = createApiRouteHandler({
   buildRegionLeagueReadPayload: leagueReadService.buildRegionLeagueReadPayload,
   buildTodayRankingReadPayload: leagueReadService.buildTodayRankingReadPayload,
   buildUniverseReadPayload: leagueReadService.buildUniverseReadPayload,
+  buildUniverseSearchReadPayload: leagueReadService.buildUniverseSearchReadPayload,
   buildMarketOverviewReadPayload,
   buildOfflineRaceHubReadPayload,
   buildCurrentRunReadPayload,
