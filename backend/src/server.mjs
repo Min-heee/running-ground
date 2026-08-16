@@ -348,6 +348,8 @@ const routeRequest = createApiRouteHandler({
   buildTodayRankingReadPayload: leagueReadService.buildTodayRankingReadPayload,
   buildUniverseReadPayload: leagueReadService.buildUniverseReadPayload,
   buildUniverseSearchReadPayload: leagueReadService.buildUniverseSearchReadPayload,
+  buildPublicUniverseReadPayload: leagueReadService.buildPublicUniverseReadPayload,
+  buildPublicUniverseSearchReadPayload: leagueReadService.buildPublicUniverseSearchReadPayload,
   buildMarketOverviewReadPayload,
   buildOfflineRaceHubReadPayload,
   buildCurrentRunReadPayload,

@@ -11,6 +11,8 @@ export async function routeLeagueRequest({
   buildTodayRankingReadPayload,
   buildUniverseReadPayload,
   buildUniverseSearchReadPayload,
+  buildPublicUniverseReadPayload,
+  buildPublicUniverseSearchReadPayload,
 }) {
   if (pathname === '/api/league/district-personal' && method === 'GET') {
     sendJson(
@@ -23,6 +25,17 @@ export async function routeLeagueRequest({
 
   if (pathname === '/api/league/regions' && method === 'GET') {
     sendJson(response, 200, await buildRegionLeagueReadPayload(request, url.searchParams.get('nodeId') ?? undefined));
+    return true;
+  }
+
+  // 로그인 없이 보는 우주 — 사이트 전용 공개 경로. 토큰을 요구하지 않는 유일한 읽기다.
+  if (pathname === '/api/public/universe/search' && method === 'GET') {
+    sendJson(response, 200, await buildPublicUniverseSearchReadPayload(url.searchParams.get('q') ?? ''));
+    return true;
+  }
+
+  if (pathname === '/api/public/universe' && method === 'GET') {
+    sendJson(response, 200, await buildPublicUniverseReadPayload(url.searchParams.get('nodeId') ?? undefined));
     return true;
   }
 

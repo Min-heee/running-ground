@@ -229,6 +229,21 @@ export function createFriendsLeagueBridge({
       };
     },
 
+    // 로그인 없이 보는 우주 — 사이트(universe.running-ground.com)가 쓰는 경로.
+    async getPublicUniverse({ nodeId }) {
+      return {
+        payload: await leagueRepository.getPublicUniverse({ nodeId }),
+        source: 'json',
+      };
+    },
+
+    async searchPublicUniverse({ query }) {
+      return {
+        payload: await leagueRepository.searchPublicUniverse({ query }),
+        source: 'json',
+      };
+    },
+
     // 검색도 같은 이유로 JSON 리포 전용 — 목적지 은하가 우주 트리와 어긋나면 안 된다.
     async searchUniverse({ token, query }) {
       return {

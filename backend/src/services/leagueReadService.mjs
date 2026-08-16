@@ -35,6 +35,17 @@ export function createLeagueReadService({
     return payload;
   }
 
+  // 공개 경로 — request를 받지 않는다. 토큰을 읽을 일이 없다는 걸 서명으로 못 박아 둔다.
+  async function buildPublicUniverseReadPayload(nodeId) {
+    const { payload } = await getFriendsLeagueBridge().getPublicUniverse({ nodeId });
+    return payload;
+  }
+
+  async function buildPublicUniverseSearchReadPayload(query) {
+    const { payload } = await getFriendsLeagueBridge().searchPublicUniverse({ query });
+    return payload;
+  }
+
   async function buildUniverseSearchReadPayload(request, query) {
     const { payload } = await getFriendsLeagueBridge().searchUniverse({
       token: getAccessToken(request),
@@ -64,6 +75,8 @@ export function createLeagueReadService({
     buildRankLeaderboardReadPayload,
     buildRegionLeagueReadPayload,
     buildTodayRankingReadPayload,
+    buildPublicUniverseReadPayload,
+    buildPublicUniverseSearchReadPayload,
     buildUniverseReadPayload,
     buildUniverseSearchReadPayload,
   };

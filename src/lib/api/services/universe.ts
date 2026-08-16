@@ -15,8 +15,8 @@ import {
   capRegionPathDepth,
   findRegionPath,
   isRegionLeafLevel,
-  requireAccessToken,
 } from './_shared';
+import { getAccessToken } from '@/lib/session';
 
 function universeLevelFor(regionLevel: string): UniverseLevel {
   if (isRegionLeafLevel(regionLevel as never)) {
@@ -153,15 +153,24 @@ function buildMockGalaxy(node: { id: string; name: string; participants: number;
   };
 }
 
+// 우주는 로그인 없이도 볼 수 있다 (오너 2026-08-16: 사이트는 공개, 자기 별을 가지려면
+// 로그인). 토큰이 있으면 인증 경로로 — 그래야 '내 별'이 표시된다. 없으면 공개 경로로.
 export async function fetchUniverse(nodeId?: string): Promise<UniverseResponse> {
   if (USE_MOCK_API) {
     return buildMockUniverseResponse(nodeId);
   }
 
   const query = nodeId ? `?nodeId=${encodeURIComponent(nodeId)}` : '';
+  const accessToken = await getAccessToken();
+
+  if (!accessToken) {
+    return apiGet<UniverseResponse>(`/public/universe${query}`, {
+      fallbackMessage: '우주를 불러오지 못했어요.',
+    });
+  }
 
   return apiGet<UniverseResponse>(`/universe${query}`, {
-    accessToken: await requireAccessToken(),
+    accessToken,
     fallbackMessage: '우주를 불러오지 못했어요.',
   });
 }
@@ -210,8 +219,17 @@ export async function searchUniverse(query: string): Promise<UniverseSearchRespo
     return searchMockUniverse(query);
   }
 
-  return apiGet<UniverseSearchResponse>(`/universe/search?q=${encodeURIComponent(query)}`, {
-    accessToken: await requireAccessToken(),
+  const path = `?q=${encodeURIComponent(query)}`;
+  const accessToken = await getAccessToken();
+
+  if (!accessToken) {
+    return apiGet<UniverseSearchResponse>(`/public/universe/search${path}`, {
+      fallbackMessage: '검색하지 못했어요.',
+    });
+  }
+
+  return apiGet<UniverseSearchResponse>(`/universe/search${path}`, {
+    accessToken,
     fallbackMessage: '검색하지 못했어요.',
   });
 }

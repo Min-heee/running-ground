@@ -12,6 +12,9 @@ const PUBLIC_ROUTES = new Set([
   '/account-recovery',
   '/signup',
   '/signup-form',
+  // 우주는 사이트로 나간다 (오너 2026-08-16: "사이트로 내고싶은거여서 앱에는 안넣을거야").
+  // 로그인 없이 전국을 둘러볼 수 있고, 자기 별을 가지려면 그때 로그인한다.
+  '/universe',
 ]);
 
 // /admin is a dev/preview-only deep link. In production the route renders as not-found, so the
@@ -64,7 +67,9 @@ export function useRootAuthGate() {
     };
   }
 
-  if (signedIn && isPublicRoute && pathname !== '/' && pathname !== '/admin') {
+  // 로그인한 사람도 우주에는 그대로 머문다 — 공개 경로지만 '가입 유도 화면'이 아니라
+  // 목적지 그 자체라서, 홈으로 돌려보내면 링크를 눌러 들어온 사람이 우주를 못 본다.
+  if (signedIn && isPublicRoute && pathname !== '/' && pathname !== '/admin' && pathname !== '/universe') {
     return {
       ready,
       redirectHref: '/(tabs)/home' as const,
