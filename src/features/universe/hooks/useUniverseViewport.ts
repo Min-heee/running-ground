@@ -236,6 +236,8 @@ export function useUniverseViewport({ width, height }: { width: number; height: 
 
   return {
     viewport,
+    // 나라가 화면에 꽉 차는 배율 — 화면이 "지금 처음보다 몇 배인지"를 알아야 배경을 물릴 수 있다.
+    fitZoom,
     reset,
     focusOn,
     panHandlers: panResponder.panHandlers,

@@ -151,6 +151,7 @@ function UniverseSceneComponent({
 }) {
   const {
     viewport,
+    fitZoom,
     focusOn,
     reset,
     panHandlers,
@@ -539,6 +540,7 @@ function UniverseSceneComponent({
         zoom={zoom}
         panX={panX}
         panY={panY}
+        zoomFactor={zoom / fitZoom}
       />
 
       {/* 누를 자리 — 천체 위에 얹는 투명한 상자. 이름과 분리해 둔다: 예전엔 이름이 이 상자

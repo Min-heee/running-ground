@@ -17,6 +17,8 @@ import {
   type SceneBody,
   type UniverseSceneControls,
 } from '@/features/universe/components/UniverseScene';
+import { StarBirthOverlay } from '@/features/universe/components/StarBirthOverlay';
+import { useStarBirth } from '@/features/universe/hooks/useStarBirth';
 import { useUniverseTree } from '@/features/universe/hooks/useUniverseTree';
 import {
   UNIVERSE_SEARCH_MIN_LENGTH,
@@ -67,6 +69,17 @@ export default function UniverseScreen() {
       void flyTo(galaxyNodeId, tree.me?.userId);
     }
   }, [flyTo, tree.me]);
+
+  // 처음 여는 사람에게는 별이 만들어지는 걸 보여주고, 연출이 끝나면 그 별 앞에 내려놓는다.
+  const starBirth = useStarBirth({
+    userId: tree.me?.userId,
+    hasGalaxy: Boolean(tree.me?.galaxyNodeId),
+  });
+
+  const handleBirthDone = useCallback(() => {
+    starBirth.finish();
+    handleWarp();
+  }, [handleWarp, starBirth]);
 
   const handleResetView = useCallback(() => {
     setSelected(null);
@@ -173,6 +186,8 @@ export default function UniverseScreen() {
             controlsRef={controlsRef}
           />
         ) : null}
+
+        {starBirth.showing ? <StarBirthOverlay onDone={handleBirthDone} /> : null}
       </View>
 
       <View style={styles.footer}>

@@ -53,6 +53,33 @@ function buildMockUniverseBodies(nodes: { id: string; name: string; level: strin
   }));
 }
 
+// 목에서도 '내 별'이 있어야 한다 — 없으면 '내 행성으로'도, 별 탄생 연출도 개발 중에는
+// 영영 안 나와 눈으로 확인할 수가 없다. buildMockGalaxy가 isMine으로 찍는 4번째 행성과
+// 같은 사람을 가리킨다.
+function mockMe(): UniverseResponse['me'] {
+  const findLeaf = (node: typeof regionDrilldownTree): typeof regionDrilldownTree | null => {
+    if (isRegionLeafLevel(node.level as never)) {
+      return node;
+    }
+
+    for (const child of node.children ?? []) {
+      const leaf = findLeaf(child as typeof regionDrilldownTree);
+
+      if (leaf) {
+        return leaf;
+      }
+    }
+
+    return null;
+  };
+
+  const leaf = findLeaf(regionDrilldownTree);
+
+  return leaf
+    ? { userId: `${leaf.id}-mock-3`, galaxyNodeId: leaf.id, galaxyName: leaf.name }
+    : { userId: 'mock-user', galaxyNodeId: null, galaxyName: null };
+}
+
 function buildMockUniverseResponse(nodeId?: string): UniverseResponse {
   const rawPath = nodeId
     ? (findRegionPath(regionDrilldownTree, nodeId) ?? [regionDrilldownTree])
@@ -79,7 +106,7 @@ function buildMockUniverseResponse(nodeId?: string): UniverseResponse {
       level: universeLevelFor(regionLevel),
     })),
     nationwideAverageDistanceKm: regionDrilldownTree.averageDistanceKm,
-    me: { userId: 'mock-user', galaxyNodeId: null, galaxyName: null },
+    me: mockMe(),
     bodies: level === 'galaxy' ? [] : buildMockUniverseBodies(currentNode.children ?? []),
     galaxy: level === 'galaxy' ? buildMockGalaxy(currentNode) : null,
   };

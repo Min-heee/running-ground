@@ -15,6 +15,7 @@ import {
   getStarPointTexture,
 } from '@/features/universe/three/textures';
 import { GalaxyDisk } from '@/features/universe/three/GalaxyDisk';
+import { CelestialSphere } from '@/features/universe/three/CelestialSphere';
 
 // 3D 우주 레이어 (오너 2026-08-15: "실제 우주처럼"). 겹친 반투명 View로 내던 발광체를
 // 진짜 구체 + 가산합성 후광으로 바꾼다.
@@ -136,7 +137,7 @@ function StarLayer({
 }
 
 // 성운 — 큰 가산합성 판 몇 장을 서로 다른 색·크기·회전으로 겹쳐 구름 덩어리를 만든다.
-function Nebula({ width, height }: { width: number; height: number }) {
+function Nebula({ width, height, fade }: { width: number; height: number; fade: number }) {
   const groupRef = useRef<Group>(null);
   const clouds = useMemo(() => {
     const random = seededRandom(20260815);
@@ -169,7 +170,7 @@ function Nebula({ width, height }: { width: number; height: number }) {
             map={getNebulaTexture()}
             color={new Color(cloud.color)}
             transparent
-            opacity={cloud.opacity}
+            opacity={cloud.opacity * fade}
             depthWrite={false}
             blending={AdditiveBlending}
           />
@@ -185,19 +186,8 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
   const worldX = orb.x - width / 2;
   const worldY = height / 2 - orb.y;
   const radius = orb.diameter / 2;
-  const groupRef = useRef<Group>(null);
-  const spinSpeed = useMemo(() => 0.05 + (orb.id.length % 5) * 0.012, [orb.id]);
-
-  useFrame((_, delta) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y += delta * spinSpeed;
-    }
-  });
-
   const screenDiameter = orb.screenDiameter ?? orb.diameter;
-  const sphereSegments = screenDiameter > 130 ? 32 : screenDiameter > 44 ? 20 : 12;
-  const glowScale = radius * (orb.palette === 'star' ? 13 : 8.5);
-  const coreColor = new Color(colors.core);
+  const glowScale = radius * 8.5;
   const glowColor = new Color(colors.glow);
 
   const fade = orb.opacity ?? 1;
@@ -252,51 +242,37 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
 
   return (
     <group position={[worldX, worldY, 0]}>
-      {/* 후광 — 가산합성이라 겹칠수록 밝아진다. 구체보다 뒤(z-)에 둬 테두리를 먹지 않게. */}
-      <mesh position={[0, 0, -2]}>
-        <planeGeometry args={[glowScale, glowScale]} />
-        <meshBasicMaterial
-          map={getGlowTexture()}
-          color={glowColor}
-          transparent
-          opacity={(0.45 + 0.5 * orb.brightness) * fade}
-          depthWrite={false}
-          blending={AdditiveBlending}
-        />
-      </mesh>
-
-      {/* 본체 — 방향광이 만드는 명암 경계선이 '원'을 '구'로 읽히게 하는 핵심이다.
-          면 수는 화면 크기를 따라간다: 몇 픽셀짜리 점에 정점 1089개를 쓰면 한 화면에 수백
-          개가 뜨는 이 우주에서는 그것만으로 프레임이 무너진다. */}
-      <group ref={groupRef}>
-        <mesh>
-          <sphereGeometry args={[radius, sphereSegments, sphereSegments]} />
-          <meshStandardMaterial
-            color={coreColor}
-            emissive={coreColor}
-            emissiveIntensity={colors.emissive * (0.1 + 0.28 * orb.brightness)}
-            roughness={0.72}
-            metalness={0.02}
-            transparent={fade < 1}
-            opacity={fade}
+      {/* 행성 주변의 옅은 빛 — 항성은 자기 코로나를 따로 갖고 있어 여기선 뺀다. */}
+      {orb.palette === 'planet' ? (
+        <mesh position={[0, 0, -2]}>
+          <planeGeometry args={[glowScale, glowScale]} />
+          <meshBasicMaterial
+            map={getGlowTexture()}
+            color={glowColor}
+            transparent
+            opacity={(0.16 + 0.24 * orb.brightness) * fade}
+            depthWrite={false}
+            blending={AdditiveBlending}
           />
-        </mesh>
-      </group>
-
-      {/* 내 천체 — 얇은 링. 색을 바꾸지 않는 건 밝기 정보를 죽이지 않기 위해서다. */}
-      {orb.highlighted ? (
-        <mesh position={[0, 0, radius * 0.2]} rotation={[0, 0, 0]}>
-          <ringGeometry args={[radius * 1.35, radius * 1.5, 48]} />
-          <meshBasicMaterial color="#FFFFFF" transparent opacity={0.9} depthWrite={false} />
         </mesh>
       ) : null}
 
-      {/* 항성은 스스로 주변을 밝힌다 — 옆 행성에 실제로 빛이 닿는다.
-          가까이 왔을 때만 켠다: 전국의 항성이 전부 광원이 되면 셰이더가 광원 수마다 다시
-          컴파일되고 프레임이 무너진다. 멀리 있는 항성은 후광만으로도 충분히 항성으로 읽힌다. */}
-      {(orb.palette === 'star' || orb.palette === 'protostar') && screenDiameter >= 44 ? (
-          <pointLight color={coreColor} intensity={orb.palette === 'star' ? 260 : 120} distance={520} decay={2} />
-        ) : null}
+      <CelestialSphere
+        id={orb.id}
+        palette={orb.palette === 'star' ? 'star' : orb.palette === 'protostar' ? 'protostar' : 'planet'}
+        radius={radius}
+        screenDiameter={screenDiameter}
+        brightness={orb.brightness}
+        fade={fade}
+      />
+
+      {/* 내 천체 — 얇은 링. 색을 바꾸지 않는 건 밝기 정보를 죽이지 않기 위해서다. */}
+      {orb.highlighted ? (
+        <mesh position={[0, 0, radius * 1.6]}>
+          <ringGeometry args={[radius * 1.5, radius * 1.66, 64]} />
+          <meshBasicMaterial color="#FFFFFF" transparent opacity={0.9} depthWrite={false} />
+        </mesh>
+      ) : null}
     </group>
   );
 }
@@ -308,6 +284,7 @@ function UniverseSkyComponent({
   zoom = 1,
   panX = 0,
   panY = 0,
+  zoomFactor = 1,
 }: {
   orbs: SkyOrb[];
   width: number;
@@ -315,6 +292,8 @@ function UniverseSkyComponent({
   zoom?: number;
   panX?: number;
   panY?: number;
+  // 처음 배율(나라가 화면에 꽉 차는 배율) 대비 몇 배인지 — 배경을 얼마나 물릴지 정한다.
+  zoomFactor?: number;
 }) {
   return (
     <>
@@ -337,7 +316,13 @@ function UniverseSkyComponent({
         ]}
         scale={Math.min(1.8, 1 + Math.log2(Math.max(0.25, zoom)) * 0.06)}
       >
-        <Nebula width={width} height={height} />
+        {/* 은하의 성운은 멀리서 볼 때의 배경이다. 한 태양계 안까지 들어와서도 같은 세기로
+            깔리면 행성 위에 보랏빛 안개를 씌운 꼴이 되어 표면이 통째로 뿌예진다. */}
+        <Nebula
+          width={width}
+          height={height}
+          fade={Math.max(0.1, Math.min(1, 1 - Math.log2(Math.max(1, zoomFactor)) / 7))}
+        />
 
         {STAR_LAYERS.map((layer, index) => (
           <StarLayer

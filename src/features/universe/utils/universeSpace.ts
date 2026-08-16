@@ -18,7 +18,10 @@ import { buildOrbitSlots, countRings } from './universeLayout';
 const CHILD_FILL = 0.74;
 // 자식 반지름 상한 = (궤도 간격, 같은 궤도의 각도 간격) 중 좁은 쪽 × 이 비율. 형제끼리
 // 겹치지 않게 하는 유일한 장치다.
-const CHILD_CLEARANCE = 0.44;
+//
+// 0.44에서 낮췄다 (오너 2026-08-16: "너무 따닥따닥 붙어 있고"). 겹치지만 않으면 되는 게
+// 아니라, 천체 사이에 **빈 하늘이 보여야** 우주로 읽힌다 — 실제로 별 사이는 별보다 훨씬 넓다.
+const CHILD_CLEARANCE = 0.3;
 // 자식이 하나뿐이면 궤도가 의미 없다 — 부모 중심에 앉힌다.
 const SINGLE_CHILD_RADIUS = 0.55;
 // 크기 차이는 보이되 큰 쪽이 이웃을 삼키지는 않게: 상한의 55~100% 사이에서만 논다.
