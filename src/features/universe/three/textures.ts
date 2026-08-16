@@ -45,9 +45,14 @@ export function getGlowTexture(): DataTexture {
 }
 
 // 성운 구름 — 넓고 흐리게 퍼진다. 여러 장을 다른 크기·회전으로 겹쳐 덩어리를 만든다.
+//
+// 감쇠가 완만하면 판 한 장이 화면 전체를 고르게 덮는다. 그런 판을 가산합성으로 여러 장
+// 겹치면 검은 하늘이 통째로 보랏빛으로 들려 올라간다 (오너 2026-08-17: "너무 밝아, 우주는
+// 어두운 맛이 있어야지"). 가파르게 떨어뜨려 **중심에만** 남기면, 같은 장수로도 하늘은 검고
+// 구름은 구름으로 보인다.
 export function getNebulaTexture(): DataTexture {
   if (!nebulaTexture) {
-    nebulaTexture = buildRadialTexture(128, (t) => (1 - t) ** 2 * 0.55);
+    nebulaTexture = buildRadialTexture(128, (t) => (1 - t) ** 3.4 * 0.34);
   }
 
   return nebulaTexture;

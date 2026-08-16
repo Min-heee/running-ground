@@ -165,14 +165,18 @@ function GalaxyDiskComponent({
     <group rotation={[0, 0, yaw]} scale={[radius, radius * Math.cos(tilt), radius]}>
       {/* 핵 — 원반 중심의 밝은 덩어리. 이게 없으면 팔만 떠 있어 은하로 안 읽힌다.
           너무 크게 잡으면 알파가 거의 0인 면적이 화면을 덮은 채 매 프레임 가산 합성으로
-          다시 칠해진다 — 눈엔 안 보이고 비용만 든다. */}
+          다시 칠해진다 — 눈엔 안 보이고 비용만 든다.
+
+          핵은 **원반보다 한참 작아야** 핵이다. 원반만 하게 퍼뜨리면 은하 전체가 고르게
+          뿌예져서, 화면을 채운 회색 안개에 별들이 잠긴다 (오너 2026-08-17: "너무 밝아").
+          가장 큰 은하는 나라 전체라 화면을 덮으므로, 이 한 값이 곧 하늘의 밝기 바닥이다. */}
       <mesh>
-        <planeGeometry args={[1.7, 1.7]} />
+        <planeGeometry args={[1.05, 1.05]} />
         <meshBasicMaterial
           map={getGlowTexture()}
           color={new Color(coreColor)}
           transparent
-          opacity={(0.62 + 0.38 * brightness) * opacity}
+          opacity={(0.3 + 0.32 * brightness) * opacity}
           depthWrite={false}
           blending={AdditiveBlending}
         />
@@ -193,11 +197,13 @@ function GalaxyDiskComponent({
         </points>
       </group>
 
-      {/* 내 지역 — 원반을 감싸는 얇은 링(정면으로 눕혀 원반과 같은 평면에 놓는다). */}
+      {/* 내 지역 — 원반을 감싸는 얇은 링(정면으로 눕혀 원반과 같은 평면에 놓는다).
+          은하만 한 링이라 두꺼우면 우주가 아니라 화면에 그린 도형으로 보인다. 어두운 하늘
+          위에서는 가늘고 옅어야 '표시'로 읽힌다. */}
       {highlighted ? (
         <mesh>
-          <ringGeometry args={[1.5, 1.62, 64]} />
-          <meshBasicMaterial color="#FFFFFF" transparent opacity={0.85 * opacity} depthWrite={false} />
+          <ringGeometry args={[1.5, 1.514, 96]} />
+          <meshBasicMaterial color="#CFE0FF" transparent opacity={0.42 * opacity} depthWrite={false} />
         </mesh>
       ) : null}
     </group>
