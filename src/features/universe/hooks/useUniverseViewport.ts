@@ -32,6 +32,9 @@ export type UniverseViewport = {
   camDepth: number;
 };
 
+// 한 프레임에 남은 거리의 몇 할을 갈지. 크면 반응이 날카롭고 작으면 흐늘거린다.
+const ZOOM_GLIDE = 0.22;
+
 function clampZoomTo(zoom: number, fitZoom: number): number {
   return Math.min(
     fitZoom * UNIVERSE_MAX_ZOOM_FACTOR,
@@ -123,6 +126,13 @@ export function useUniverseViewport({
   // 계속 밀려난다. 웹 휠 경로가 getBoundingClientRect를 빼는 것과 같은 보정이다.
   const containerOriginRef = useRef({ x: 0, y: 0 });
   const containerRef = useRef<{ measureInWindow?: (callback: (x: number, y: number) => void) => void } | null>(null);
+  // 애니메이션 콜백은 한 번 만들어 계속 쓰므로 크기를 ref로 들고 간다 — 클로저에 가두면
+  // 창 크기가 바뀐 뒤에도 옛 크기로 계산한다.
+  const widthRef = useRef(width);
+  widthRef.current = width;
+  const heightRef = useRef(height);
+  heightRef.current = height;
+  const stopGlideRef = useRef<(() => void) | null>(null);
   const centerX = width / 2;
   const centerY = height / 2;
 
@@ -135,6 +145,7 @@ export function useUniverseViewport({
 
   // 처음 자리로 — 나라 전체가 화면에 들어차는 배율, 중앙.
   const reset = useCallback(() => {
+    stopGlideRef.current?.();
     setViewport({ zoom: fitZoomRef.current, panX: 0, panY: 0, camDepth: 0 });
   }, []);
 
@@ -149,8 +160,65 @@ export function useUniverseViewport({
     setViewport(reduce);
   }, []);
 
+  // 휠 확대는 목표를 두고 **매 프레임 조금씩** 다가간다 (오너 2026-08-16: "확대할 때 좀 더
+  // 부드럽게"). 휠 한 칸이 곧바로 1.4배 튀면 계단처럼 느껴지는데, 목표만 갱신하고 실제
+  // 배율은 뒤따라가게 하면 여러 칸이 하나의 흐름으로 이어진다.
+  //
+  // 배율은 곱셈이라 **로그 공간에서** 보간한다. 선형으로 섞으면 확대할수록 빨라지고
+  // 축소할수록 느려져서, 같은 손동작이 배율에 따라 다르게 느껴진다.
+  const glideRef = useRef<{ zoom: number; anchorX: number; anchorY: number; anchor: AnchorTarget | null } | null>(null);
+  const frameRef = useRef<number | null>(null);
+
+  const stopGlide = useCallback(() => {
+    if (frameRef.current !== null) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+
+    glideRef.current = null;
+  }, []);
+
+  const glide = useCallback(() => {
+    frameRef.current = null;
+    const goal = glideRef.current;
+
+    if (!goal) {
+      return;
+    }
+
+    const current = viewportRef.current;
+    const remaining = Math.log(goal.zoom / current.zoom);
+    // 남은 거리가 한 프레임 몫도 안 되면 목표에 딱 맞추고 끝낸다 — 안 그러면 영원히
+    // 0에 수렴하며 매 프레임 리렌더한다.
+    const done = Math.abs(remaining) < 0.004;
+    const nextZoom = done ? goal.zoom : current.zoom * Math.exp(remaining * ZOOM_GLIDE);
+
+    setViewport(zoomAroundPoint(
+      current,
+      nextZoom,
+      goal.anchorX,
+      goal.anchorY,
+      widthRef.current,
+      heightRef.current,
+      fitZoomRef.current,
+      goal.anchor,
+    ));
+
+    if (done) {
+      glideRef.current = null;
+      return;
+    }
+
+    frameRef.current = requestAnimationFrame(glide);
+  }, []);
+
+  stopGlideRef.current = stopGlide;
+
+  useEffect(() => stopGlide, [stopGlide]);
+
   // 우주 좌표의 한 점을 화면 한가운데로 가져온다 — 검색 착지·'내 행성으로'·천체 두 번 누르기.
   const focusOn = useCallback((targetX: number, targetY: number, targetZ: number, zoom: number) => {
+    stopGlideRef.current?.();
     const nextZoom = clampZoomTo(zoom, fitZoomRef.current);
     setViewport({
       zoom: nextZoom,
@@ -206,6 +274,9 @@ export function useUniverseViewport({
       }
 
       if (touches.length >= 2 && start.distance > 0) {
+        // 핀치는 부드럽게 따라가지 않는다 — 손가락을 그대로 따라가야 한다. 여기에 관성을
+        // 넣으면 손과 화면이 어긋나 오히려 굼떠 보인다.
+        stopGlide();
         // 핀치 — 두 손가락 중점을 앵커로 잡아 그 지점이 제자리에 머문다.
         const nextDistance = touchDistance(touches as never);
         const origin = containerOriginRef.current;
@@ -262,17 +333,18 @@ export function useUniverseViewport({
       const factor = Math.exp(-wheel.deltaY * 0.0026);
       const anchorX = wheel.clientX - rect.left;
       const anchorY = wheel.clientY - rect.top;
-      const anchor = depthAtRef.current?.(anchorX, anchorY) ?? null;
-      step((previous) => zoomAroundPoint(
-        previous,
-        previous.zoom * factor,
+      // 목표는 이전 목표 위에 쌓는다 — 빠르게 여러 칸을 굴려도 한 칸씩 삼켜지지 않는다.
+      const base = glideRef.current?.zoom ?? viewportRef.current.zoom;
+      glideRef.current = {
+        zoom: clampZoomTo(base * factor, fitZoomRef.current),
         anchorX,
         anchorY,
-        width,
-        height,
-        fitZoomRef.current,
-        anchor,
-      ));
+        anchor: depthAtRef.current?.(anchorX, anchorY) ?? null,
+      };
+
+      if (frameRef.current === null) {
+        frameRef.current = requestAnimationFrame(glide);
+      }
     };
 
     node.addEventListener('wheel', handleWheel, { passive: false });

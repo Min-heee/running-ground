@@ -20,10 +20,13 @@ import {
 // 차이는 그 위에 곱하는 색·자전 속도·기울기·고리 유무로 낸다. 60명이 한 화면에 뜰 수 있는
 // 곳에서 1인 1텍스처는 첫 프레임에 수백 밀리초를 태운다.
 
-const SURFACE_WIDTH = 256;
-const SURFACE_HEIGHT = 128;
-const CLOUD_WIDTH = 192;
-const CLOUD_HEIGHT = 96;
+// 행성이 화면을 거의 채울 만큼 다가갈 수 있으므로 표면 지도가 촘촘해야 한다. 256×128일
+// 때는 가까이 가면 대륙 가장자리가 뭉개졌다. 원형 몇 벌만 만들어 캐시하므로 비용은
+// 한 번뿐이고, 512×256이라도 한 장에 0.5MB 정도다.
+const SURFACE_WIDTH = 512;
+const SURFACE_HEIGHT = 256;
+const CLOUD_WIDTH = 384;
+const CLOUD_HEIGHT = 192;
 
 export type PlanetKind = 'terrestrial' | 'gas' | 'barren' | 'ice';
 

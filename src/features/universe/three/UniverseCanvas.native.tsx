@@ -37,7 +37,8 @@ function UniverseCanvasComponent({
         // z 폭도 같이 커져, 좁게 잡으면 확대할수록 뒤에 남아야 할 은하가 통째로 잘려 나간다.
         // 직교 투영이라 범위를 넓혀도 깊이 정밀도가 나빠지지 않는다.
         camera={{ position: [0, 0, 600], zoom: 1, near: -200000, far: 200000 }}
-        gl={{ antialias: true, alpha: true }}
+        // 네이티브(expo-gl)는 GLView가 기기 밀도를 이미 반영해서 dpr을 받지 않는다.
+        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         style={{ width, height }}
       >
         <UniverseSky
