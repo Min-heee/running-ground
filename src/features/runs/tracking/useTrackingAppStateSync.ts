@@ -21,6 +21,10 @@ import {
 import {
   stopNativeDistanceAccumulator,
 } from '@/features/runs/tracking/background/distanceAccumulatorController';
+import {
+  captureScreenOffGapOnWake,
+  discardScreenOffGapCapture,
+} from '@/features/runs/tracking/background/screenOffGapReconcile';
 import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
 import type { UpdateRunningMatchProgressInput } from '@/lib/api/types';
 import {
@@ -155,6 +159,10 @@ export function useTrackingAppStateSync({
     // foreground resume, stop the native cadence so exactly ONE path owns the channel while active;
     // it re-starts automatically on the next background flush. No-op on current binaries (gate).
     if (nextState === 'active') {
+      // 화면꺼짐 갭 포획 — 반드시 아래의 stopNativeDistanceAccumulator **전에**. 저 호출이
+      // 네이티브 총거리를 지우므로, JS가 잠든 사이 네이티브만 알고 있는 거리는 이 순간이
+      // 지나면 영영 사라진다. 실제 이관은 재생 판별이 끝난 뒤(위치 태스크/타이머)에 한다.
+      captureScreenOffGapOnWake();
       void stopPeriodicMatchUpload().catch(() => undefined);
       // Stop the native distance accumulator on foreground resume too: in the foreground the JS
       // pipeline is authoritative (JS >= native via the merge's max()), so the native GPS consumer
@@ -211,6 +219,8 @@ export function useTrackingAppStateSync({
       // Likewise the native distance accumulator: a non-running tracker must never leave its GPS
       // consumer alive (no battery drain after the run). No-op on current binaries.
       void stopNativeDistanceAccumulator().catch(() => undefined);
+      // 끝난 런의 화면꺼짐 갭 포획본도 함께 버린다 — 다음 런에 이관되면 안 된다.
+      discardScreenOffGapCapture();
       return undefined;
     }
 
@@ -219,6 +229,7 @@ export function useTrackingAppStateSync({
       stopBackgroundMatchProgressTimer();
       void stopPeriodicMatchUpload().catch(() => undefined);
       void stopNativeDistanceAccumulator().catch(() => undefined);
+      discardScreenOffGapCapture();
     };
   }, [enabled, trackerStatus]);
 

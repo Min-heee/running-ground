@@ -3,7 +3,9 @@ import type { RunRoutePoint } from '@/domain';
 import {
   getAccumulatedDistanceMeters,
   getAccumulatedElevationGainMeters,
+  getExternalCreditMeters,
   setAccumulatedDistanceMeters,
+  setExternalCreditMeters,
   setAccumulatedElevationGainMeters,
 } from '@/features/runs/tracking/background/routeAccumulator';
 import {
@@ -27,6 +29,10 @@ const GOAL_FROZEN_STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
 type PersistedSnapshot = {
   accumulatedDistanceMeters: number;
+  // 화면꺼짐 갭 크레딧 몫 — 총거리에 이미 포함돼 있지만 따로도 든다. 복원 후의 경로 기반
+  // 재계산(냉시동 이탈·지터 붕괴)은 경로에 점이 없는 크레딧 구간을 모르므로, 이 몫을 도로
+  // 알려주지 않으면 복원된 크레딧이 다음 커브에서 지워진다. 예전 파일엔 없던 필드 — 0으로 읽는다.
+  externalCreditMeters?: number;
   accumulatedElevationGainMeters: number;
   matchId: string;
   savedAt: number;
@@ -111,6 +117,7 @@ function parsePersistedSnapshot(raw: string, matchId: string): PersistedSnapshot
 
   return {
     accumulatedDistanceMeters: asNumber(parsed.accumulatedDistanceMeters),
+    externalCreditMeters: asNumber(parsed.externalCreditMeters),
     accumulatedElevationGainMeters: asNumber(parsed.accumulatedElevationGainMeters),
     matchId,
     savedAt: asNumber(parsed.savedAt),
@@ -146,6 +153,7 @@ export async function persistBackgroundRunSnapshot(matchId: string | null): Prom
 
     const payload: PersistedSnapshot = {
       accumulatedDistanceMeters: getAccumulatedDistanceMeters(),
+      externalCreditMeters: getExternalCreditMeters(),
       accumulatedElevationGainMeters: getAccumulatedElevationGainMeters(),
       matchId,
       savedAt: Date.now(),
@@ -199,6 +207,7 @@ export async function restoreBackgroundRunSnapshot(matchId: string): Promise<boo
 
     const current = getSnapshotState();
     setAccumulatedDistanceMeters(data.accumulatedDistanceMeters);
+    setExternalCreditMeters(data.externalCreditMeters ?? 0);
     setAccumulatedElevationGainMeters(data.accumulatedElevationGainMeters);
     setSnapshotState({
       ...current,

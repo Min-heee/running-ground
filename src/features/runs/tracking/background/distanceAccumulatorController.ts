@@ -43,29 +43,36 @@ import {
 // helper ignores the native total entirely → today's behavior.
 export const ENABLE_NATIVE_DISTANCE_MERGE = true;
 
-// OTA gate for the distance-ADVANCE freshness signal (backgroundSyncDiagnostics
-// lastDistanceAdvanceAtMs). Keep FALSE until a binary carrying the native signal-loss gap rule is
-// the minimum shipped build — then flip here, no native rebuild needed to turn it on.
+// OTA kill-switch for the distance-ADVANCE freshness signal (backgroundSyncDiagnostics
+// lastDistanceAdvanceAtMs). The signal is consulted only when this is true AND the installed
+// binary passes the gap-rule check below (isGapRuleBinarySupported).
 //
-// WHY IT IS OFF (적대 검증 2026-08-09, critical): freshness rightly means "are we still
+// HISTORY — why this sat at false until 2026-08-17: freshness rightly means "are we still
 // MEASURING", and keying staleness on it makes the screen-off native gap-fill reachable in far
 // more situations than before (any stretch where every fix is rejected, plus long stationary
-// stretches) — not just a fully suspended JS thread. But the SHIPPED native accumulators do NOT
-// mirror the JS signal-loss rule: routeAccumulator.ts credits 0 m across a fix gap longer than
-// MAX_CREDITABLE_FIX_GAP_MS (30s, locationDistance.ts), while the build-44 binaries'
-// MatchUploadForegroundService.kt consume() and MatchProgressUploaderModule.swift consume() have no
-// dt ceiling at all. A 3-minute GPS blackout (tunnel, subway) therefore banks its whole ~1km
-// straight-line chord natively at a perfectly plausible 5.5 m/s, and the server's
-// normalizeRunningMatchProgress does Math.max(previousDistanceKm, …) so the inflated total can
-// never be walked back.
-//
-// STATUS: both native accumulators now implement the gate IN SOURCE (maxCreditableFixGapMs,
-// positioned before the teleport gates exactly like JS), but source is not a shipped binary — the
-// devices in the field still run build 44. Widening the stale window before the gate is LIVE ON
-// DEVICE would hand that path a much bigger opening, so the signal stays computed (and
-// unit-tested) but not consulted. Flip this to true — no native rebuild needed — once a build
-// carrying the native gate is the MINIMUM shipped version.
-export const ENABLE_DISTANCE_ADVANCE_FRESHNESS = false;
+// stretches) — not just a fully suspended JS thread. The pre-bfc54ec6 native accumulators had no
+// signal-loss dt ceiling, so a 3-minute GPS blackout banked its whole ~1km straight-line chord at
+// a perfectly plausible speed, and the server's Math.max means an inflated total can never be
+// walked back. The original plan gated the flip on "the gap-rule build is the MINIMUM shipped
+// version" — but the app enforces no minimum version, so that day never comes while one old
+// install survives. The per-BINARY check replaces the fleet-wide condition: each device opens the
+// gap-fill only if its own accumulator enforces the gap rule (오너 실사고 2026-08-17: 회원F
+// 아이폰 화면꺼짐 정지 — 스토어 빌드 55, 갭 규칙 탑재본인데 신호가 꺼져 있어 갭필이 안 열림).
+export const ENABLE_DISTANCE_ADVANCE_FRESHNESS = true;
+
+// Whether THIS binary's native accumulators enforce the signal-loss gap rule. Latched once at app
+// start from react-native + expo-constants (locationTask.ts), which this module must not import —
+// its tests run under node. Default FALSE: until the latch is set (and on any binary that fails
+// the check) every consumer keeps today's pre-freshness behavior. fail-closed.
+let gapRuleBinarySupported = false;
+
+export function setGapRuleBinarySupport(supported: boolean) {
+  gapRuleBinarySupported = supported === true;
+}
+
+export function isGapRuleBinarySupported(): boolean {
+  return gapRuleBinarySupported;
+}
 
 // The JS filter constants handed to the native accumulator so native mirrors JS EXACTLY (source:
 // locationDistance.ts). Kept here so the start wiring and the native side stay in lockstep.
@@ -399,4 +406,5 @@ export function resetNativeDistanceAccumulatorForTest() {
   lastFreshJsAuthoritativeMeters = 0;
   cachedModule = null;
   cachedModuleResolved = false;
+  gapRuleBinarySupported = false;
 }

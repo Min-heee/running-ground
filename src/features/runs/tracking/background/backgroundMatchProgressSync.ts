@@ -21,6 +21,7 @@ import {
 } from '@/features/runs/tracking/background/periodicMatchUploadController';
 import {
   ENABLE_DISTANCE_ADVANCE_FRESHNESS,
+  isGapRuleBinarySupported,
   getLastFreshJsAuthoritativeKm,
   getMergeableNativeDistanceMeters,
   recordFreshJsAuthoritativeMeters,
@@ -772,11 +773,13 @@ function buildRunningProgressInput(
   // never engaged and every flush re-seeded native back to the frozen JS total
   // (오너 실기기 대결 2026-08-09: Galaxy stuck at ~3.05km while the server saw it as connected).
   // Falls back to lastSnapshotAtMs only before the advance clock is armed.
-  // Gated OFF until a native binary carries the signal-loss gap rule — see
-  // ENABLE_DISTANCE_ADVANCE_FRESHNESS. Until then this keeps today's snapshot-clock behavior.
+  // Consulted only on binaries whose native accumulators enforce the signal-loss gap rule
+  // (isGapRuleBinarySupported) — on an older binary the widened stale window would hand the
+  // gap-fill to an accumulator that banks GPS-blackout chords, and the server's Math.max keeps
+  // them forever. Older binaries keep today's snapshot-clock behavior, no worse than before.
   const diagnostics = getBackgroundSyncDiagnostics();
   const isMyDistanceStaleNow = isMyMatchDistanceStale({
-    lastUpdatedAtMs: ENABLE_DISTANCE_ADVANCE_FRESHNESS
+    lastUpdatedAtMs: (ENABLE_DISTANCE_ADVANCE_FRESHNESS && isGapRuleBinarySupported())
       ? diagnostics.lastDistanceAdvanceAtMs ?? diagnostics.lastSnapshotAtMs
       : diagnostics.lastSnapshotAtMs,
     nowMs,

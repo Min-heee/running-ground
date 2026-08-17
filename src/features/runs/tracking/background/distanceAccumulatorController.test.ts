@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   ENABLE_DISTANCE_ADVANCE_FRESHNESS,
+  isGapRuleBinarySupported,
+  setGapRuleBinarySupport,
   getLastFreshJsAuthoritativeKm,
   NATIVE_DISTANCE_ACCUMULATOR_OPTIONS,
   recordFreshJsAuthoritativeMeters,
@@ -391,13 +393,18 @@ test('NATIVE_DISTANCE_ACCUMULATOR_OPTIONS carries the signal-loss gap ceiling', 
 
 // The freshness signal must stay OFF until a binary carrying the native gap gate is the minimum
 // shipped version: keying staleness on distance-ADVANCE widens how often the native total is
-// consulted, and the field binaries (build 44) have no dt ceiling. Flipping this before the native
-// gate is live on device hands the blackout path a much bigger opening.
-test('ENABLE_DISTANCE_ADVANCE_FRESHNESS stays off until the native gap gate ships', () => {
-  assert.equal(
-    ENABLE_DISTANCE_ADVANCE_FRESHNESS,
-    false,
-    'Flipping this is only safe once a build carrying the native maxCreditableFixGapMs gate is the '
-      + 'MINIMUM shipped version — verify on device first, then update this test with the flag.',
-  );
+// 신선도 신호는 킬스위치(참) + **기기별 바이너리 판별**의 이중 게이트다. 함대 최소 버전을
+// 기다리던 예전 계획은 최소 버전 강제가 없는 앱에서 영영 충족되지 않았다 — 판별을 기기
+// 단위로 바꾸면 갭 규칙 바이너리는 오늘 고쳐지고, 옛 바이너리는 오늘과 똑같이 동작한다.
+test('freshness는 킬스위치가 켜져 있고, 바이너리 판별은 래치 전까지 닫혀 있다', () => {
+  assert.equal(ENABLE_DISTANCE_ADVANCE_FRESHNESS, true);
+  // 래치 전 기본값은 false — 판별 코드가 어떤 이유로든 안 돌면 옛 동작으로 남는다(fail-closed).
+  assert.equal(isGapRuleBinarySupported(), false);
+
+  setGapRuleBinarySupport(true);
+  assert.equal(isGapRuleBinarySupported(), true);
+
+  // 테스트 리셋이 래치도 되돌리는지 — 안 되돌리면 테스트 간 오염으로 갭필 경로가 새어 열린다.
+  resetNativeDistanceAccumulatorForTest();
+  assert.equal(isGapRuleBinarySupported(), false);
 });

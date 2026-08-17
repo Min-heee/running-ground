@@ -1,10 +1,14 @@
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import {
   flushBackgroundMatchProgressSync,
 } from '@/features/runs/tracking/background/backgroundMatchProgressSync';
+import { setGapRuleBinarySupport } from '@/features/runs/tracking/background/distanceAccumulatorController';
+import { resolveNativeGapRuleBinary } from '@/features/runs/tracking/background/nativeGapRuleSupport';
 import { appendTrackedLocation } from '@/features/runs/tracking/background/routeAccumulator';
+import { reconcileScreenOffGapFromBatch } from '@/features/runs/tracking/background/screenOffGapReconcile';
 import {
   BACKGROUND_RUN_TASK_NAME,
   LEGACY_BACKGROUND_RUN_TASK_NAME,
@@ -87,6 +91,15 @@ function defineBackgroundRunTask(taskName: string) {
       ? (data as { locations?: Location.LocationObject[] }).locations ?? []
       : [];
 
+    // 깨어난 뒤 첫 묶음이면 화면꺼짐 갭 정산을 확정한다 — 묶음 처리 **전에**. 타임스탬프가
+    // 재생 여부를 가르고, 정산이 이관하는 크레딧은 깨어나는 순간의 포획본에서 오므로 이
+    // 묶음이 더할 거리와 겹치지 않는다. 먼저 정산해야 이 묶음의 커밋들부터 되찾은 총거리를
+    // 싣고 나간다.
+    reconcileScreenOffGapFromBatch(
+      locations
+        .map((location) => location.timestamp)
+        .filter((timestamp): timestamp is number => typeof timestamp === 'number' && Number.isFinite(timestamp)),
+    );
     locations.forEach(appendTrackedLocation);
     // Fix A.3 — fire-and-forget. Do NOT await the flush: a stuck/hung background push must never
     // wedge the native location-task callback (which is what keeps the GPS route buffer + distance
@@ -100,4 +113,12 @@ function defineBackgroundRunTask(taskName: string) {
 if (Platform.OS !== 'web') {
   defineBackgroundRunTask(BACKGROUND_RUN_TASK_NAME);
   defineBackgroundRunTask(LEGACY_BACKGROUND_RUN_TASK_NAME);
+
+  // 이 바이너리의 네이티브 누적기가 신호 끊김 갭 규칙을 강제하는지 — 앱 시작에 한 번
+  // 래치한다. 판별은 **설치된 바이너리**의 빌드 번호(Constants.nativeBuildVersion)로 한다:
+  // OTA 번들의 app.json은 구버전 기기에서도 최신 숫자를 말하므로 증거가 못 된다. 이 파일이
+  // 래치를 놓는 이유는 단순하다 — 여기는 앱이 살아나는 가장 이른 길목이면서 react-native를
+  // 이미 알고, 판별을 소비하는 컨트롤러는 노드 테스트 때문에 react-native를 모르는 채로
+  // 남아야 한다.
+  setGapRuleBinarySupport(resolveNativeGapRuleBinary(Platform.OS, Constants.nativeBuildVersion));
 }

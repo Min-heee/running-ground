@@ -42,6 +42,11 @@ import {
 import { rgDiagLog } from '@/utils/rgPerfTrace';
 
 let accumulatedDistanceMeters = 0;
+// 화면꺼짐 갭 크레딧 — GPS 경로가 아니라 **네이티브 누적기에서 이관받은** 거리. 따로 든다:
+// accumulatedDistanceMeters는 아래 두 곳(냉시동 이탈·지터 붕괴)에서 경로로부터 통째로
+// 재계산되는데, 크레딧 구간은 경로에 점이 없어서 합산에 안 들어가면 그 재계산이 크레딧을
+// 소리 없이 지운다 — 다음 커브 하나에 되찾은 거리가 도로 사라지는 셈이다.
+let externalCreditMeters = 0;
 let accumulatedElevationGainMeters = 0;
 let smoothedCurrentPaceSecondsPerKm: number | null = null;
 let smoothedPaceUpdatedAtMs: number | null = null;
@@ -51,6 +56,7 @@ let lastCountedPoint: RunRoutePoint | null = null;
 export function resetRouteAccumulator() {
   rgDiagLog('[RG dist] ===== RESET (run start) =====');
   accumulatedDistanceMeters = 0;
+  externalCreditMeters = 0;
   accumulatedElevationGainMeters = 0;
   smoothedCurrentPaceSecondsPerKm = null;
   smoothedPaceUpdatedAtMs = null;
@@ -64,6 +70,38 @@ export function getAccumulatedDistanceMeters() {
 
 export function setAccumulatedDistanceMeters(value: number) {
   accumulatedDistanceMeters = Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+export function getExternalCreditMeters() {
+  return externalCreditMeters;
+}
+
+// 크래시 복원 전용 — 복원된 총거리에 크레딧이 들어 있으면 그 몫을 알려줘야 이후의 경로
+// 재계산이 크레딧을 지우지 않는다.
+export function setExternalCreditMeters(value: number) {
+  externalCreditMeters = Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+// 화면꺼짐 갭 크레딧 반영 — JS가 잠든 사이 네이티브 누적기가 센 거리를 JS 원장에 이관한다.
+// 호출자는 screenOffGapReconcile 하나뿐이고, 리플레이 판별·상한·바이너리 게이트는 전부
+// 그쪽 책임이다. 여기서는 원장에 더하고 스냅샷을 새 총거리로 커밋만 한다 — 그 커밋이
+// distanceAdvanced=true로 기록되면서 신선도 시계도 함께 되살아난다.
+export function creditExternalDistanceMeters(meters: number): number {
+  if (!Number.isFinite(meters) || meters <= 0) {
+    return accumulatedDistanceMeters;
+  }
+
+  externalCreditMeters += meters;
+  accumulatedDistanceMeters += meters;
+  rgDiagLog(`[RG dist] CREDIT screen-off gap +${meters.toFixed(1)}m total=${(accumulatedDistanceMeters / 1000).toFixed(3)}`);
+
+  const snapshotState = getSnapshotState();
+  commitSnapshot({
+    ...snapshotState,
+    distanceKm: Number((accumulatedDistanceMeters / 1000).toFixed(2)),
+  });
+
+  return accumulatedDistanceMeters;
 }
 
 export function getAccumulatedElevationGainMeters() {
@@ -222,7 +260,7 @@ export function appendTrackedLocation(location: Location.LocationObject) {
     // COLD-START SEED = 0: do NOT bank the intra-cluster warmup path. The stable anchor is the
     // cluster centroid/last fix; distance accumulates only AFTER it from the last counted point, so
     // ~30-60m of warmup jitter (the start spike that made two phones diverge) is never counted.
-    accumulatedDistanceMeters = 0;
+    accumulatedDistanceMeters = externalCreditMeters;
     accumulatedElevationGainMeters = calculateElevationGainM(stableRoute);
     lastCountedPoint = stableRoute[stableRoute.length - 1] ?? null;
     coldStartFixBuffer = [];
@@ -243,7 +281,8 @@ export function appendTrackedLocation(location: Location.LocationObject) {
   const excursionAnchorIndex = findColdStartExcursionAnchorIndex(snapshotState.route, nextPoint);
   if (excursionAnchorIndex !== null) {
     const nextRoute = [...snapshotState.route.slice(0, excursionAnchorIndex + 1), nextPoint];
-    accumulatedDistanceMeters = calculateRouteWindowDistanceMeters(nextRoute);
+    // 경로 재계산은 크레딧을 모른다 — 도로 얹지 않으면 화면꺼짐에 되찾은 거리가 여기서 지워진다.
+    accumulatedDistanceMeters = calculateRouteWindowDistanceMeters(nextRoute) + externalCreditMeters;
     accumulatedElevationGainMeters = calculateElevationGainM(nextRoute);
     lastCountedPoint = nextRoute[nextRoute.length - 1] ?? null;
 
@@ -333,7 +372,8 @@ export function appendTrackedLocation(location: Location.LocationObject) {
   if (jitterAnchorIndex !== null) {
     // Collapse short side-to-side GPS jitter into the direct road segment instead of adding every wobble.
     const nextRoute = [...snapshotState.route.slice(0, jitterAnchorIndex + 1), nextPoint];
-    accumulatedDistanceMeters = calculateRouteWindowDistanceMeters(nextRoute);
+    // 경로 재계산은 크레딧을 모른다 — 도로 얹지 않으면 화면꺼짐에 되찾은 거리가 여기서 지워진다.
+    accumulatedDistanceMeters = calculateRouteWindowDistanceMeters(nextRoute) + externalCreditMeters;
     rgDiagLog(`[RG dist] COLLAPSE jitter seg=${segmentDistanceMeters.toFixed(1)} total=${(accumulatedDistanceMeters / 1000).toFixed(3)}`);
     accumulatedElevationGainMeters = calculateElevationGainM(nextRoute);
     lastCountedPoint = nextRoute[nextRoute.length - 1] ?? null;
