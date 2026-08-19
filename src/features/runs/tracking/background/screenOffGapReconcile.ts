@@ -31,6 +31,7 @@ import {
 import {
   creditExternalDistanceMeters,
   getAccumulatedDistanceMeters,
+  setPreWakeFixFloorMs,
 } from '@/features/runs/tracking/background/routeAccumulator';
 import { getBackgroundSyncDiagnostics } from '@/features/runs/tracking/background/backgroundSyncDiagnostics';
 import { getSnapshotState } from '@/features/runs/tracking/background/snapshotStore';
@@ -107,6 +108,10 @@ function settle({ via }: { via: string }) {
   }
 
   creditExternalDistanceMeters(creditMeters);
+  // 이 순간부터 깨어난 시각 이전에 찍힌 픽스는 원장에 못 들어온다. 크레딧이 그 구간을 이미
+  // 보상했으므로, 늦게 재생되는 수면 꼬리(나이 필터 15초를 통과하는)가 두 번째로 적립되는
+  // 길을 막는다. 정산 전에 도착한 꼬리는 jsMetersNow에 들어 있어 위의 뺄셈이 이미 차감했다.
+  setPreWakeFixFloorMs(gap.wakeAtMs);
   rgDiagLog(`[RG gap] SETTLE via=${via} +${creditMeters.toFixed(0)}m`);
 }
 

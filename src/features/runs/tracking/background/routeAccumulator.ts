@@ -47,6 +47,11 @@ let accumulatedDistanceMeters = 0;
 // 재계산되는데, 크레딧 구간은 경로에 점이 없어서 합산에 안 들어가면 그 재계산이 크레딧을
 // 소리 없이 지운다 — 다음 커브 하나에 되찾은 거리가 도로 사라지는 셈이다.
 let externalCreditMeters = 0;
+// 화면꺼짐 갭 정산이 확정된 '깨어난 시각' — 이보다 먼저 찍힌 픽스는 받지 않는다. 크레딧은
+// 네이티브가 깨어난 순간까지 센 총거리를 기준으로 하므로, 그 이전 시각이 찍힌 픽스(OS가
+// 늦게 재생하는 수면 꼬리, 나이 필터 15초는 통과할 수 있다)가 정산 **뒤에** 적립되면 같은
+// 구간이 두 번 세어진다 — 재검증이 잡은 마지막 이중 적립 경로다.
+let preWakeFixFloorMs: number | null = null;
 let accumulatedElevationGainMeters = 0;
 let smoothedCurrentPaceSecondsPerKm: number | null = null;
 let smoothedPaceUpdatedAtMs: number | null = null;
@@ -57,6 +62,7 @@ export function resetRouteAccumulator() {
   rgDiagLog('[RG dist] ===== RESET (run start) =====');
   accumulatedDistanceMeters = 0;
   externalCreditMeters = 0;
+  preWakeFixFloorMs = null;
   accumulatedElevationGainMeters = 0;
   smoothedCurrentPaceSecondsPerKm = null;
   smoothedPaceUpdatedAtMs = null;
@@ -99,6 +105,14 @@ export function setAccumulatedDistanceMeters(value: number) {
 
 export function getExternalCreditMeters() {
   return externalCreditMeters;
+}
+
+export function setPreWakeFixFloorMs(value: number | null) {
+  preWakeFixFloorMs = Number.isFinite(value as number) && (value as number) > 0 ? (value as number) : null;
+}
+
+export function getPreWakeFixFloorMs() {
+  return preWakeFixFloorMs;
 }
 
 // 크래시 복원 전용 — 복원된 총거리에 크레딧이 들어 있으면 그 몫을 알려줘야 이후의 경로
@@ -245,6 +259,13 @@ export function appendTrackedLocation(location: Location.LocationObject) {
   const locationTimestampMs = resolveLocationTimestampMs(location);
 
   if (locationTimestampMs === null) {
+    return;
+  }
+
+  // 정산이 이미 보상한 구간의 픽스는 버린다 — 페이스 갱신조차 하지 않는다(수면 중의 속도라
+  // 이미 낡았다). 정산 전에 도착한 픽스는 여기 걸리지 않고, 그 몫은 정산이 자동 차감한다.
+  if (preWakeFixFloorMs !== null && locationTimestampMs < preWakeFixFloorMs) {
+    rgDiagLog(`[RG dist] DROP pre-wake settled fix ts=${locationTimestampMs} floor=${preWakeFixFloorMs}`);
     return;
   }
 

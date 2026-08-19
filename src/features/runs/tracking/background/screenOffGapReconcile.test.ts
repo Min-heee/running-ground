@@ -12,6 +12,7 @@ import { resolveNativeGapRuleBinary, NATIVE_GAP_RULE_MIN_BUILD } from './nativeG
 import {
   getAccumulatedDistanceMeters,
   getExternalCreditMeters,
+  getPreWakeFixFloorMs,
   resetRouteAccumulator,
   setAccumulatedDistanceMeters,
   sumObservedRouteDistanceMeters,
@@ -207,6 +208,24 @@ test('GPS가 영영 안 오면 타이머가 정산한다 — 실내에서 런을
 
   assert.equal(getScreenOffGapCaptureForTest(), null);
   assert.ok(Math.abs(getAccumulatedDistanceMeters() - 4020) < 1e-6);
+});
+
+test('정산이 확정되면 깨어난 시각 이전의 픽스는 원장에 못 들어온다 — 수면 꼬리 이중 적립 봉쇄', async () => {
+  // 크레딧은 네이티브가 깨어난 순간까지 센 총거리를 보상한다. 그 뒤에 도착하는, 깨어나기
+  // 전 시각이 찍힌 픽스(나이 필터 15초를 통과하는 수면 꼬리)가 또 적립되면 같은 구간이 두 번
+  // 세어진다 — 재검증이 잡은 마지막 경로. 정산이 바닥 시각을 놓아 그 픽스들을 차단한다.
+  await armRunningRun({ jsMeters: 3050, nativeMeters: 4020 });
+  const wakeAt = Date.now() + 120_000;
+  captureScreenOffGapOnWake({ nowMs: wakeAt, quietWakeDelayMs: 60_000 });
+
+  assert.equal(getPreWakeFixFloorMs(), null);
+  reconcileScreenOffGapAfterFixesAppended();
+
+  assert.equal(getPreWakeFixFloorMs(), wakeAt);
+
+  // 새 런이 시작되면 바닥도 사라진다.
+  resetRouteAccumulator();
+  assert.equal(getPreWakeFixFloorMs(), null);
 });
 
 test('경로 재계산은 신호 끊김 직선을 합산하지 않는다 — 크레딧과의 이중 적립 봉쇄', () => {
