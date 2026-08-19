@@ -125,21 +125,26 @@ function buildMockGalaxy(node: { id: string; name: string; participants: number;
 } {
   const NAMES = ['민병희', '회원F', '회원K', '회원I', '회원G', '회원C', '회원J', '회원H', '한강러너', '새벽조깅', '언덕왕', '페이스메이커'];
   const visible = Math.max(0, Math.min(NAMES.length, node.participants));
-  const planets = Array.from({ length: visible }, (_, index) => {
+  const lifetimes = Array.from({ length: visible }, (_, index) => {
     const monthDistanceKm = Number((node.averageDistanceKm * (1.9 - index * 0.13)).toFixed(1));
-    const lifetimeDistanceKm = Number((monthDistanceKm * (14 + index * 3)).toFixed(0));
-    return {
-      userId: `${node.id}-mock-${index}`,
-      userName: NAMES[index],
-      lifetimeDistanceKm,
-      monthDistanceKm,
-      scale: Number((0.55 + 0.45 * (1 - index / NAMES.length)).toFixed(2)),
-      brightness: Number((0.35 + 0.65 * (1 - index / NAMES.length)).toFixed(2)),
-      stars: index === 0 ? 2 : index === 1 ? 1 : 0,
-      isStar: false,
-      isMine: index === 3,
-    };
+    return { monthDistanceKm, lifetimeDistanceKm: Number((monthDistanceKm * (14 + index * 3)).toFixed(0)) };
   });
+  const maxLifetimeKm = lifetimes.reduce((max, entry) => Math.max(max, entry.lifetimeDistanceKm), 0);
+
+  const planets = lifetimes.map(({ monthDistanceKm, lifetimeDistanceKm }, index) => ({
+    userId: `${node.id}-mock-${index}`,
+    userName: NAMES[index],
+    lifetimeDistanceKm,
+    monthDistanceKm,
+    // 크기 = 누적 거리의 선형 비율(진짜 규칙 planetScale과 같은 모양: 바닥 0.22).
+    scale: maxLifetimeKm > 0
+      ? Number((0.22 + 0.78 * (lifetimeDistanceKm / maxLifetimeKm)).toFixed(3))
+      : 0.22,
+    brightness: Number((0.35 + 0.65 * (1 - index / NAMES.length)).toFixed(2)),
+    stars: index === 0 ? 2 : index === 1 ? 1 : 0,
+    isStar: false,
+    isMine: index === 3,
+  }));
 
   // 항성 = 누적 거리 1등 — 진짜 규칙(universeBuilder.pickStarUserId)과 같은 그림이 나오게.
   const starIndex = planets.reduce(

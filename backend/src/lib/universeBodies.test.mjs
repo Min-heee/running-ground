@@ -91,13 +91,17 @@ test('로그 밝기: 수천 배 차이가 나도 작은 쪽이 까맣게 죽지 
   assert.ok(dim < 1);
 });
 
-test('행성 크기: 평생 거리를 로그로 눌러 신입도 점으로 보인다', () => {
+test('행성 크기: 누적 거리의 선형 비율 — 두 배 달리면 두 배 커 보인다', () => {
   const veteran = planetScale({ lifetimeDistanceKm: 3000, maxLifetimeDistanceKm: 3000 });
+  const half = planetScale({ lifetimeDistanceKm: 1500, maxLifetimeDistanceKm: 3000 });
   const rookie = planetScale({ lifetimeDistanceKm: 10, maxLifetimeDistanceKm: 3000 });
 
   assert.equal(veteran, 1);
+  // 절반 달린 사람은 바닥 위에서 정확히 절반 지점에 선다.
+  assert.equal(half, Number((MIN_PLANET_SCALE + (1 - MIN_PLANET_SCALE) * 0.5).toFixed(3)));
+  // 신입은 바닥 크기 근처 — 그래도 바닥보다는 크고, 점으로는 보인다.
   assert.ok(rookie > MIN_PLANET_SCALE, '10km 러너도 최소 크기보다는 커야 한다');
-  assert.ok(veteran / rookie < 3, `크기 격차가 과함: ${veteran / rookie}`);
+  assert.ok(rookie < 0.3, `비율이면 10km/3000km는 바닥 근처여야 한다: ${rookie}`);
 });
 
 test('행성 크기: 아직 안 뛴 사람은 최소 크기(탭할 수 있는 점)', () => {

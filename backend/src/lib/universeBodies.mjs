@@ -1,7 +1,7 @@
 // 우주 탭 — 지역/개인을 천체로 치환하는 크기·밝기 매핑 (오너 2026-08-15).
 //
 // 오너 확정 매핑:
-//  - 행성 = 개인. 크기 = 평생 누적 총거리(로그), 밝기 = 이번 달 거리(로그).
+//  - 행성 = 개인. 크기 = 평생 누적 총거리의 선형 비율(은하 1등 대비), 밝기 = 이번 달 거리(로그).
 //  - 항성 = 그 은하의 누적(평생) 거리 1등. 은하마다 하나뿐이다(universeBuilder.pickStarUserId).
 //  - 은하 = 시/군/구, 은하군 = 시/도. 둘 다 크기 = 인당 평균, 밝기 = 총거리(로그).
 //  - 은하단 = 대한민국 (최상위 프레임 — 자체 크기는 없다).
@@ -95,8 +95,11 @@ export function logBrightness({ valueKm, maxValueKm }) {
   return toFixed3(ACTIVE_BRIGHTNESS_FLOOR + (1 - ACTIVE_BRIGHTNESS_FLOOR) * ratio);
 }
 
-// 행성 크기 — 평생 누적 총거리(로그). 3년 뛴 사람과 오늘 가입한 사람이 같은 화면에 있어야
-// 하므로 로그로 눌러야 한다: 10km와 3,000km의 크기 차이가 3.3배로 줄어든다.
+// 행성 크기 — 평생 누적 총거리의 **선형 비율** (오너 2026-08-19: "크기도 누적 거리로
+// 비율로 해서 크기 잡아줘"). 은하의 누적 1등(=항성)이 1.0이고 나머지는 달린 만큼의
+// 비율 그대로 작아진다 — 두 배 달렸으면 두 배 커 보인다. 로그로 누르던 시절에는 10km와
+// 3,000km의 차이가 3.3배로 뭉개져 '많이 달린 사람이 크다'가 눈에 안 읽혔다.
+// 바닥(MIN_PLANET_SCALE)은 남긴다 — 오늘 가입한 사람도 점으로는 보여야 탭할 수 있다.
 export function planetScale({ lifetimeDistanceKm, maxLifetimeDistanceKm }) {
   const value = toNonNegativeNumber(lifetimeDistanceKm);
   const max = toNonNegativeNumber(maxLifetimeDistanceKm);
@@ -105,7 +108,7 @@ export function planetScale({ lifetimeDistanceKm, maxLifetimeDistanceKm }) {
     return MIN_PLANET_SCALE;
   }
 
-  const ratio = clamp(Math.log1p(value) / Math.log1p(max), 0, 1);
+  const ratio = clamp(value / max, 0, 1);
 
   return toFixed3(MIN_PLANET_SCALE + (1 - MIN_PLANET_SCALE) * ratio);
 }
