@@ -3,8 +3,8 @@ import test from 'node:test';
 
 import { PLANET_RENDER_CAP, buildUniverse, pickStarUserId } from './universeBuilder.mjs';
 
-// 우주 페이로드: 지역 트리 3단이 은하단→은하군→은하로 그대로 읽히는지, 항성이 상한에
-// 잘려나가지 않고 은하마다 하나뿐인지, 화면 숫자가 리그 보드와 같은 원값인지.
+// 우주 페이로드: 지역 트리 3단이 은하단→은하군→은하로 그대로 읽히는지, 항성(누적 거리
+// 1등)이 은하마다 하나뿐인지, 화면 숫자가 리그 보드와 같은 원값인지.
 
 function createError(status, message) {
   const error = new Error(message);
@@ -140,7 +140,7 @@ test('화면 숫자는 리그 보드와 같은 원값 — 수축 보정은 크�
   assert.notEqual(songpa.scale, 36 / universe.nationwideAverageDistanceKm);
 });
 
-test('은하(송파구)를 열면 행성과 항성이 나온다 — 원시성(이번 달 1등) 개념은 없다', () => {
+test('은하(송파구)를 열면 행성과 항성이 나온다 — 항성은 누적 거리 1등이다', () => {
   const { store, getUserMetrics } = buildStore({
     users: BASE_USERS,
     metrics: BASE_METRICS,
@@ -158,18 +158,17 @@ test('은하(송파구)를 열면 행성과 항성이 나온다 — 원시성(�
   assert.equal(universe.bodies.length, 0);
   assert.equal(universe.galaxy.planets.length, 2);
 
-  // 항성 = 7월 봉인 우승자
-  assert.equal(universe.galaxy.star.monthKey, '2026-07');
-  assert.deepEqual(universe.galaxy.star.champions.map((c) => c.userName), ['회원J']);
-
   const star = universe.galaxy.planets.find((planet) => planet.userId === 'u-star');
   const runner = universe.galaxy.planets.find((planet) => planet.userId === 'u-runner');
 
+  // 평생 1200km > 300km — 누적 1등이 태양으로 점화한다.
   assert.equal(star.isStar, true);
   assert.equal(runner.isStar, false);
   assert.equal(runner.isMine, true);
   // 이번 달 42km로 앞서도 항성이 되지는 않는다 — 이 사이트에 실시간 순위 개념은 없다.
   assert.equal('isProtostar' in runner, false);
+  // 봉인 우승 명단 페이로드도 없다 — ★ 배지 개수로만 남는다.
+  assert.equal('star' in universe.galaxy, false);
 });
 
 test('행성 크기는 평생 거리, 밝기는 이번 달 거리를 따른다', () => {
@@ -191,39 +190,13 @@ test('행성 크기는 평생 거리, 밝기는 이번 달 거리를 따른다',
   assert.ok(star.brightness < runner.brightness);
 });
 
-test('봉인 우승이 동률이어도 항성은 은하에 하나뿐이다', () => {
-  const awards = [
-    {
-      monthKey: '2026-07',
-      memberChampions: [
-        { regionKey: '서울특별시|송파구', regionName: '송파구', userId: 'u-star', userName: '회원J', distanceKm: 55 },
-        { regionKey: '서울특별시|송파구', regionName: '송파구', userId: 'u-runner', userName: '회원G', distanceKm: 55 },
-      ],
-      regionChampions: [],
-    },
-  ];
-  const { store, getUserMetrics } = buildStore({ users: BASE_USERS, metrics: BASE_METRICS, awards });
-  const universe = buildUniverse({
-    store,
-    currentUserId: 'u-runner',
-    nodeId: 'songpa',
-    getUserMetrics,
-    createError,
-  });
-
-  // 원장은 동률 전원을 기록하지만, 하늘의 태양은 하나만 뜬다.
-  assert.equal(universe.galaxy.star.champions.length, 2);
-  assert.equal(universe.galaxy.planets.filter((planet) => planet.isStar).length, 1);
-});
-
-test('한 달 쉬어도 지난달 우승 항성은 남는다', () => {
+test('누적 거리가 동률이어도 항성은 은하에 하나뿐이다', () => {
   const { store, getUserMetrics } = buildStore({
     users: BASE_USERS,
     metrics: {
-      'u-star': { lifetimeDistanceKm: 1200, currentMonthDistanceKm: 0 },
-      'u-runner': { lifetimeDistanceKm: 300, currentMonthDistanceKm: 0 },
+      'u-star': { lifetimeDistanceKm: 500, currentMonthDistanceKm: 10 },
+      'u-runner': { lifetimeDistanceKm: 500, currentMonthDistanceKm: 42 },
     },
-    awards: SEALED_JULY,
   });
   const universe = buildUniverse({
     store,
@@ -233,11 +206,42 @@ test('한 달 쉬어도 지난달 우승 항성은 남는다', () => {
     createError,
   });
 
-  assert.equal(universe.galaxy.star.champions[0].userName, '회원J');
+  assert.equal(universe.galaxy.planets.filter((planet) => planet.isStar).length, 1);
+});
+
+test('봉인 우승 원장이 없어도 항성은 뜬다 — 누적 1등이므로', () => {
+  const { store, getUserMetrics } = buildStore({ users: BASE_USERS, metrics: BASE_METRICS });
+  const universe = buildUniverse({
+    store,
+    currentUserId: 'u-runner',
+    nodeId: 'songpa',
+    getUserMetrics,
+    createError,
+  });
+
   assert.equal(
     universe.galaxy.planets.find((planet) => planet.userId === 'u-star').isStar,
     true,
   );
+});
+
+test('아무도 달린 적 없는 은하에는 태양이 없다', () => {
+  const { store, getUserMetrics } = buildStore({
+    users: BASE_USERS,
+    metrics: {
+      'u-star': { lifetimeDistanceKm: 0, currentMonthDistanceKm: 0 },
+      'u-runner': { lifetimeDistanceKm: 0, currentMonthDistanceKm: 0 },
+    },
+  });
+  const universe = buildUniverse({
+    store,
+    currentUserId: 'u-runner',
+    nodeId: 'songpa',
+    getUserMetrics,
+    createError,
+  });
+
+  assert.equal(universe.galaxy.planets.some((planet) => planet.isStar), false);
 });
 
 test('회원이 상한을 넘으면 성운으로 접히되 항성과 나는 항상 남는다', () => {
@@ -246,27 +250,10 @@ test('회원이 상한을 넘으면 성운으로 접히되 항성과 나는 항�
     crowd.map((user, index) => [user.id, { lifetimeDistanceKm: 100 + index, currentMonthDistanceKm: 0 }]),
   );
 
-  // 항성과 나는 평생 거리 꼴찌 — 크기순으로 자르면 성운에 묻힐 사람들이다.
-  metrics['u-0'] = { lifetimeDistanceKm: 1, currentMonthDistanceKm: 0 };
+  // 나는 평생 거리 꼴찌 — 크기순으로 자르면 성운에 묻힐 사람이다.
   metrics['u-1'] = { lifetimeDistanceKm: 2, currentMonthDistanceKm: 0 };
 
-  const awards = [
-    {
-      monthKey: '2026-07',
-      memberChampions: [
-        {
-          regionKey: '서울특별시|송파구',
-          regionName: '송파구',
-          userId: 'u-0',
-          userName: '러너0',
-          distanceKm: 55,
-        },
-      ],
-      regionChampions: [],
-    },
-  ];
-
-  const { store, getUserMetrics } = buildStore({ users: crowd, metrics, awards });
+  const { store, getUserMetrics } = buildStore({ users: crowd, metrics });
   const universe = buildUniverse({
     store,
     currentUserId: 'u-1',
@@ -279,8 +266,10 @@ test('회원이 상한을 넘으면 성운으로 접히되 항성과 나는 항�
   assert.equal(universe.galaxy.nebula.memberCount, 80 - PLANET_RENDER_CAP);
 
   const ids = new Set(universe.galaxy.planets.map((planet) => planet.userId));
-  assert.ok(ids.has('u-0'), '항성이 성운에 묻혔다');
   assert.ok(ids.has('u-1'), '내 행성이 성운에 묻혔다');
+  // 항성(누적 1등 = u-79)은 어차피 상한 안이고, 정확히 하나다.
+  const suns = universe.galaxy.planets.filter((planet) => planet.isStar);
+  assert.deepEqual(suns.map((planet) => planet.userId), ['u-79']);
 });
 
 test('워프 목적지는 내 소속 은하 — 지역 미설정이면 없다', () => {
@@ -306,24 +295,23 @@ test('없는 지역을 열면 404', () => {
   );
 });
 
-test('pickStarUserId: 커리어 별 → 그 달 거리 → id 순으로 하나만 고른다', () => {
-  const stars = new Map([['a', 1], ['b', 3]]);
-
-  // 커리어 별이 많은 쪽이 이긴다.
+test('pickStarUserId: 누적 거리 1등 하나 — 동률은 id, 전원 0km면 없음', () => {
   assert.equal(
-    pickStarUserId({ champions: [{ userId: 'a', distanceKm: 55 }, { userId: 'b', distanceKm: 55 }] }, stars),
+    pickStarUserId([
+      { userId: 'a', lifetimeDistanceKm: 300 },
+      { userId: 'b', lifetimeDistanceKm: 1200 },
+      { userId: 'c', lifetimeDistanceKm: 800 },
+    ]),
     'b',
   );
-  // 커리어가 같으면 그 달 거리.
+  // 동률은 id — 렌더마다 태양이 바뀌면 안 된다.
   assert.equal(
-    pickStarUserId({ champions: [{ userId: 'c', distanceKm: 41 }, { userId: 'd', distanceKm: 55 }] }, new Map()),
-    'd',
-  );
-  // 전부 같으면 id — 렌더마다 태양이 바뀌면 안 된다.
-  assert.equal(
-    pickStarUserId({ champions: [{ userId: 'f', distanceKm: 55 }, { userId: 'e', distanceKm: 55 }] }, new Map()),
+    pickStarUserId([
+      { userId: 'f', lifetimeDistanceKm: 500 },
+      { userId: 'e', lifetimeDistanceKm: 500 },
+    ]),
     'e',
   );
-  assert.equal(pickStarUserId(null, new Map()), null);
-  assert.equal(pickStarUserId({ champions: [] }, new Map()), null);
+  assert.equal(pickStarUserId([{ userId: 'a', lifetimeDistanceKm: 0 }]), null);
+  assert.equal(pickStarUserId([]), null);
 });

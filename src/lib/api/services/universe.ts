@@ -115,9 +115,8 @@ function buildMockUniverseResponse(nodeId?: string): UniverseResponse {
 
 // 목 전용 은하 내부 — 실서버에선 universeBuilder가 채운다. 오프라인에서 행성/항성 렌더를
 // 눈으로 확인할 수 있게 결정적(회원수 기반) 샘플을 만든다. 진짜 공식은 백엔드에만 있다.
-// 항성은 은하마다 하나뿐이고, 원시성(이번 달 1등)은 이 사이트에 없다.
+// 항성 = 누적 거리 1등, 은하마다 하나뿐. 원시성(이번 달 1등)은 이 사이트에 없다.
 function buildMockGalaxy(node: { id: string; name: string; participants: number; averageDistanceKm: number }): {
-  star: { monthKey: string; champions: { userId: string; userName: string; distanceKm: number }[] } | null;
   planets: {
     userId: string; userName: string; lifetimeDistanceKm: number; monthDistanceKm: number;
     scale: number; brightness: number; stars: number; isStar: boolean; isMine: boolean;
@@ -137,15 +136,22 @@ function buildMockGalaxy(node: { id: string; name: string; participants: number;
       scale: Number((0.55 + 0.45 * (1 - index / NAMES.length)).toFixed(2)),
       brightness: Number((0.35 + 0.65 * (1 - index / NAMES.length)).toFixed(2)),
       stars: index === 0 ? 2 : index === 1 ? 1 : 0,
-      isStar: index === 0,
+      isStar: false,
       isMine: index === 3,
     };
   });
 
+  // 항성 = 누적 거리 1등 — 진짜 규칙(universeBuilder.pickStarUserId)과 같은 그림이 나오게.
+  const starIndex = planets.reduce(
+    (best, planet, index) => (planet.lifetimeDistanceKm > planets[best]?.lifetimeDistanceKm ? index : best),
+    0,
+  );
+
+  if (planets.length > 0) {
+    planets[starIndex].isStar = true;
+  }
+
   return {
-    star: planets.length > 0
-      ? { monthKey: '2026-07', champions: [{ userId: planets[0].userId, userName: planets[0].userName, distanceKm: planets[0].monthDistanceKm }] }
-      : null,
     planets,
     nebula: node.participants > visible
       ? { memberCount: node.participants - visible, totalLifetimeDistanceKm: (node.participants - visible) * 180 }

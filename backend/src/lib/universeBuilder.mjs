@@ -13,7 +13,6 @@
 // 오직 그리는 크기(scale)에만 쓴다 — 보정된 값을 숫자로 보여주면 리그 순위와 어긋난다.
 
 import {
-  buildLatestRegionChampions,
   buildRankingStarCounts,
   resolveRegionNodeStarKey,
   resolveUserLeafRegion,
@@ -52,39 +51,34 @@ function capRegionPathDepth(path) {
   return leafIndex === -1 ? path : path.slice(0, leafIndex + 1);
 }
 
-// 항성은 은하마다 **정확히 하나**다 (오너 2026-08-19: "한 은하에서 항성은 하나여야지").
-// 봉인 원장은 동률 우승을 전원 기록하지만, 하늘의 태양은 하나만 뜬다 — 커리어 별(★)이
-// 많은 쪽, 같으면 그 달 거리, 그것도 같으면 id 순으로 결정적으로 고른다. 원장은 그대로
-// 두고 그림만 고르는 것이라 회계는 달라지지 않는다.
+// 항성 = 그 은하의 **누적(평생) 거리 1등**, 은하마다 정확히 하나 (오너 2026-08-19:
+// "이번 달 1등이 항성이 되는 게 아니라 누적 거리로 1등이 항성이 되는 거야", "한 은하에서
+// 항성은 하나여야지"). 가장 많이 달려 온 사람이 가장 무거운 천체가 되어 점화한다 —
+// 행성 크기도 평생 거리를 따르므로 태양은 자연히 그 은하에서 가장 큰 몸이다.
 //
-// 원시성(이번 달 실시간 1등)은 폐기됐다 (오너 2026-08-19: "이번 달 1등 이런 건 없어야지"
-// — 이 사이트는 러닝그라운드 앱과 별개라 실시간 순위 개념을 얹지 않는다).
-export function pickStarUserId(sealed, memberStars) {
-  const champions = sealed?.champions ?? [];
+// 월간 순위 개념(원시성·봉인 우승 항성)은 이 사이트에 없다. 월간 우승 원장은 ★ 배지
+// 개수로만 남는다. 동률은 id로 갈라 렌더마다 태양이 바뀌지 않게 한다. 아무도 안 뛴
+// 은하(전원 0km)에는 태양이 없다.
+export function pickStarUserId(members) {
+  let star = null;
 
-  if (champions.length === 0) {
-    return null;
+  for (const member of members) {
+    const distance = Number(member.lifetimeDistanceKm) || 0;
+
+    if (distance <= 0) {
+      continue;
+    }
+
+    if (
+      !star
+      || distance > star.distance
+      || (distance === star.distance && member.userId < star.userId)
+    ) {
+      star = { userId: member.userId, distance };
+    }
   }
 
-  const ranked = [...champions].sort((left, right) => {
-    const leftStars = memberStars.get(left.userId) ?? 0;
-    const rightStars = memberStars.get(right.userId) ?? 0;
-
-    if (rightStars !== leftStars) {
-      return rightStars - leftStars;
-    }
-
-    const leftKm = Number(left.distanceKm) || 0;
-    const rightKm = Number(right.distanceKm) || 0;
-
-    if (rightKm !== leftKm) {
-      return rightKm - leftKm;
-    }
-
-    return left.userId < right.userId ? -1 : 1;
-  });
-
-  return ranked[0].userId;
+  return star?.userId ?? null;
 }
 
 function buildChildBodies(children, ancestors, { statsIndex, regionStars, nationwideAverageKm, myNodeIds }) {
@@ -127,7 +121,6 @@ function buildChildBodies(children, ancestors, { statsIndex, regionStars, nation
 function buildGalaxyContents(store, regionKey, {
   getUserMetrics,
   memberStars,
-  latestChampions,
   currentUserId,
 }) {
   const members = [];
@@ -148,8 +141,7 @@ function buildGalaxyContents(store, regionKey, {
     });
   }
 
-  const sealed = latestChampions.get(regionKey) ?? null;
-  const starUserId = pickStarUserId(sealed, memberStars);
+  const starUserId = pickStarUserId(members);
 
   const maxLifetimeDistanceKm = members.reduce(
     (max, member) => Math.max(max, member.lifetimeDistanceKm),
@@ -174,8 +166,8 @@ function buildGalaxyContents(store, regionKey, {
     isMine: member.userId === currentUserId,
   }));
 
-  // 항성과 나는 크기와 무관하게 반드시 화면에 있어야 한다 — 평생 거리로만 자르면 그 달의
-  // 주인공이 성운에 묻힌다.
+  // 항성과 나는 크기와 무관하게 반드시 화면에 있어야 한다. 항성(누적 1등)은 어차피 상한
+  // 안에 들지만, 나는 평생 거리로 자르면 성운에 묻힐 수 있다.
   const pinned = bodies.filter((body) => body.isStar || body.isMine);
   const pinnedIds = new Set(pinned.map((body) => body.userId));
   const rest = bodies
@@ -186,16 +178,6 @@ function buildGalaxyContents(store, regionKey, {
   const folded = rest.slice(Math.max(0, PLANET_RENDER_CAP - pinned.length));
 
   return {
-    star: sealed
-      ? {
-        monthKey: sealed.monthKey,
-        champions: sealed.champions.map((champion) => ({
-          userId: champion.userId,
-          userName: champion.userName,
-          distanceKm: champion.distanceKm,
-        })),
-      }
-      : null,
     planets: planets.sort((left, right) => right.lifetimeDistanceKm - left.lifetimeDistanceKm),
     nebula: folded.length > 0
       ? {
@@ -223,7 +205,6 @@ export function buildUniverse({ store, currentUserId, nodeId, getUserMetrics, cr
 
   const statsIndex = buildRegionLiveStatsIndex(store, getUserMetrics);
   const { regionStars, memberStars } = buildRankingStarCounts(store);
-  const latestChampions = buildLatestRegionChampions(store);
 
   const nationwideStats = statsIndex.statsForNode(rootNode, {});
   const nationwideAverageKm = nationwideAverageDistanceKm({
@@ -274,10 +255,9 @@ export function buildUniverse({ store, currentUserId, nodeId, getUserMetrics, cr
         ? buildGalaxyContents(store, currentStarKey, {
           getUserMetrics,
           memberStars,
-          latestChampions,
           currentUserId,
         })
-        : { star: null, planets: [], nebula: null },
+        : { planets: [], nebula: null },
     };
   }
 

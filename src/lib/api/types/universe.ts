@@ -35,20 +35,9 @@ export type UniversePlanet = {
   scale: number;
   brightness: number;
   stars: number;
-  // 봉인된 지난달 우승자 = 항성.
+  // 그 은하의 누적(평생) 거리 1등 = 항성. 은하마다 정확히 하나(전원 0km면 없음).
   isStar: boolean;
   isMine: boolean;
-};
-
-export type UniverseStarChampion = {
-  userId: string;
-  userName: string;
-  distanceKm: number;
-};
-
-export type UniverseStar = {
-  monthKey: string;
-  champions: UniverseStarChampion[];
 };
 
 export type UniverseNebula = {
@@ -57,7 +46,6 @@ export type UniverseNebula = {
 };
 
 export type UniverseGalaxy = {
-  star: UniverseStar | null;
   planets: UniversePlanet[];
   // 렌더 상한을 넘은 회원들 — 한 덩어리 성운으로 접힌다.
   nebula: UniverseNebula | null;
