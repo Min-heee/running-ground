@@ -44,14 +44,15 @@ void main() {
 `;
 
 // 지수가 크고 세기가 낮아야 '테두리 선'이 아니라 '공기'가 된다 — 완만하면 행성에 파란 링을
-// 그려 놓은 것처럼 보인다.
+// 그려 놓은 것처럼 보인다 (오너 2026-08-19: "행성에서 너무 과한 빛이 나" — 4.2는 아직
+// 두꺼운 발광 고리로 읽혔다. 실제 대기는 지평선의 얇은 헤이즈다).
 const ATMOSPHERE_FRAGMENT = `
 uniform vec3 uColor;
 uniform float uStrength;
 varying vec3 vViewNormal;
 void main() {
   float rim = 1.0 - abs(vViewNormal.z);
-  float glow = pow(clamp(rim, 0.0, 1.0), 4.2);
+  float glow = pow(clamp(rim, 0.0, 1.0), 6.0);
   gl_FragColor = vec4(uColor, glow * uStrength);
 }
 `;
@@ -76,7 +77,7 @@ function useAtmosphereMaterial(color: string, strength: number, fade: number) {
     side: BackSide,
   }), [color]);
 
-  material.uniforms.uStrength.value = strength * fade * 0.45;
+  material.uniforms.uStrength.value = strength * fade * 0.34;
 
   useEffect(() => () => material.dispose(), [material]);
 
@@ -144,7 +145,7 @@ function PlanetBody({
       map: surface,
       color: new Color(traits.tint),
       bumpMap: surface,
-      bumpScale: 0.035,
+      bumpScale: 0.055,
       roughness: 0.82,
       metalness: 0.02,
       emissive: new Color(traits.tint),
@@ -184,7 +185,7 @@ function PlanetBody({
   useEffect(() => () => litSurface?.dispose(), [litSurface]);
 
   if (litSurface) {
-    litSurface.emissiveIntensity = 0.05 + 0.09 * brightness;
+    litSurface.emissiveIntensity = 0.02 + 0.03 * brightness;
     litSurface.opacity = fade;
   }
 
@@ -238,12 +239,12 @@ function PlanetBody({
               color={new Color(traits.tint)}
               // 표면 요철 — 같은 텍스처를 높이로도 쓴다. 명암 경계에서 지형이 살아난다.
               bumpMap={detailed ? surface : undefined}
-              bumpScale={detailed ? 0.035 : 0}
+              bumpScale={detailed ? 0.055 : 0}
               roughness={traits.kind === 'gas' ? 0.95 : 0.82}
               metalness={0.02}
               // 완전한 암흑면을 피할 만큼만 — 이게 크면 조명이 무의미해져 스티커처럼 보인다.
               emissive={new Color(traits.tint)}
-              emissiveIntensity={0.05 + 0.09 * brightness}
+              emissiveIntensity={0.02 + 0.03 * brightness}
               // 언제나 transparent — 토글하면 OPAQUE define이 구워져 근접 페이드가 죽는다.
               transparent
               opacity={fade}
@@ -259,7 +260,7 @@ function PlanetBody({
             <meshStandardMaterial
               map={getCloudTexture()}
               transparent
-              opacity={0.62 * fade}
+              opacity={0.5 * fade}
               depthWrite={false}
               roughness={1}
             />
@@ -269,7 +270,7 @@ function PlanetBody({
 
       {detailed && traits.atmosphere ? (
         <mesh material={atmosphere}>
-          <sphereGeometry args={[1.09, segments, segments]} />
+          <sphereGeometry args={[1.055, segments, segments]} />
         </mesh>
       ) : null}
 
@@ -293,24 +294,33 @@ function PlanetBody({
 // 뜨거운 세포들이 반짝인다. 정지한 텍스처가 도는 것은 램프지 태양이 아니다.
 const PHOTOSPHERE_VERTEX = `
 varying vec2 vUv;
+varying vec3 vViewNormal;
 void main() {
   vUv = uv;
+  vViewNormal = normalize(normalMatrix * normal);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `;
 
+// 주연감광 — 진짜 항성 원반은 **가장자리가 어둡다**(시선이 광구의 얕고 차가운 층만
+// 스치기 때문). 평평하게 빛나는 원반은 눈이 곧바로 램프로 읽는다 — 이 한 가지가
+// '빛나는 공'과 '태양 사진'을 가른다. 가장자리는 어두워지며 살짝 붉어진다.
 const PHOTOSPHERE_FRAGMENT = `
 uniform sampler2D uMap;
 uniform vec3 uColor;
 uniform float uOpacity;
 uniform float uTime;
 varying vec2 vUv;
+varying vec3 vViewNormal;
 void main() {
   vec2 warp = vec2(sin(uTime * 0.05), cos(uTime * 0.04)) * 0.02;
   float a = texture2D(uMap, vUv + warp).r;
   float b = texture2D(uMap, vUv * 1.7 - warp * 1.6 + vec2(0.37)).r;
   float g = mix(a, b, 0.5 + 0.5 * sin(uTime * 0.35));
   vec3 col = uColor * (0.62 + 0.55 * g) + uColor * smoothstep(0.82, 1.0, g) * 0.9;
+  float mu = clamp(abs(vViewNormal.z), 0.0, 1.0);
+  col *= 0.32 + 0.68 * pow(mu, 0.85);
+  col *= mix(vec3(1.0, 0.74, 0.52), vec3(1.0), 0.35 + 0.65 * mu);
   gl_FragColor = vec4(col, uOpacity);
 }
 `;
@@ -436,7 +446,9 @@ function StarBody({
           map={getGlowTexture()}
           color={new Color(traits.coronaColor)}
           transparent
-          opacity={(0.75 + 0.25 * brightness) * fade * coronaFold}
+          // 광륜은 살짝 물러난다 — 완벽한 방사형 그라데이션이 셀수록 원반이 램프로 읽힌다.
+          // 이제 눈부심의 주역은 주연감광이 살린 원반과 블룸을 뚫는 뜨거운 대류 세포들이다.
+          opacity={(0.62 + 0.25 * brightness) * fade * coronaFold}
           depthWrite={false}
           blending={AdditiveBlending}
         />

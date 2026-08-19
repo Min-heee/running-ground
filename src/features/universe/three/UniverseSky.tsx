@@ -539,7 +539,6 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
   const worldY = height / 2 - orb.y;
   const radius = orb.diameter / 2;
   const screenDiameter = orb.screenDiameter ?? orb.diameter;
-  const glowScale = radius * 8.5;
   const glowColor = new Color(colors.glow);
 
   const fade = orb.opacity ?? 1;
@@ -552,14 +551,6 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
   // 깊이는 화면 단위로 온다 — 겹친 천체의 가림 순서를 정하는 데만 쓴다.
   const depth = orb.depth ?? 0;
 
-  // 행성 후광의 두 게이트.
-  // ① 작을 때는 끈다 — 동네 뷰에서는 행성 수십 개의 가산 판이 **합쳐서** 하늘의 바닥을
-  //    들어올린다. 후광은 가까이 간 것의 특권이다(DETAILED_SCREEN_DIAMETER와 같은 문법).
-  // ② 화면을 채우면 다시 접는다 — 후광 판은 행성 지름의 8.5배라, 클로즈업에서는 화면
-  //    전체를 덮는 가산합성 판이 되어 검은 하늘을 통째로 파랗게 들어올린다.
-  const haloOpacity = (0.16 + 0.24 * orb.brightness) * fade * morph
-    * smoothStep(26, 54, screenDiameter)
-    * (1 - smoothStep(0.28, 0.72, screenDiameter / Math.max(1, Math.min(width, height))));
 
   return (
     <group position={[worldX, worldY, depth]}>
@@ -606,21 +597,9 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
 
       {morph > 0.005 && orb.shape === 'sphere' ? (
         <>
-          {/* 행성 주변의 옅은 빛 — 항성은 자기 코로나를 따로 갖고 있어 여기선 뺀다. */}
-          {orb.palette === 'planet' && haloOpacity > 0.02 ? (
-            <mesh position={[0, 0, -2]} scale={[glowScale, glowScale, 1]}>
-              <planeGeometry args={[1, 1]} />
-              <meshBasicMaterial
-                map={getGlowTexture()}
-                color={glowColor}
-                transparent
-                opacity={haloOpacity}
-                depthWrite={false}
-                blending={AdditiveBlending}
-              />
-            </mesh>
-          ) : null}
-
+          {/* 행성에는 후광이 없다 — 스스로 빛나는 것은 항성뿐이다(오너 2026-08-19: "행성에서
+              너무 과한 빛이 나"). 예전의 가산 후광 판은 행성을 램프로 만들었다. 행성의
+              빛은 표면의 반사광과 대기 가장자리의 얇은 테두리로 충분하다. */}
           <CelestialSphere
             id={orb.id}
             palette={orb.palette === 'star' ? 'star' : orb.palette === 'protostar' ? 'protostar' : 'planet'}
@@ -664,6 +643,11 @@ function UniverseSkyComponent({
   // 처음 배율(나라가 화면에 꽉 차는 배율) 대비 몇 배인지 — 배경을 얼마나 물릴지 정한다.
   zoomFactor?: number;
 }) {
+  // 별 개수는 화면 **면적**을 따라간다 — 개수가 고정이면 폰 화면에서는 같은 별들이 1/4
+  // 면적에 몰려 하늘이 눈보라가 되고, 초광폭 모니터에서는 성겨진다. 밀도가 상수여야
+  // 어느 화면에서든 같은 하늘이다.
+  const areaScale = Math.max(0.3, Math.min(1.4, (width * height) / 480000));
+
   return (
     <>
       {/* 은은한 환경광 — 완전한 암흑을 피하되 명암 경계는 살린다. 우주에는 하늘빛이 없어서
@@ -678,7 +662,7 @@ function UniverseSkyComponent({
       {DEEP_GALAXY_LAYERS.map((layer) => (
         <StarLayer
           key={`deep-galaxy-${layer.variant}`}
-          count={layer.count}
+          count={Math.round(layer.count * areaScale)}
           z={layer.z}
           size={layer.size}
           opacity={layer.opacity}
@@ -696,6 +680,7 @@ function UniverseSkyComponent({
         <StarLayer
           key={`deep-dust-${index}`}
           {...layer}
+          count={Math.round(layer.count * areaScale)}
           width={width}
           height={height}
           seed={52501 + index * 9973}
@@ -733,6 +718,7 @@ function UniverseSkyComponent({
           <StarLayer
             key={`star-layer-${index}`}
             {...layer}
+            count={Math.round(layer.count * areaScale)}
             width={width}
             height={height}
             seed={7919 + index * 104729}
@@ -744,6 +730,7 @@ function UniverseSkyComponent({
           <StarLayer
             key={`band-layer-${index}`}
             {...layer}
+            count={Math.round(layer.count * areaScale)}
             width={width}
             height={height}
             seed={1913 + index * 60013}
@@ -754,7 +741,7 @@ function UniverseSkyComponent({
         {/* 히어로 별 — 스물넷의 큰 별에만 회절 십자를 준다. 수천의 티끌 대 스물넷의 광휘,
             그 위계가 장노출 사진의 등급 분포다. */}
         <StarLayer
-          count={24}
+          count={Math.max(10, Math.round(24 * areaScale))}
           z={-180}
           size={13}
           opacity={0.8}
