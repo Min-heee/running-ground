@@ -146,11 +146,7 @@ function placeChildrenOf(
 }
 
 function paletteForPlanet(planet: UniversePlanet): SkyOrb['palette'] {
-  if (planet.isStar) {
-    return 'star';
-  }
-
-  return planet.isProtostar ? 'protostar' : 'planet';
+  return planet.isStar ? 'star' : 'planet';
 }
 
 function UniverseSceneComponent({

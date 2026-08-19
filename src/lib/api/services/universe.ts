@@ -113,13 +113,14 @@ function buildMockUniverseResponse(nodeId?: string): UniverseResponse {
 }
 
 
-// 목 전용 은하 내부 — 실서버에선 universeBuilder가 채운다. 오프라인에서 행성/항성/원시성
-// 렌더를 눈으로 확인할 수 있게 결정적(회원수 기반) 샘플을 만든다. 진짜 공식은 백엔드에만 있다.
+// 목 전용 은하 내부 — 실서버에선 universeBuilder가 채운다. 오프라인에서 행성/항성 렌더를
+// 눈으로 확인할 수 있게 결정적(회원수 기반) 샘플을 만든다. 진짜 공식은 백엔드에만 있다.
+// 항성은 은하마다 하나뿐이고, 원시성(이번 달 1등)은 이 사이트에 없다.
 function buildMockGalaxy(node: { id: string; name: string; participants: number; averageDistanceKm: number }): {
   star: { monthKey: string; champions: { userId: string; userName: string; distanceKm: number }[] } | null;
   planets: {
     userId: string; userName: string; lifetimeDistanceKm: number; monthDistanceKm: number;
-    scale: number; brightness: number; stars: number; isStar: boolean; isProtostar: boolean; isMine: boolean;
+    scale: number; brightness: number; stars: number; isStar: boolean; isMine: boolean;
   }[];
   nebula: { memberCount: number; totalLifetimeDistanceKm: number } | null;
 } {
@@ -137,7 +138,6 @@ function buildMockGalaxy(node: { id: string; name: string; participants: number;
       brightness: Number((0.35 + 0.65 * (1 - index / NAMES.length)).toFixed(2)),
       stars: index === 0 ? 2 : index === 1 ? 1 : 0,
       isStar: index === 0,
-      isProtostar: index === 1,
       isMine: index === 3,
     };
   });

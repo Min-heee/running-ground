@@ -39,7 +39,7 @@ export type SkyOrb = {
   diameter: number;
   // 0~1, 서버 계산값.
   brightness: number;
-  palette: 'group' | 'galaxy' | 'planet' | 'star' | 'protostar';
+  palette: 'group' | 'galaxy' | 'planet' | 'star';
   // 가까이서의 모습. 같은 은하라도 멀면 뿌연 덩어리 하나로, 가까우면 수천 점의 나선으로
   // 그려야 한다 — 팔레트에 묶어두면 그 선택을 할 수가 없어서 따로 둔다.
   //   disk   — 나선/타원 파티클 원반 (수백~수천 점, 비싸다)
@@ -74,7 +74,6 @@ const PALETTE_COLORS: Record<SkyOrb['palette'], { core: string; glow: string; em
   galaxy: { core: '#FFE9C4', glow: '#7E97E8', emissive: 0.85 },
   planet: { core: '#B7E2FF', glow: '#5F96F0', emissive: 0.55 },
   star: { core: '#FFD467', glow: '#E8B45A', emissive: 1.5 },
-  protostar: { core: '#FFEEB8', glow: '#D9BE8C', emissive: 1.1 },
 };
 
 // 별 배경 3겹 — 깊이별로 크기·밝기·표류 속도가 달라 시차가 생긴다.
@@ -602,7 +601,7 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
               빛은 표면의 반사광과 대기 가장자리의 얇은 테두리로 충분하다. */}
           <CelestialSphere
             id={orb.id}
-            palette={orb.palette === 'star' ? 'star' : orb.palette === 'protostar' ? 'protostar' : 'planet'}
+            palette={orb.palette === 'star' ? 'star' : 'planet'}
             radius={radius}
             screenDiameter={screenDiameter}
             brightness={orb.brightness}

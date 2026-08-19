@@ -521,7 +521,7 @@ function CelestialSphereComponent({
   fade,
 }: {
   id: string;
-  palette: 'planet' | 'star' | 'protostar';
+  palette: 'planet' | 'star';
   radius: number;
   screenDiameter: number;
   brightness: number;

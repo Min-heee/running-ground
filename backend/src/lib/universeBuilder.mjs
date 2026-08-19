@@ -30,7 +30,7 @@ import {
 const REGION_LEAF_LEVELS = new Set(['city', 'district']);
 
 // 한 은하에 개별 렌더할 행성 수 상한. 넘는 인원은 성운 한 덩어리로 접는다 — 회원이 늘어도
-// 화면이 무너지지 않게 하는 유일한 방어선이다. 항성·원시성·나는 상한과 무관하게 항상 뜬다.
+// 화면이 무너지지 않게 하는 유일한 방어선이다. 항성과 나는 상한과 무관하게 항상 뜬다.
 export const PLANET_RENDER_CAP = 60;
 
 function isRegionLeafLevel(level) {
@@ -52,19 +52,39 @@ function capRegionPathDepth(path) {
   return leafIndex === -1 ? path : path.slice(0, leafIndex + 1);
 }
 
-// 이번 달 1등 = 원시성. 동률은 전원(깜빡이는 별이 여럿). 0km 우승은 없다 — 아무도 안 뛴
-// 동네에 원시성이 켜지면 '가만히 있어도 1등'이 되어 봉인 규칙(거리 0은 우승 없음)과 어긋난다.
-export function pickProtostars(members) {
-  const best = members.reduce(
-    (max, member) => Math.max(max, Number(member.monthDistanceKm) || 0),
-    0,
-  );
+// 항성은 은하마다 **정확히 하나**다 (오너 2026-08-19: "한 은하에서 항성은 하나여야지").
+// 봉인 원장은 동률 우승을 전원 기록하지만, 하늘의 태양은 하나만 뜬다 — 커리어 별(★)이
+// 많은 쪽, 같으면 그 달 거리, 그것도 같으면 id 순으로 결정적으로 고른다. 원장은 그대로
+// 두고 그림만 고르는 것이라 회계는 달라지지 않는다.
+//
+// 원시성(이번 달 실시간 1등)은 폐기됐다 (오너 2026-08-19: "이번 달 1등 이런 건 없어야지"
+// — 이 사이트는 러닝그라운드 앱과 별개라 실시간 순위 개념을 얹지 않는다).
+export function pickStarUserId(sealed, memberStars) {
+  const champions = sealed?.champions ?? [];
 
-  if (best <= 0) {
-    return [];
+  if (champions.length === 0) {
+    return null;
   }
 
-  return members.filter((member) => (Number(member.monthDistanceKm) || 0) === best);
+  const ranked = [...champions].sort((left, right) => {
+    const leftStars = memberStars.get(left.userId) ?? 0;
+    const rightStars = memberStars.get(right.userId) ?? 0;
+
+    if (rightStars !== leftStars) {
+      return rightStars - leftStars;
+    }
+
+    const leftKm = Number(left.distanceKm) || 0;
+    const rightKm = Number(right.distanceKm) || 0;
+
+    if (rightKm !== leftKm) {
+      return rightKm - leftKm;
+    }
+
+    return left.userId < right.userId ? -1 : 1;
+  });
+
+  return ranked[0].userId;
 }
 
 function buildChildBodies(children, ancestors, { statsIndex, regionStars, nationwideAverageKm, myNodeIds }) {
@@ -129,8 +149,7 @@ function buildGalaxyContents(store, regionKey, {
   }
 
   const sealed = latestChampions.get(regionKey) ?? null;
-  const sealedUserIds = new Set((sealed?.champions ?? []).map((champion) => champion.userId));
-  const protostarUserIds = new Set(pickProtostars(members).map((member) => member.userId));
+  const starUserId = pickStarUserId(sealed, memberStars);
 
   const maxLifetimeDistanceKm = members.reduce(
     (max, member) => Math.max(max, member.lifetimeDistanceKm),
@@ -151,14 +170,13 @@ function buildGalaxyContents(store, regionKey, {
       valueKm: member.monthDistanceKm,
       maxValueKm: maxMonthDistanceKm,
     }),
-    isStar: sealedUserIds.has(member.userId),
-    isProtostar: protostarUserIds.has(member.userId),
+    isStar: member.userId === starUserId,
     isMine: member.userId === currentUserId,
   }));
 
-  // 항성·원시성·나는 크기와 무관하게 반드시 화면에 있어야 한다 (이번 달 1등이 신입일 수
-  // 있다 — 평생 거리로만 자르면 그 달의 주인공이 성운에 묻힌다).
-  const pinned = bodies.filter((body) => body.isStar || body.isProtostar || body.isMine);
+  // 항성과 나는 크기와 무관하게 반드시 화면에 있어야 한다 — 평생 거리로만 자르면 그 달의
+  // 주인공이 성운에 묻힌다.
+  const pinned = bodies.filter((body) => body.isStar || body.isMine);
   const pinnedIds = new Set(pinned.map((body) => body.userId));
   const rest = bodies
     .filter((body) => !pinnedIds.has(body.userId))

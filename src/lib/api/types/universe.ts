@@ -37,8 +37,6 @@ export type UniversePlanet = {
   stars: number;
   // 봉인된 지난달 우승자 = 항성.
   isStar: boolean;
-  // 이번 달 실시간 1등 = 원시성(달이 끝나면 점화된다).
-  isProtostar: boolean;
   isMine: boolean;
 };
 

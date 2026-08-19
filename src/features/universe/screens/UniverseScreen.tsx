@@ -211,7 +211,6 @@ export default function UniverseScreen() {
                 {shown.stars > 0 ? ` ★${shown.stars}` : ''}
               </Text>
               {shown.planet?.isStar ? <Text style={styles.infoBadge}>항성</Text> : null}
-              {shown.planet?.isProtostar ? <Text style={styles.infoBadge}>이번 달 1등</Text> : null}
             </View>
             <Text style={styles.infoMetrics}>
               {shown.planet
