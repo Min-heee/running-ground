@@ -66,7 +66,10 @@ export const BACKGROUND_MATCH_PROGRESS_PUSH_TIMEOUT_MS = 4_000;
 // (goalThreshold - EPSILON). This tiny epsilon keeps the capped value STRICTLY below the goal
 // threshold so the server's own `reachedGoalDistance = distanceKm >= goal - tolerance` check
 // cannot trip from native over-count. The finish only fires when JS itself crosses the goal.
-export const NATIVE_SUBGOAL_CAP_EPSILON_KM = 0.001;
+// 0.006인 이유: 전송 직전 toFixed(2) 반올림이 값을 최대 0.005 올릴 수 있어, 엡실론이 그보다
+// 작으면 42.195 프리셋에서 상한(goal − 0.005 − ε)이 서버 완주 문턱(goal − 0.005)으로 반올림돼
+// 잠든 병합 값이 완주를 건드릴 수 있다. 0.006이면 어떤 골에서도 문턱 아래로 반올림된다.
+export const NATIVE_SUBGOAL_CAP_EPSILON_KM = 0.006;
 
 export type BackgroundMatchProgressContext = {
   matchId: string;

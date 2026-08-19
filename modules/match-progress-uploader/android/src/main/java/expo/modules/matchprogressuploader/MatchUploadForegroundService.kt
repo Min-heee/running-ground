@@ -327,8 +327,9 @@ class MatchUploadForegroundService : Service() {
       }
       val nativeKm = distanceAccumulator.totalMeters / 1000.0
       val mergedKm = Math.max(jsKm, Math.min(nativeKm, capKm))
-      // 서버·기록과 같은 두 자리 반올림 — 그 아래 차이는 갱신이 아니다.
-      val roundedKm = Math.round(mergedKm * 100.0) / 100.0
+      // 두 자리 **내림** — 반올림이 올리면 42.195 프리셋에서 상한(42.189)이 서버 완주
+      // 문턱(42.190)과 같아진다. 내림은 어떤 골에서도 상한 아래에 머문다.
+      val roundedKm = Math.floor(mergedKm * 100.0) / 100.0
       if (roundedKm <= jsKm) {
         return body
       }

@@ -1135,8 +1135,9 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
 
     let nativeKm = meters / 1000.0
     let mergedKm = max(jsKm, min(nativeKm, capKm))
-    // 서버·기록과 같은 두 자리 반올림 — 그 아래 차이는 갱신이 아니다.
-    let roundedKm = (mergedKm * 100).rounded() / 100
+    // 두 자리 **내림** — 반올림이 올리면 42.195 프리셋에서 상한(42.189)이 서버 완주
+    // 문턱(42.190)과 같아진다. 내림은 어떤 골에서도 상한 아래에 머문다.
+    let roundedKm = (mergedKm * 100).rounded(.down) / 100
     if roundedKm <= jsKm {
       return body
     }
