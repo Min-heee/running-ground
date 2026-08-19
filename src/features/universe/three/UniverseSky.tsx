@@ -1,10 +1,11 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import {
   AdditiveBlending,
   BufferAttribute,
   BufferGeometry,
   Color,
+  type DataTexture,
   type Group,
   type Points,
   ShaderMaterial,
@@ -12,6 +13,7 @@ import {
 
 import {
   getBlackbodyRamp,
+  getDeepGalaxyTexture,
   getGlowTexture,
   getNebulaTexture,
   getSpikedStarTexture,
@@ -99,6 +101,26 @@ const BAND_LAYERS = [
 const MILKY_BAND = { angle: BAND_ANGLE, sigma: BAND_SIGMA };
 const HERO_WARMTH: [number, number] = [0.55, 1];
 
+// 최원경 — 시차 그룹 **바깥**에 산다. 팬·줌 어디에도 반응하지 않는다: 무한히 먼 것은
+// 움직이지 않는 법이고, 덕분에 아무리 깊이 들어가도(시차 그룹이 밀려나 하늘이 성겨져도)
+// 화면에는 언제나 이 티끌들이 남는다 — '들어갈수록 비는 하늘'이 '어디에나 있는 우주'가 된다.
+const DEEP_DUST_LAYERS = [
+  { count: 700, z: -520, size: 1, opacity: 0.3, drift: 0.002, twinkle: 0.35 },
+  { count: 420, z: -500, size: 1.4, opacity: 0.4, drift: 0.003, twinkle: 0.4 },
+];
+// 딥 필드 — 미해상 은하 얼룩들. 허블이 '빈' 하늘에서 찾아낸 그것: 배경이 비어 있는 게
+// 아니라 아득할 뿐임을 몇 픽셀짜리 타원들이 말해 준다. 광활함은 여기서 나온다.
+// 크기는 gl_PointSize라 **기기 픽셀** 단위다 — dpr 2 화면에서는 절반으로 보인다.
+//
+// 밀도와 밝기는 '찾으면 보이는' 수준까지 눌렀다 — 딥 필드는 배경의 소음이 아니라
+// 들여다본 사람에게 주는 발견이어야 한다. 많고 밝으면 하늘이 지저분해진다.
+const DEEP_GALAXY_LAYERS: { variant: 0 | 1 | 2; count: number; z: number; size: number; opacity: number; drift: number; twinkle: number }[] = [
+  { variant: 0, count: 34, z: -540, size: 13, opacity: 0.3, drift: 0.0015, twinkle: 0.05 },
+  { variant: 1, count: 26, z: -535, size: 17, opacity: 0.24, drift: 0.0012, twinkle: 0.05 },
+  { variant: 2, count: 22, z: -530, size: 10, opacity: 0.32, drift: 0.0018, twinkle: 0.05 },
+];
+const DEEP_GALAXY_WARMTH: [number, number] = [0.32, 0.55];
+
 // 별 하나하나가 제 박자로 깜빡인다. 레이어 전체를 한꺼번에 흔들면 하늘이 통째로 명멸해서
 // 별이 아니라 화면이 깜빡이는 것처럼 보인다 — 그래서 위상과 속도를 점마다 심는다.
 const STAR_VERTEX = `
@@ -107,12 +129,14 @@ attribute float twinkleAmount;
 attribute float warmth;
 uniform float uTime;
 uniform float uSize;
+uniform float uPixelScale;
 varying float vAlpha;
 varying float vWarmth;
 void main() {
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  // 직교 카메라라 거리에 따른 축소가 없다 — 화면 크기를 그대로 쓴다.
-  gl_PointSize = uSize;
+  // 직교 카메라라 거리에 따른 축소가 없다. gl_PointSize는 **기기 픽셀** 단위라
+  // uPixelScale(dpr/2)로 화면마다 같은 CSS 크기를 유지한다 — 기준은 dpr 2에서 조율한 look.
+  gl_PointSize = uSize * uPixelScale;
   float pulse = 0.5 + 0.5 * sin(uTime * (0.55 + phase * 1.7) + phase * 6.2831853);
   vAlpha = mix(1.0, 0.2 + 0.8 * pulse, twinkleAmount);
   vWarmth = warmth;
@@ -154,6 +178,7 @@ function StarLayer({
   seed,
   band = null,
   spiked = false,
+  texture = null,
   warmthRange = null,
 }: {
   count: number;
@@ -169,10 +194,13 @@ function StarLayer({
   band?: { angle: number; sigma: number } | null;
   // 밝은 소수의 별에만 회절 십자를 준다.
   spiked?: boolean;
+  // 점 스프라이트 텍스처 덮어쓰기 — 딥 필드의 은하 얼룩 등. spiked보다 우선한다.
+  texture?: DataTexture | null;
   // warmth 분포 덮어쓰기(히어로 별은 청백 쪽). 없으면 관측 사진의 등급 분포를 따른다.
   warmthRange?: [number, number] | null;
 }) {
   const pointsRef = useRef<Points>(null);
+  const dpr = useThree((state) => state.viewport.dpr);
 
   const geometry = useMemo(() => {
     const random = seededRandom(seed);
@@ -230,8 +258,9 @@ function StarLayer({
     uniforms: {
       uTime: { value: 0 },
       uSize: { value: size },
+      uPixelScale: { value: 1 },
       uOpacity: { value: opacity },
-      uMap: { value: spiked ? getSpikedStarTexture() : getStarPointTexture() },
+      uMap: { value: texture ?? (spiked ? getSpikedStarTexture() : getStarPointTexture()) },
       uRamp: { value: getBlackbodyRamp() },
     },
     vertexShader: STAR_VERTEX,
@@ -239,7 +268,9 @@ function StarLayer({
     transparent: true,
     depthWrite: false,
     blending: AdditiveBlending,
-  }), [opacity, size, spiked]);
+  }), [opacity, size, spiked, texture]);
+
+  material.uniforms.uPixelScale.value = dpr * 0.5;
 
   // 재질도 기하도 이 컴포넌트가 만들었으니 이 컴포넌트가 반납한다 — 화면을 오갈 때마다
   // GPU에 버퍼와 셰이더 프로그램이 쌓이면 안 된다.
@@ -387,11 +418,12 @@ uniform vec2 uStart;
 uniform vec2 uDir;
 uniform float uHead;
 uniform float uLen;
+uniform float uPixelScale;
 varying float vT;
 void main() {
   vec2 planar = uStart + uDir * (uHead - aT * uLen);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(planar, position.z, 1.0);
-  gl_PointSize = mix(2.8, 0.7, aT);
+  gl_PointSize = mix(2.8, 0.7, aT) * uPixelScale;
   vT = aT;
 }
 `;
@@ -426,6 +458,7 @@ function ShootingStar({ width, height, enabled }: { width: number; height: numbe
     return buffer;
   }, []);
 
+  const dpr = useThree((state) => state.viewport.dpr);
   const material = useMemo(() => new ShaderMaterial({
     uniforms: {
       uStart: { value: [0, 0] },
@@ -433,6 +466,7 @@ function ShootingStar({ width, height, enabled }: { width: number; height: numbe
       uHead: { value: 0 },
       uLen: { value: 100 },
       uEnvelope: { value: 0 },
+      uPixelScale: { value: 1 },
       uMap: { value: getStarPointTexture() },
       // 흰 머리가 식으며 샴페인 골드로 — 색 규율의 골드가 여기서도 '순간의 보상'이다.
       uGold: { value: new Color('#E8C87A') },
@@ -443,6 +477,8 @@ function ShootingStar({ width, height, enabled }: { width: number; height: numbe
     depthWrite: false,
     blending: AdditiveBlending,
   }), []);
+
+  material.uniforms.uPixelScale.value = dpr * 0.5;
 
   useEffect(() => () => material.dispose(), [material]);
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -491,7 +527,9 @@ function ShootingStar({ width, height, enabled }: { width: number; height: numbe
     uniforms.uEnvelope.value = Math.sin(Math.PI * progress) * 0.85;
   });
 
-  return <points geometry={geometry} material={material} />;
+  // 위치가 전부 유니폼에 있어 지오메트리는 원점 한 점 — 바운딩 구가 0이라 그룹이 밀리면
+  // 프러스텀 컬링이 유성을 통째로 걸러 버린다. 스물네 점짜리 드로우 하나라 컬링을 끈다.
+  return <points geometry={geometry} material={material} frustumCulled={false} />;
 }
 
 function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; height: number }) {
@@ -528,10 +566,12 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
       {/* 멀리 있는 동안의 모습 — 빛 한 점. 가까워질수록 물러나며 아래의 진짜 모습에
           자리를 내준다. 둘을 겹쳐 섞기 때문에 그 사이에 '갈아치우는 순간'이 없다. */}
       {morph < 0.995 ? (
-        <mesh>
+        // 판은 단위 크기, 확대는 mesh scale로 — 지오메트리 인자에 화면 반지름을 넣으면
+        // 확대하는 매 프레임 모든 천체의 버퍼가 새로 만들어진다(실측된 최대 GPU 낭비).
+        <mesh scale={[radius * 4.6, radius * 4.6, 1]}>
           {/* 멀리 있는 것은 작고 흐려야 멀어 보인다. 크고 밝은 솜뭉치로 그리면 은하가
               아니라 화면에 묻은 얼룩이 된다. */}
-          <planeGeometry args={[radius * 4.6, radius * 4.6]} />
+          <planeGeometry args={[1, 1]} />
           <meshBasicMaterial
             map={getGlowTexture()}
             color={glowColor}
@@ -568,8 +608,8 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
         <>
           {/* 행성 주변의 옅은 빛 — 항성은 자기 코로나를 따로 갖고 있어 여기선 뺀다. */}
           {orb.palette === 'planet' && haloOpacity > 0.02 ? (
-            <mesh position={[0, 0, -2]}>
-              <planeGeometry args={[glowScale, glowScale]} />
+            <mesh position={[0, 0, -2]} scale={[glowScale, glowScale, 1]}>
+              <planeGeometry args={[1, 1]} />
               <meshBasicMaterial
                 map={getGlowTexture()}
                 color={glowColor}
@@ -632,6 +672,35 @@ function UniverseSkyComponent({
       <directionalLight position={[-320, 380, 520]} intensity={2.2} color="#EAF1FF" />
       {/* 림 라이트: 카메라 반대편에서 스쳐 들어와 천체 가장자리에 얇은 빛 띠를 남긴다. */}
       <directionalLight position={[420, -280, -360]} intensity={1.1} color="#7FA8FF" />
+
+      {/* 최원경: 딥 필드 은하들과 가장 고운 별먼지 — 시차 그룹 바깥, 어디에도 붙지 않는
+          붙박이 하늘. 깊이 들어갈수록 시차 배경이 밀려나 성겨질 때 이 층이 바닥을 받친다. */}
+      {DEEP_GALAXY_LAYERS.map((layer) => (
+        <StarLayer
+          key={`deep-galaxy-${layer.variant}`}
+          count={layer.count}
+          z={layer.z}
+          size={layer.size}
+          opacity={layer.opacity}
+          drift={layer.drift}
+          twinkle={layer.twinkle}
+          width={width}
+          height={height}
+          seed={31091 + layer.variant * 7717}
+          texture={getDeepGalaxyTexture(layer.variant)}
+          warmthRange={DEEP_GALAXY_WARMTH}
+        />
+      ))}
+
+      {DEEP_DUST_LAYERS.map((layer, index) => (
+        <StarLayer
+          key={`deep-dust-${index}`}
+          {...layer}
+          width={width}
+          height={height}
+          seed={52501 + index * 9973}
+        />
+      ))}
 
       {/* 배경은 시차 — pan의 일부만 따라오고 확대에는 거의 반응하지 않는다. 멀리 있는 것이
           덜 움직여야 깊이가 생긴다.

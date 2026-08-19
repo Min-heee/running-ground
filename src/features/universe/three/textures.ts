@@ -148,6 +148,58 @@ export function getBlackbodyRamp(): DataTexture {
   return blackbodyRamp;
 }
 
+const deepGalaxyTextures = new Map<number, DataTexture>();
+
+// 아득히 먼 은하 한 점 — 해상되지 않는 기울어진 타원 얼룩. 딥 필드(허블이 '빈' 하늘을
+// 오래 노출하자 은하 수천 개가 나온 그 사진)의 최소 단위다. 이게 배경에 흩어져 있어야
+// '별 몇 개 찍힌 검은 판'이 아니라 '끝없이 계속되는 우주'로 읽힌다.
+//
+// 변종마다 장축 각도와 납작함을 텍스처에 굽는다 — 포인트 스프라이트는 회전을 못 하므로,
+// 방향 다양성은 변종 여러 장으로 낸다.
+export function getDeepGalaxyTexture(variant: 0 | 1 | 2): DataTexture {
+  const cached = deepGalaxyTextures.get(variant);
+
+  if (cached) {
+    return cached;
+  }
+
+  const size = 64;
+  const data = new Uint8Array(size * size * 4);
+  const center = (size - 1) / 2;
+  const angle = [0.5, 1.9, -0.9][variant];
+  const flatten = [0.42, 0.62, 0.3][variant];
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const dx = (x - center) / center;
+      const dy = (y - center) / center;
+      // 장축 좌표계로 돌려 타원 가우시안.
+      const major = dx * cos + dy * sin;
+      const minor = (-dx * sin + dy * cos) / flatten;
+      const r2 = major * major + minor * minor;
+      // 작고 밝은 핵 + 옅은 원반 — 두 겹이어야 '별'이 아니라 '은하'로 읽힌다.
+      const alpha = Math.exp(-r2 * 3.2) * 0.55 + Math.exp(-r2 * 14) * 0.45;
+      const index = (y * size + x) * 4;
+
+      data[index] = 255;
+      data[index + 1] = 255;
+      data[index + 2] = 255;
+      data[index + 3] = Math.round(Math.max(0, Math.min(1, alpha)) * 255);
+    }
+  }
+
+  const texture = new DataTexture(data, size, size, RGBAFormat, UnsignedByteType);
+  texture.magFilter = LinearFilter;
+  texture.minFilter = LinearFilter;
+  texture.wrapS = ClampToEdgeWrapping;
+  texture.wrapT = ClampToEdgeWrapping;
+  texture.needsUpdate = true;
+  deepGalaxyTextures.set(variant, texture);
+  return texture;
+}
+
 // 회절 스파이크 별 — 망원경 광학이 남기는 십자 빛살. JWST 이후로 '진짜 관측 사진'의
 // 문화적 기호가 됐다. 팔은 1~2px로 면도날처럼 가늘어야 한다 — 두꺼우면 십자 스티커다.
 export function getSpikedStarTexture(): DataTexture {

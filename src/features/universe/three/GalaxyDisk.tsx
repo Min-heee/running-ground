@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import {
   AdditiveBlending,
   BufferAttribute,
@@ -17,6 +17,7 @@ import {
   SPIRAL_SPIN,
 } from '@/features/universe/three/textures';
 import { HighlightRing } from '@/features/universe/three/HighlightRing';
+import { smoothStep } from '@/features/universe/utils/universeSpace';
 
 // 나선은하 (오너 2026-08-15: "은하가 저렇게 생기진 않았잖아"). 발광하는 공이 아니라 실제
 // 은하의 형태 — 밝은 핵 + 로그나선 팔 + 얇은 원반 + 기울기 — 를 파티클로 만든다.
@@ -228,11 +229,13 @@ attribute float aTwinkle;
 attribute float aPhase;
 uniform float uTime;
 uniform float uPointSize;
+uniform float uPixelScale;
 varying vec3 vColor;
 varying float vAlpha;
 void main() {
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  gl_PointSize = uPointSize * aSize;
+  // gl_PointSize는 기기 픽셀 단위 — uPixelScale(dpr/2)이 화면마다 같은 CSS 크기로 맞춘다.
+  gl_PointSize = uPointSize * aSize * uPixelScale;
   float pulse = 0.5 + 0.5 * sin(uTime * (0.4 + aPhase * 1.3) + aPhase * 6.2831853);
   vAlpha = mix(1.0, 0.6 + 0.4 * pulse, aTwinkle);
   vColor = aColor;
@@ -332,10 +335,14 @@ function GalaxyDiskComponent({
 
   // 재질은 한 번 만들고 유니폼만 갱신한다 — 페이드·밝기를 의존성에 넣으면 확대하는 내내
   // 프레임마다 셰이더 프로그램이 쌓인다(CelestialSphere의 규율과 같다).
+  // dpr 보정 — 점 크기는 dpr 2 화면에서 조율했으므로 그 look을 기준(1x)으로 고정한다.
+  const dpr = useThree((state) => state.viewport.dpr);
+
   const pointsMaterial = useMemo(() => new ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
       uPointSize: { value: 2 },
+      uPixelScale: { value: 1 },
       uOpacity: { value: 1 },
       uMap: { value: getStarPointTexture() },
     },
@@ -368,8 +375,12 @@ function GalaxyDiskComponent({
   useEffect(() => () => coreMaterial.dispose(), [coreMaterial]);
 
   pointsMaterial.uniforms.uPointSize.value = pointSize;
+  pointsMaterial.uniforms.uPixelScale.value = dpr * 0.5;
   pointsMaterial.uniforms.uOpacity.value = (0.55 + 0.45 * brightness) * opacity;
   coreMaterial.uniforms.uOpacity.value = (0.22 + 0.26 * brightness) * opacity * coreFade;
+  // 먼지는 서서히 들어온다 — 이진 게이트는 완전히 보이는 크기에서 어두운 판을 한 프레임에
+  // 툭 떨어뜨렸다.
+  const dustFade = smoothStep(1.45, 1.9, pointSize);
 
   // 기울기 — 정면에서 조금 틀어 원반이 타원으로 보이게. 시드로 은하마다 다르게.
   //
@@ -401,25 +412,27 @@ function GalaxyDiskComponent({
   return (
     <group rotation={[0, 0, yaw]} scale={[radius, radius * Math.cos(tilt), radius]}>
       {/* 핵 — 해석적 벌지. 같은 z의 형제들은 생성 순서대로 그려지므로(three의 투명 정렬은
-          renderOrder → 깊이 → id 순) 핵 → 먼지 → 별의 겹침이 JSX 순서만으로 보장된다. */}
-      {coreFade > 0.01 ? (
-        <mesh material={coreMaterial} rotation={[0, 0, barAngle]}>
-          <planeGeometry args={[1.05, 1.05]} />
-        </mesh>
-      ) : null}
+          renderOrder → 깊이 → id 순) 핵 → 먼지 → 별의 겹침이 JSX 순서로 보장된다 —
+          단, **셋 다 처음부터 마운트되어 있어야** 한다. 문턱에서 조건부로 마운트하면
+          나중에 태어난 것이 더 큰 id를 받아 형제들 위에 그려진다(먼지가 별을 이중으로
+          덮던 실제 버그). 그래서 끄는 건 unmount가 아니라 visible로 한다. */}
+      <mesh material={coreMaterial} rotation={[0, 0, barAngle]} visible={coreFade > 0.01}>
+        <planeGeometry args={[1.05, 1.05]} />
+      </mesh>
 
       <group ref={groupRef}>
         {/* 먼지 띠 — 별들과 같은 그룹에서 함께 돈다. 가산이 아니라 일반 합성이라 뒤의
-            별빛을 삼킨다 — 화면의 총 광량을 낮추면서 구조를 만드는 유일한 판. 멀리서는
-            (pointSize가 작을 때는) 어차피 안 보이니 그리지 않는다. */}
-        {kind === 'galaxy' && pointSize > 1.6 ? (
-          <mesh>
-            <planeGeometry args={[1.9, 1.9]} />
+            별빛을 삼킨다 — 화면의 총 광량을 낮추면서 구조를 만드는 유일한 판.
+            판은 2.0 유닛이어야 한다: 텍스처의 단위 원이 원반 반지름 1에 정확히 앉아
+            입자에 구운 소광과 같은 자리에서 만난다(1.9면 5% 안쪽으로 어긋난다). */}
+        {kind === 'galaxy' ? (
+          <mesh visible={dustFade > 0.01}>
+            <planeGeometry args={[2, 2]} />
             <meshBasicMaterial
               map={getDustLaneTexture()}
               color="#0A0604"
               transparent
-              opacity={0.55 * opacity}
+              opacity={0.55 * opacity * dustFade}
               depthWrite={false}
             />
           </mesh>

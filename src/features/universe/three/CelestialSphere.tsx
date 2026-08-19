@@ -7,6 +7,7 @@ import {
   DoubleSide,
   type Group,
   MeshStandardMaterial,
+  RingGeometry,
   ShaderMaterial,
   Vector3,
 } from 'three';
@@ -86,6 +87,22 @@ function useAtmosphereMaterial(color: string, strength: number, fade: number) {
 // 정확히 그 빛의 반대면(밤면)에서 켜지려면 조명과 이 상수가 같은 곳을 가리켜야 한다.
 const KEY_LIGHT_DIR = new Vector3(-320, 380, 520).normalize();
 
+// 도시/바다 마스크를 미리 덥힌다 — 안 그러면 첫 지구형 클로즈업의 셰이더 컴파일 순간에
+// 잡음 텍스처(~80ms)가 동기로 만들어져 확대가 한 번 컥 걸린다. 첫 화면이 자리잡은 뒤
+// 한 장씩, 취소하지 않는다(캐시 채우기라 언제 끝나도 이득).
+let planetMasksPrewarmed = false;
+
+function prewarmPlanetMasks() {
+  if (planetMasksPrewarmed) {
+    return;
+  }
+
+  planetMasksPrewarmed = true;
+  [0, 1, 2, 3].forEach((variant, index) => {
+    setTimeout(() => getPlanetMask(variant), 2000 + index * 400);
+  });
+}
+
 function PlanetBody({
   id,
   radius,
@@ -105,6 +122,10 @@ function PlanetBody({
   const surface = getPlanetSurface(traits.kind, traits.variant);
   const bodyRef = useRef<Group>(null);
   const cloudRef = useRef<Group>(null);
+
+  useEffect(() => {
+    prewarmPlanetMasks();
+  }, []);
   const atmosphere = useAtmosphereMaterial(
     traits.atmosphere?.color ?? '#FFFFFF',
     traits.atmosphere?.strength ?? 0,
@@ -127,6 +148,10 @@ function PlanetBody({
       roughness: 0.82,
       metalness: 0.02,
       emissive: new Color(traits.tint),
+      // 언제나 transparent — fade에 따라 토글하면 처음 컴파일 때의 상태가 OPAQUE
+      // define으로 프로그램에 구워져(needsUpdate 없이는 재컴파일이 없다), 이후의
+      // 근접 페이드가 죽고 천체가 컷 평면에서 툭 사라진다.
+      transparent: true,
     });
 
     material.onBeforeCompile = (shader) => {
@@ -160,9 +185,31 @@ function PlanetBody({
 
   if (litSurface) {
     litSurface.emissiveIntensity = 0.05 + 0.09 * brightness;
-    litSurface.transparent = fade < 1;
     litSurface.opacity = fade;
   }
+
+  // 고리 텍스처는 1D 반지름 띠인데 three 0.185의 RingGeometry UV는 반지름이 아니라
+  // **평면 좌표**를 따른다 — 그대로 두면 띠가 동심원이 아니라 세로 줄무늬로 발린다.
+  // u를 반지름으로 다시 써서 카시니 간극이 진짜 원둘레 간극이 되게 한다.
+  const ringGeometry = useMemo(() => {
+    if (!traits.ring) {
+      return null;
+    }
+
+    const geometry = new RingGeometry(traits.ring.inner, traits.ring.outer, 96);
+    const positions = geometry.attributes.position;
+    const uvs = geometry.attributes.uv;
+    const span = traits.ring.outer - traits.ring.inner;
+
+    for (let index = 0; index < uvs.count; index += 1) {
+      const ringRadius = Math.hypot(positions.getX(index), positions.getY(index));
+      uvs.setXY(index, (ringRadius - traits.ring.inner) / span, 0.5);
+    }
+
+    return geometry;
+  }, [traits]);
+
+  useEffect(() => () => ringGeometry?.dispose(), [ringGeometry]);
 
   useFrame((_, delta) => {
     if (bodyRef.current) {
@@ -184,6 +231,9 @@ function PlanetBody({
           <sphereGeometry args={[1, segments, segments]} />
           {litSurface ? null : (
             <meshStandardMaterial
+              // 문턱을 넘을 때 재질을 갈아끼운다 — bumpMap을 산 재질에 꽂으면 needsUpdate
+              // 없이는 셰이더가 재컴파일되지 않아 요철이 영영 안 살아난다.
+              key={detailed ? 'detailed' : 'far'}
               map={surface}
               color={new Color(traits.tint)}
               // 표면 요철 — 같은 텍스처를 높이로도 쓴다. 명암 경계에서 지형이 살아난다.
@@ -194,7 +244,8 @@ function PlanetBody({
               // 완전한 암흑면을 피할 만큼만 — 이게 크면 조명이 무의미해져 스티커처럼 보인다.
               emissive={new Color(traits.tint)}
               emissiveIntensity={0.05 + 0.09 * brightness}
-              transparent={fade < 1}
+              // 언제나 transparent — 토글하면 OPAQUE define이 구워져 근접 페이드가 죽는다.
+              transparent
               opacity={fade}
             />
           )}
@@ -222,9 +273,8 @@ function PlanetBody({
         </mesh>
       ) : null}
 
-      {detailed && traits.ring ? (
-        <mesh rotation={[Math.PI / 2 - traits.ring.tilt, 0, 0]}>
-          <ringGeometry args={[traits.ring.inner, traits.ring.outer, 96]} />
+      {detailed && ringGeometry ? (
+        <mesh geometry={ringGeometry} rotation={[Math.PI / 2 - (traits.ring?.tilt ?? 0), 0, 0]}>
           <meshBasicMaterial
             map={getRingTexture()}
             transparent
@@ -354,9 +404,13 @@ function StarBody({
 
   useEffect(() => () => photosphere.dispose(), [photosphere]);
 
+  // 코로나는 클로즈업에서 접는다 — corona×2 판이 화면을 덮으면 가산합성이 검은 바닥을
+  // 들어올린다. 광구가 주인공인 거리에서는 광구가 빛나면 된다. 0으로 죽이지는 않는다.
+  const coronaFold = 1 - 0.6 * smoothStep(300, 600, screenDiameter);
+
   photosphere.uniforms.uOpacity.value = fade;
-  streamerOut.uniforms.uOpacity.value = 0.5 * fade;
-  streamerIn.uniforms.uOpacity.value = 0.35 * fade;
+  streamerOut.uniforms.uOpacity.value = 0.5 * fade * coronaFold;
+  streamerIn.uniforms.uOpacity.value = 0.35 * fade * coronaFold;
 
   useFrame((state, delta) => {
     if (bodyRef.current) {
@@ -382,7 +436,7 @@ function StarBody({
           map={getGlowTexture()}
           color={new Color(traits.coronaColor)}
           transparent
-          opacity={(0.75 + 0.25 * brightness) * fade}
+          opacity={(0.75 + 0.25 * brightness) * fade * coronaFold}
           depthWrite={false}
           blending={AdditiveBlending}
         />
@@ -411,6 +465,9 @@ function StarBody({
             transparent
             opacity={spikeOpacity}
             depthWrite={false}
+            // 십자의 z(+1.2px)는 광구 앞면(+반지름)보다 뒤라 깊이 검사에 걸려 실루엣
+            // 안쪽이 통째로 잘린다 — 가산합성이라 깊이가 무의미하니 검사 자체를 끈다.
+            depthTest={false}
             blending={AdditiveBlending}
           />
         </mesh>
@@ -424,7 +481,8 @@ function StarBody({
             <meshBasicMaterial
               map={getStarSurface()}
               color={color}
-              transparent={fade < 1}
+              // 언제나 transparent — 토글하면 OPAQUE define이 구워져 페이드가 죽는다.
+              transparent
               opacity={fade}
             />
           )}
