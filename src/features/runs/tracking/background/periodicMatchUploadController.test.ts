@@ -13,6 +13,7 @@ type FakeNativeModule = {
   updatePeriodicMatchPayload(url: string, authToken: string, jsonBody: string): boolean;
   stopPeriodicMatchUpload(): boolean;
   markPeriodicMatchPayloadTerminal?(): boolean;
+  setPeriodicMatchMergeCap?(mergeCapKm: number): boolean;
   addMatchProgressResponseListener(listener: (body: string) => void): () => void;
 };
 
@@ -23,6 +24,7 @@ type Recorder = {
   // Stage 5 — terminal-mark count + a payload-vs-mark call-order log ('start'/'update'/'mark'),
   // because the mark MUST land AFTER the payload it belongs to (the native update resets the mark).
   terminalMarks: number;
+  mergeCaps: number[];
   order: string[];
   listeners: ((body: string) => void)[];
   removedListeners: number;
@@ -38,6 +40,7 @@ function buildFakeModule(
     updateCalls: [],
     stopCalls: 0,
     terminalMarks: 0,
+    mergeCaps: [],
     order: [],
     listeners: [],
     removedListeners: 0,
@@ -80,6 +83,12 @@ function buildFakeModule(
       return true;
     };
   }
+
+  module.setPeriodicMatchMergeCap = (mergeCapKm: number) => {
+    recorder.mergeCaps.push(mergeCapKm);
+    recorder.order.push('cap');
+    return true;
+  };
 
   return { module, recorder };
 }
@@ -300,4 +309,34 @@ test('starting a different match tears down the prior listener before subscribin
   assert.deepEqual(appliedSecond, ['{"matchId":"m-2"}']);
 
   await stopPeriodicMatchUpload(async () => module);
+});
+
+
+// 잠든 중 실시간 병합 상한 — 시동 **뒤에** 내려가야 한다(네이티브 시동이 이전 상한을 리셋).
+// 갱신 경로에서도 매번 다시 내려간다. 상한이 없거나 0 이하면 아예 안 내려간다(fail-closed).
+test('mergeCapKm은 시동·갱신 뒤에 내려가고, 없으면 내려가지 않는다', async () => {
+  resetPeriodicMatchUploadForTest();
+  const { module, recorder } = buildFakeModule(true);
+
+  await startPeriodicMatchUpload('m-1', { ...PAYLOAD, mergeCapKm: 4.949 }, () => {}, 3_000, async () => module);
+  assert.deepEqual(recorder.mergeCaps, [4.949]);
+  assert.deepEqual(recorder.order, ['start', 'cap']);
+
+  // 같은 매치 갱신 — 갱신 뒤 다시 내려간다.
+  await startPeriodicMatchUpload('m-1', { ...PAYLOAD, mergeCapKm: 4.949 }, () => {}, 3_000, async () => module);
+  assert.deepEqual(recorder.order, ['start', 'cap', 'update', 'cap']);
+
+  // 상한 없음(골 없는 매치·옛 호출) — 안 내려간다.
+  await startPeriodicMatchUpload('m-2', { ...PAYLOAD }, () => {}, 3_000, async () => module);
+  await startPeriodicMatchUpload('m-3', { ...PAYLOAD, mergeCapKm: 0 }, () => {}, 3_000, async () => module);
+  assert.deepEqual(recorder.mergeCaps, [4.949, 4.949]);
+});
+
+test('mergeCapKm은 세터가 없는 모듈(옛 래퍼)에서도 던지지 않는다', async () => {
+  resetPeriodicMatchUploadForTest();
+  const { module } = buildFakeModule(true);
+  delete module.setPeriodicMatchMergeCap;
+
+  const started = await startPeriodicMatchUpload('m-9', { ...PAYLOAD, mergeCapKm: 4.9 }, () => {}, 3_000, async () => module);
+  assert.equal(started, true);
 });

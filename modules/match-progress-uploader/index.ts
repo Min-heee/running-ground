@@ -66,6 +66,10 @@ type MatchProgressUploaderNativeModule = {
   // periodic fns above; the `typeof` gate in the wrapper below makes the call a safe no-op
   // everywhere the fn is absent (old binaries, Android, web), so a single OTA bundle stays safe.
   markPeriodicPayloadTerminal?(): void;
+  // 잠든 중 실시간 병합 상한 (NEW — iOS build 56 / Android versionCode 46+). 재전송 직전
+  // 네이티브가 캐시 페이로드의 distanceKm을 자기 누적 총거리로 끌어올릴 때 절대 넘지 않을
+  // 상한(goal − tolerance − epsilon). OPTIONAL + typeof 게이트 — 옛 바이너리에선 무동작.
+  setPeriodicMergeConfig?(mergeCapKm: number): void;
 
   // BATTERY OPTIMIZATION CONTROL (NEW — Android-only, ships in the NEXT native build). Synchronous
   // Expo `Function(...)`s exposed by the Kotlin module. OPTIONAL on the type for the SAME reason as
@@ -215,6 +219,21 @@ export function updatePeriodicMatchPayload(
 
   try {
     nativeModule?.updatePeriodicPayload?.(url, authToken, jsonBody);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// 잠든 중 실시간 병합 상한을 네이티브에 내려보낸다 — startPeriodicMatchUpload 직후 호출.
+// 옛 바이너리(함수 부재)에서는 조용히 false: 병합 없이 이전과 동일하게 동작한다.
+export function setPeriodicMatchMergeCap(mergeCapKm: number): boolean {
+  if (typeof nativeModule?.setPeriodicMergeConfig !== 'function') {
+    return false;
+  }
+
+  try {
+    nativeModule.setPeriodicMergeConfig(mergeCapKm);
     return true;
   } catch {
     return false;

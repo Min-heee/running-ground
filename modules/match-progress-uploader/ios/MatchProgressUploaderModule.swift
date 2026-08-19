@@ -163,6 +163,15 @@ public class MatchProgressUploaderModule: Module {
       }
     }
 
+    // 잠든 중 실시간 병합 상한(km) — startPeriodicUpload 직후 JS가 호출한다. 새 함수라서
+    // 옛 JS 번들은 부르지 않고(병합 꺼짐 = 이전 바이너리와 동일), 새 번들은 index.ts에서
+    // typeof 게이트로 감싸므로 옛 바이너리에서도 안전하다.
+    Function("setPeriodicMergeConfig") { (mergeCapKm: Double) in
+      self.runOnMain {
+        self.locationDriver?.setMergeCap(mergeCapKm)
+      }
+    }
+
     // TERMINAL SELF-STOP (Stage 5) — mark the CURRENTLY CACHED periodic payload TERMINAL (a
     // finished body whose successful delivery ends this runner's match). Once marked, a terminal
     // server response to a re-POST of that payload (2xx / 404 / 410) makes the module self-stop
@@ -252,6 +261,9 @@ public class MatchProgressUploaderModule: Module {
     // update payload" early return — here the shared driver may already be running for the distance
     // accumulator, so always refresh + (re-)start.)
     driver.updatePayload(url: url, authToken: authToken, jsonBody: jsonBody)
+    // 새 매치의 시동은 이전 매치의 병합 상한을 물려받으면 안 된다 — JS가 시동 직후 다시
+    // 내려보낸다(fail-closed). 같은 메인 큐라 순서가 보장된다.
+    driver.setMergeCap(nil)
     // AUTHORIZATION/CRASH-SAFETY is enforced inside start(): the driver only flips
     // allowsBackgroundLocationUpdates when status is .authorizedAlways, and no-ops the location
     // session entirely for non-authorized states so it can never crash. start() is idempotent.
@@ -346,6 +358,14 @@ public class MatchProgressUploaderModule: Module {
         // (2xx/404/410). JS may be suspended and unable to observe the ACK, so the module stops the
         // cadence + shared CLLocationManager + distance accumulator natively. Invoked on main.
         self?.stopAfterTerminalFinishAck()
+      },
+      nativeMeters: { [weak self] in
+        // 잠든 중 실시간 병합의 원천 — 누적 세션이 살아 있을 때만 총거리를 내준다. 죽은
+        // 세션의 낡은 총거리는 안 믿는다(nil = 병합 안 함).
+        guard let self = self, self.distanceWantsLocation else {
+          return nil
+        }
+        return self.distanceAccumulator.totalMeters
       }
     )
     locationDriver = driver
@@ -865,6 +885,9 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
   // full stop (cadence + shared manager + distance accumulator) — the driver never tears itself
   // down directly because the module owns the want-flag refcount.
   private let onTerminalAck: () -> Void
+  // 잠든 중 실시간 병합 — 재전송 직전 캐시 페이로드의 distanceKm을 끌어올릴 네이티브 총거리
+  // (미터)를 읽는다. 누적 세션이 죽어 있으면 nil(병합 안 함).
+  private let nativeMeters: () -> Double?
 
   private var manager: CLLocationManager?
 
@@ -872,6 +895,11 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
   private var url: String?
   private var token: String?
   private var body: String?
+
+  // 잠든 중 실시간 병합 상한(km). nil = 병합 꺼짐(기본). JS가 매치 시동 직후
+  // setPeriodicMergeConfig로 goal − tolerance − epsilon 을 내려보내야만 켜진다 — 옛 JS
+  // 번들은 이 함수를 모르므로 이 바이너리도 이전과 동일하게 동작한다(fail-closed).
+  private var mergeCapKm: Double?
 
   // TERMINAL mark (Stage 5) — true when JS marked the CURRENT cached payload TERMINAL (a finished
   // body). RESET by updatePayload/clearPayload/stop: an unmarked fresher payload is by definition
@@ -894,7 +922,8 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
     emit: @escaping (String) -> Void,
     pushLiveActivity: @escaping (Data?, Data?) -> Void,
     onLocation: @escaping (CLLocation) -> Void,
-    onTerminalAck: @escaping () -> Void
+    onTerminalAck: @escaping () -> Void,
+    nativeMeters: @escaping () -> Double?
   ) {
     self.intervalSeconds = intervalSeconds
     self.send = send
@@ -902,7 +931,17 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
     self.pushLiveActivity = pushLiveActivity
     self.onLocation = onLocation
     self.onTerminalAck = onTerminalAck
+    self.nativeMeters = nativeMeters
     super.init()
+  }
+
+  // 병합 상한 설정/해제. 메인 스레드 전용(다른 상태들과 동일).
+  func setMergeCap(_ capKm: Double?) {
+    if let capKm = capKm, capKm.isFinite, capKm > 0 {
+      mergeCapKm = capKm
+    } else {
+      mergeCapKm = nil
+    }
   }
 
   func updatePayload(url: String, authToken: String, jsonBody: String) {
@@ -930,6 +969,7 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
     self.payloadIsTerminal = false
     self.periodicInFlight = false
     self.lastPostAt = 0
+    self.mergeCapKm = nil
   }
 
   func start() {
@@ -981,6 +1021,7 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
     payloadIsTerminal = false
     periodicInFlight = false
     lastPostAt = 0
+    mergeCapKm = nil
   }
 
   // MARK: CLLocationManagerDelegate
@@ -1020,16 +1061,20 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
     periodicInFlight = true
     lastPostAt = now
 
+    // 잠든 중 실시간 병합 — 전송 직전 distanceKm을 네이티브 총거리로 끌어올린다. 병합본을
+    // 아래 스냅샷에도 쓰므로 잠금화면 Live Activity 카드의 내 거리도 함께 실시간이 된다.
+    let bodyToSend = mergedBody(from: body)
+
     // Snapshot the request body NOW (before the async send): the cached `body` may be overwritten by
     // a fresher updatePayload before this POST's completion fires, but the Live Activity push must
     // pair the RESPONSE with the REQUEST that produced it (elapsedSeconds/matchId come from this exact
     // request body). UTF-8 → Data for the module's pushLiveActivity(responseBody:requestBody:).
-    let requestBodyData = body.data(using: .utf8)
+    let requestBodyData = bodyToSend.data(using: .utf8)
     // TERMINAL SELF-STOP (Stage 5) — snapshot the terminal mark WITH the request: the response must
     // be judged against the payload that produced it, not whatever is cached when it lands.
     let requestWasTerminal = payloadIsTerminal
 
-    send(url, token, body) { [weak self] responseBody, statusCode in
+    send(url, token, bodyToSend) { [weak self] responseBody, statusCode in
       guard let self = self else {
         return
       }
@@ -1064,6 +1109,46 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
         }
       }
     }
+  }
+
+  // 잠든 중 실시간 병합 — 규칙은 JS 병합과 같은 안전 모형이다:
+  //  - merged = max(jsKm, min(nativeKm, capKm)): 절대 내리지 않고, 절대 골 문턱(cap = goal −
+  //    tolerance − epsilon)을 넘지 않는다. 완주 판정은 영원히 JS 몫 — 네이티브 값이 서버의
+  //    reachedGoalDistance를 먼저 넘길 수 없다.
+  //  - status/elapsedSeconds는 손대지 않는다. elapsed는 서버가 벽시계로 정규화하므로
+  //    거리만 갱신하면 상대 화면의 페이스도 맞는다.
+  //  - 상한 미설정·누적 세션 꺼짐·파싱 실패·갱신 없음이면 원본을 바이트 그대로 — 서버의
+  //    정지 감지(lastLivePushSignature)가 진짜 정지를 계속 잡을 수 있어야 한다.
+  private func mergedBody(from body: String) -> String {
+    guard let capKm = mergeCapKm, let meters = nativeMeters() else {
+      return body
+    }
+    guard
+      let data = body.data(using: .utf8),
+      let parsed = try? JSONSerialization.jsonObject(with: data),
+      var json = parsed as? [String: Any],
+      let jsKm = (json["distanceKm"] as? NSNumber)?.doubleValue,
+      jsKm.isFinite
+    else {
+      return body
+    }
+
+    let nativeKm = meters / 1000.0
+    let mergedKm = max(jsKm, min(nativeKm, capKm))
+    // 서버·기록과 같은 두 자리 반올림 — 그 아래 차이는 갱신이 아니다.
+    let roundedKm = (mergedKm * 100).rounded() / 100
+    if roundedKm <= jsKm {
+      return body
+    }
+
+    json["distanceKm"] = roundedKm
+    guard
+      let mergedData = try? JSONSerialization.data(withJSONObject: json),
+      let mergedString = String(data: mergedData, encoding: .utf8)
+    else {
+      return body
+    }
+    return mergedString
   }
 }
 

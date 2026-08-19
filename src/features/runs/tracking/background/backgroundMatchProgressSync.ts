@@ -1074,6 +1074,12 @@ export async function flushBackgroundMatchProgressSync({
             authToken: token,
             jsonBody: requestBody,
             isTerminal: input.status === 'finished',
+            // 잠든 중 실시간 병합 (오너 2026-08-17: "잠든 중에도 서로 거리·페이스 업데이트").
+            // 새 바이너리(iOS 56/Android 46+)의 재전송은 이 상한 아래에서 distanceKm을 자기
+            // 누적 총거리로 실시간 갱신한다. 상한 = JS 쪽 sub-goal cap과 동일한 값 — 네이티브
+            // 값이 서버의 reachedGoalDistance를 먼저 넘길 수 없어 완주 판정은 영원히 JS 몫이다.
+            // 골이 없는 매치(distanceKm 0)는 상한이 0 이하가 되어 병합이 꺼진다(fail-closed).
+            mergeCapKm: context.distanceKm - MATCH_GOAL_DISTANCE_TOLERANCE_KM - NATIVE_SUBGOAL_CAP_EPSILON_KM,
           },
           applyPeriodicNativeMatchStatusBody,
           PERIODIC_MATCH_UPLOAD_INTERVAL_MS,

@@ -85,6 +85,23 @@ class MatchProgressUploaderModule : Module() {
       stopUploadService()
     }
 
+    // 잠든 중 실시간 병합 상한(km) — startPeriodicUpload 직후 JS가 호출한다. 새 함수라서
+    // 옛 JS 번들은 부르지 않고(병합 꺼짐 = 이전 바이너리와 동일), 새 번들은 index.ts에서
+    // typeof 게이트로 감싸므로 옛 바이너리에서도 안전하다. 시그니처 변경이 아니라 추가라
+    // 기존 4-인자 startPeriodicUpload 호출은 어느 조합에서도 깨지지 않는다.
+    Function("setPeriodicMergeConfig") { mergeCapKm: Double ->
+      val context = appContextOrNull ?: return@Function
+      try {
+        val intent = Intent(context, MatchUploadForegroundService::class.java).apply {
+          action = MatchUploadForegroundService.ACTION_MERGE_CONFIG
+          putExtra(MatchUploadForegroundService.EXTRA_MERGE_CAP_KM, mergeCapKm)
+        }
+        context.startService(intent)
+      } catch (error: Throwable) {
+        Log.w("RGNativeUpload", "setPeriodicMergeConfig failed: ${error.message}")
+      }
+    }
+
     // NATIVE DISTANCE ACCUMULATOR — begin GPS distance accumulation in the foreground service with
     // the JS filter constants so native mirrors JS. Wires the onDistanceAccumulated bridge so each
     // advance can reach JS. Returns true when the start intent was dispatched.

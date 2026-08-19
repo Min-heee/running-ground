@@ -17,6 +17,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.content.ContextCompat
+import org.json.JSONObject
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -74,6 +75,11 @@ class MatchUploadForegroundService : Service() {
   @Volatile private var periodicBody: String? = null
   @Volatile private var intervalMs: Long = DEFAULT_INTERVAL_MS
 
+  // 잠든 중 실시간 병합 상한(km). NaN = 병합 꺼짐(기본). JS가 매치 시동 후
+  // ACTION_MERGE_CONFIG로 goal − tolerance − epsilon 을 내려보내야만 켜진다 — 옛 JS 번들은
+  // 이 액션을 모른 채 두므로 이 바이너리도 이전과 바이트 동일하게 동작한다(fail-closed).
+  @Volatile private var mergeCapKm: Double = Double.NaN
+
   // NATIVE DISTANCE ACCUMULATOR — a GPS consumer that advances the run's distance while the screen
   // is off (JS suspended). Fed by FusedLocationProviderClient (preferred) or LocationManager
   // GPS_PROVIDER (fallback when Play Services is missing). The accumulated total is read
@@ -125,8 +131,18 @@ class MatchUploadForegroundService : Service() {
         stopDistanceUpdates()
         stopServiceIfIdle()
       }
+      ACTION_MERGE_CONFIG -> {
+        val capKm = intent.getDoubleExtra(EXTRA_MERGE_CAP_KM, Double.NaN)
+        // 0 이하·비정상 값은 꺼짐과 같다 — 상한 없는 병합은 존재하지 않는다.
+        mergeCapKm = if (capKm.isFinite() && capKm > 0) capKm else Double.NaN
+      }
       else -> {
         // START or UPDATE both carry the freshest payload — cache it.
+        if (intent?.action == ACTION_START) {
+          // 새 매치의 시동은 이전 매치의 병합 상한을 물려받으면 안 된다 — JS가 시동 직후
+          // 다시 내려보낸다(fail-closed).
+          mergeCapKm = Double.NaN
+        }
         intent?.let { applyPayloadFromIntent(it) }
         ensureForeground()
         ensureWakeLock()
@@ -273,7 +289,7 @@ class MatchUploadForegroundService : Service() {
     }
 
     try {
-      val responseBody = MatchUploadHttp.send(url, token, body)
+      val responseBody = MatchUploadHttp.send(url, token, mergeDistanceIntoBody(body))
       if (responseBody != null) {
         MatchUploadResponseBus.emit(responseBody)
       }
@@ -281,6 +297,46 @@ class MatchUploadForegroundService : Service() {
       Log.w(TAG, "tick failed: ${error.message}")
     } finally {
       periodicInFlight.set(false)
+    }
+  }
+
+  // 잠든 중 실시간 병합 — 재전송 직전, 캐시된 JS 페이로드의 distanceKm을 네이티브 누적
+  // 총거리로 끌어올린다 (오너 2026-08-17: "잠든 중에도 실시간으로 서로 거리·페이스 업데이트").
+  //
+  // 규칙은 JS 병합과 동일한 안전 모형이다:
+  //  - merged = max(jsKm, min(nativeKm, capKm)) — 절대 내리지 않고, 절대 골 문턱을 넘지 않는다.
+  //    완주 판정은 영원히 JS 몫이다: cap = goal − tolerance − epsilon 이라 네이티브 값이
+  //    서버의 reachedGoalDistance를 먼저 넘길 수 없다.
+  //  - status/elapsedSeconds는 손대지 않는다. elapsed는 서버가 벽시계로 정규화하므로
+  //    (resolveServerBackedElapsedSeconds) 거리만 갱신하면 상대 화면의 페이스도 맞는다.
+  //  - 거리 누적 세션이 살아 있을 때만(distanceWanted) — 죽은 세션의 낡은 총거리는 안 믿는다.
+  //  - 파싱 실패·필드 부재 등 모든 예외는 원본 그대로 전송(fail-open to old behavior).
+  //  - 갱신이 없으면(러너가 실제로 멈춤) 원본을 바이트 그대로 재전송한다 — 서버의 정지 감지
+  //    (lastLivePushSignature)가 진짜 정지를 계속 잡을 수 있어야 한다.
+  private fun mergeDistanceIntoBody(body: String): String {
+    val capKm = mergeCapKm
+    if (!capKm.isFinite() || capKm <= 0 || !distanceWanted) {
+      return body
+    }
+
+    return try {
+      val json = JSONObject(body)
+      val jsKm = json.optDouble("distanceKm", Double.NaN)
+      if (!jsKm.isFinite()) {
+        return body
+      }
+      val nativeKm = distanceAccumulator.totalMeters / 1000.0
+      val mergedKm = Math.max(jsKm, Math.min(nativeKm, capKm))
+      // 서버·기록과 같은 두 자리 반올림 — 그 아래 차이는 갱신이 아니다.
+      val roundedKm = Math.round(mergedKm * 100.0) / 100.0
+      if (roundedKm <= jsKm) {
+        return body
+      }
+      json.put("distanceKm", roundedKm)
+      json.toString()
+    } catch (error: Throwable) {
+      Log.w(TAG, "merge failed: ${error.message}")
+      body
     }
   }
 
@@ -301,6 +357,7 @@ class MatchUploadForegroundService : Service() {
     periodicUrl = null
     periodicToken = null
     periodicBody = null
+    mergeCapKm = Double.NaN
     stopServiceIfIdle()
   }
 
@@ -462,11 +519,14 @@ class MatchUploadForegroundService : Service() {
     const val ACTION_DISTANCE_SEED = "expo.modules.matchprogressuploader.action.DISTANCE_SEED"
     const val ACTION_DISTANCE_RESET = "expo.modules.matchprogressuploader.action.DISTANCE_RESET"
     const val ACTION_DISTANCE_STOP = "expo.modules.matchprogressuploader.action.DISTANCE_STOP"
+    // 잠든 중 실시간 병합 설정 (매치 시동 뒤 JS가 내려보낸다; 옛 번들은 안 보냄 = 병합 꺼짐).
+    const val ACTION_MERGE_CONFIG = "expo.modules.matchprogressuploader.action.MERGE_CONFIG"
 
     const val EXTRA_URL = "url"
     const val EXTRA_TOKEN = "token"
     const val EXTRA_BODY = "body"
     const val EXTRA_INTERVAL_MS = "intervalMs"
+    const val EXTRA_MERGE_CAP_KM = "mergeCapKm"
 
     // Distance accumulator extras: the JS filter constants + the seed total.
     const val EXTRA_DISTANCE_SEED_METERS = "distanceSeedMeters"
