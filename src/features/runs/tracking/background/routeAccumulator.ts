@@ -64,6 +64,31 @@ export function resetRouteAccumulator() {
   lastCountedPoint = null;
 }
 
+// 경로에서 **실제로 관측한** 구간만 합산한다 — 신호 끊김 갭(두 점 사이 30초 초과)의 직선은
+// 우리가 본 경로가 아니므로 뺀다. 라이브 적립(아래 isSignalLossGapMs 분기)이 그 직선을 0m
+// 처리하고 앵커만 옮기는 것과 정확히 같은 규칙이다.
+//
+// 이게 없으면 경로 기반 재계산(냉시동 이탈·지터 붕괴)이 원시 하버사인 합으로 그 직선을
+// 도로 적립한다. 화면꺼짐 갭 크레딧이 이관된 런에서는 같은 구간이 크레딧 + 직선으로 **이중**
+// 적립되고(적대 검증 P0), 크레딧이 없어도 잠든 구간의 직선이 재계산 한 번에 통째로 되살아
+// 나는 기존 결함이기도 했다.
+export function sumObservedRouteDistanceMeters(route: RunRoutePoint[]): number {
+  let distanceMeters = 0;
+
+  for (let index = 1; index < route.length; index += 1) {
+    const previousMs = resolveRoutePointTimestampMs(route[index - 1]);
+    const nextMs = resolveRoutePointTimestampMs(route[index]);
+
+    if (previousMs !== null && nextMs !== null && isSignalLossGapMs(nextMs - previousMs)) {
+      continue;
+    }
+
+    distanceMeters += calculateDistanceBetweenPoints(route[index - 1], route[index]);
+  }
+
+  return distanceMeters;
+}
+
 export function getAccumulatedDistanceMeters() {
   return accumulatedDistanceMeters;
 }
@@ -282,7 +307,7 @@ export function appendTrackedLocation(location: Location.LocationObject) {
   if (excursionAnchorIndex !== null) {
     const nextRoute = [...snapshotState.route.slice(0, excursionAnchorIndex + 1), nextPoint];
     // 경로 재계산은 크레딧을 모른다 — 도로 얹지 않으면 화면꺼짐에 되찾은 거리가 여기서 지워진다.
-    accumulatedDistanceMeters = calculateRouteWindowDistanceMeters(nextRoute) + externalCreditMeters;
+    accumulatedDistanceMeters = sumObservedRouteDistanceMeters(nextRoute) + externalCreditMeters;
     accumulatedElevationGainMeters = calculateElevationGainM(nextRoute);
     lastCountedPoint = nextRoute[nextRoute.length - 1] ?? null;
 
@@ -373,7 +398,7 @@ export function appendTrackedLocation(location: Location.LocationObject) {
     // Collapse short side-to-side GPS jitter into the direct road segment instead of adding every wobble.
     const nextRoute = [...snapshotState.route.slice(0, jitterAnchorIndex + 1), nextPoint];
     // 경로 재계산은 크레딧을 모른다 — 도로 얹지 않으면 화면꺼짐에 되찾은 거리가 여기서 지워진다.
-    accumulatedDistanceMeters = calculateRouteWindowDistanceMeters(nextRoute) + externalCreditMeters;
+    accumulatedDistanceMeters = sumObservedRouteDistanceMeters(nextRoute) + externalCreditMeters;
     rgDiagLog(`[RG dist] COLLAPSE jitter seg=${segmentDistanceMeters.toFixed(1)} total=${(accumulatedDistanceMeters / 1000).toFixed(3)}`);
     accumulatedElevationGainMeters = calculateElevationGainM(nextRoute);
     lastCountedPoint = nextRoute[nextRoute.length - 1] ?? null;

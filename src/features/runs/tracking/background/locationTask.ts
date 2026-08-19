@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import Constants from 'expo-constants';
+import { nativeBuildVersion } from 'expo-application';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import {
@@ -8,7 +8,7 @@ import {
 import { setGapRuleBinarySupport } from '@/features/runs/tracking/background/distanceAccumulatorController';
 import { resolveNativeGapRuleBinary } from '@/features/runs/tracking/background/nativeGapRuleSupport';
 import { appendTrackedLocation } from '@/features/runs/tracking/background/routeAccumulator';
-import { reconcileScreenOffGapFromBatch } from '@/features/runs/tracking/background/screenOffGapReconcile';
+import { reconcileScreenOffGapAfterFixesAppended } from '@/features/runs/tracking/background/screenOffGapReconcile';
 import {
   BACKGROUND_RUN_TASK_NAME,
   LEGACY_BACKGROUND_RUN_TASK_NAME,
@@ -91,16 +91,11 @@ function defineBackgroundRunTask(taskName: string) {
       ? (data as { locations?: Location.LocationObject[] }).locations ?? []
       : [];
 
-    // 깨어난 뒤 첫 묶음이면 화면꺼짐 갭 정산을 확정한다 — 묶음 처리 **전에**. 타임스탬프가
-    // 재생 여부를 가르고, 정산이 이관하는 크레딧은 깨어나는 순간의 포획본에서 오므로 이
-    // 묶음이 더할 거리와 겹치지 않는다. 먼저 정산해야 이 묶음의 커밋들부터 되찾은 총거리를
-    // 싣고 나간다.
-    reconcileScreenOffGapFromBatch(
-      locations
-        .map((location) => location.timestamp)
-        .filter((timestamp): timestamp is number => typeof timestamp === 'number' && Number.isFinite(timestamp)),
-    );
     locations.forEach(appendTrackedLocation);
+    // 깨어난 뒤 첫 묶음이면 화면꺼짐 갭 정산을 확정한다 — 반드시 묶음 반영 **후에**. 정산은
+    // '포획한 네이티브 − 지금의 JS'라, OS가 밀린 픽스를 이 묶음으로 재생했다면 그 몫은 방금
+    // JS에 들어가 자동으로 차감된다. 반영 전에 정산하면 재생 몫이 두 번 적립된다.
+    reconcileScreenOffGapAfterFixesAppended();
     // Fix A.3 — fire-and-forget. Do NOT await the flush: a stuck/hung background push must never
     // wedge the native location-task callback (which is what keeps the GPS route buffer + distance
     // accumulating). The flush has its own single-flight + stale-reclaim + per-request timeout, so
@@ -115,10 +110,16 @@ if (Platform.OS !== 'web') {
   defineBackgroundRunTask(LEGACY_BACKGROUND_RUN_TASK_NAME);
 
   // 이 바이너리의 네이티브 누적기가 신호 끊김 갭 규칙을 강제하는지 — 앱 시작에 한 번
-  // 래치한다. 판별은 **설치된 바이너리**의 빌드 번호(Constants.nativeBuildVersion)로 한다:
-  // OTA 번들의 app.json은 구버전 기기에서도 최신 숫자를 말하므로 증거가 못 된다. 이 파일이
-  // 래치를 놓는 이유는 단순하다 — 여기는 앱이 살아나는 가장 이른 길목이면서 react-native를
-  // 이미 알고, 판별을 소비하는 컨트롤러는 노드 테스트 때문에 react-native를 모르는 채로
-  // 남아야 한다.
-  setGapRuleBinarySupport(resolveNativeGapRuleBinary(Platform.OS, Constants.nativeBuildVersion));
+  // 래치한다. 판별은 **설치된 바이너리**의 빌드 번호로 한다: OTA 번들의 app.json은 구버전
+  // 기기에서도 최신 숫자를 말하므로 증거가 못 된다.
+  //
+  // 출처는 expo-application의 nativeBuildVersion이다. expo-constants 18에는 이 값이 **없다**
+  // (적대 검증이 잡음 — 있다고 믿고 쓰면 래치가 영원히 false로 남아 기능 전체가 조용히
+  // 죽는다). expo-application은 package.json 직속은 아니었지만 expo-notifications의 의존성으로
+  // 빌드 55/44 당시 lockfile에 있었고, Expo 오토링킹은 node_modules의 네이티브 모듈을 전부
+  // 링크하므로 배포된 바이너리에 실려 있다. 모듈이 없으면 null을 주므로(내부에서 가드)
+  // 판별은 fail-closed로 닫힌다. 이 파일이 래치를 놓는 이유: 앱이 살아나는 가장 이른
+  // 길목이면서 react-native를 이미 알고, 판별을 소비하는 컨트롤러는 노드 테스트 때문에
+  // react-native를 모르는 채로 남아야 한다.
+  setGapRuleBinarySupport(resolveNativeGapRuleBinary(Platform.OS, nativeBuildVersion));
 }

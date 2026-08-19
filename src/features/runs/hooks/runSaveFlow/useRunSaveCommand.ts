@@ -21,6 +21,7 @@ import {
 } from '@/features/runs/sync/localGoalFreezeStore';
 import { createTrackedRun, forceResetRunningMatchState, getApiErrorMessage } from '@/services';
 import { clearPendingRunSave, persistPendingRunSave } from '@/features/runs/save/pendingRunSaveQueue';
+import { settlePendingScreenOffGapNow } from '@/features/runs/tracking/background/screenOffGapReconcile';
 import type { SaveTrackingOptions } from '@/features/runs/hooks/useRunTracking';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { applyGoalFreezeToDisplayedSnapshot } from './goalFreezeClamp';
@@ -137,6 +138,11 @@ export function useRunSaveCommand({
     let entrySaveNavEpoch = saveNavEpochRef.current;
     try {
       setError(null);
+
+      // 화면꺼짐 갭이 정산을 기다리고 있으면 스냅샷을 읽기 전에 끝낸다. 깨어나자마자 종료를
+      // 누르면 GPS 픽스도 12초 타이머도 오기 전에 여기 도착한다 — 이 한 줄이 없으면 잠든
+      // 구간의 거리가 포획된 채로 저장에서 빠진다(회원F 사고의 마지막 조각).
+      settlePendingScreenOffGapNow();
 
       if (status === 'running') {
         await pauseBackgroundRunTracking();

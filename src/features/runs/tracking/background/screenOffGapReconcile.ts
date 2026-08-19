@@ -6,23 +6,28 @@
 // 잠든 구간만큼 영영 짧았다 (오너 실사고 2026-08-17: 회원F 파티런 — 같은 코스를 더 빨리
 // 뛰고도 5km가 안 채워진 기록으로 끝남).
 //
-// 여기서 그 구간을 딱 한 번, 검증하고 돌려준다. 어려운 점은 두 가지다:
+// 여기서 그 구간을 검증하고 돌려준다. 설계의 뼈대 두 가지:
 //
-// ① 증거가 깨어나는 순간 파괴된다. 앱이 전면으로 오면 배터리를 위해 네이티브 누적기를
-//    즉시 꺼버리므로(useTrackingAppStateSync), 값은 **끄기 전에** 포획해야 한다. 그래서
-//    이 모듈의 입구는 '깨어남'이고, 포획본(스냅샷)으로만 일한다.
+// ① 증거는 깨어나는 순간 포획한다. 전면 복귀가 배터리를 위해 네이티브 누적기를 즉시 꺼서
+//    (useTrackingAppStateSync) 총거리를 지우므로, 값은 끄기 **전에** 붙잡아야 한다.
 //
-// ② OS가 밀린 GPS를 나중에 JS로 재생(replay)할 수 있다. 재생이 오면 JS가 스스로 갭을
-//    따라잡으므로 크레딧까지 주면 **이중 적립**이다. 재생 여부는 깨어난 뒤 첫 GPS 묶음의
-//    타임스탬프가 말해준다 — 잠든 구간의 시각이 찍힌 픽스가 하나라도 섞여 있으면 재생이다.
-//    그 판별이 끝날 때까지 크레딧을 미루고, 묶음이 영영 안 오면(실내 종료) 타이머로 정산한다.
+// ② 크레딧은 "포획한 네이티브 − **정산하는 순간의** JS"다. 포획 시점의 JS가 아니라는 것이
+//    핵심이다: OS가 밀린 픽스를 재생하든(수면 시각이 찍힌 픽스), 마지막 15초 꼬리만
+//    배달하든, JS가 스스로 되찾은 거리는 정산 시점의 JS 총거리에 이미 들어 있다 — 빼는
+//    쪽이 자동으로 맞춰지므로 재생을 **판별할 필요 자체가 없다**. JS가 하나도 못 되찾으면
+//    (나이 필터가 15초보다 오래된 픽스를 버리므로 대부분 이 경우다) 차이가 그대로 남고,
+//    전부 되찾으면 차이가 0으로 줄어 이중 적립이 불가능하다. 정산이 늦어질수록 깨어난 뒤
+//    새로 뛴 거리만큼 과소해질 수 있어(안전한 방향), 첫 픽스 묶음에서 곧바로 정산한다.
 
 import {
   isGapRuleBinarySupported,
   ENABLE_NATIVE_DISTANCE_MERGE,
   getMergeableNativeDistanceMeters,
 } from '@/features/runs/tracking/background/distanceAccumulatorController';
-import { MAX_REASONABLE_RUNNING_SPEED_MPS } from '@/features/runs/tracking/background/locationDistance';
+import {
+  MAX_CREDITABLE_FIX_GAP_MS,
+  MAX_REASONABLE_RUNNING_SPEED_MPS,
+} from '@/features/runs/tracking/background/locationDistance';
 import {
   creditExternalDistanceMeters,
   getAccumulatedDistanceMeters,
@@ -34,26 +39,24 @@ import { rgDiagLog } from '@/utils/rgPerfTrace';
 // OTA 킬스위치 — 현장 회귀 시 이것만 내리면 정산 전체가 무동작이 된다.
 export const ENABLE_SCREEN_OFF_GAP_RECONCILE = true;
 
-// 이보다 짧게 잠든 건 정산하지 않는다 — 앱 전환 몇 초에 갭이랄 게 없다.
-export const MIN_STALE_GAP_MS = 15_000;
+// 이보다 짧게 잠든 건 정산하지 않는다. 신호 끊김 문턱(30초)보다 **길어야 한다**: 그보다
+// 짧은 공백은 라이브 필터가 깨어난 첫 픽스의 직선을 정상 주행으로 직접 적립하므로
+// (isSignalLossGapMs 미만), 거기에 크레딧까지 주면 같은 구간이 두 번 적립된다. 30초를
+// 넘는 공백만이 '적립되지 않은 직선'을 남기고, 그것이 정확히 크레딧이 메울 구멍이다.
+export const MIN_STALE_GAP_MS = MAX_CREDITABLE_FIX_GAP_MS + 15_000;
 // 이보다 작은 차이는 갭이 아니라 두 누적기의 필터 차이(지터)다. 냉시동 직후 화면을 끄면
 // 네이티브가 워밍업 지터를 수십 m 더 세는 것으로 관측됐다(실기기 빌드 41: ~55m) — 그
 // 크기의 차이를 갭으로 이관하면 안 된다.
 export const MIN_CREDIT_METERS = 80;
-// 재생 판별 허용 오차 — 깨어나기 이 이상 전의 시각이 찍힌 픽스는 잠든 구간의 재생이다.
-export const REPLAY_DETECT_TOLERANCE_MS = 15_000;
-// GPS 묶음이 이 시간 안에 안 오면(실내에서 멈춤·수신 불가) 재생은 오지 않는 것으로 보고
-// 포획본만으로 정산한다. 재생은 깨어난 직후에 오지, 이렇게 늦게 오지 않는다.
+// GPS 픽스가 이 시간 안에 안 오면(실내에서 멈춤·수신 불가) 포획본만으로 정산한다.
 export const QUIET_WAKE_RECONCILE_DELAY_MS = 12_000;
 
 type CapturedGap = {
-  // 깨어난 시각 — 재생 판별의 기준선.
   wakeAtMs: number;
   // 잠들어 있던 시간 — 크레딧 상한의 근거.
   staleGapMs: number;
-  // 끄기 직전 포획한 네이티브 총거리와 그 순간의 JS 총거리. 차이가 곧 잠든 구간이다.
+  // 네이티브 누적기를 끄기 직전 포획한 총거리.
   nativeMetersAtWake: number;
-  jsMetersAtWake: number;
   // 같은 런인지 확인하는 열쇠 — 정산 전에 런이 끝나고 새 런이 시작되면 버린다.
   runStartedAt: string | null;
 };
@@ -68,21 +71,53 @@ function clearQuietWakeTimer() {
   }
 }
 
-function discard(reason: string) {
-  if (captured) {
-    rgDiagLog(`[RG gap] DISCARD ${reason}`);
+// 실제 정산. 포획한 네이티브 총거리에서 **지금의** JS 총거리를 뺀 만큼만 이관한다 — JS가
+// 스스로 되찾은 몫(재생·꼬리 배달)은 지금의 JS에 이미 들어 있으므로 자동으로 제외된다.
+function settle({ via }: { via: string }) {
+  const gap = captured;
+
+  if (!gap) {
+    return;
   }
+
   captured = null;
   clearQuietWakeTimer();
+
+  // 정산 전에 런이 바뀌었으면(종료 후 새 런) 남의 런에 이관하면 안 된다. 일시정지는
+  // 허용한다 — 깨어나서 곧바로 종료 버튼을 누르는 것이 바로 이 사고의 흐름이고, 그때
+  // 스냅샷은 이미 'paused'다. startedAt이 같은 한 같은 런이다.
+  const snapshot = getSnapshotState();
+  const sameRun = snapshot.startedAt === gap.runStartedAt
+    && (snapshot.status === 'running' || snapshot.status === 'paused');
+
+  if (!sameRun) {
+    rgDiagLog('[RG gap] SKIP run changed before settle');
+    return;
+  }
+
+  const jsMetersNow = getAccumulatedDistanceMeters();
+  const rawCreditMeters = gap.nativeMetersAtWake - jsMetersNow;
+  // 상한: 잠든 시간 동안 사람이 달릴 수 있는 최대 거리 — 마지막 방어선.
+  const capMeters = (gap.staleGapMs / 1000) * MAX_REASONABLE_RUNNING_SPEED_MPS;
+  const creditMeters = Math.min(rawCreditMeters, capMeters);
+
+  if (creditMeters < MIN_CREDIT_METERS) {
+    rgDiagLog(`[RG gap] SKIP credit below floor (${creditMeters.toFixed(0)}m)`);
+    return;
+  }
+
+  creditExternalDistanceMeters(creditMeters);
+  rgDiagLog(`[RG gap] SETTLE via=${via} +${creditMeters.toFixed(0)}m`);
 }
 
-// 깨어나는 순간 호출된다 — **네이티브 누적기를 끄기 전에**. 조건이 안 되면 아무것도 남기지
-// 않고, 되면 포획본을 만들어 정산을 예약한다.
+// 깨어나는 순간 호출된다 — **네이티브 누적기를 끄기 전에**. 이미 대기 중인 포획이 있으면
+// 먼저 정산한다: 잠금 화면 배너·Face ID처럼 'active'가 연달아 두 번 오는 상황에서 이전
+// 포획을 버리면, 이미 꺼진 네이티브에서는 그 갭을 다시는 알 수 없다.
 export function captureScreenOffGapOnWake({
   nowMs = Date.now(),
   quietWakeDelayMs = QUIET_WAKE_RECONCILE_DELAY_MS,
 }: { nowMs?: number; quietWakeDelayMs?: number } = {}): boolean {
-  discard('re-wake');
+  settle({ via: 'pre-recapture' });
 
   if (!ENABLE_SCREEN_OFF_GAP_RECONCILE || !ENABLE_NATIVE_DISTANCE_MERGE) {
     return false;
@@ -115,10 +150,9 @@ export function captureScreenOffGapOnWake({
   }
 
   const nativeMetersAtWake = getMergeableNativeDistanceMeters();
-  const jsMetersAtWake = getAccumulatedDistanceMeters();
 
-  // 네이티브가 없거나(솔로 런) 앞서지 않으면 정산할 게 없다.
-  if (nativeMetersAtWake - jsMetersAtWake < MIN_CREDIT_METERS) {
+  // 네이티브가 없거나(솔로 런·구버전) 앞서지 않으면 정산할 게 없다.
+  if (nativeMetersAtWake - getAccumulatedDistanceMeters() < MIN_CREDIT_METERS) {
     return false;
   }
 
@@ -126,85 +160,40 @@ export function captureScreenOffGapOnWake({
     wakeAtMs: nowMs,
     staleGapMs,
     nativeMetersAtWake,
-    jsMetersAtWake,
     runStartedAt: snapshot.startedAt,
   };
   rgDiagLog(
-    `[RG gap] CAPTURE stale=${Math.round(staleGapMs / 1000)}s native=${nativeMetersAtWake.toFixed(0)}m js=${jsMetersAtWake.toFixed(0)}m`,
+    `[RG gap] CAPTURE stale=${Math.round(staleGapMs / 1000)}s native=${nativeMetersAtWake.toFixed(0)}m js=${getAccumulatedDistanceMeters().toFixed(0)}m`,
   );
 
-  // GPS 묶음이 영영 안 오는 깨어남(실내 종료)을 위한 안전망.
+  // GPS 픽스가 영영 안 오는 깨어남(실내 종료)을 위한 안전망. JS가 그 사이 또 잠들어 타이머가
+  // 늦게 울려도 안전하다 — 정산이 '지금의 JS'를 빼므로 언제 울리든 이중 적립이 없다.
   quietWakeTimer = setTimeout(() => {
     quietWakeTimer = null;
-    settle({ replayObserved: false, nowMs: Date.now(), via: 'quiet-wake' });
+    settle({ via: 'quiet-wake' });
   }, quietWakeDelayMs);
 
   return true;
 }
 
-// 실제 정산. 재생이 관측됐으면 JS가 스스로 따라잡으므로 버리고, 아니면 포획본의 차이를
-// 상한 안에서 JS 원장에 이관한다.
-function settle({ replayObserved, nowMs, via }: { replayObserved: boolean; nowMs: number; via: string }) {
-  const gap = captured;
-
-  if (!gap) {
+// 위치 픽스가 JS 원장에 반영된 **직후** 호출된다(백그라운드 태스크·전면 워치 둘 다). 첫
+// 묶음이 정산을 확정한다 — 방금 반영된 몫은 이미 JS 총거리에 들어 있어 자동으로 빠진다.
+export function reconcileScreenOffGapAfterFixesAppended() {
+  if (!captured) {
     return;
   }
 
-  captured = null;
-  clearQuietWakeTimer();
-
-  if (replayObserved) {
-    rgDiagLog('[RG gap] SKIP replay observed — JS is catching up on its own');
-    return;
-  }
-
-  // 정산 전에 런이 바뀌었으면(종료 후 새 런) 남의 런에 이관하면 안 된다.
-  const snapshot = getSnapshotState();
-  if (snapshot.status !== 'running' || snapshot.startedAt !== gap.runStartedAt) {
-    rgDiagLog('[RG gap] SKIP run changed before settle');
-    return;
-  }
-
-  const rawCreditMeters = gap.nativeMetersAtWake - gap.jsMetersAtWake;
-  // 상한: 잠든 시간 동안 사람이 달릴 수 있는 최대 거리. 갭 규칙 바이너리만 여기 오지만,
-  // 상한은 남는 방어가 아니라 마지막 방어다.
-  const capMeters = (gap.staleGapMs / 1000) * MAX_REASONABLE_RUNNING_SPEED_MPS;
-  const creditMeters = Math.min(rawCreditMeters, capMeters);
-
-  if (creditMeters < MIN_CREDIT_METERS) {
-    rgDiagLog(`[RG gap] SKIP credit below floor (${creditMeters.toFixed(0)}m)`);
-    return;
-  }
-
-  creditExternalDistanceMeters(creditMeters);
-  rgDiagLog(`[RG gap] SETTLE via=${via} +${creditMeters.toFixed(0)}m at=${nowMs}`);
+  settle({ via: 'fixes' });
 }
 
-// 깨어난 뒤 도착한 GPS 묶음마다 호출된다(위치 태스크). 첫 묶음이 재생 여부를 판별해 정산을
-// 확정한다 — 묶음 안에 잠든 구간의 시각이 찍힌 픽스가 하나라도 있으면 재생이다.
-export function reconcileScreenOffGapFromBatch(
-  timestampsMs: number[],
-  { nowMs = Date.now() }: { nowMs?: number } = {},
-) {
-  const gap = captured;
-
-  if (!gap) {
+// 강제 정산 — 저장이 스냅샷을 읽기 직전에 부른다. 깨어나자마자 종료를 누르는 흐름에서
+// 픽스도 타이머도 오기 전에 저장이 시작될 수 있다.
+export function settlePendingScreenOffGapNow() {
+  if (!captured) {
     return;
   }
 
-  if (timestampsMs.length === 0) {
-    return;
-  }
-
-  const oldestMs = Math.min(...timestampsMs);
-  const replayObserved = oldestMs < gap.wakeAtMs - REPLAY_DETECT_TOLERANCE_MS;
-  settle({ replayObserved, nowMs, via: 'batch' });
-}
-
-// 런이 끝나면 포획본도 함께 버린다 — 다음 런의 첫 픽스에 낡은 갭을 이관하는 사고 방지.
-export function discardScreenOffGapCapture() {
-  discard('external');
+  settle({ via: 'forced' });
 }
 
 export function resetScreenOffGapReconcileForTest() {

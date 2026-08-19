@@ -1,5 +1,6 @@
 import * as Location from 'expo-location';
 import { appendTrackedLocation } from '@/features/runs/tracking/background/routeAccumulator';
+import { reconcileScreenOffGapAfterFixesAppended } from '@/features/runs/tracking/background/screenOffGapReconcile';
 import { rgPerfTrackResource } from '@/utils/rgPerfTrace';
 
 let foregroundLocationSubscription: { remove: () => void } | null = null;
@@ -56,7 +57,14 @@ export async function startForegroundLocationWatch(
   try {
     foregroundLocationSubscription = await Location.watchPositionAsync(
       buildForegroundLocationOptions(options?.mayShowUserSettingsDialog ?? true),
-      appendTrackedLocation,
+      (location) => {
+        appendTrackedLocation(location);
+        // 화면꺼짐 갭 정산은 첫 픽스 반영 직후 확정된다. 전면에서는 백그라운드 태스크가
+        // 안정적으로 안 울리므로(locationTaskPolicy) 이 워치가 유일한 픽스 통로일 수 있다 —
+        // 여기 훅이 없으면 깨어난 채 계속 뛰는 러너의 정산이 타이머까지 12초를 기다리며
+        // 그 사이 뛴 만큼 과소 적립된다.
+        reconcileScreenOffGapAfterFixesAppended();
+      },
     );
     stopForegroundLocationTrace = rgPerfTrackResource('watcher', 'foreground location watch', {
       distanceInterval: FOREGROUND_LOCATION_DISTANCE_INTERVAL_M,

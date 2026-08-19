@@ -23,7 +23,7 @@ import {
 } from '@/features/runs/tracking/background/distanceAccumulatorController';
 import {
   captureScreenOffGapOnWake,
-  discardScreenOffGapCapture,
+  settlePendingScreenOffGapNow,
 } from '@/features/runs/tracking/background/screenOffGapReconcile';
 import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
 import type { UpdateRunningMatchProgressInput } from '@/lib/api/types';
@@ -219,8 +219,10 @@ export function useTrackingAppStateSync({
       // Likewise the native distance accumulator: a non-running tracker must never leave its GPS
       // consumer alive (no battery drain after the run). No-op on current binaries.
       void stopNativeDistanceAccumulator().catch(() => undefined);
-      // 끝난 런의 화면꺼짐 갭 포획본도 함께 버린다 — 다음 런에 이관되면 안 된다.
-      discardScreenOffGapCapture();
+      // 트래커가 'running'을 떠났다(일시정지·종료). 대기 중인 화면꺼짐 갭이 있으면 지금
+      // 정산한다 — 깨어나자마자 종료하는 흐름에서 포획을 버리면 그 갭은 영영 사라진다.
+      // 런이 이미 교체됐으면 정산 내부의 startedAt 대조가 알아서 버린다.
+      settlePendingScreenOffGapNow();
       return undefined;
     }
 
@@ -229,7 +231,7 @@ export function useTrackingAppStateSync({
       stopBackgroundMatchProgressTimer();
       void stopPeriodicMatchUpload().catch(() => undefined);
       void stopNativeDistanceAccumulator().catch(() => undefined);
-      discardScreenOffGapCapture();
+      settlePendingScreenOffGapNow();
     };
   }, [enabled, trackerStatus]);
 
