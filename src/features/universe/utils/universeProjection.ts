@@ -26,6 +26,10 @@ export type Projected = {
   scale: number;
   // 카메라 앞이 아니면 그릴 수 없다.
   visible: boolean;
+  // 카메라 코앞에서는 서서히 옅어진다(1 = 온전히 보임, 0 = 컷 평면). 근접 컷은 이진이라
+  // 이 값 없이 그대로 쓰면 통과하는 순간 한 프레임에 툭 사라진다 — 컷에 닿기 전에 이미
+  // 투명해져 있어야 카메라가 천체를 '지나가는' 것으로 읽힌다.
+  nearFade: number;
 };
 
 // 화면 절반 높이 대비 초점거리. 클수록 원근이 약해진다(직교에 가까워지고), 작을수록
@@ -33,6 +37,10 @@ export type Projected = {
 const FOCAL_RATIO = 1.9;
 // 카메라 코앞은 그리지 않는다 — 0으로 나누는 것과 같아 좌표가 폭발한다.
 const MIN_VIEW_DEPTH_RATIO = 0.06;
+// 이 비율(카메라 거리 대비)부터 옅어지기 시작해 컷 평면에서 0이 된다. 겨눈 천체는 확대할수록
+// camDepth가 그 깊이로 따라 들어가 비율이 1로 수렴하므로 절대 이 구간에 들어오지 않는다 —
+// 여기 걸리는 것은 언제나 '지나치는 중'인 천체뿐이다. 휠 서너 칸에 걸쳐 사라지는 폭이다.
+const NEAR_FADE_START_RATIO = 0.45;
 
 export function focalLengthFor(canvasHeight: number): number {
   return (canvasHeight / 2) * FOCAL_RATIO;
@@ -57,8 +65,16 @@ export function projectPoint(
   const viewDepth = camera.camDepth + distance - z;
 
   if (viewDepth < distance * MIN_VIEW_DEPTH_RATIO) {
-    return { screenX: 0, screenY: 0, scale: 0, visible: false };
+    return { screenX: 0, screenY: 0, scale: 0, visible: false, nearFade: 0 };
   }
+
+  // 컷 평면에 다가갈수록 0으로 — 밖에서는 정확히 1이라 멀리 있는 천체는 아무 영향이 없다.
+  const nearRatio = viewDepth / distance;
+  const fadeT = Math.max(0, Math.min(
+    1,
+    (nearRatio - MIN_VIEW_DEPTH_RATIO) / (NEAR_FADE_START_RATIO - MIN_VIEW_DEPTH_RATIO),
+  ));
+  const nearFade = fadeT * fadeT * (3 - 2 * fadeT);
 
   const scale = focal / viewDepth;
   // pan은 화면 픽셀 단위의 카메라 이동이다. 초점면에서 예전과 같은 양만큼 움직이도록
@@ -77,6 +93,7 @@ export function projectPoint(
     screenY: canvasHeight / 2 + (y - camY) * scale,
     scale,
     visible: true,
+    nearFade,
   };
 }
 

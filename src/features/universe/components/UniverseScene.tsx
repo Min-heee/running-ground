@@ -324,8 +324,10 @@ function UniverseSceneComponent({
         screenRadius,
         depth,
         z: Math.max(-1, Math.min(1, 1 - 1 / Math.max(0.2, nearness))) * DEPTH_SCREEN_SPAN,
-        opacity: Math.max(0.5, Math.min(1, 0.5 + 0.5 * nearness)),
-        nameOpacity: 1,
+        // 카메라 코앞이면 서서히 사라진다 — 근접 컷은 이진이라, 미리 옅어져 있지 않으면
+        // 지나치는 순간 한 프레임에 툭 꺼진다.
+        opacity: Math.max(0.5, Math.min(1, 0.5 + 0.5 * nearness)) * projected.nearFade,
+        nameOpacity: projected.nearFade,
         morph: smoothStep(
           SPHERE_MIN_SCREEN_RADIUS * 0.55,
           SPHERE_MIN_SCREEN_RADIUS * 1.9,
@@ -397,8 +399,10 @@ function UniverseSceneComponent({
         screenRadius,
         depth,
         z: Math.max(-1, Math.min(1, 1 - 1 / Math.max(0.2, nearness))) * DEPTH_SCREEN_SPAN,
-        opacity: cloudOpacity(progress) * Math.max(0.5, Math.min(1, 0.5 + 0.5 * nearness)),
-        nameOpacity: labelOpacity(progress),
+        // 14% 흔적도 카메라를 통과할 때는 미리 옅어져야 한다 — 근접 컷은 이진이라 페이드
+        // 없이는 통과하는 프레임에 흔적이 통째로 툭 사라진다.
+        opacity: cloudOpacity(progress) * Math.max(0.5, Math.min(1, 0.5 + 0.5 * nearness)) * projected.nearFade,
+        nameOpacity: labelOpacity(progress) * projected.nearFade,
         morph: smoothStep(
           DISK_MIN_SCREEN_RADIUS * 0.55,
           DISK_MIN_SCREEN_RADIUS * 1.9,

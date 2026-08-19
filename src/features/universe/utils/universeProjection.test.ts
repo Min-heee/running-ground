@@ -71,6 +71,35 @@ test('가까울수록 크게, 카메라 뒤는 그리지 않는다', () => {
   assert.equal(behind.scale, 0);
 });
 
+test('카메라를 통과하는 천체는 컷 직전에 이미 투명하다 — 툭 사라지지 않는다', () => {
+  const distance = cameraDistanceFor(camera, H);
+
+  // 초점면(그리고 그보다 먼 곳)에서는 페이드가 정확히 1 — 멀리 있는 천체에 아무 영향이 없다.
+  assert.equal(projectPoint(0, 0, camera.camDepth, camera, W, H).nearFade, 1);
+  assert.equal(projectPoint(0, 0, camera.camDepth - 300, camera, W, H).nearFade, 1);
+
+  // 카메라로 다가갈수록 단조롭게 옅어진다.
+  let previous = 1;
+
+  for (const fraction of [0.6, 0.7, 0.8, 0.9]) {
+    const projected = projectPoint(0, 0, camera.camDepth + distance * fraction, camera, W, H);
+
+    assert.ok(projected.visible);
+    assert.ok(projected.nearFade < previous, `${fraction}에서 페이드가 줄지 않음`);
+    previous = projected.nearFade;
+  }
+
+  // 컷 평면 바로 앞 — 사라지는 프레임에는 이미 거의 투명해서 컷이 보이지 않는다.
+  const nearCull = projectPoint(0, 0, camera.camDepth + distance * 0.935, camera, W, H);
+  assert.ok(nearCull.visible);
+  assert.ok(nearCull.nearFade < 0.02);
+
+  // 컷을 넘으면 0 — 페이드 곡선과 이진 컷이 같은 값에서 만난다.
+  const culled = projectPoint(0, 0, camera.camDepth + distance * 0.95, camera, W, H);
+  assert.equal(culled.visible, false);
+  assert.equal(culled.nearFade, 0);
+});
+
 test('역투영은 투영을 정확히 되돌린다', () => {
   const view = { zoom: 2.5, panX: -140, panY: 70, camDepth: 12 };
   const point = unprojectOnFocalPlane(410, 300, view, W, H);
