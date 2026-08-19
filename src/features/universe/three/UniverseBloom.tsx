@@ -2,10 +2,12 @@ import { useEffect, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import {
   BloomEffect,
+  Effect,
   EffectComposer,
   EffectPass,
   RenderPass,
 } from 'postprocessing';
+import { Uniform } from 'three';
 
 // 블룸 (오너 2026-08-16: "블룸 해주고"). 밝은 것 주위로 빛이 번지는 효과 — 우주 사진이
 // 우주처럼 보이는 이유의 절반이다. 항성의 광구, 은하 핵, 행성 대기 테두리처럼 이미 밝게
@@ -34,6 +36,63 @@ const LEVELS = 3;
 // 밉을 겹칠 때의 번짐 폭. 낮출수록 후광이 코어에 붙는다.
 const RADIUS = 0.62;
 
+// 사진 마감 — 블룸과 **같은 EffectPass에 융합**된다(postprocessing은 한 패스의 이펙트를
+// 셰이더 하나로 합친다). 렌더 타깃이 늘지 않으므로 비용은 픽셀당 산술 몇 개뿐이다.
+//
+// 어둠 규칙과의 관계: 여기의 여섯 단계 중 둘(비네트·블랙 크러시)은 화면을 **어둡게** 하고,
+// 나머지는 광량 중립이다. 특히 디더는 검은 하늘의 8비트 밴딩(코로나·핵 주위의 동심원 띠 —
+// 어두운 화면에서 가장 크게 '프로그래머 아트'로 읽히는 결함)을 지운다. 순수한 검정(휘도
+// 0.12 미만의 바닥)은 건드리지 않도록 게이트를 건다 — 바닥까지 흔들면 노이즈가 된다.
+const GRADE_FRAGMENT = `
+uniform float uTime;
+
+float gradeHash(vec2 p) {
+  return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
+  vec3 c = inputColor.rgb;
+
+  // 필믹 숄더 — 밝은 핵이 뚝 잘리는 대신 흰색으로 굴러 넘어간다.
+  c = c / (1.0 + 0.35 * max(vec3(0.0), c - vec3(0.78)));
+
+  float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  // 중간톤만 살짝 진하게 — 은하 팔의 파랑, 핵의 온기가 한 걸음 앞으로.
+  c = mix(vec3(lum), c, 1.08);
+  // 그림자를 차갑게 — 팔레트 규율(차가운 은청색 우주)을 화면 전역에서 강제한다.
+  c *= mix(vec3(0.93, 0.97, 1.07), vec3(1.0), smoothstep(0.0, 0.22, lum));
+
+  // 비네트 — 가장자리를 눌러 화면에 무게 중심을 만든다. 장노출 사진의 문법.
+  vec2 q = uv - 0.5;
+  c *= 1.0 - 0.28 * smoothstep(0.30, 0.80, dot(q, q) * 2.6);
+
+  // 블랙 크러시 — 바닥을 진짜 0에 못박는다. 가산합성 찌꺼기가 남긴 거의-검정을 지운다.
+  c = max(vec3(0.0), c - 0.003);
+
+  // 휘도 게이트를 건 삼각 디더 — 밴딩이 사는 어두운 경사면에만 ±0.9/255를 뿌린다.
+  float dither = (gradeHash(uv * 913.7 + fract(uTime) * 17.0) - 0.5) * (1.8 / 255.0);
+  c += dither * smoothstep(0.0, 0.12, lum);
+
+  outputColor = vec4(c, inputColor.a);
+}
+`;
+
+class GradeEffect extends Effect {
+  constructor() {
+    super('GradeEffect', GRADE_FRAGMENT, {
+      uniforms: new Map<string, Uniform>([['uTime', new Uniform(0)]]),
+    });
+  }
+
+  override update(_renderer: unknown, _inputBuffer: unknown, deltaTime?: number): void {
+    const time = this.uniforms.get('uTime');
+
+    if (time) {
+      time.value = (time.value + (deltaTime ?? 0)) % 64;
+    }
+  }
+}
+
 export function UniverseBloom() {
   const gl = useThree((state) => state.gl);
   const scene = useThree((state) => state.scene);
@@ -53,7 +112,9 @@ export function UniverseBloom() {
       levels: LEVELS,
       radius: RADIUS,
     });
-    instance.addPass(new EffectPass(camera, bloom));
+    // 블룸 뒤에 마감을 건다 — 같은 EffectPass라 셰이더 하나로 융합되고, 블룸이 만든
+    // 그라데이션까지 디더가 다듬는다. 패스는 여전히 둘뿐이다(Render + Effect).
+    instance.addPass(new EffectPass(camera, bloom, new GradeEffect()));
 
     return instance;
   }, [camera, gl, scene]);

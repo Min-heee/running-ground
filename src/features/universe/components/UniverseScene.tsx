@@ -597,14 +597,19 @@ function UniverseSceneComponent({
     shape: body.shape,
     morph: body.morph,
     highlighted: body.isMine || body.key === selectedKey,
+    // 골드는 '내 것'에만 — 고른 것은 얼음빛. 색 규율의 마지막 조각.
+    highlightKind: body.isMine ? ('mine' as const) : ('selected' as const),
     opacity: body.opacity,
   })), [bodies, selectedKey]);
 
   // 이름은 큰 것부터 자리를 잡고, 겹치면 접는다. 확대하면 사이가 벌어져 접혔던 이름이 돌아온다.
   const labelled = useMemo(() => {
-    const candidates = bodies
+    const sorted = bodies
       .filter((body) => body.screenRadius >= BODY_LABEL_PX && body.nameOpacity > 0.06)
       .sort((left, right) => right.screenRadius - left.screenRadius);
+    // 나라 전체가 보이는 거리에서는 이름을 성좌의 캡션처럼 소수만 남긴다 — 첫 화면이
+    // 통계 대시보드 40칸으로 읽히면 우주가 아니라 관리 화면이 된다.
+    const candidates = zoom < fitZoom * 1.5 ? sorted.slice(0, 14) : sorted;
 
     const visible = pickVisibleLabels(
       candidates.map((body) => ({
@@ -619,7 +624,7 @@ function UniverseSceneComponent({
     );
 
     return candidates.filter((body) => visible.has(body.key));
-  }, [bodies, height, width]);
+  }, [bodies, fitZoom, height, width, zoom]);
 
   // 누를 수 있는 것: 이름이 붙은 것 + 고른 것. 전부에 터치 영역을 두면 뒤에 깔린 거대한
   // 부모가 앞의 작은 천체를 가로챈다.
@@ -701,11 +706,16 @@ function UniverseSceneComponent({
         >
           <Text style={styles.name} numberOfLines={1}>
             {body.name}
-            {body.stars > 0 ? ` ★${body.stars}` : ''}
+            {/* 챔피언의 ★는 보석이다 — 골드는 오직 이긴 것에만 쓴다는 색 규율의 일부. */}
+            {body.stars > 0 ? <Text style={styles.stars}>{` ★${body.stars}`}</Text> : null}
           </Text>
-          <Text style={styles.detail} numberOfLines={1}>
-            {body.detail}
-          </Text>
+          {/* 숫자는 고른 것에만 — 나머지 이름표는 캡션이다. 모든 천체가 통계를 달고 있으면
+              박물관이 아니라 관리 대시보드가 된다. */}
+          {body.key === selectedKey ? (
+            <Text style={styles.detail} numberOfLines={1}>
+              {body.detail}
+            </Text>
+          ) : null}
         </View>
       ))}
     </View>
@@ -725,16 +735,34 @@ const styles = StyleSheet.create({
     width: LABEL_BOX_WIDTH,
     alignItems: 'center',
   },
+  // 박물관 명판의 문법: 가는 굵기 + 자간 + 상자 없는 그림자. 굵은 흰 글씨는 하늘 위에
+  // '떠 있는 UI'로 읽히고, 그림자가 있어야 별밭 위에서도 상자 없이 글자가 선다.
   name: {
-    color: 'rgba(238, 244, 255, 0.94)',
+    color: 'rgba(230, 238, 252, 0.92)',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '500',
+    letterSpacing: 0.4,
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.85)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
+  stars: {
+    // 샴페인 골드 — 색 규율(three/palette.ts): 골드는 오직 '이긴 것'에만.
+    color: '#E8C87A',
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.4,
   },
   detail: {
-    color: 'rgba(170, 190, 225, 0.78)',
+    color: 'rgba(150, 168, 204, 0.6)',
     fontSize: 10,
+    letterSpacing: 0.2,
+    fontVariant: ['tabular-nums'],
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.85)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
 });
 

@@ -116,9 +116,11 @@ export function planetTraitsFor(id: string): PlanetTraits {
 //
 // 흰색에 가깝게 두면 안 된다: 표면 무늬는 밝기만 담은 회색 지도라 여기서 곱한 색이 그대로
 // 별의 색이 된다. 예전엔 전부 흰색 근처여서 어느 별이든 창백한 달처럼 보였다.
+// 분류의 폭(붉은 거성·푸른 별)은 지키되, 가장 시끄러운 주황 둘만 눌렀다 — 채도 최고치가
+// 여럿이면 화면의 온도가 사방으로 흩어져 사진이 아니라 네온사인이 된다.
 const STAR_COLORS: { color: string; corona: string }[] = [
-  { color: '#FFD07A', corona: '#FF9E2E' }, // 태양 비슷한 노란 별
-  { color: '#FFAE5C', corona: '#FF7A1F' }, // 주황
+  { color: '#FFD07A', corona: '#F0A94E' }, // 태양 비슷한 노란 별
+  { color: '#FFAE5C', corona: '#E08A3C' }, // 주황
   { color: '#FF8A5C', corona: '#FF4E2A' }, // 붉은 거성
   { color: '#BFD8FF', corona: '#6E9BFF' }, // 푸른 별
   { color: '#FFE9C2', corona: '#FFC259' }, // 흰빛에 가까운 별

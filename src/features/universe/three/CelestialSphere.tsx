@@ -6,17 +6,21 @@ import {
   Color,
   DoubleSide,
   type Group,
+  MeshStandardMaterial,
   ShaderMaterial,
+  Vector3,
 } from 'three';
 
 import {
   getCloudTexture,
+  getPlanetMask,
   getPlanetSurface,
   getRingTexture,
   getStarSurface,
 } from '@/features/universe/three/planetTextures';
-import { getGlowTexture } from '@/features/universe/three/textures';
+import { getGlowTexture, getSpikedStarTexture } from '@/features/universe/three/textures';
 import { planetTraitsFor, starTraitsFor } from '@/features/universe/three/planetTraits';
+import { smoothStep } from '@/features/universe/utils/universeSpace';
 
 // 행성과 항성 (오너 2026-08-16: "진짜 행성·항성처럼").
 //
@@ -78,6 +82,10 @@ function useAtmosphereMaterial(color: string, strength: number, fade: number) {
   return material;
 }
 
+// 주광의 방향(빛을 향하는 쪽) — UniverseSky의 키 라이트 position과 같은 값. 도시 불빛이
+// 정확히 그 빛의 반대면(밤면)에서 켜지려면 조명과 이 상수가 같은 곳을 가리켜야 한다.
+const KEY_LIGHT_DIR = new Vector3(-320, 380, 520).normalize();
+
 function PlanetBody({
   id,
   radius,
@@ -103,6 +111,59 @@ function PlanetBody({
     fade,
   );
 
+  // 가까이 온 지구형 행성의 궤도 접근 샷 — 바다는 매끈해져 태양의 반짝임이 흐르고,
+  // 명암 경계선(터미네이터)을 따라 밤면에 도시 불빛이 켜진다. 표준 셰이더에 마스크 두 줄을
+  // 주입할 뿐이라 낮면·하늘의 광량은 그대로다. 먼 행성은 오늘의 재질 그대로.
+  const litSurface = useMemo(() => {
+    if (!detailed || traits.kind !== 'terrestrial') {
+      return null;
+    }
+
+    const material = new MeshStandardMaterial({
+      map: surface,
+      color: new Color(traits.tint),
+      bumpMap: surface,
+      bumpScale: 0.035,
+      roughness: 0.82,
+      metalness: 0.02,
+      emissive: new Color(traits.tint),
+    });
+
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.uMask = { value: getPlanetMask(traits.variant) };
+      shader.uniforms.uLightDir = { value: KEY_LIGHT_DIR };
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nuniform sampler2D uMask;\nuniform vec3 uLightDir;',
+        )
+        .replace(
+          '#include <roughnessmap_fragment>',
+          // 바다만 매끈하게 — 키 라이트가 수면 위에 반짝임을 만든다.
+          '#include <roughnessmap_fragment>\n  roughnessFactor = mix(roughnessFactor, 0.3, texture2D(uMask, vMapUv).g);',
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+  {
+    float night = clamp(-dot(normalize(vNormal), uLightDir), 0.0, 1.0);
+    totalEmissiveRadiance += vec3(1.0, 0.72, 0.38) * texture2D(uMask, vMapUv).r * night * 0.55;
+  }`,
+        );
+    };
+    // 변종이 달라도 셰이더는 하나 — 프로그램이 러너 수만큼 컴파일되지 않게.
+    material.customProgramCacheKey = () => 'rg-planet-city';
+    return material;
+  }, [detailed, surface, traits]);
+
+  useEffect(() => () => litSurface?.dispose(), [litSurface]);
+
+  if (litSurface) {
+    litSurface.emissiveIntensity = 0.05 + 0.09 * brightness;
+    litSurface.transparent = fade < 1;
+    litSurface.opacity = fade;
+  }
+
   useFrame((_, delta) => {
     if (bodyRef.current) {
       bodyRef.current.rotation.y += delta * traits.spin;
@@ -119,22 +180,24 @@ function PlanetBody({
     // 때마다 정점 수천 개짜리 버퍼를 새로 만든다.
     <group rotation={[0, 0, traits.tilt]} scale={radius}>
       <group ref={bodyRef}>
-        <mesh>
+        <mesh material={litSurface ?? undefined}>
           <sphereGeometry args={[1, segments, segments]} />
-          <meshStandardMaterial
-            map={surface}
-            color={new Color(traits.tint)}
-            // 표면 요철 — 같은 텍스처를 높이로도 쓴다. 명암 경계에서 지형이 살아난다.
-            bumpMap={detailed ? surface : undefined}
-            bumpScale={detailed ? 0.035 : 0}
-            roughness={traits.kind === 'gas' ? 0.95 : 0.82}
-            metalness={0.02}
-            // 완전한 암흑면을 피할 만큼만 — 이게 크면 조명이 무의미해져 스티커처럼 보인다.
-            emissive={new Color(traits.tint)}
-            emissiveIntensity={0.05 + 0.09 * brightness}
-            transparent={fade < 1}
-            opacity={fade}
-          />
+          {litSurface ? null : (
+            <meshStandardMaterial
+              map={surface}
+              color={new Color(traits.tint)}
+              // 표면 요철 — 같은 텍스처를 높이로도 쓴다. 명암 경계에서 지형이 살아난다.
+              bumpMap={detailed ? surface : undefined}
+              bumpScale={detailed ? 0.035 : 0}
+              roughness={traits.kind === 'gas' ? 0.95 : 0.82}
+              metalness={0.02}
+              // 완전한 암흑면을 피할 만큼만 — 이게 크면 조명이 무의미해져 스티커처럼 보인다.
+              emissive={new Color(traits.tint)}
+              emissiveIntensity={0.05 + 0.09 * brightness}
+              transparent={fade < 1}
+              opacity={fade}
+            />
+          )}
         </mesh>
       </group>
 
@@ -175,6 +238,74 @@ function PlanetBody({
   );
 }
 
+// 끓는 광구 — 같은 표면 지도를 시간에 따라 뒤틀린 두 좌표로 겹쳐 읽으면 대류가 실제로
+// 일렁인다. 가장 뜨거운 알갱이만 블룸 문턱(0.93)을 넘게 밀어 올려, 표면 전체가 아니라
+// 뜨거운 세포들이 반짝인다. 정지한 텍스처가 도는 것은 램프지 태양이 아니다.
+const PHOTOSPHERE_VERTEX = `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+const PHOTOSPHERE_FRAGMENT = `
+uniform sampler2D uMap;
+uniform vec3 uColor;
+uniform float uOpacity;
+uniform float uTime;
+varying vec2 vUv;
+void main() {
+  vec2 warp = vec2(sin(uTime * 0.05), cos(uTime * 0.04)) * 0.02;
+  float a = texture2D(uMap, vUv + warp).r;
+  float b = texture2D(uMap, vUv * 1.7 - warp * 1.6 + vec2(0.37)).r;
+  float g = mix(a, b, 0.5 + 0.5 * sin(uTime * 0.35));
+  vec3 col = uColor * (0.62 + 0.55 * g) + uColor * smoothstep(0.82, 1.0, g) * 0.9;
+  gl_FragColor = vec4(col, uOpacity);
+}
+`;
+
+// 코로나 스트리머 — 각도 방향의 두 파동이 서로 반대로 돌며 간섭한다. 정지한 후광 위에서
+// 빛줄기가 흐르는 것처럼 읽히는 가장 값싼 방법.
+const STREAMER_FRAGMENT = `
+uniform vec3 uColor;
+uniform float uOpacity;
+uniform float uTime;
+uniform float uDir;
+uniform float uSeed;
+varying vec2 vUv;
+void main() {
+  vec2 p = (vUv - 0.5) * 2.0;
+  float r = length(p);
+  float ang = atan(p.y, p.x);
+  float lobes = 0.6 + 0.4 * sin(ang * 12.0 + uTime * uDir * 0.15 + uSeed)
+    * sin(ang * 5.0 - uTime * uDir * 0.09);
+  float glow = pow(max(0.0, 1.0 - r), 3.0) * lobes;
+  gl_FragColor = vec4(uColor, glow * uOpacity);
+}
+`;
+
+function useStreamerMaterial(color: string, direction: number, seedValue: number) {
+  const material = useMemo(() => new ShaderMaterial({
+    uniforms: {
+      uColor: { value: new Color(color) },
+      uOpacity: { value: 0 },
+      uTime: { value: 0 },
+      uDir: { value: direction },
+      uSeed: { value: seedValue },
+    },
+    vertexShader: PHOTOSPHERE_VERTEX,
+    fragmentShader: STREAMER_FRAGMENT,
+    transparent: true,
+    depthWrite: false,
+    blending: AdditiveBlending,
+  }), [color, direction, seedValue]);
+
+  useEffect(() => () => material.dispose(), [material]);
+
+  return material;
+}
+
 function StarBody({
   id,
   radius,
@@ -182,6 +313,8 @@ function StarBody({
   fade,
   segments,
   lit,
+  detailed,
+  screenDiameter,
 }: {
   id: string;
   radius: number;
@@ -189,6 +322,8 @@ function StarBody({
   fade: number;
   segments: number;
   lit: boolean;
+  detailed: boolean;
+  screenDiameter: number;
 }) {
   const traits = useMemo(() => starTraitsFor(id), [id]);
   const bodyRef = useRef<Group>(null);
@@ -196,12 +331,47 @@ function StarBody({
   // 광구 가장자리 — 별은 원반이 아니라 타오르는 공이다. 테두리에 코로나 색을 얹어야
   // 표면과 코로나가 이어져 보인다.
   const limb = useAtmosphereMaterial(traits.coronaColor, 2.6, fade);
+  // id에서 스트리머 위상을 — 챔피언마다 다른 태양이 되도록.
+  const streamerSeed = useMemo(
+    () => Array.from(id).reduce((sum, char) => (sum + char.charCodeAt(0)) % 628, 0) / 100,
+    [id],
+  );
 
-  useFrame((_, delta) => {
+  // 재질은 만들어 두고 유니폼만 — 페이드를 의존성에 넣으면 확대하는 내내 재질이 쌓인다.
+  const photosphere = useMemo(() => new ShaderMaterial({
+    uniforms: {
+      uMap: { value: getStarSurface() },
+      uColor: { value: new Color(traits.color) },
+      uOpacity: { value: 1 },
+      uTime: { value: 0 },
+    },
+    vertexShader: PHOTOSPHERE_VERTEX,
+    fragmentShader: PHOTOSPHERE_FRAGMENT,
+    transparent: true,
+  }), [traits.color]);
+  const streamerOut = useStreamerMaterial(traits.coronaColor, 1, streamerSeed);
+  const streamerIn = useStreamerMaterial(traits.color, -1, streamerSeed + 1.7);
+
+  useEffect(() => () => photosphere.dispose(), [photosphere]);
+
+  photosphere.uniforms.uOpacity.value = fade;
+  streamerOut.uniforms.uOpacity.value = 0.5 * fade;
+  streamerIn.uniforms.uOpacity.value = 0.35 * fade;
+
+  useFrame((state, delta) => {
     if (bodyRef.current) {
       bodyRef.current.rotation.y += delta * traits.spin;
     }
+
+    photosphere.uniforms.uTime.value = state.clock.elapsedTime;
+    streamerOut.uniforms.uTime.value = state.clock.elapsedTime;
+    streamerIn.uniforms.uTime.value = state.clock.elapsedTime;
   });
+
+  // 회절 십자는 원거리 광학의 산물 — 광구가 화면을 채우기 시작하면 물러난다.
+  const spikeOpacity = detailed
+    ? (0.45 + 0.35 * brightness) * fade * (1 - smoothStep(260, 420, screenDiameter))
+    : 0;
 
   return (
     <group scale={radius}>
@@ -218,16 +388,46 @@ function StarBody({
         />
       </mesh>
 
-      <group ref={bodyRef}>
-        <mesh>
-          <sphereGeometry args={[1, segments, segments]} />
-          {/* 항성은 스스로 빛난다 — 조명을 받지 않으므로 basic 재질에 표면 무늬만 곱한다. */}
+      {/* 스트리머 두 장 — 서로 반대로 돌며 간섭해 코로나가 흐른다. 가까이 갔을 때만. */}
+      {detailed ? (
+        <>
+          <mesh material={streamerOut} position={[0, 0, -1.5 / Math.max(1e-6, radius)]}>
+            <planeGeometry args={[traits.corona * 2, traits.corona * 2]} />
+          </mesh>
+          <mesh material={streamerIn} position={[0, 0, -1 / Math.max(1e-6, radius)]}>
+            <planeGeometry args={[traits.corona * 1.4, traits.corona * 1.4]} />
+          </mesh>
+        </>
+      ) : null}
+
+      {/* 회절 십자 — 절대 회전하지 않는다. 실제 십자는 망원경 광학에 고정돼 있고, 도는
+          광구 위에 정지한 십자가 겹치는 것이 관측 사진의 문법이다. */}
+      {spikeOpacity > 0.02 ? (
+        <mesh position={[0, 0, 1.2 / Math.max(1e-6, radius)]}>
+          <planeGeometry args={[traits.corona * 3, traits.corona * 3]} />
           <meshBasicMaterial
-            map={getStarSurface()}
-            color={color}
-            transparent={fade < 1}
-            opacity={fade}
+            map={getSpikedStarTexture()}
+            color={new Color(traits.coronaColor)}
+            transparent
+            opacity={spikeOpacity}
+            depthWrite={false}
+            blending={AdditiveBlending}
           />
+        </mesh>
+      ) : null}
+
+      <group ref={bodyRef}>
+        <mesh material={detailed ? photosphere : undefined}>
+          <sphereGeometry args={[1, segments, segments]} />
+          {/* 멀리서는 끓일 필요가 없다 — 정지한 표면 무늬로 충분하고 훨씬 싸다. */}
+          {detailed ? null : (
+            <meshBasicMaterial
+              map={getStarSurface()}
+              color={color}
+              transparent={fade < 1}
+              opacity={fade}
+            />
+          )}
         </mesh>
       </group>
 
@@ -282,6 +482,8 @@ function CelestialSphereComponent({
       segments={segments}
       // 원시성(이번 달 1등)은 아직 점화 전이라 주변을 밝히지 않는다.
       lit={palette === 'star' && detailed}
+      detailed={detailed}
+      screenDiameter={screenDiameter}
     />
   );
 }

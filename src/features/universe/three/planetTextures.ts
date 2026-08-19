@@ -208,6 +208,64 @@ function buildSurface(kind: PlanetKind, variant: number): DataTexture {
 }
 
 const surfaceCache = new Map<string, DataTexture>();
+const maskCache = new Map<number, DataTexture>();
+
+// 지구형 행성의 마스크 — R: 도시 불빛(육지·중위도·덩어리진), G: 바다.
+//
+// 표면 텍스처의 알파에 싣지 않고 **따로** 만든다: 해상 교차 페이드 중에는 재질이
+// transparent가 되는데, 그때 지도의 알파가 255 미만이면 행성이 반투명해져 뒤가 비친다.
+// 같은 시드·같은 고도 공식을 쓰므로 바다 마스크는 표면의 바다와 정확히 겹친다.
+export function getPlanetMask(variant: number): DataTexture {
+  const safeVariant = Math.abs(variant) % VARIANTS.terrestrial;
+  const cached = maskCache.get(safeVariant);
+
+  if (cached) {
+    return cached;
+  }
+
+  const width = 256;
+  const height = 128;
+  const data = new Uint8Array(width * height * 4);
+  const seed = ('terrestrial'.length * 7919 + safeVariant * 104729) % 2147483647;
+  const seaLevel = 0.5;
+
+  for (let y = 0; y < height; y += 1) {
+    const v = y / (height - 1);
+    const latitude = Math.cos(v * Math.PI);
+    const sinTheta = Math.sin(v * Math.PI);
+
+    for (let x = 0; x < width; x += 1) {
+      const phi = (x / width) * Math.PI * 2;
+      const nx = sinTheta * Math.cos(phi);
+      const ny = latitude;
+      const nz = sinTheta * Math.sin(phi);
+      // buildSurface의 지구형 분기와 같은 공식 — 어긋나면 바다 위에 도시가 뜬다.
+      const elevation = fbm(nx * 2.1, ny * 2.1, nz * 2.1, seed, 5);
+      const detail = fbm(nx * 7.3, ny * 7.3, nz * 7.3, seed + 17, 3);
+      const terrain = elevation * 0.82 + detail * 0.18;
+
+      const water = Math.max(0, Math.min(1, (seaLevel - terrain) / 0.02));
+      const sprawl = fbm(nx * 11, ny * 11, nz * 11, seed + 77, 2);
+      const habitable = terrain >= seaLevel && Math.abs(latitude) < 0.75;
+      const city = habitable ? Math.max(0, (sprawl - 0.63) / 0.37) ** 1.4 : 0;
+
+      const index = (y * width + x) * 4;
+      data[index] = Math.round(Math.min(1, city) * 255);
+      data[index + 1] = Math.round(water * 255);
+      data[index + 2] = 0;
+      data[index + 3] = 255;
+    }
+  }
+
+  const texture = new DataTexture(data, width, height, RGBAFormat, UnsignedByteType);
+  texture.wrapS = RepeatWrapping;
+  texture.wrapT = ClampToEdgeWrapping;
+  texture.magFilter = LinearFilter;
+  texture.minFilter = LinearFilter;
+  texture.needsUpdate = true;
+  maskCache.set(safeVariant, texture);
+  return texture;
+}
 
 export function getPlanetSurface(kind: PlanetKind, variant: number): DataTexture {
   const safeVariant = Math.abs(variant) % VARIANTS[kind];

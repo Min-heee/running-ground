@@ -11,11 +11,14 @@ import {
 } from 'three';
 
 import {
+  getBlackbodyRamp,
   getGlowTexture,
   getNebulaTexture,
+  getSpikedStarTexture,
   getStarPointTexture,
 } from '@/features/universe/three/textures';
 import { GalaxyDisk } from '@/features/universe/three/GalaxyDisk';
+import { HighlightRing } from '@/features/universe/three/HighlightRing';
 import { smoothStep } from '@/features/universe/utils/universeSpace';
 import { CelestialSphere } from '@/features/universe/three/CelestialSphere';
 
@@ -44,6 +47,8 @@ export type SkyOrb = {
   // 문턱에서 툭 갈아치우면 확대가 연속이 아니라 전환으로 느껴진다.
   morph: number;
   highlighted?: boolean;
+  // 표식의 이유 — 내 것(골드)인지 고른 것(얼음빛)인지. 골드는 색 규율상 '내 것'에만 쓴다.
+  highlightKind?: 'mine' | 'selected';
   // 해상 교차 페이드 (0~1). 생략하면 1.
   opacity?: number;
   // 지금 화면에서의 지름(px) — 파티클 점 크기와 정밀도를 정하는 데 쓴다.
@@ -53,17 +58,21 @@ export type SkyOrb = {
 };
 
 // 은하·은하군은 파티클 원반이라 구체 팔레트와 색 규칙이 다르다(핵 → 팔 그라데이션).
+//
+// 보라를 버렸다 — 흔한 '우주 배경화면'의 색이라 싸 보인다. 두 층은 색상이 아니라 핵의
+// 온기와 팔의 채도로 갈린다: 시/도(무리)는 더 창백하고 차분하게, 시/군/구(은하)는 조금
+// 더 또렷한 파랑으로. 한 가족의 색 안에서만 논다.
 const DISK_COLORS: Record<'group' | 'galaxy', { core: string; arm: string }> = {
-  galaxy: { core: '#FFF0CE', arm: '#6E86FF' },
-  group: { core: '#FFE7D8', arm: '#A672FF' },
+  galaxy: { core: '#F5EEDC', arm: '#6E86FF' },
+  group: { core: '#F2E9DA', arm: '#5F7BD6' },
 };
 
 const PALETTE_COLORS: Record<SkyOrb['palette'], { core: string; glow: string; emissive: number }> = {
-  group: { core: '#FFE9C4', glow: '#A672FF', emissive: 0.85 },
-  galaxy: { core: '#FFE9C4', glow: '#8AA8FF', emissive: 0.85 },
+  group: { core: '#FFE9C4', glow: '#7E97E8', emissive: 0.85 },
+  galaxy: { core: '#FFE9C4', glow: '#7E97E8', emissive: 0.85 },
   planet: { core: '#B7E2FF', glow: '#5F96F0', emissive: 0.55 },
-  star: { core: '#FFD467', glow: '#FF9E3D', emissive: 1.5 },
-  protostar: { core: '#FFEEB8', glow: '#FFC868', emissive: 1.1 },
+  star: { core: '#FFD467', glow: '#E8B45A', emissive: 1.5 },
+  protostar: { core: '#FFEEB8', glow: '#D9BE8C', emissive: 1.1 },
 };
 
 // 별 배경 3겹 — 깊이별로 크기·밝기·표류 속도가 달라 시차가 생긴다.
@@ -76,10 +85,19 @@ const STAR_LAYERS = [
   { count: 150, z: -140, size: 3.9, opacity: 0.95, drift: 0.016, twinkle: 0.45 },
 ];
 
-// 별빛 색 — 실제 별은 순백이 아니라 푸른 것과 붉은 것 사이 어딘가다. 전부 흰 점이면
-// 모니터의 죽은 픽셀처럼 보인다.
-const STAR_COOL = '#BFD4FF';
-const STAR_WARM = '#FFD9AE';
+// 은하수 — 하늘을 가로지르는 대각선 리본. 발광 판이 아니라 **밀도**로 그린다: 티끌만 한
+// 별 1160개를 가우시안 띠에 몰아넣으면, 광량을 거의 더하지 않고도 밤하늘 사진의 가장 강한
+// 단서(은하면)가 생긴다. 통계적으로 고른 별밭은 눈이 '합성'으로 읽는다.
+const BAND_ANGLE = -0.55;
+const BAND_SIGMA = 0.16;
+const BAND_LAYERS = [
+  { count: 900, z: -430, size: 1.2, opacity: 0.38, drift: 0.004, twinkle: 0.5 },
+  { count: 260, z: -400, size: 1.9, opacity: 0.5, drift: 0.006, twinkle: 0.5 },
+];
+// 모듈 상수로 두는 이유: 렌더마다 새 객체를 만들면 StarLayer의 지오메트리 useMemo가
+// 매 렌더 무효화되어, 확대·이동하는 내내 별밭 버퍼가 다시 만들어진다.
+const MILKY_BAND = { angle: BAND_ANGLE, sigma: BAND_SIGMA };
+const HERO_WARMTH: [number, number] = [0.55, 1];
 
 // 별 하나하나가 제 박자로 깜빡인다. 레이어 전체를 한꺼번에 흔들면 하늘이 통째로 명멸해서
 // 별이 아니라 화면이 깜빡이는 것처럼 보인다 — 그래서 위상과 속도를 점마다 심는다.
@@ -101,16 +119,18 @@ void main() {
 }
 `;
 
+// 별색은 팔레트가 아니라 온도에서 온다 — warmth(0=주홍 2600K ~ 1=청백 11000K)가 흑체
+// 램프를 읽는다. 두 색 사이 보간은 물리에 없는 잿빛 중간을 지나가 별이 바래 보였다.
 const STAR_FRAGMENT = `
 uniform sampler2D uMap;
+uniform sampler2D uRamp;
 uniform float uOpacity;
-uniform vec3 uCool;
-uniform vec3 uWarm;
 varying float vAlpha;
 varying float vWarmth;
 void main() {
   float mask = texture2D(uMap, gl_PointCoord).a;
-  gl_FragColor = vec4(mix(uCool, uWarm, vWarmth), mask * uOpacity * vAlpha);
+  vec3 tint = texture2D(uRamp, vec2(vWarmth, 0.5)).rgb;
+  gl_FragColor = vec4(tint, mask * uOpacity * vAlpha);
 }
 `;
 
@@ -132,6 +152,9 @@ function StarLayer({
   width,
   height,
   seed,
+  band = null,
+  spiked = false,
+  warmthRange = null,
 }: {
   count: number;
   z: number;
@@ -142,6 +165,12 @@ function StarLayer({
   width: number;
   height: number;
   seed: number;
+  // 있으면 별을 이 각도의 가우시안 리본에 몰아넣는다 — 은하수.
+  band?: { angle: number; sigma: number } | null;
+  // 밝은 소수의 별에만 회절 십자를 준다.
+  spiked?: boolean;
+  // warmth 분포 덮어쓰기(히어로 별은 청백 쪽). 없으면 관측 사진의 등급 분포를 따른다.
+  warmthRange?: [number, number] | null;
 }) {
   const pointsRef = useRef<Points>(null);
 
@@ -156,13 +185,37 @@ function StarLayer({
     const spreadY = height * 1.6;
 
     for (let index = 0; index < count; index += 1) {
-      positions[index * 3] = (random() - 0.5) * spreadX;
-      positions[index * 3 + 1] = (random() - 0.5) * spreadY;
+      if (band) {
+        // 띠 좌표계 — 띠 방향은 고르게, 수직은 가우시안(Box-Muller)으로.
+        const along = (random() - 0.5) * Math.hypot(spreadX, spreadY) * 1.1;
+        const gaussian = Math.sqrt(-2 * Math.log(Math.max(1e-9, random())))
+          * Math.cos(Math.PI * 2 * random());
+        const off = gaussian * height * band.sigma;
+
+        positions[index * 3] = Math.cos(band.angle) * along - Math.sin(band.angle) * off;
+        positions[index * 3 + 1] = Math.sin(band.angle) * along + Math.cos(band.angle) * off;
+      } else {
+        positions[index * 3] = (random() - 0.5) * spreadX;
+        positions[index * 3 + 1] = (random() - 0.5) * spreadY;
+      }
+
       positions[index * 3 + 2] = z;
       phases[index] = random();
       // 전부 같은 세기로 깜빡이면 규칙이 눈에 띈다 — 아예 안 깜빡이는 별도 섞는다.
       amounts[index] = random() ** 1.6 * twinkle;
-      warmths[index] = random() ** 2;
+
+      if (warmthRange) {
+        warmths[index] = warmthRange[0] + random() * (warmthRange[1] - warmthRange[0]);
+      } else {
+        // 등급 한계가 있는 관측 사진의 분포 — 색은 예외의 것이다: 65%는 거의 흰색,
+        // 드물게 진짜 주홍(12%)과 사파이어(12%)가 박힌다. 전부 물들이면 색이 사라진다.
+        const roll = random();
+        warmths[index] = roll < 0.12
+          ? random() * 0.25
+          : roll < 0.24
+            ? 0.75 + random() * 0.25
+            : 0.35 + random() * 0.3;
+      }
     }
 
     const buffer = new BufferGeometry();
@@ -171,23 +224,22 @@ function StarLayer({
     buffer.setAttribute('twinkleAmount', new BufferAttribute(amounts, 1));
     buffer.setAttribute('warmth', new BufferAttribute(warmths, 1));
     return buffer;
-  }, [count, height, seed, twinkle, width, z]);
+  }, [band, count, height, seed, twinkle, warmthRange, width, z]);
 
   const material = useMemo(() => new ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
       uSize: { value: size },
       uOpacity: { value: opacity },
-      uMap: { value: getStarPointTexture() },
-      uCool: { value: new Color(STAR_COOL) },
-      uWarm: { value: new Color(STAR_WARM) },
+      uMap: { value: spiked ? getSpikedStarTexture() : getStarPointTexture() },
+      uRamp: { value: getBlackbodyRamp() },
     },
     vertexShader: STAR_VERTEX,
     fragmentShader: STAR_FRAGMENT,
     transparent: true,
     depthWrite: false,
     blending: AdditiveBlending,
-  }), [opacity, size]);
+  }), [opacity, size, spiked]);
 
   // 재질도 기하도 이 컴포넌트가 만들었으니 이 컴포넌트가 반납한다 — 화면을 오갈 때마다
   // GPU에 버퍼와 셰이더 프로그램이 쌓이면 안 된다.
@@ -206,51 +258,240 @@ function StarLayer({
   return <points ref={pointsRef} geometry={geometry} material={material} />;
 }
 
-// 성운 — 큰 가산합성 판 몇 장을 서로 다른 색·크기·회전으로 겹쳐 구름 덩어리를 만든다.
+// 성운 — 필라멘트 판 몇 장을 서로 다른 색·크기·회전으로 겹친다.
+//
+// 깊고 어두운 남색 계열만 쓴다. 밝은 보라·자홍을 가산합성으로 겹치면 하늘이 통째로 들려
+// 올라가 별이 배경에 묻힌다 — 성운은 '보이는 것'이 아니라 '있는 줄 아는 것'이어야 한다.
+// 판마다 표류 속도가 달라 실타래 층이 서로 미끄러진다 — 값싼 체적감.
 function Nebula({ width, height, fade }: { width: number; height: number; fade: number }) {
-  const groupRef = useRef<Group>(null);
+  const plateRefs = useRef<(Group | null)[]>([]);
   const clouds = useMemo(() => {
     const random = seededRandom(20260815);
-    // 깊고 어두운 색만 쓴다. 밝은 보라·자홍을 가산합성으로 겹치면 하늘이 통째로 들려 올라가
-    // 별이 배경에 묻힌다 — 성운은 '보이는 것'이 아니라 '있는 줄 아는 것'이어야 한다.
-    const palette = ['#141033', '#1E1240', '#0C1A3C', '#2A1038'];
+    const palette = ['#101430', '#0C1A3C', '#111B3A', '#1E1240'];
 
     // 장수를 줄인다. 화면을 덮는 판은 한 장이 늘 때마다 하늘의 바닥이 그만큼 올라간다.
-    return Array.from({ length: 5 }, (_, index) => ({
-      key: `cloud-${index}`,
-      x: (random() - 0.5) * width * 1.45,
-      y: (random() - 0.5) * height * 1.45,
-      z: -340 + index * 14,
-      scale: Math.min(width, height) * (1.05 + random() * 1.15),
-      rotation: random() * Math.PI,
-      color: palette[index % palette.length],
-      opacity: 0.5 + random() * 0.4,
-    }));
+    return Array.from({ length: 4 }, (_, index) => {
+      const scale = Math.min(width, height) * (1.05 + random() * 1.15);
+
+      return {
+        key: `cloud-${index}`,
+        x: (random() - 0.5) * width * 1.45,
+        y: (random() - 0.5) * height * 1.45,
+        z: -340 + index * 14,
+        scaleX: scale,
+        // 완벽한 원은 도형이다 — 눌러서 늘인다.
+        scaleY: scale * (0.5 + random() * 0.45),
+        rotation: random() * Math.PI,
+        color: palette[index % palette.length],
+        opacity: 0.42 + random() * 0.3,
+        variant: (index % 2) as 0 | 1,
+        drift: (0.7 + random() * 0.6) * (index % 2 === 0 ? 1 : -1),
+      };
+    });
   }, [height, width]);
 
   useFrame((_, delta) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.z += delta * 0.006;
-    }
+    clouds.forEach((cloud, index) => {
+      const plate = plateRefs.current[index];
+
+      if (plate) {
+        plate.rotation.z += delta * 0.006 * cloud.drift;
+      }
+    });
   });
 
   return (
-    <group ref={groupRef}>
-      {clouds.map((cloud) => (
-        <mesh key={cloud.key} position={[cloud.x, cloud.y, cloud.z]} rotation={[0, 0, cloud.rotation]}>
-          <planeGeometry args={[cloud.scale, cloud.scale]} />
+    <>
+      {clouds.map((cloud, index) => (
+        <group
+          key={cloud.key}
+          position={[cloud.x, cloud.y, cloud.z]}
+          ref={(node) => {
+            plateRefs.current[index] = node;
+          }}
+        >
+          <mesh rotation={[0, 0, cloud.rotation]} scale={[cloud.scaleX, cloud.scaleY, 1]}>
+            <planeGeometry args={[1, 1]} />
+            <meshBasicMaterial
+              map={getNebulaTexture(cloud.variant)}
+              color={new Color(cloud.color)}
+              transparent
+              opacity={cloud.opacity * fade}
+              depthWrite={false}
+              blending={AdditiveBlending}
+            />
+          </mesh>
+        </group>
+      ))}
+    </>
+  );
+}
+
+// 암흑 성간운 — 은하수 리본을 따라 놓이는 **어두운** 조각들. 대은하수의 그레이트 리프트가
+// 그렇듯, 별의 강 위에 빛을 삼키는 균열이 있어야 띠가 리본이 아니라 은하면으로 읽힌다.
+// 일반 합성이라 화면을 어둡게만 한다.
+function GreatRift({ width, height, fade }: { width: number; height: number; fade: number }) {
+  const patches = useMemo(() => {
+    const random = seededRandom(8151923);
+    const reach = Math.hypot(width, height);
+
+    return Array.from({ length: 4 }, (_, index) => {
+      const along = (index / 3 - 0.5) * reach * 0.85 + (random() - 0.5) * width * 0.2;
+      const off = (random() - 0.5) * height * 0.1;
+      const scale = Math.min(width, height) * (0.55 + random() * 0.5);
+
+      return {
+        key: `rift-${index}`,
+        x: Math.cos(BAND_ANGLE) * along - Math.sin(BAND_ANGLE) * off,
+        y: Math.sin(BAND_ANGLE) * along + Math.cos(BAND_ANGLE) * off,
+        // 띠의 별(-430, -400)보다 앞 — 뒤의 별빛을 실제로 가린다.
+        z: -336 + index * 5,
+        scaleX: scale,
+        scaleY: scale * 0.35,
+        rotation: BAND_ANGLE + (random() - 0.5) * 0.24,
+        opacity: 0.5 + random() * 0.15,
+        variant: (index % 2) as 0 | 1,
+      };
+    });
+  }, [height, width]);
+
+  return (
+    <>
+      {patches.map((patch) => (
+        <mesh
+          key={patch.key}
+          position={[patch.x, patch.y, patch.z]}
+          rotation={[0, 0, patch.rotation]}
+          scale={[patch.scaleX, patch.scaleY, 1]}
+        >
+          <planeGeometry args={[1, 1]} />
           <meshBasicMaterial
-            map={getNebulaTexture()}
-            color={new Color(cloud.color)}
+            map={getNebulaTexture(patch.variant)}
+            color={new Color('#04050A')}
             transparent
-            opacity={cloud.opacity * fade}
+            opacity={patch.opacity * fade}
             depthWrite={false}
-            blending={AdditiveBlending}
           />
         </mesh>
       ))}
-    </group>
+    </>
   );
+}
+
+// 유성 — 40초에 한 번쯤, 기대를 접었을 때 떨어지는 한 줄기. 점 24개의 위치·꼬리가 전부
+// 유니폼이라 살아 있는 시간(<1초/분) 외의 비용은 없다. 대부분의 방문자는 정확히 한 번
+// 본다 — 그 희소함이 누군가를 불러 앉히는 장면을 만든다.
+const METEOR_VERTEX = `
+attribute float aT;
+uniform vec2 uStart;
+uniform vec2 uDir;
+uniform float uHead;
+uniform float uLen;
+varying float vT;
+void main() {
+  vec2 planar = uStart + uDir * (uHead - aT * uLen);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(planar, position.z, 1.0);
+  gl_PointSize = mix(2.8, 0.7, aT);
+  vT = aT;
+}
+`;
+
+const METEOR_FRAGMENT = `
+uniform sampler2D uMap;
+uniform float uEnvelope;
+uniform vec3 uGold;
+varying float vT;
+void main() {
+  float mask = texture2D(uMap, gl_PointCoord).a;
+  float alpha = mask * pow(1.0 - vT, 2.2) * uEnvelope;
+  gl_FragColor = vec4(mix(vec3(1.0), uGold, vT * 0.35), alpha);
+}
+`;
+
+const METEOR_POINTS = 24;
+
+function ShootingStar({ width, height, enabled }: { width: number; height: number; enabled: boolean }) {
+  const geometry = useMemo(() => {
+    const positions = new Float32Array(METEOR_POINTS * 3);
+    const ts = new Float32Array(METEOR_POINTS);
+
+    for (let index = 0; index < METEOR_POINTS; index += 1) {
+      positions[index * 3 + 2] = -160;
+      ts[index] = index / (METEOR_POINTS - 1);
+    }
+
+    const buffer = new BufferGeometry();
+    buffer.setAttribute('position', new BufferAttribute(positions, 3));
+    buffer.setAttribute('aT', new BufferAttribute(ts, 1));
+    return buffer;
+  }, []);
+
+  const material = useMemo(() => new ShaderMaterial({
+    uniforms: {
+      uStart: { value: [0, 0] },
+      uDir: { value: [1, 0] },
+      uHead: { value: 0 },
+      uLen: { value: 100 },
+      uEnvelope: { value: 0 },
+      uMap: { value: getStarPointTexture() },
+      // 흰 머리가 식으며 샴페인 골드로 — 색 규율의 골드가 여기서도 '순간의 보상'이다.
+      uGold: { value: new Color('#E8C87A') },
+    },
+    vertexShader: METEOR_VERTEX,
+    fragmentShader: METEOR_FRAGMENT,
+    transparent: true,
+    depthWrite: false,
+    blending: AdditiveBlending,
+  }), []);
+
+  useEffect(() => () => material.dispose(), [material]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  const flight = useRef<{ bornAt: number; life: number; travel: number } | null>(null);
+  // 첫 유성은 조금 이르게 — 머문 사람이 보게.
+  const nextAt = useRef(14 + Math.random() * 12);
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
+
+  useFrame((state) => {
+    const now = state.clock.elapsedTime;
+    const { uniforms } = material;
+
+    if (!flight.current) {
+      // 은하 안까지 들어와 있으면 쏘지 않는다 — 유성은 넓은 하늘의 것이다.
+      if (enabledRef.current && now >= nextAt.current) {
+        const angle = -(25 + Math.random() * 15) * (Math.PI / 180);
+        const flip = Math.random() < 0.5 ? -1 : 1;
+        const length = 90 + Math.random() * 50;
+
+        uniforms.uStart.value = [
+          (Math.random() - 0.5) * width * 1.1,
+          // 월드 y는 위가 + — 하늘의 위쪽 2/3에서 태어난다.
+          height * (Math.random() * 0.33 + 0.05),
+        ];
+        uniforms.uDir.value = [Math.cos(angle) * flip, Math.sin(angle)];
+        uniforms.uLen.value = length;
+        flight.current = { bornAt: now, life: 0.75, travel: length * 2.4 };
+      }
+
+      return;
+    }
+
+    const progress = (now - flight.current.bornAt) / flight.current.life;
+
+    if (progress >= 1) {
+      uniforms.uEnvelope.value = 0;
+      flight.current = null;
+      // 30초보다 잦으면 사건이 아니라 파티클 이펙트가 된다.
+      nextAt.current = now + 32 + Math.random() * 16;
+      return;
+    }
+
+    uniforms.uHead.value = (1 - (1 - progress) ** 3) * flight.current.travel;
+    uniforms.uEnvelope.value = Math.sin(Math.PI * progress) * 0.85;
+  });
+
+  return <points geometry={geometry} material={material} />;
 }
 
 function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; height: number }) {
@@ -272,6 +513,15 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
   const morph = Math.max(0, Math.min(1, orb.morph));
   // 깊이는 화면 단위로 온다 — 겹친 천체의 가림 순서를 정하는 데만 쓴다.
   const depth = orb.depth ?? 0;
+
+  // 행성 후광의 두 게이트.
+  // ① 작을 때는 끈다 — 동네 뷰에서는 행성 수십 개의 가산 판이 **합쳐서** 하늘의 바닥을
+  //    들어올린다. 후광은 가까이 간 것의 특권이다(DETAILED_SCREEN_DIAMETER와 같은 문법).
+  // ② 화면을 채우면 다시 접는다 — 후광 판은 행성 지름의 8.5배라, 클로즈업에서는 화면
+  //    전체를 덮는 가산합성 판이 되어 검은 하늘을 통째로 파랗게 들어올린다.
+  const haloOpacity = (0.16 + 0.24 * orb.brightness) * fade * morph
+    * smoothStep(26, 54, screenDiameter)
+    * (1 - smoothStep(0.28, 0.72, screenDiameter / Math.max(1, Math.min(width, height))));
 
   return (
     <group position={[worldX, worldY, depth]}>
@@ -304,6 +554,7 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
           coreColor={DISK_COLORS[orb.palette === 'galaxy' ? 'galaxy' : 'group'].core}
           armColor={DISK_COLORS[orb.palette === 'galaxy' ? 'galaxy' : 'group'].arm}
           highlighted={orb.highlighted}
+          highlightColor={orb.highlightKind === 'mine' ? '#E8C87A' : '#D6E4FF'}
           // 화면을 덮기 시작하면 핵을 접는다 — 그 크기에서 핵은 후광이 아니라 장막이고,
           // 확대된 방사형 텍스처의 끝이 원형 테두리로 드러난다.
           coreFade={1 - smoothStep(0.55, 1, screenDiameter / Math.max(1, Math.min(width, height)))}
@@ -316,14 +567,14 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
       {morph > 0.005 && orb.shape === 'sphere' ? (
         <>
           {/* 행성 주변의 옅은 빛 — 항성은 자기 코로나를 따로 갖고 있어 여기선 뺀다. */}
-          {orb.palette === 'planet' ? (
+          {orb.palette === 'planet' && haloOpacity > 0.02 ? (
             <mesh position={[0, 0, -2]}>
               <planeGeometry args={[glowScale, glowScale]} />
               <meshBasicMaterial
                 map={getGlowTexture()}
                 color={glowColor}
                 transparent
-                opacity={(0.16 + 0.24 * orb.brightness) * fade * morph}
+                opacity={haloOpacity}
                 depthWrite={false}
                 blending={AdditiveBlending}
               />
@@ -341,14 +592,15 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
         </>
       ) : null}
 
-      {/* 내 천체 — 얇은 링. 색을 바꾸지 않는 건 밝기 정보를 죽이지 않기 위해서다.
-          두께는 반지름에 비례하는데 이 반지름은 화면을 덮을 만큼 커질 수 있다 — 비율을
-          넉넉히 잡으면 지역 하나를 감쌀 때 회색 도넛이 되어 우주 위에 얹힌 도형처럼 보인다. */}
-      {orb.highlighted ? (
-        <mesh position={[0, 0, radius * 1.6]}>
-          <ringGeometry args={[radius * 1.5, radius * 1.5 + Math.max(0.6, radius * 0.008), 96]} />
-          <meshBasicMaterial color="#CFE0FF" transparent opacity={0.55 * fade} depthWrite={false} />
-        </mesh>
+      {/* 내 천체/고른 천체 — 숨쉬는 1px 링. 내 것은 골드, 고른 것은 얼음빛. */}
+      {orb.highlighted && orb.shape === 'sphere' ? (
+        <group position={[0, 0, radius * 1.6]}>
+          <HighlightRing
+            color={orb.highlightKind === 'mine' ? '#E8C87A' : '#D6E4FF'}
+            opacity={fade}
+            scale={radius * 3.19}
+          />
+        </group>
       ) : null}
     </group>
   );
@@ -402,6 +654,12 @@ function UniverseSkyComponent({
           fade={Math.max(0.1, Math.min(1, 1 - Math.log2(Math.max(1, zoomFactor)) / 7))}
         />
 
+        <GreatRift
+          width={width}
+          height={height}
+          fade={Math.max(0.1, Math.min(1, 1 - Math.log2(Math.max(1, zoomFactor)) / 7))}
+        />
+
         {STAR_LAYERS.map((layer, index) => (
           <StarLayer
             key={`star-layer-${index}`}
@@ -411,6 +669,36 @@ function UniverseSkyComponent({
             seed={7919 + index * 104729}
           />
         ))}
+
+        {/* 은하수 — 티끌 별들의 리본. */}
+        {BAND_LAYERS.map((layer, index) => (
+          <StarLayer
+            key={`band-layer-${index}`}
+            {...layer}
+            width={width}
+            height={height}
+            seed={1913 + index * 60013}
+            band={MILKY_BAND}
+          />
+        ))}
+
+        {/* 히어로 별 — 스물넷의 큰 별에만 회절 십자를 준다. 수천의 티끌 대 스물넷의 광휘,
+            그 위계가 장노출 사진의 등급 분포다. */}
+        <StarLayer
+          count={24}
+          z={-180}
+          size={13}
+          opacity={0.8}
+          drift={0.012}
+          twinkle={0.35}
+          width={width}
+          height={height}
+          seed={424243}
+          spiked
+          warmthRange={HERO_WARMTH}
+        />
+
+        <ShootingStar width={width} height={height} enabled={zoomFactor < 3} />
       </group>
 
       {/* 천체는 이미 투영된 화면 좌표로 온다 — 여기서 다시 변환하지 않는다. 원근 투영은
