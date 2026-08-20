@@ -28,6 +28,9 @@ const CHILD_CLEARANCE = 0.115;
 // 자식이 하나뿐이면 궤도가 의미 없다 — 부모 중심에 앉힌다.
 const SINGLE_CHILD_RADIUS = 0.55;
 // 크기 차이는 보이되 큰 쪽이 이웃을 삼키지는 않게: 상한의 55~100% 사이에서만 논다.
+// **지역 층에만 쓴다.** 행성 층은 이 바닥을 끄고 서버가 준 비율을 그대로 통과시킨다 —
+// 크기 = 누적 거리 비율이 규칙인데 여기서 다시 누르면 항성과 신입이 1.8배 차이로 뭉개진다.
+// 서버 쪽 바닥(0.22)이 이미 최소 가시성을 보장한다.
 const SIZE_FLOOR = 0.55;
 
 // 우주의 크기는 **고정**이다. 화면 크기로 정하면 안 된다: 키보드가 올라오거나 검색 목록이
@@ -133,8 +136,13 @@ export function placeOnMap(
   });
 }
 
-export function placeChildren(parent: SpacePlacement, scales: number[]): SpacePlacement[] {
+export function placeChildren(
+  parent: SpacePlacement,
+  scales: number[],
+  options?: { sizeFloor?: number },
+): SpacePlacement[] {
   const count = scales.length;
+  const sizeFloor = options?.sizeFloor ?? SIZE_FLOOR;
 
   if (count === 0) {
     return [];
@@ -156,7 +164,7 @@ export function placeChildren(parent: SpacePlacement, scales: number[]): SpacePl
   const ringGap = span / ringCount;
   const maxScale = scales.reduce((max, scale) => Math.max(max, scale), 0);
   const sizeFactorFor = (index: number) => (maxScale > 0
-    ? SIZE_FLOOR + (1 - SIZE_FLOOR) * Math.min(1, scales[index] / maxScale)
+    ? sizeFloor + (1 - sizeFloor) * Math.min(1, scales[index] / maxScale)
     : 1);
 
   // 중심의 자식은 첫 궤도까지의 거리 안에 들어가야 한다 — 그 궤도의 이웃과 닿지 않게.

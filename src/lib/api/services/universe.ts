@@ -125,9 +125,12 @@ function buildMockGalaxy(node: { id: string; name: string; participants: number;
 } {
   const NAMES = ['민병희', '회원F', '회원K', '회원I', '회원G', '회원C', '회원J', '회원H', '한강러너', '새벽조깅', '언덕왕', '페이스메이커'];
   const visible = Math.max(0, Math.min(NAMES.length, node.participants));
+  // 누적 거리는 현실적인 스펙트럼으로 — 전엔 전원이 1.6배 안에 몰려 '누적 1등이 제일
+  // 크다'가 화면에서 안 읽혔다.
   const lifetimes = Array.from({ length: visible }, (_, index) => {
     const monthDistanceKm = Number((node.averageDistanceKm * (1.9 - index * 0.13)).toFixed(1));
-    return { monthDistanceKm, lifetimeDistanceKm: Number((monthDistanceKm * (14 + index * 3)).toFixed(0)) };
+    const lifetimeDistanceKm = Math.round(node.averageDistanceKm * 110 * 0.58 ** index);
+    return { monthDistanceKm, lifetimeDistanceKm };
   });
   const maxLifetimeKm = lifetimes.reduce((max, entry) => Math.max(max, entry.lifetimeDistanceKm), 0);
 
@@ -166,8 +169,13 @@ function buildMockGalaxy(node: { id: string; name: string; participants: number;
 
 // 우주는 로그인 없이도 볼 수 있다 (오너 2026-08-16: 사이트는 공개, 자기 별을 가지려면
 // 로그인). 토큰이 있으면 인증 경로로 — 그래야 '내 별'이 표시된다. 없으면 공개 경로로.
+// TestFlight 검증용 게이트 — 우주 백엔드가 아직 미배포라(/api/universe 404) 실서버
+// 모드에서도 우주만 표본 데이터로 돌린다. 백엔드가 배포되면 eas.json의
+// EXPO_PUBLIC_UNIVERSE_MOCK을 끄면 된다. 우주 외 앱 기능에는 영향이 없다.
+const UNIVERSE_FORCE_MOCK = process.env.EXPO_PUBLIC_UNIVERSE_MOCK === 'true';
+
 export async function fetchUniverse(nodeId?: string): Promise<UniverseResponse> {
-  if (USE_MOCK_API) {
+  if (USE_MOCK_API || UNIVERSE_FORCE_MOCK) {
     return buildMockUniverseResponse(nodeId);
   }
 
@@ -226,7 +234,7 @@ function searchMockUniverse(query: string): UniverseSearchResponse {
 }
 
 export async function searchUniverse(query: string): Promise<UniverseSearchResponse> {
-  if (USE_MOCK_API) {
+  if (USE_MOCK_API || UNIVERSE_FORCE_MOCK) {
     return searchMockUniverse(query);
   }
 

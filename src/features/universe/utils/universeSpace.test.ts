@@ -125,6 +125,21 @@ test('많이 달린 쪽이 더 크다 — 다만 이웃을 삼키지는 않는�
   assert.ok(placed[0].radius / placed[1].radius < 2);
 });
 
+test('행성 층(sizeFloor 0)은 비율이 그대로 통과한다 — 항성이 진짜로 제일 크다', () => {
+  const scales = [1, 0.25, 0.25, 0.25, 0.25, 0.25];
+  const guarded = placeChildren(parent, scales);
+  const ratio = placeChildren(parent, scales, { sizeFloor: 0 });
+
+  ratio.forEach((placement, index) => {
+    assert.equal(placement.x, guarded[index].x);
+    assert.equal(placement.y, guarded[index].y);
+  });
+
+  assert.ok(guarded[0].radius / guarded[1].radius < 2);
+  assert.ok(ratio[0].radius / ratio[1].radius > 3);
+  assert.equal(ratio[0].radius, guarded[0].radius);
+});
+
 test('해상: 작을 땐 뭉쳐 있고, 커질수록 풀린다', () => {
   assert.equal(resolveProgress(BODY_RESOLVE_PX), 0);
   assert.equal(resolveProgress(BODY_RESOLVED_PX), 1);

@@ -140,9 +140,15 @@ function placeChildrenOf(
   const mappable = named.length === children.length
     && named.filter((child) => hasMapPoint(child.name)).length >= Math.ceil(children.length * 0.6);
 
-  return mappable
-    ? placeOnMap(placement, named.map((child) => mapPointFor(child.name)), scales)
-    : placeChildren(placement, scales);
+  if (mappable) {
+    return placeOnMap(placement, named.map((child) => mapPointFor(child.name)), scales);
+  }
+
+  // 행성 층은 크기 바닥을 끈다 — 크기 = 누적 거리 비율이 규칙이라, 배치가 다시 누르면
+  // 항성(누적 1등)과 신입의 차이가 화면에서 뭉개진다. 서버 바닥(0.22)이 가시성을 지킨다.
+  const planetLayer = children.length > 0 && 'userId' in children[0];
+
+  return placeChildren(placement, scales, planetLayer ? { sizeFloor: 0 } : undefined);
 }
 
 function paletteForPlanet(planet: UniversePlanet): SkyOrb['palette'] {
