@@ -16,6 +16,8 @@ import {
 } from '../lib/monthlyRankingStars.mjs';
 import { ensureUserRankState } from '../lib/userStoreHelpers.mjs';
 import { LP_PER_TIER, RANK_TIERS } from '../lib/rankSystem.mjs';
+import { buildUniverse } from '../lib/universeBuilder.mjs';
+import { searchUniverse } from '../lib/universeSearch.mjs';
 
 // The region drill is capped at three levels (country -> province -> city).
 // Any node at the city level (시/군) is treated as a leaf, so its sub-regions
@@ -329,6 +331,70 @@ export function createJsonLeagueRepository({
       const store = await loadStore();
       requireUserByToken(store, token);
       return buildRegionLeague(store, nodeId, createError, getUserMetrics);
+    },
+
+    // 우주 탭 — 지역 보드와 같은 원장/집계를 천체로 번역해서 내려준다. 별 봉인 스윕을 같이
+    // 태우는 이유는 랭킹 읽기 경로와 동일: 우주로만 들어온 유저도 봉인을 늦추면 안 된다.
+    async getUniverse({ token, nodeId }) {
+      await sweepRankingStarsIfDue();
+      const store = await loadStore();
+      const user = requireUserByToken(store, token);
+
+      return buildUniverse({
+        store,
+        currentUserId: user.id,
+        nodeId,
+        getUserMetrics,
+        createError,
+      });
+    },
+
+    // 로그인 없이 보는 우주 (오너 2026-08-16: 사이트는 공개, 자기 별을 가지려면 로그인).
+    //
+    // 토큰을 받지 않는 유일한 읽기 경로다. 내려보내는 건 우주 화면이 그리는 것과 정확히
+    // 같고(지역 통계 + 은하 안의 러너 이름·거리), 다른 점은 '내 별' 정보가 없다는 것뿐이다 —
+    // 로그인한 사람만 자기 별을 안다.
+    //
+    // 주의: 이 경로가 열리는 순간 회원 이름과 이번 달 거리가 **공개 인터넷에 노출**된다.
+    // 앱 안에서는 로그인한 회원끼리만 보이던 정보다. 개별 비공개(옵트아웃)는 아직 없다.
+    async getPublicUniverse({ nodeId }) {
+      await sweepRankingStarsIfDue();
+      const store = await loadStore();
+
+      return buildUniverse({
+        store,
+        // 주인이 없는 시점 — isMine은 어디에도 붙지 않고 me.galaxyNodeId는 비어 나간다.
+        currentUserId: null,
+        nodeId,
+        getUserMetrics,
+        createError,
+      });
+    },
+
+    async searchPublicUniverse({ query }) {
+      const store = await loadStore();
+
+      return searchUniverse({
+        store,
+        query,
+        currentUserId: null,
+        getUserMetrics,
+      });
+    },
+
+    // 이름으로 러너 찾기 — 목적지 은하만 돌려준다. 봉인 스윕을 태우지 않는 이유: 검색은
+    // 타자 한 글자마다 들어오는 경로라 매번 스윕을 돌리면 저장소 쓰기가 폭주한다. 항성
+    // 표시는 여기서 안 쓰므로 늦은 봉인이 결과를 틀리게 만들지도 않는다.
+    async searchUniverse({ token, query }) {
+      const store = await loadStore();
+      const user = requireUserByToken(store, token);
+
+      return searchUniverse({
+        store,
+        query,
+        currentUserId: user.id,
+        getUserMetrics,
+      });
     },
 
     async getTodayRankings({ token, category }) {

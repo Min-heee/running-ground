@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "universe-web",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "EXPO_PUBLIC_USE_MOCK_API=true npx expo start --web --port 8099"],
+      "port": 8099
+    },
+    {
+      "name": "universe-site",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "npx --yes serve --single --listen 8098 dist-web"],
+      "port": 8098
+    }
+  ]
+}

@@ -219,6 +219,39 @@ export function createFriendsLeagueBridge({
       };
     },
 
+    // 우주 탭은 JSON 리포 전용이다. postgres 정규화 리그 리포에는 월간 우승 봉인 스윕도 별
+    // 장식도 아직 없어서(monthlyRankingStars.mjs 이관 주의 참고) 거기서 읽으면 항성이 통째로
+    // 증발한다 — LEAGUE_READS를 켤 때 스윕/별과 함께 이 경로도 같이 이식해야 한다.
+    async getUniverse({ token, nodeId }) {
+      return {
+        payload: await leagueRepository.getUniverse({ token, nodeId }),
+        source: 'json',
+      };
+    },
+
+    // 로그인 없이 보는 우주 — 사이트(universe.running-ground.com)가 쓰는 경로.
+    async getPublicUniverse({ nodeId }) {
+      return {
+        payload: await leagueRepository.getPublicUniverse({ nodeId }),
+        source: 'json',
+      };
+    },
+
+    async searchPublicUniverse({ query }) {
+      return {
+        payload: await leagueRepository.searchPublicUniverse({ query }),
+        source: 'json',
+      };
+    },
+
+    // 검색도 같은 이유로 JSON 리포 전용 — 목적지 은하가 우주 트리와 어긋나면 안 된다.
+    async searchUniverse({ token, query }) {
+      return {
+        payload: await leagueRepository.searchUniverse({ token, query }),
+        source: 'json',
+      };
+    },
+
     async getTodayRankings({
       store,
       token,

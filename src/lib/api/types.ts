@@ -9,4 +9,5 @@ export * from './types/profile';
 export * from './types/rooms';
 export * from './types/runmadang';
 export * from './types/runs';
+export * from './types/universe';
 export * from './types/users';

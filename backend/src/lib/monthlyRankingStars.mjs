@@ -270,6 +270,51 @@ export function sweepMonthlyRankingStars(store, now = new Date()) {
   return created;
 }
 
+// 우주 탭의 항성 — 지역마다 '가장 최근에 우승자가 나온 달'의 개인 우승자 (오너 2026-08-15).
+//
+// 지난달에 그 지역 전원이 쉬어 우승자가 없었다고 별이 꺼지지는 않는다: 다음 우승자가 나올
+// 때까지 직전 주인이 자리를 지킨다. 우주에서 항성이 사라지면 그 동네 행성들이 공중에 뜨고,
+// "한 달 쉬었다고 남의 별까지 없앤다"는 건 별을 준 취지와도 어긋난다.
+// 공동 우승(동률)은 그대로 여럿 돌려준다 — 쌍성계가 된다.
+export function buildLatestRegionChampions(store) {
+  const latestByRegion = new Map();
+
+  for (const award of store.monthlyRankingAwards ?? []) {
+    if (typeof award?.monthKey !== 'string') {
+      continue;
+    }
+
+    for (const champion of award.memberChampions ?? []) {
+      if (!champion?.regionKey) {
+        continue;
+      }
+
+      const current = latestByRegion.get(champion.regionKey);
+      const entry = {
+        userId: champion.userId,
+        userName: champion.userName,
+        distanceKm: champion.distanceKm,
+      };
+
+      // monthKey는 'YYYY-MM' 고정 폭이라 문자열 비교가 곧 시간 비교다.
+      if (!current || current.monthKey < award.monthKey) {
+        latestByRegion.set(champion.regionKey, {
+          monthKey: award.monthKey,
+          regionName: champion.regionName,
+          champions: [entry],
+        });
+        continue;
+      }
+
+      if (current.monthKey === award.monthKey) {
+        current.champions.push(entry);
+      }
+    }
+  }
+
+  return latestByRegion;
+}
+
 // 별 개수 파생 — 원장이 유일한 근원.
 export function buildRankingStarCounts(store) {
   const regionStars = new Map();
