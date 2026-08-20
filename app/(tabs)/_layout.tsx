@@ -62,6 +62,7 @@ export default function TabsLayout() {
   const tabListeners = useMemo(() => ({
     friends: buildTabInputListeners('friends'),
     home: buildTabInputListeners('home'),
+    universe: buildTabInputListeners('universe'),
     league: buildTabInputListeners('league'),
     market: buildTabInputListeners('market'),
     race: buildTabInputListeners('race'),
@@ -71,6 +72,7 @@ export default function TabsLayout() {
   const tabOptions = useMemo(() => ({
     friends: getTabScreenOptions('friends'),
     home: getTabScreenOptions('home'),
+    universe: getTabScreenOptions('universe'),
     league: getTabScreenOptions('league'),
     market: getTabScreenOptions('market'),
     race: getTabScreenOptions('race'),
@@ -83,6 +85,7 @@ export default function TabsLayout() {
       screenOptions={screenOptions}
     >
       <Tabs.Screen name="league" options={tabOptions.league} listeners={tabListeners.league} />
+      <Tabs.Screen name="universe" options={tabOptions.universe} listeners={tabListeners.universe} />
       <Tabs.Screen name="friends" options={tabOptions.friends} listeners={tabListeners.friends} />
       <Tabs.Screen name="running" options={tabOptions.running} listeners={tabListeners.running} />
       <Tabs.Screen name="home" options={tabOptions.home} listeners={tabListeners.home} />
