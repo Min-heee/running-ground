@@ -7,7 +7,7 @@ import {
   setNativeDistanceAccumulatorModuleForTest,
 } from './distanceAccumulatorController';
 import { setBackgroundMatchProgressContext } from './backgroundMatchProgressSync';
-import { setAppBackgroundState } from './backgroundSyncDiagnostics';
+import { recordBackgroundSnapshotUpdate, setAppBackgroundState } from './backgroundSyncDiagnostics';
 import { resetRouteAccumulator, setAccumulatedDistanceMeters } from './routeAccumulator';
 import {
   armSoloDistanceAccumulatorOnBackground,
@@ -59,6 +59,9 @@ function armSoloRun({ jsMeters = 2500 }: { jsMeters?: number } = {}) {
     startedAt: STARTED_AT,
     distanceKm: jsMeters / 1000,
   });
+  // 신선도 시계 무장 — 실제 앱에서는 태스크 시작·픽스 커밋이 심는다. 이게 없으면 시계가
+  // 비어 '신선'으로 읽혀 동결 테스트가 성립하지 않는다.
+  recordBackgroundSnapshotUpdate(true);
   return fake;
 }
 
@@ -91,6 +94,26 @@ test('갭 규칙 없는 바이너리·안 뛰는 상태에서는 켜지지 않�
   setGapRuleBinarySupport(true);
   setSnapshotState({ ...getSnapshotState(), status: 'idle' });
   assert.equal(await armSoloDistanceAccumulatorOnBackground(), false);
+});
+
+test('얼어붙은 원장으로는 켜지도 되심지도 않는다 — 정산할 갭을 지우는 경합 봉쇄', async () => {
+  // iOS 깨어남 경합: 밀린 픽스 묶음이 AppState보다 먼저 도착해 전부 필터에 떨어지고(거리
+  // 동결 유지), 재파종만 통과하면 네이티브의 잠든 구간이 정산 전에 지워진다. 안드로이드
+  // 살아있는-동결(2026-08-09 갤럭시)도 같은 길. 신선도 게이트가 둘 다 막는다.
+  const fake = armSoloRun({ jsMeters: 3000 });
+  await armSoloDistanceAccumulatorOnBackground();
+  const seededAtArm = fake.state.seeded.length;
+  setAppBackgroundState(true);
+
+  // 거리가 60초째 안 늘었다(동결) — 재파종 금지.
+  reseedSoloDistanceAccumulatorAfterFixes({ nowMs: Date.now() + 60_000 });
+  assert.equal(fake.state.seeded.length, seededAtArm);
+
+  // 무장 역시 동결 상태에서는 거부된다 — 이중 'background' 이벤트가 같은-키 재시동으로
+  // 얼어붙은 값을 되심는 길까지 막는다.
+  assert.equal(await armSoloDistanceAccumulatorOnBackground({ nowMs: Date.now() + 60_000 }), false);
+
+  setAppBackgroundState(false);
 });
 
 test('재파종은 백그라운드에서만, 간격을 지켜서 이뤄진다', async () => {

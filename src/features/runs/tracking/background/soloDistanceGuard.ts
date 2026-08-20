@@ -22,6 +22,7 @@ import { getBackgroundMatchProgressContext } from '@/features/runs/tracking/back
 import { getBackgroundSyncDiagnostics } from '@/features/runs/tracking/background/backgroundSyncDiagnostics';
 import { getAccumulatedDistanceMeters } from '@/features/runs/tracking/background/routeAccumulator';
 import { getSnapshotState } from '@/features/runs/tracking/background/snapshotStore';
+import { isMyMatchDistanceStale } from '@/features/runs/sync/matchDistanceStaleness';
 
 // OTA 킬스위치 — 현장 회귀 시 이것만 내리면 솔로 보호 전체가 무동작이 된다. 매치 경로는
 // 이 스위치와 무관하게 오늘과 동일하다.
@@ -34,6 +35,19 @@ export const ENABLE_SOLO_SCREEN_OFF_GUARD = true;
 export const SOLO_RESEED_INTERVAL_MS = 5_000;
 
 let lastReseedAtMs = 0;
+
+// JS 원장이 '지금도 실제로 재고 있는가'. 얼어붙은 원장은 기준선 자격이 없다 — 그걸로
+// 네이티브를 되심으면 잠든 구간을 정산 전에 지워버린다(적대 검증이 잡음: iOS는 깨어남
+// 직후 밀린 픽스 묶음이 AppState 'active'보다 먼저 도착해 전부 나이 필터에 떨어진 채
+// 재파종만 통과하는 경합, 안드로이드는 JS가 살아 있는데 픽스가 전부 거절돼 거리만 어는
+// 2026-08-09 갤럭시 모드 — 매치 플러시의 재파종이 신선도 게이트를 단 이유와 정확히 같다).
+function jsLedgerIsFresh(nowMs: number): boolean {
+  const diagnostics = getBackgroundSyncDiagnostics();
+  return !isMyMatchDistanceStale({
+    lastUpdatedAtMs: diagnostics.lastDistanceAdvanceAtMs ?? diagnostics.lastSnapshotAtMs,
+    nowMs,
+  });
+}
 
 function soloGuardEligible(): boolean {
   if (!ENABLE_SOLO_SCREEN_OFF_GUARD || !ENABLE_NATIVE_DISTANCE_MERGE) {
@@ -58,8 +72,16 @@ function soloGuardEligible(): boolean {
 // 백그라운드 진입(화면 꺼짐·앱 전환) 순간 호출된다. 솔로 런이면 네이티브 누적기를 켜고
 // JS 총거리를 심는다. 같은 런에서 두 번째 백그라운드 진입이면 — 깨어날 때 껐으므로 —
 // 새로 켜지고 다시 심어진다(startNativeDistanceAccumulator의 키 dedupe가 알아서 한다).
-export async function armSoloDistanceAccumulatorOnBackground(): Promise<boolean> {
+export async function armSoloDistanceAccumulatorOnBackground({ nowMs = Date.now() }: { nowMs?: number } = {}): Promise<boolean> {
   if (!soloGuardEligible()) {
+    return false;
+  }
+
+  // 얼어붙은 원장으로는 켜지도 되심지도 않는다. 백그라운드 진입 직전은 전면에서 막 재던
+  // 참이라 거의 항상 신선하다 — 신선하지 않다면 GPS가 죽어 기준선 자체를 못 믿는 상태고,
+  // iOS의 'inactive'→'background' 이중 이벤트가 이미 무장된 누적기를 얼어붙은 값으로
+  // 되심는 경합도 이 게이트가 함께 막는다(시동의 같은-키 분기는 재파종을 겸하므로).
+  if (!jsLedgerIsFresh(nowMs)) {
     return false;
   }
 
@@ -84,6 +106,11 @@ export function reseedSoloDistanceAccumulatorAfterFixes({ nowMs = Date.now() }: 
   }
 
   if (nowMs - lastReseedAtMs < SOLO_RESEED_INTERVAL_MS) {
+    return;
+  }
+
+  // 신선할 때만 — 거리가 실제로 늘고 있는 원장만이 기준선 자격이 있다.
+  if (!jsLedgerIsFresh(nowMs)) {
     return;
   }
 
