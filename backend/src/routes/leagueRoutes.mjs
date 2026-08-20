@@ -1,3 +1,5 @@
+import { ENABLE_PUBLIC_UNIVERSE } from '../config.mjs';
+
 export async function routeLeagueRequest({
   method,
   pathname,
@@ -28,13 +30,16 @@ export async function routeLeagueRequest({
     return true;
   }
 
-  // 로그인 없이 보는 우주 — 사이트 전용 공개 경로. 토큰을 요구하지 않는 유일한 읽기다.
-  if (pathname === '/api/public/universe/search' && method === 'GET') {
+  // 로그인 없이 보는 우주 — 사이트 전용 공개 경로. 토큰을 요구하지 않는 유일한 읽기라서
+  // **기본 꺼짐**이다(BACKEND_ENABLE_PUBLIC_UNIVERSE=true일 때만 열림). 앱 탭은 아래의
+  // 인증 경로를 쓰므로 이 게이트와 무관하고, 꺼져 있으면 여기 매치가 안 돼 404로 떨어진다 —
+  // 회원 이름·거리가 로그인 없이 노출되는 건 사이트 출시 때 오너 확인 후에만 켠다.
+  if (ENABLE_PUBLIC_UNIVERSE && pathname === '/api/public/universe/search' && method === 'GET') {
     sendJson(response, 200, await buildPublicUniverseSearchReadPayload(url.searchParams.get('q') ?? ''));
     return true;
   }
 
-  if (pathname === '/api/public/universe' && method === 'GET') {
+  if (ENABLE_PUBLIC_UNIVERSE && pathname === '/api/public/universe' && method === 'GET') {
     sendJson(response, 200, await buildPublicUniverseReadPayload(url.searchParams.get('nodeId') ?? undefined));
     return true;
   }

@@ -113,6 +113,10 @@ export const PORT = parseNumber(process.env.BACKEND_PORT ?? process.env.PORT, 80
 export const CORS_ORIGIN = process.env.BACKEND_CORS_ORIGIN ?? '*';
 export const CORS_ORIGINS = parseCommaSeparatedList(CORS_ORIGIN);
 export const CORS_ALLOW_ANY_ORIGIN = CORS_ORIGINS.includes('*');
+// 공개(비로그인) 우주 경로 게이트 — 기본 꺼짐. 켜는 순간 회원 이름과 이번 달 거리가 로그인
+// 없이 조회된다(웹사이트 전용 설계). 사이트를 실제로 낼 때 오너 확인 후에만 켠다.
+export const ENABLE_PUBLIC_UNIVERSE = (process.env.BACKEND_ENABLE_PUBLIC_UNIVERSE ?? '').trim() === 'true';
+
 export const STORE_FILE = resolveConfiguredPath(process.env.BACKEND_STORE_FILE, defaultStoreFile);
 export const STORE_WRITE_MODE = 'atomic';
 export const STORE_BACKUP_DIRECTORY = resolveConfiguredPath(

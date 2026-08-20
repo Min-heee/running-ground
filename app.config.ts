@@ -30,7 +30,10 @@ const DEFAULT_EAS_UPDATE_URL = `https://u.expo.dev/${DEFAULT_EAS_PROJECT_ID}`;
 //    old runtime's branch for N weeks so not-yet-updated installs keep
 //    receiving fixes. See docs/release-runbook.md.
 // ─────────────────────────────────────────────────────────────────────────────
-const RUNTIME_VERSION = '0.1.0';
+// 0.2.0 (2026-08-21): 우주 탭이 expo-gl + three 네이티브를 실었다 — 구버전 바이너리에는
+// 이 모듈이 없어 우주 번들이 도착하면 죽는다. 런타임을 올려 우주 이후의 OTA가 우주 가능
+// 바이너리(iOS 60+/Android 49+)에만 가게 한다. 0.1.0 함대는 마지막 0.1.0 번들에 동결된다.
+const RUNTIME_VERSION = '0.2.0';
 
 type AppVariant = 'development' | 'preview' | 'production';
 
