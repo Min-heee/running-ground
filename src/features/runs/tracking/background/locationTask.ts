@@ -9,6 +9,7 @@ import { setGapRuleBinarySupport } from '@/features/runs/tracking/background/dis
 import { resolveNativeGapRuleBinary } from '@/features/runs/tracking/background/nativeGapRuleSupport';
 import { appendTrackedLocation } from '@/features/runs/tracking/background/routeAccumulator';
 import { reconcileScreenOffGapAfterFixesAppended } from '@/features/runs/tracking/background/screenOffGapReconcile';
+import { reseedSoloDistanceAccumulatorAfterFixes } from '@/features/runs/tracking/background/soloDistanceGuard';
 import {
   BACKGROUND_RUN_TASK_NAME,
   LEGACY_BACKGROUND_RUN_TASK_NAME,
@@ -96,6 +97,9 @@ function defineBackgroundRunTask(taskName: string) {
     // '포획한 네이티브 − 지금의 JS'라, OS가 밀린 픽스를 이 묶음으로 재생했다면 그 몫은 방금
     // JS에 들어가 자동으로 차감된다. 반영 전에 정산하면 재생 몫이 두 번 적립된다.
     reconcileScreenOffGapAfterFixesAppended();
+    // 솔로 런: JS가 살아서 직접 세는 동안 네이티브를 JS 총거리로 되심는다(스로틀) — 나중에
+    // JS가 얼었을 때의 크레딧이 잠든 구간만 담게 하는 기준선 관리. 매치는 플러시가 한다.
+    reseedSoloDistanceAccumulatorAfterFixes();
     // Fix A.3 — fire-and-forget. Do NOT await the flush: a stuck/hung background push must never
     // wedge the native location-task callback (which is what keeps the GPS route buffer + distance
     // accumulating). The flush has its own single-flight + stale-reclaim + per-request timeout, so

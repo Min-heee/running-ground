@@ -25,6 +25,7 @@ import {
   captureScreenOffGapOnWake,
   settlePendingScreenOffGapNow,
 } from '@/features/runs/tracking/background/screenOffGapReconcile';
+import { armSoloDistanceAccumulatorOnBackground } from '@/features/runs/tracking/background/soloDistanceGuard';
 import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
 import type { UpdateRunningMatchProgressInput } from '@/lib/api/types';
 import {
@@ -158,6 +159,13 @@ export function useTrackingAppStateSync({
     // even after returning to foreground — where the foreground heartbeat already POSTs. On
     // foreground resume, stop the native cadence so exactly ONE path owns the channel while active;
     // it re-starts automatically on the next background flush. No-op on current binaries (gate).
+    if (nextState !== 'active') {
+      // 솔로 런 화면꺼짐 보호 — 백그라운드로 들어가는 순간 네이티브 거리 누적기를 켠다.
+      // 매치는 진행 플러시가 자기 키로 켜므로 여기서는 솔로일 때만 무장된다(내부 가드).
+      // fire-and-forget: 시동 실패는 오늘의 동작(JS 원장만)으로 남을 뿐이다.
+      void armSoloDistanceAccumulatorOnBackground().catch(() => undefined);
+    }
+
     if (nextState === 'active') {
       // 화면꺼짐 갭 포획 — 반드시 아래의 stopNativeDistanceAccumulator **전에**. 저 호출이
       // 네이티브 총거리를 지우므로, JS가 잠든 사이 네이티브만 알고 있는 거리는 이 순간이
