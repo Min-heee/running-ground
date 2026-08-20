@@ -111,6 +111,7 @@ function PlanetBody({
   fade,
   detailed,
   segments,
+  screenDiameter,
 }: {
   id: string;
   radius: number;
@@ -118,6 +119,7 @@ function PlanetBody({
   fade: number;
   detailed: boolean;
   segments: number;
+  screenDiameter: number;
 }) {
   const traits = useMemo(() => planetTraitsFor(id), [id]);
   const surface = getPlanetSurface(traits.kind, traits.variant);
@@ -212,6 +214,9 @@ function PlanetBody({
 
   useEffect(() => () => ringGeometry?.dispose(), [ringGeometry]);
 
+  // 구체가 점에서 풀리기 시작하는 크기(≈14px)부터 고리가 배어 나와 34px에서 온전해진다.
+  const ringOpacity = 0.85 * fade * smoothStep(14, 34, screenDiameter);
+
   useFrame((_, delta) => {
     if (bodyRef.current) {
       bodyRef.current.rotation.y += delta * traits.spin;
@@ -274,12 +279,16 @@ function PlanetBody({
         </mesh>
       ) : null}
 
-      {detailed && ringGeometry ? (
+      {/* 고리는 detailed(54px) 문턱을 기다리지 않는다 — 고리는 그 행성의 실루엣이라
+          멀리서도 '고리 행성'으로 읽혀야 한다 (오너 2026-08-19: "멀리서도 어느 정도
+          보이는 것도 나쁘지 않을 것 같아"). 구체가 점에서 풀리는 크기(14px)부터 서서히
+          배어 나온다 — 문턱에서 뿅 나타나면 확대가 전환으로 느껴진다. */}
+      {ringGeometry && ringOpacity > 0.02 ? (
         <mesh geometry={ringGeometry} rotation={[Math.PI / 2 - (traits.ring?.tilt ?? 0), 0, 0]}>
           <meshBasicMaterial
             map={getRingTexture()}
             transparent
-            opacity={0.85 * fade}
+            opacity={ringOpacity}
             depthWrite={false}
             side={DoubleSide}
           />
@@ -539,6 +548,7 @@ function CelestialSphereComponent({
         fade={fade}
         detailed={detailed}
         segments={segments}
+        screenDiameter={screenDiameter}
       />
     );
   }
@@ -550,8 +560,8 @@ function CelestialSphereComponent({
       brightness={brightness}
       fade={fade}
       segments={segments}
-      // 원시성(이번 달 1등)은 아직 점화 전이라 주변을 밝히지 않는다.
-      lit={palette === 'star' && detailed}
+      // 가까이 왔을 때만 실제 광원이 된다 — 먼 항성 수십 개가 다 조명을 켜면 비용만 든다.
+      lit={detailed}
       detailed={detailed}
       screenDiameter={screenDiameter}
     />
