@@ -340,6 +340,13 @@ export function getLastFreshJsAuthoritativeKm(): number {
 
 let lastStartedMatchKey: string | null = null;
 
+// 이 키로 누적기가 지금 돌고 있는가 — 시동이 세팅하고 정지가 지운다. 솔로 가드가 '이미
+// 도는 누적기를 동결 원장으로 되심는 것'과 '아직 안 도는 누적기를 새로 켜는 것'(항상
+// 안전 — 지울 게 없다)을 가르는 데 쓴다.
+export function isNativeDistanceAccumulatorStartedFor(matchKey: string): boolean {
+  return lastStartedMatchKey === matchKey;
+}
+
 // Start native GPS distance accumulation for the match + SEED it to the JS authoritative total at
 // this instant so native and JS share ONE origin. No-op on any binary lacking the native fns or when
 // the kill-switch is off. Idempotent for the same matchKey (a re-start just re-seeds the baseline,

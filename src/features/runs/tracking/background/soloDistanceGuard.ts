@@ -15,6 +15,7 @@
 import {
   ENABLE_NATIVE_DISTANCE_MERGE,
   isGapRuleBinarySupported,
+  isNativeDistanceAccumulatorStartedFor,
   seedNativeDistanceAccumulatorToMeters,
   startNativeDistanceAccumulator,
 } from '@/features/runs/tracking/background/distanceAccumulatorController';
@@ -77,19 +78,20 @@ export async function armSoloDistanceAccumulatorOnBackground({ nowMs = Date.now(
     return false;
   }
 
-  // 얼어붙은 원장으로는 켜지도 되심지도 않는다. 백그라운드 진입 직전은 전면에서 막 재던
-  // 참이라 거의 항상 신선하다 — 신선하지 않다면 GPS가 죽어 기준선 자체를 못 믿는 상태고,
-  // iOS의 'inactive'→'background' 이중 이벤트가 이미 무장된 누적기를 얼어붙은 값으로
-  // 되심는 경합도 이 게이트가 함께 막는다(시동의 같은-키 분기는 재파종을 겸하므로).
-  if (!jsLedgerIsFresh(nowMs)) {
+  const snapshot = getSnapshotState();
+  const soloKey = `solo:${snapshot.startedAt}`;
+
+  // 동결 게이트는 **이미 도는 누적기**에만 건다. 새로 켜는 건 언제나 안전하다 — 아직 센 게
+  // 없어 지울 것도 없고, 동결(신호등 정지·GPS 워밍업)이어도 그 순간의 JS 총거리는 정확한
+  // 기준선이다. 재검증이 잡은 함정이 바로 이것이었다: 신선도를 무장 전체에 걸면 횡단보도에
+  // 20초 서 있다 잠근 러너의 세션 전체가 무보호가 된다 — 고치려던 손실의 부활. 반대로
+  // 같은 키로 이미 도는 누적기의 재시동은 재파종을 겸하므로, 동결 원장일 때는 그 되심기가
+  // 잠든 구간을 지운다 — 그 경우만 막는다.
+  if (isNativeDistanceAccumulatorStartedFor(soloKey) && !jsLedgerIsFresh(nowMs)) {
     return false;
   }
 
-  const snapshot = getSnapshotState();
-  return startNativeDistanceAccumulator(
-    `solo:${snapshot.startedAt}`,
-    getAccumulatedDistanceMeters(),
-  );
+  return startNativeDistanceAccumulator(soloKey, getAccumulatedDistanceMeters());
 }
 
 // 위치 픽스가 JS 원장에 반영된 직후(백그라운드 태스크) 호출된다. JS가 살아서 직접 세는
@@ -105,11 +107,22 @@ export function reseedSoloDistanceAccumulatorAfterFixes({ nowMs = Date.now() }: 
     return;
   }
 
+  // 재무장 — 백그라운드 진입 때의 시동이 실패했거나(일시 오류) 아직 안 켜졌으면 여기서
+  // 켠다. 매치 경로가 플러시마다 시동을 재시도하는 것의 솔로판이다. 새 시동은 동결
+  // 여부와 무관하게 안전하다(위 무장 함수의 근거와 동일).
+  const soloKey = `solo:${getSnapshotState().startedAt}`;
+  if (!isNativeDistanceAccumulatorStartedFor(soloKey)) {
+    void startNativeDistanceAccumulator(soloKey, getAccumulatedDistanceMeters()).catch(() => undefined);
+    return;
+  }
+
   if (nowMs - lastReseedAtMs < SOLO_RESEED_INTERVAL_MS) {
     return;
   }
 
-  // 신선할 때만 — 거리가 실제로 늘고 있는 원장만이 기준선 자격이 있다.
+  // 신선할 때만 — 거리가 실제로 늘고 있는 원장만이 기준선 자격이 있다. 동결 원장으로
+  // 도는 누적기를 되심으면 잠든 구간을 정산 전에 지운다(iOS 깨어남 경합·갤럭시
+  // 살아있는-동결 모드 — 매치 플러시의 재파종이 같은 게이트를 단 이유).
   if (!jsLedgerIsFresh(nowMs)) {
     return;
   }

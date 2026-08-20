@@ -96,7 +96,7 @@ test('갭 규칙 없는 바이너리·안 뛰는 상태에서는 켜지지 않�
   assert.equal(await armSoloDistanceAccumulatorOnBackground(), false);
 });
 
-test('얼어붙은 원장으로는 켜지도 되심지도 않는다 — 정산할 갭을 지우는 경합 봉쇄', async () => {
+test('이미 도는 누적기를 동결 원장으로 되심지 않는다 — 정산할 갭을 지우는 경합 봉쇄', async () => {
   // iOS 깨어남 경합: 밀린 픽스 묶음이 AppState보다 먼저 도착해 전부 필터에 떨어지고(거리
   // 동결 유지), 재파종만 통과하면 네이티브의 잠든 구간이 정산 전에 지워진다. 안드로이드
   // 살아있는-동결(2026-08-09 갤럭시)도 같은 길. 신선도 게이트가 둘 다 막는다.
@@ -109,9 +109,31 @@ test('얼어붙은 원장으로는 켜지도 되심지도 않는다 — 정산�
   reseedSoloDistanceAccumulatorAfterFixes({ nowMs: Date.now() + 60_000 });
   assert.equal(fake.state.seeded.length, seededAtArm);
 
-  // 무장 역시 동결 상태에서는 거부된다 — 이중 'background' 이벤트가 같은-키 재시동으로
-  // 얼어붙은 값을 되심는 길까지 막는다.
+  // 이미 같은 키로 도는 상태의 재무장(=같은-키 재시동은 되심기를 겸함)도 동결이면 거부.
   assert.equal(await armSoloDistanceAccumulatorOnBackground({ nowMs: Date.now() + 60_000 }), false);
+
+  setAppBackgroundState(false);
+});
+
+test('동결이어도 아직 안 도는 누적기는 켠다 — 횡단보도에 서 있다 잠근 러너를 버리지 않는다', async () => {
+  // 재검증이 잡은 과잉 게이트: 정지(신호등·GPS 워밍업)만으로 원장이 '동결'로 읽히는데,
+  // 그때 무장을 거부하면 재무장 경로가 없어 세션 전체가 무보호가 된다 — 새로 켜는 것은
+  // 지울 게 없으니 언제나 안전하다.
+  const fake = armSoloRun({ jsMeters: 3000 });
+
+  // 백그라운드 진입 시점에 이미 20초째 정지 상태(동결) — 그래도 켜진다.
+  assert.equal(await armSoloDistanceAccumulatorOnBackground({ nowMs: Date.now() + 20_000 }), true);
+  assert.deepEqual(fake.state.seeded, [3000]);
+});
+
+test('재파종 훅은 꺼져 있는 누적기를 재무장한다 — 시동 실패의 자가 치유', async () => {
+  const fake = armSoloRun({ jsMeters: 3000 });
+  setAppBackgroundState(true);
+
+  // 아직 아무도 안 켰다(진입 시동이 실패했다고 치자) — 픽스 처리 훅이 켠다.
+  reseedSoloDistanceAccumulatorAfterFixes({ nowMs: Date.now() });
+  await new Promise((resolve) => { setTimeout(resolve, 0); });
+  assert.deepEqual(fake.state.seeded, [3000]);
 
   setAppBackgroundState(false);
 });
