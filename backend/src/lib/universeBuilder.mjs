@@ -28,10 +28,6 @@ import {
 
 const REGION_LEAF_LEVELS = new Set(['city', 'district']);
 
-// 한 은하에 개별 렌더할 행성 수 상한. 넘는 인원은 성운 한 덩어리로 접는다 — 회원이 늘어도
-// 화면이 무너지지 않게 하는 유일한 방어선이다. 항성과 나는 상한과 무관하게 항상 뜬다.
-export const PLANET_RENDER_CAP = 60;
-
 function isRegionLeafLevel(level) {
   return REGION_LEAF_LEVELS.has(level);
 }
@@ -166,27 +162,14 @@ function buildGalaxyContents(store, regionKey, {
     isMine: member.userId === currentUserId,
   }));
 
-  // 항성과 나는 크기와 무관하게 반드시 화면에 있어야 한다. 항성(누적 1등)은 어차피 상한
-  // 안에 들지만, 나는 평생 거리로 자르면 성운에 묻힐 수 있다.
-  const pinned = bodies.filter((body) => body.isStar || body.isMine);
-  const pinnedIds = new Set(pinned.map((body) => body.userId));
-  const rest = bodies
-    .filter((body) => !pinnedIds.has(body.userId))
-    .sort((left, right) => right.lifetimeDistanceKm - left.lifetimeDistanceKm);
-
-  const planets = [...pinned, ...rest.slice(0, Math.max(0, PLANET_RENDER_CAP - pinned.length))];
-  const folded = rest.slice(Math.max(0, PLANET_RENDER_CAP - pinned.length));
-
   return {
-    planets: planets.sort((left, right) => right.lifetimeDistanceKm - left.lifetimeDistanceKm),
-    nebula: folded.length > 0
-      ? {
-        memberCount: folded.length,
-        totalLifetimeDistanceKm: Number(
-          folded.reduce((sum, body) => sum + body.lifetimeDistanceKm, 0).toFixed(1),
-        ),
-      }
-      : null,
+    // 회원은 **전원** 자기 행성으로 뜬다 — 인당 정확히 하나 (오너 2026-08-21: "인당 별은
+    // 1개여야 해, 자기 별이야"). 예전엔 상한(60)을 넘는 인원을 성운 한 덩어리로 접었는데,
+    // 클라이언트는 성운을 그리지도 않아서 접힌 사람은 화면에서 투명인간이 됐다. 프레임
+    // 예산은 클라이언트가 자체 상한(UniverseScene MAX_BODIES)과 컬링으로 지킨다.
+    planets: bodies.sort((left, right) => right.lifetimeDistanceKm - left.lifetimeDistanceKm),
+    // 키는 남긴다 — 배포된 바이너리가 아는 페이로드 모양 그대로. 이제 항상 null이다.
+    nebula: null,
   };
 }
 

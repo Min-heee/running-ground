@@ -124,11 +124,14 @@ function buildMockGalaxy(node: { id: string; name: string; participants: number;
   nebula: { memberCount: number; totalLifetimeDistanceKm: number } | null;
 } {
   const NAMES = ['민병희', '회원F', '회원K', '회원I', '회원G', '회원C', '회원J', '회원H', '한강러너', '새벽조깅', '언덕왕', '페이스메이커'];
-  const visible = Math.max(0, Math.min(NAMES.length, node.participants));
+  // 회원은 전원 자기 행성으로 — 인당 정확히 하나 (진짜 규칙과 동일, 접기 없음). 이름이
+  // 모자라면 번호로 잇는다.
+  const visible = Math.max(0, node.participants);
+  const nameFor = (index: number) => NAMES[index] ?? `러너${index + 1}`;
   // 누적 거리는 현실적인 스펙트럼으로 — 전엔 전원이 1.6배 안에 몰려 '누적 1등이 제일
   // 크다'가 화면에서 안 읽혔다.
   const lifetimes = Array.from({ length: visible }, (_, index) => {
-    const monthDistanceKm = Number((node.averageDistanceKm * (1.9 - index * 0.13)).toFixed(1));
+    const monthDistanceKm = Number(Math.max(0, node.averageDistanceKm * (1.9 - index * 0.13)).toFixed(1));
     const lifetimeDistanceKm = Math.round(node.averageDistanceKm * 110 * 0.58 ** index);
     return { monthDistanceKm, lifetimeDistanceKm };
   });
@@ -136,14 +139,14 @@ function buildMockGalaxy(node: { id: string; name: string; participants: number;
 
   const planets = lifetimes.map(({ monthDistanceKm, lifetimeDistanceKm }, index) => ({
     userId: `${node.id}-mock-${index}`,
-    userName: NAMES[index],
+    userName: nameFor(index),
     lifetimeDistanceKm,
     monthDistanceKm,
     // 크기 = 누적 거리의 선형 비율(진짜 규칙 planetScale과 같은 모양: 바닥 0.22).
     scale: maxLifetimeKm > 0
       ? Number((0.22 + 0.78 * (lifetimeDistanceKm / maxLifetimeKm)).toFixed(3))
       : 0.22,
-    brightness: Number((0.35 + 0.65 * (1 - index / NAMES.length)).toFixed(2)),
+    brightness: Number(Math.max(0.05, 0.35 + 0.65 * (1 - index / NAMES.length)).toFixed(2)),
     stars: index === 0 ? 2 : index === 1 ? 1 : 0,
     isStar: false,
     isMine: index === 3,
@@ -161,9 +164,8 @@ function buildMockGalaxy(node: { id: string; name: string; participants: number;
 
   return {
     planets,
-    nebula: node.participants > visible
-      ? { memberCount: node.participants - visible, totalLifetimeDistanceKm: (node.participants - visible) * 180 }
-      : null,
+    // 접기 폐기 — 전원이 자기 행성을 가지므로 성운은 영원히 null이다(페이로드 모양만 유지).
+    nebula: null,
   };
 }
 

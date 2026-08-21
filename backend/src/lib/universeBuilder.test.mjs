@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { PLANET_RENDER_CAP, buildUniverse, pickStarUserId } from './universeBuilder.mjs';
+import { buildUniverse, pickStarUserId } from './universeBuilder.mjs';
 
 // 우주 페이로드: 지역 트리 3단이 은하단→은하군→은하로 그대로 읽히는지, 항성(누적 거리
 // 1등)이 은하마다 하나뿐인지, 화면 숫자가 리그 보드와 같은 원값인지.
@@ -244,13 +244,13 @@ test('아무도 달린 적 없는 은하에는 태양이 없다', () => {
   assert.equal(universe.galaxy.planets.some((planet) => planet.isStar), false);
 });
 
-test('회원이 상한을 넘으면 성운으로 접히되 항성과 나는 항상 남는다', () => {
+test('회원은 전원 자기 행성으로 뜬다 — 인당 정확히 하나, 접기 없음', () => {
   const crowd = Array.from({ length: 80 }, (_, index) => songpaUser(`u-${index}`, `러너${index}`));
   const metrics = Object.fromEntries(
     crowd.map((user, index) => [user.id, { lifetimeDistanceKm: 100 + index, currentMonthDistanceKm: 0 }]),
   );
 
-  // 나는 평생 거리 꼴찌 — 크기순으로 자르면 성운에 묻힐 사람이다.
+  // 평생 거리 꼴찌도 자기 행성이 있어야 한다 — 예전 상한(60) 접기에서 묻히던 사람.
   metrics['u-1'] = { lifetimeDistanceKm: 2, currentMonthDistanceKm: 0 };
 
   const { store, getUserMetrics } = buildStore({ users: crowd, metrics });
@@ -262,12 +262,14 @@ test('회원이 상한을 넘으면 성운으로 접히되 항성과 나는 항�
     createError,
   });
 
-  assert.equal(universe.galaxy.planets.length, PLANET_RENDER_CAP);
-  assert.equal(universe.galaxy.nebula.memberCount, 80 - PLANET_RENDER_CAP);
+  assert.equal(universe.galaxy.planets.length, 80);
+  assert.equal(universe.galaxy.nebula, null);
 
-  const ids = new Set(universe.galaxy.planets.map((planet) => planet.userId));
-  assert.ok(ids.has('u-1'), '내 행성이 성운에 묻혔다');
-  // 항성(누적 1등 = u-79)은 어차피 상한 안이고, 정확히 하나다.
+  // 인당 정확히 1개 — 중복도 누락도 없다.
+  const ids = universe.galaxy.planets.map((planet) => planet.userId);
+  assert.equal(new Set(ids).size, 80);
+  assert.ok(ids.includes('u-1'), '꼴찌의 행성이 사라졌다');
+  // 항성(누적 1등 = u-79)은 정확히 하나다.
   const suns = universe.galaxy.planets.filter((planet) => planet.isStar);
   assert.deepEqual(suns.map((planet) => planet.userId), ['u-79']);
 });

@@ -551,10 +551,10 @@ function UniverseSceneComponent({
       currentId = nextId;
     }
 
-    // 사람까지 찍어 왔다면 그 행성 앞에 선다. 다만 못 찾아도 실패로 끝내지 않는다: 백엔드는
-    // 한 은하에 그릴 행성 수를 제한하고 나머지를 성운으로 접는데(universeBuilder의
-    // PLANET_RENDER_CAP), 검색은 명부 전체를 뒤지므로 접힌 사람이 결과로 나올 수 있다.
-    // 그때 아무 일도 안 일어나면 검색이 고장 난 것처럼 보인다 — 적어도 그 동네까지는 간다.
+    // 사람까지 찍어 왔다면 그 행성 앞에 선다. 다만 못 찾아도 실패로 끝내지 않는다 —
+    // 회원은 전원 자기 행성을 가지므로(인당 하나) 정상이라면 반드시 찾지만, 명부와 은하
+    // 페이로드가 어긋나는 순간(캐시·동시 갱신)에도 검색이 죽은 것처럼 보이면 안 된다.
+    // 적어도 그 동네까지는 간다.
     if (userId) {
       const entry = entryFor(currentId);
       const siblings = entry ? sortedChildren(entry) : [];

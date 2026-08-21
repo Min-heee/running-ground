@@ -47,7 +47,8 @@ export type UniverseNebula = {
 
 export type UniverseGalaxy = {
   planets: UniversePlanet[];
-  // 렌더 상한을 넘은 회원들 — 한 덩어리 성운으로 접힌다.
+  // 폐기된 접기 개념 — 회원은 전원 자기 행성으로 뜬다(인당 하나). 서버는 페이로드 모양
+  // 호환을 위해 키만 남기고 항상 null을 보낸다.
   nebula: UniverseNebula | null;
 };
 
