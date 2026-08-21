@@ -113,7 +113,7 @@ export default function MatchRoomScreen() {
       <Text style={styles.pageTitle}>대기실</Text>
       {/* 오너 2026-08-13: 방장이 시작하면 로딩 → 카운트다운이 즉시 이어진다 — 그 사이 앱을
           벗어난 참가자는 시작을 놓친다. 대기실 상단 고정 안내. */}
-      <Text style={styles.stayNotice}>방장이 시작하면 바로 카운트다운이 진행돼요 — 러닝그라운드 앱을 나가지 말고 기다려 주세요.</Text>
+      <Text style={styles.stayNotice}>방장이 시작하면 바로 카운트다운이 진행돼요 — 러닝스페이스 앱을 나가지 말고 기다려 주세요.</Text>
 
       {loading ? (
         <LoadingRoomCard

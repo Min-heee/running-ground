@@ -27,7 +27,7 @@ export default function OnboardingScreen() {
         <View style={styles.content}>
           <View style={styles.hero}>
             <Image source={appIcon} style={styles.icon} resizeMode="cover" />
-            <Text style={styles.title}>러닝그라운드</Text>
+            <Text style={styles.title}>러닝스페이스</Text>
             <Text style={styles.subtitle}>실시간 대결하고 랭킹을 확인할 수 있는 러닝앱</Text>
           </View>
 

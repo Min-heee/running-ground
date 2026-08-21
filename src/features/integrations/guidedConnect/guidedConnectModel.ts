@@ -258,7 +258,7 @@ export function buildGuidedSteps(appId: GuidedAppId, platform: GuidedPlatform): 
   steps.push({
     key: 'permission',
     number: 0,
-    title: `러닝그라운드에 ${hubLabel} 읽기 허용`,
+    title: `러닝스페이스에 ${hubLabel} 읽기 허용`,
     description: `버튼을 누르면 ${hubLabel} 허용 팝업이 떠요. 러닝 기록을 가져올 수 있게 '모두 허용'을 선택해주세요.`,
   });
 

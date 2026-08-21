@@ -70,7 +70,7 @@ export function buildLocationTaskOptions(): Location.LocationTaskOptions {
     ...(Platform.OS === 'android'
       ? {
           foregroundService: {
-            notificationTitle: 'RunningGround가 러닝을 측정 중이에요',
+            notificationTitle: '러닝스페이스가 러닝을 측정 중이에요',
             notificationBody: '백그라운드에서도 거리와 경로를 계속 기록하고 있어요.',
           },
         }

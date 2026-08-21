@@ -20,7 +20,7 @@ function buildReminderCopy(key: RaceReminderKey, title: string): { title: string
     case 't-10m':
       return { title: `🏁 ${title} 곧 출발!`, body: '10분 뒤 출발이에요. 앱을 열고 출발선에 서 주세요.' };
     case 't-5m':
-      return { title: `${title} 5분 전이에요`, body: '핸드폰을 켜고 러닝그라운드 앱을 열어 주세요.' };
+      return { title: `${title} 5분 전이에요`, body: '핸드폰을 켜고 러닝스페이스 앱을 열어 주세요.' };
     default:
       return { title: `${title} 1분 전!`, body: '앱을 켠 채로 기다려 주세요 — 곧 자동으로 출발해요.' };
   }

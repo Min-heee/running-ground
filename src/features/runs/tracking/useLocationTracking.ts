@@ -59,8 +59,8 @@ export function useLocationTracking({
     if (!granted && options?.required) {
       throw new Error(
         Platform.OS === 'ios'
-          ? '백그라운드에서도 계속 측정하려면 설정 > RunningGround > 위치에서 `항상 허용`을 켜주세요.'
-          : '백그라운드에서도 계속 측정하려면 RunningGround 위치 권한을 `항상 허용`으로 바꿔주세요.',
+          ? '백그라운드에서도 계속 측정하려면 설정 > 러닝스페이스 > 위치에서 `항상 허용`을 켜주세요.'
+          : '백그라운드에서도 계속 측정하려면 러닝스페이스 위치 권한을 `항상 허용`으로 바꿔주세요.',
       );
     }
 

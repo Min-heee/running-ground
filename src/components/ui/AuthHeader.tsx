@@ -43,7 +43,7 @@ export function AuthHeader({
           <Text style={styles.backButtonText}>{backLabel}</Text>
         </Pressable>
       ) : null}
-      <Text style={styles.logo}>RunningGround</Text>
+      <Text style={styles.logo}>RunningSpace</Text>
       {title ? <Text style={styles.title}>{title}</Text> : null}
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </View>

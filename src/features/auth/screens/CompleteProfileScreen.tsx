@@ -46,7 +46,7 @@ export default function CompleteProfileScreen() {
     <Screen>
       <AuthHeader
         title="기본 정보 설정"
-        subtitle="러닝그라운드 활동에 필요한 표시 이름과 지역을 설정해주세요. 지역은 지역 랭킹과 지역 배틀의 기준이 돼요."
+        subtitle="러닝스페이스 활동에 필요한 표시 이름과 지역을 설정해주세요. 지역은 지역 랭킹과 지역 배틀의 기준이 돼요."
       />
 
       {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
@@ -69,7 +69,7 @@ export default function CompleteProfileScreen() {
                   editable={!saving}
                   onChangeText={setDisplayName}
                   style={styles.input}
-                  placeholder="러닝그라운드에서 보일 이름"
+                  placeholder="러닝스페이스에서 보일 이름"
                   placeholderTextColor={colors.textTertiary}
                   maxLength={20}
                 />

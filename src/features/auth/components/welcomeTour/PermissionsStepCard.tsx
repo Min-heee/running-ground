@@ -37,7 +37,7 @@ export const PermissionsStepCard = memo(function PermissionsStepCard({
       <Text style={tourCardStyles.kicker}>STEP 1 · 권한</Text>
       <Text style={styles.permissionTitle}>권한 허용</Text>
       <Text style={styles.permissionSubtitle}>
-        러닝그라운드를 시작하려면 아래 권한이 모두 필요해요. 전부 허용해야 다음으로 넘어갈 수 있어요.
+        러닝스페이스를 시작하려면 아래 권한이 모두 필요해요. 전부 허용해야 다음으로 넘어갈 수 있어요.
       </Text>
       <View style={styles.permissionList}>
         {/* Merged 위치 row: driven by the BACKGROUND ("항상") status. ✓ only when backgroundLocation

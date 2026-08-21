@@ -142,7 +142,7 @@ export function useUniverseTree() {
       })
       .catch((loadError) => {
         if (mountedRef.current) {
-          setError(getApiErrorMessage(loadError, '우주를 불러오지 못했어요.'));
+          setError(getApiErrorMessage(loadError, '스페이스를 불러오지 못했어요.'));
         }
       })
       .finally(() => {

@@ -6,7 +6,7 @@ export function TabHeader({ title, right }: { title: string; right?: ReactNode }
   return (
     <View style={styles.headerRow}>
       <View style={styles.headerCopy}>
-        <Text style={styles.headerBrand}>RunningGround</Text>
+        <Text style={styles.headerBrand}>RunningSpace</Text>
         <Text style={styles.headerTitle}>{title}</Text>
       </View>
       {right ? <View style={styles.headerActions}>{right}</View> : null}

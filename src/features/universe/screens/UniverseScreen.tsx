@@ -106,7 +106,7 @@ export default function UniverseScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <Text style={styles.title}>우주</Text>
+          <Text style={styles.title}>스페이스</Text>
           <View style={styles.headerActions}>
             {/* 끌다가 우주 밖으로 나가면 돌아올 길이 이것뿐이다 — 그래서 항상 떠 있다. */}
             <Pressable onPress={handleResetView} hitSlop={8} style={styles.ghostButton}>
@@ -175,7 +175,7 @@ export default function UniverseScreen() {
         {!tree.loading && tree.error ? (
           <View style={styles.errorWrap}>
             <StateMessageCard
-              title="우주를 열지 못했어요"
+              title="스페이스를 열지 못했어요"
               message={tree.error}
               actionLabel="다시 시도"
               onAction={tree.retry}

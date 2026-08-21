@@ -184,13 +184,13 @@ export async function fetchUniverse(nodeId?: string): Promise<UniverseResponse> 
 
   if (!accessToken) {
     return apiGet<UniverseResponse>(`/public/universe${query}`, {
-      fallbackMessage: '우주를 불러오지 못했어요.',
+      fallbackMessage: '스페이스를 불러오지 못했어요.',
     });
   }
 
   return apiGet<UniverseResponse>(`/universe${query}`, {
     accessToken,
-    fallbackMessage: '우주를 불러오지 못했어요.',
+    fallbackMessage: '스페이스를 불러오지 못했어요.',
   });
 }
 

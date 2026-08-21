@@ -81,7 +81,7 @@ export function useMyPageScreen() {
       const tagCode = tag.replace(/^#/, '');
       await Share.share({
         // 안드로이드 정식 출시 후 Play 링크(또는 랜딩 페이지)로 확장 예정.
-        message: `러닝그라운드에서 같이 달려요! 내 친구 태그: ${tag}\n앱에서 바로 친구 추가: ${APP_STORE_URL}?tag=${tagCode}`,
+        message: `러닝스페이스에서 같이 달려요! 내 친구 태그: ${tag}\n앱에서 바로 친구 추가: ${APP_STORE_URL}?tag=${tagCode}`,
       });
       setTagShared(true);
     } catch {

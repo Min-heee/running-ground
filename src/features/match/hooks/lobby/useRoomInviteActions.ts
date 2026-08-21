@@ -214,7 +214,7 @@ export function useRoomInviteActions({
           `링크: ${room.inviteLink}`,
           // A recipient without the app can't open the runningground:// link, so tell
           // them what to install. (Universal store links are a post-launch follow-up.)
-          '앱이 없다면 "러닝그라운드(RunningGround)"를 설치한 뒤 초대 코드로 입장하면 돼요.',
+          '앱이 없다면 "러닝스페이스(RunningGround)"를 설치한 뒤 초대 코드로 입장하면 돼요.',
         ].join('\n'),
       });
     } catch {
