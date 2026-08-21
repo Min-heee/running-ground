@@ -106,6 +106,34 @@ function paletteForRegion(level: string): SkyOrb['palette'] {
 // 좌표가 전부 새로 계산되고, 배율이 조금만 바뀌어도 우주 전체가 다시 그려진다.
 const childOrderCache = new WeakMap<TreeEntry, (UniverseBody | UniversePlanet)[]>();
 
+// 배치 좌표도 캐시한다. 배치는 우주 좌표라 뷰포트와 무관한 순수 결정값인데, 걷기가 제스처
+// 프레임마다 다시 도는 바람에 은하 하나가 수백 명이면 프레임마다 수천 번의 삼각함수와
+// 그만큼의 할당이 통째로 버려지고 있었다(인당 1행성 이후 명부에 비례해 커지는 비용).
+// 부모 배치가 같으면(값 비교) 그대로 쓴다 — 자식 데이터가 바뀌면 TreeEntry 자체가 바뀐다.
+const placementCache = new WeakMap<TreeEntry, { parent: SpacePlacement; placements: SpacePlacement[] }>();
+
+function placementsFor(
+  entry: TreeEntry,
+  placement: SpacePlacement,
+  children: (UniverseBody | UniversePlanet)[],
+): SpacePlacement[] {
+  const cached = placementCache.get(entry);
+
+  if (
+    cached
+    && cached.parent.x === placement.x
+    && cached.parent.y === placement.y
+    && cached.parent.z === placement.z
+    && cached.parent.radius === placement.radius
+  ) {
+    return cached.placements;
+  }
+
+  const placements = placeChildrenOf(placement, children);
+  placementCache.set(entry, { parent: placement, placements });
+  return placements;
+}
+
 function sortedChildren(entry: TreeEntry): (UniverseBody | UniversePlanet)[] {
   const cached = childOrderCache.get(entry);
 
@@ -420,7 +448,7 @@ function UniverseSceneComponent({
         return;
       }
 
-      const placements = placeChildrenOf(placement, children);
+      const placements = placementsFor(entry as TreeEntry, placement, children);
 
       children.forEach((child, index) => {
         const childPlacement = placements[index];
@@ -542,7 +570,7 @@ function UniverseSceneComponent({
         return false;
       }
 
-      placement = placeChildrenOf(placement, siblings)[index];
+      placement = placementsFor(entry, placement, siblings)[index];
       currentId = nextId;
     }
 
@@ -555,8 +583,8 @@ function UniverseSceneComponent({
       const siblings = entry ? sortedChildren(entry) : [];
       const index = siblings.findIndex((child) => 'userId' in child && child.userId === userId);
 
-      if (index >= 0) {
-        placement = placeChildrenOf(placement, siblings)[index];
+      if (index >= 0 && entry) {
+        placement = placementsFor(entry, placement, siblings)[index];
       }
     }
 
@@ -619,9 +647,18 @@ function UniverseSceneComponent({
       width,
       height,
     );
+    const picked = candidates.filter((body) => visible.has(body.key));
 
-    return candidates.filter((body) => visible.has(body.key));
-  }, [bodies, fitZoom, height, width, zoom]);
+    // 고른 것과 조준한 것(화면 중앙)은 **크기와 무관하게** 이름이 붙는다. 수백 명 은하의
+    // 꼬리 행성은 최대 배율에서도 이름표 문턱에 못 미칠 수 있는데, 검색으로 날아와 놓고
+    // 이름 없는 점만 보이면 도착이 실패로 읽힌다. 이름표가 곧 터치 상자라 탭도 같이 살아난다.
+    const forcedKeys = new Set([selectedKey, focused?.key].filter(Boolean));
+    const forced = bodies.filter(
+      (body) => forcedKeys.has(body.key) && !picked.some((shown) => shown.key === body.key),
+    );
+
+    return [...picked, ...forced];
+  }, [bodies, fitZoom, focused, height, selectedKey, width, zoom]);
 
   // 누를 수 있는 것: 이름이 붙은 것 + 고른 것. 전부에 터치 영역을 두면 뒤에 깔린 거대한
   // 부모가 앞의 작은 천체를 가로챈다.
@@ -696,7 +733,11 @@ function UniverseSceneComponent({
               left: body.screenX - LABEL_BOX_WIDTH / 2,
               top: body.screenY + Math.min(body.screenRadius, MAX_TOUCH_RADIUS) + 4,
               // 이름도 서서히 켜진다 — 문턱을 넘는 순간 튀어나오면 확대가 끊겨 보인다.
-              opacity: body.nameOpacity * smoothStep(BODY_LABEL_PX, BODY_LABEL_PX * 1.8, body.screenRadius),
+              // 고른 것·조준한 것은 문턱과 무관하게 읽혀야 하므로 바닥을 깐다.
+              opacity: Math.max(
+                body.key === selectedKey || body.key === focused?.key ? 0.92 : 0,
+                body.nameOpacity * smoothStep(BODY_LABEL_PX, BODY_LABEL_PX * 1.8, body.screenRadius),
+              ),
             },
           ]}
           pointerEvents="none"

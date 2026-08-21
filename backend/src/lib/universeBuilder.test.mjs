@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildUniverse, pickStarUserId } from './universeBuilder.mjs';
+import { PUBLIC_PLANET_RENDER_CAP, buildUniverse, pickStarUserId } from './universeBuilder.mjs';
 
 // 우주 페이로드: 지역 트리 3단이 은하단→은하군→은하로 그대로 읽히는지, 항성(누적 거리
 // 1등)이 은하마다 하나뿐인지, 화면 숫자가 리그 보드와 같은 원값인지.
@@ -272,6 +272,31 @@ test('회원은 전원 자기 행성으로 뜬다 — 인당 정확히 하나, �
   // 항성(누적 1등 = u-79)은 정확히 하나다.
   const suns = universe.galaxy.planets.filter((planet) => planet.isStar);
   assert.deepEqual(suns.map((planet) => planet.userId), ['u-79']);
+});
+
+test('공개(토큰 없는) 경로는 상위 60명까지만 — 나머지는 익명 집계로 남는다', () => {
+  // 인당 1행성은 로그인한 앱의 규칙이다. 공개 웹은 지역 id만 돌면 명부 전체를 긁어갈 수
+  // 있으므로, 옛 경계(상위 60 + 익명 성운)를 공개 경로에만 유지한다.
+  const crowd = Array.from({ length: 80 }, (_, index) => songpaUser(`u-${index}`, `러너${index}`));
+  const metrics = Object.fromEntries(
+    crowd.map((user, index) => [user.id, { lifetimeDistanceKm: 100 + index, currentMonthDistanceKm: 0 }]),
+  );
+
+  const { store, getUserMetrics } = buildStore({ users: crowd, metrics });
+  const universe = buildUniverse({
+    store,
+    currentUserId: null,
+    nodeId: 'songpa',
+    getUserMetrics,
+    createError,
+  });
+
+  assert.equal(universe.galaxy.planets.length, PUBLIC_PLANET_RENDER_CAP);
+  assert.equal(universe.galaxy.nebula.memberCount, 80 - PUBLIC_PLANET_RENDER_CAP);
+  // 상위 60은 평생 거리순 — 꼴찌 20명(u-0..u-19)이 접힌다.
+  const ids = new Set(universe.galaxy.planets.map((planet) => planet.userId));
+  assert.ok(!ids.has('u-0'));
+  assert.ok(ids.has('u-79'));
 });
 
 test('워프 목적지는 내 소속 은하 — 지역 미설정이면 없다', () => {

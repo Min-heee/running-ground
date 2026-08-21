@@ -108,7 +108,7 @@ function buildMockUniverseResponse(nodeId?: string): UniverseResponse {
     nationwideAverageDistanceKm: regionDrilldownTree.averageDistanceKm,
     me: mockMe(),
     bodies: level === 'galaxy' ? [] : buildMockUniverseBodies(currentNode.children ?? []),
-    galaxy: level === 'galaxy' ? buildMockGalaxy(currentNode) : null,
+    galaxy: level === 'galaxy' ? mockGalaxyFor(currentNode) : null,
   };
 }
 
@@ -169,6 +169,22 @@ function buildMockGalaxy(node: { id: string; name: string; participants: number;
   };
 }
 
+// 결정적이라 노드당 한 번만 만든다 — 검색이 타이핑마다 전 리프(수만 행성)를 새로 만들면
+// 목/테스트플라이트 경로에서 키 입력이 눈에 띄게 굳는다.
+const mockGalaxyCache = new Map<string, ReturnType<typeof buildMockGalaxy>>();
+
+function mockGalaxyFor(node: Parameters<typeof buildMockGalaxy>[0]): ReturnType<typeof buildMockGalaxy> {
+  const cached = mockGalaxyCache.get(node.id);
+
+  if (cached) {
+    return cached;
+  }
+
+  const galaxy = buildMockGalaxy(node);
+  mockGalaxyCache.set(node.id, galaxy);
+  return galaxy;
+}
+
 // 우주는 로그인 없이도 볼 수 있다 (오너 2026-08-16: 사이트는 공개, 자기 별을 가지려면
 // 로그인). 토큰이 있으면 인증 경로로 — 그래야 '내 별'이 표시된다. 없으면 공개 경로로.
 // TestFlight 검증용 게이트 — 우주 백엔드가 아직 미배포라(/api/universe 404) 실서버
@@ -208,7 +224,7 @@ function searchMockUniverse(query: string): UniverseSearchResponse {
   const results: UniverseSearchResponse['results'] = [];
   const visit = (node: typeof regionDrilldownTree, trail: string[]) => {
     if (isRegionLeafLevel(node.level as never)) {
-      for (const planet of buildMockGalaxy(node).planets) {
+      for (const planet of mockGalaxyFor(node).planets) {
         if (planet.userName.toLowerCase().replace(/\s+/g, '').includes(normalized)) {
           results.push({
             userId: planet.userId,

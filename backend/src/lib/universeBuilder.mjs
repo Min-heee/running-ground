@@ -28,6 +28,12 @@ import {
 
 const REGION_LEAF_LEVELS = new Set(['city', 'district']);
 
+// **공개(토큰 없는) 경로**의 노출 상한. 인당 1행성 규칙(오너 2026-08-21)은 로그인한 앱의
+// 것이고, 공개 웹은 지역 id ~230개만 돌면 명부 전체를 긁어갈 수 있는 익명 인터넷이다 —
+// 은하당 상위 60명 + 나머지는 익명 집계(성운)라는 옛 경계를 공개 경로에만 유지한다.
+// 이 경계를 푸는 결정은 사이트를 실제로 공개하는 시점에 오너가 명시적으로 한다.
+export const PUBLIC_PLANET_RENDER_CAP = 60;
+
 function isRegionLeafLevel(level) {
   return REGION_LEAF_LEVELS.has(level);
 }
@@ -162,14 +168,31 @@ function buildGalaxyContents(store, regionKey, {
     isMine: member.userId === currentUserId,
   }));
 
+  const ranked = bodies.sort((left, right) => right.lifetimeDistanceKm - left.lifetimeDistanceKm);
+
+  // 로그인한 회원은 **전원** 자기 행성으로 뜬다 — 인당 정확히 하나 (오너 2026-08-21:
+  // "인당 별은 1개여야 해, 자기 별이야"). 예전엔 상한(60)을 넘는 인원을 성운 한 덩어리로
+  // 접었는데, 클라이언트는 성운을 그리지도 않아서 접힌 사람은 화면에서 투명인간이 됐다.
+  // 프레임 예산은 클라이언트가 자체 상한(UniverseScene MAX_BODIES)과 컬링으로 지킨다.
+  if (currentUserId !== null && currentUserId !== undefined) {
+    // nebula 키는 남긴다 — 배포된 바이너리가 아는 페이로드 모양 그대로.
+    return { planets: ranked, nebula: null };
+  }
+
+  // 공개(토큰 없는) 경로 — 옛 경계 그대로: 상위 60명 + 나머지는 익명 집계.
+  const planets = ranked.slice(0, PUBLIC_PLANET_RENDER_CAP);
+  const folded = ranked.slice(PUBLIC_PLANET_RENDER_CAP);
+
   return {
-    // 회원은 **전원** 자기 행성으로 뜬다 — 인당 정확히 하나 (오너 2026-08-21: "인당 별은
-    // 1개여야 해, 자기 별이야"). 예전엔 상한(60)을 넘는 인원을 성운 한 덩어리로 접었는데,
-    // 클라이언트는 성운을 그리지도 않아서 접힌 사람은 화면에서 투명인간이 됐다. 프레임
-    // 예산은 클라이언트가 자체 상한(UniverseScene MAX_BODIES)과 컬링으로 지킨다.
-    planets: bodies.sort((left, right) => right.lifetimeDistanceKm - left.lifetimeDistanceKm),
-    // 키는 남긴다 — 배포된 바이너리가 아는 페이로드 모양 그대로. 이제 항상 null이다.
-    nebula: null,
+    planets,
+    nebula: folded.length > 0
+      ? {
+        memberCount: folded.length,
+        totalLifetimeDistanceKm: Number(
+          folded.reduce((sum, body) => sum + body.lifetimeDistanceKm, 0).toFixed(1),
+        ),
+      }
+      : null,
   };
 }
 

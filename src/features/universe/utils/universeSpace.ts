@@ -48,7 +48,13 @@ export const UNIVERSE_MIN_ZOOM_FACTOR = 0.35;
 // **간격을 벌리면 이 값도 같이 올려야 한다.** 이 우주에서 사이를 벌리는 방법은 천체를 작게
 // 만드는 것이고, 작아진 만큼 끝까지 가는 데 더 큰 배율이 필요하다. 안 올리면 가장 깊은 층이
 // 한계에 걸려 **영영 닿을 수 없게** 된다.
-export const UNIVERSE_MAX_ZOOM_FACTOR = 20000;
+//
+// 20000 → 160000 (2026-08-21): 은하가 회원 전원을 행성으로 그리게 되면서(인당 1행성)
+// 행성 반지름이 궤도 수에 반비례로 작아진다 — 옛 값은 은하당 60명 기준의 보정이라,
+// 수백 명 은하의 꼬리 행성이 최대 배율에서도 이름표 문턱(10px)에 못 미쳤다. 8배면 전형적
+// 지역구 기준 ~300-500명까지 꼬리가 이름표 크기에 닿고, 그 너머는 조준·선택 강제
+// 이름표(UniverseScene의 labelled)가 받친다.
+export const UNIVERSE_MAX_ZOOM_FACTOR = 160000;
 
 // 나라 전체가 화면에 들어차는 배율.
 export function fitZoomFor(canvasWidth: number, canvasHeight: number): number {
