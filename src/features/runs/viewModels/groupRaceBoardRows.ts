@@ -31,22 +31,31 @@ export function buildGroupRaceBoardSection({
   visibleMatchRoom,
 }: GroupRaceBoardSectionInput): LiveMatchRaceBoardViewModel {
   if (groupLiveStandings.length > 0) {
-    const progressiveRows = buildProgressiveRaceBoardRows(groupLiveStandings.map((participant) => ({
-      id: participant.id,
-      rank: participant.rank,
-      name: participant.name,
-      paceLabel: participant.isCurrentUser
-        ? currentUserArenaPace
-        : buildParticipantAveragePaceLabel(participant, groupArenaUsesLivePace),
-      distanceKm: participant.currentDistanceKm,
-      remainingKm: Math.max(0, groupDistanceKm - participant.currentDistanceKm),
-      progress: groupDistanceKm > 0 ? participant.currentDistanceKm / groupDistanceKm : 0,
-      isCurrentUser: participant.isCurrentUser,
-      liveStatus: participant.liveStatus,
-      forfeitedAt: participant.forfeitedAt,
-      // Same fix the duel board already has: rivals who are still RUNNING must stay
-      // visible on the live rank page instead of collapsing to "완주한 러너만 보여요".
-    })), { hideRunningOthers: false });
+    const progressiveRows = buildProgressiveRaceBoardRows(groupLiveStandings.map((participant) => {
+      // 내 행은 내가 실제로 뛴 거리 아래로 내려가지 않는다 — 공유 경과 기준이 남의 통신
+      // 침묵만큼 내 숫자를 깎던 것(대결 보드와 같은 결함, liveMatchProgressModel 참고).
+      // 남의 행과 순위·간격은 서버 기준 그대로다.
+      const rowDistanceKm = participant.isCurrentUser
+        ? Math.max(participant.currentDistanceKm, distanceKm)
+        : participant.currentDistanceKm;
+
+      return {
+        id: participant.id,
+        rank: participant.rank,
+        name: participant.name,
+        paceLabel: participant.isCurrentUser
+          ? currentUserArenaPace
+          : buildParticipantAveragePaceLabel(participant, groupArenaUsesLivePace),
+        distanceKm: rowDistanceKm,
+        remainingKm: Math.max(0, groupDistanceKm - rowDistanceKm),
+        progress: groupDistanceKm > 0 ? rowDistanceKm / groupDistanceKm : 0,
+        isCurrentUser: participant.isCurrentUser,
+        liveStatus: participant.liveStatus,
+        forfeitedAt: participant.forfeitedAt,
+        // Same fix the duel board already has: rivals who are still RUNNING must stay
+        // visible on the live rank page instead of collapsing to "완주한 러너만 보여요".
+      };
+    }), { hideRunningOthers: false });
 
     return {
       title: '그룹 레이스 보드',

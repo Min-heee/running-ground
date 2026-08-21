@@ -242,7 +242,21 @@ export function buildDuelProgressDisplayModel({
     || duelOpponentProgressModel.displayProgress.hasProgress
     || hasRemoteRunnerProgress(effectiveDuelOpponent),
   );
-  const syncedDuelDistanceKm = duelComparisonSnapshot?.currentDistanceKm ?? distanceKm;
+  // 내 행 거리는 **내가 실제로 뛴 거리 아래로 내려가지 않는다**.
+  //
+  // 공식 비교값은 두 사람이 공유하는 '같은 경과 시각'으로 되돌려 계산한 값이다(서버:
+  // officialElapsed = 두 사람의 마지막 보고 경과 중 작은 쪽). 그래서 상대의 통신이 잠깐
+  // 조용하면 **내 숫자가 그 침묵만큼 비례로 깎인다** — 화면이 꺼져 있던 쪽이 90초 문턱까지
+  // 밀리면 파티런 속도로 0.3~0.4km, 오너가 깨울 때마다 본 그 값이다. 잠시 뒤 다시 같아지는
+  // 것도 같은 공식이 제자리를 찾는 과정이었다.
+  //
+  // 공유 기준은 **머리를 맞댄 간격**을 공정하게 만들려고 있는 것이지, 같은 화면의 내 기록과
+  // 내 행을 어긋나게 하려고 있는 게 아니다. 그래서 내 행만 바닥을 깐다. 간격(duelLiveGapKm)과
+  // 상대 거리는 서버 기준 그대로 두어 승부 판정과 어긋나지 않게 한다.
+  const syncedDuelDistanceKm = Math.max(
+    duelComparisonSnapshot?.currentDistanceKm ?? 0,
+    distanceKm,
+  );
   const syncedDuelOpponentDistanceKm = duelComparisonSnapshot?.opponentDistanceKm ?? duelOpponentProgressModel.displayProgress.distanceKm;
   const duelLiveGapKm = duelComparisonSnapshot?.gapKm ?? (
     hasDuelOpponentDisplayProgress

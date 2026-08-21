@@ -415,3 +415,37 @@ test('duel opponent forfeit latch resets for a different match', () => {
     previousLatch: forfeitLatch,
   }), null);
 });
+
+test('내 행 거리는 내가 뛴 거리 아래로 내려가지 않는다 — 간격은 서버 기준 그대로', () => {
+  // 8/21 파티런 회귀 못: 화면을 깨우면 내 기록(5.61km)보다 레이스보드의 내 행(5.28km)이
+  // 0.3~0.4km 뒤처져 보이던 증상. 공식 비교값은 두 사람이 공유하는 '같은 경과'로 되돌린
+  // 값이라, 상대(또는 잠들어 있던 내) 통신이 조용한 만큼 내 숫자가 비례로 깎였다.
+  // 내 행만 실제 거리로 바닥을 깔고, 상대 거리와 간격은 서버 기준을 지킨다.
+  const model = buildDuelProgressDisplayModel({
+    duelMatchStatus: buildStatus({
+      officialComparison: {
+        comparedAt: '2026-05-15T00:30:00.000Z',
+        elapsedSeconds: 1800,
+        participantCount: 2,
+        readyParticipantCount: 2,
+        // 공유 경과가 90초 밀려 내 거리가 깎인 상태.
+        userDistanceKm: 5.28,
+      },
+    }),
+    syncedDuelProgress: null,
+    effectiveDuelOpponent: {
+      ...baseOpponent,
+      officialReady: true,
+      officialDistanceKm: 5.2,
+      officialElapsedSeconds: 1800,
+      officialAveragePace: '05:46/km',
+    },
+    duelDistanceKm: 7,
+    // 내 기록이 실제로 도달한 거리.
+    distanceKm: 5.61,
+  });
+
+  assert.equal(model.syncedDuelDistanceKm, 5.61, '내 행이 내 기록보다 뒤처졌다');
+  assert.equal(model.syncedDuelOpponentDistanceKm, 5.2, '상대 거리는 서버 기준 그대로여야 한다');
+  assert.equal(model.duelLiveGapKm, 0.08, '간격은 서버 공식 비교값 그대로여야 한다');
+});

@@ -251,8 +251,19 @@ export function useLiveActivityBridge({
       const liveMatchStatusRef = liveContext.mode === 'group'
         ? inputRef.current.groupMatchStatusRef
         : inputRef.current.duelMatchStatusRef;
-      const lastStatus = lastMatchStatusRef.current ?? liveMatchStatusRef.current;
-      if (!lastStatus) {
+      // 폴링 ref가 **먼저**다. 아래의 bg 캐시는 백그라운드 구간마다 한 번 쓰이고 화면이 켜진
+      // 동안에는 영영 갱신되지 않는다(그 공급자가 !isAppBackground에서 곧장 되돌아간다).
+      // 그래서 캐시를 우선하면 깨어난 뒤 내 거리만 1초마다 새로워지고 상대는 잠들기 직전
+      // 값에 붙박여, 잠금화면의 간격이 자신 있게 틀린 숫자가 된다(앱 안의 보드와 서로 다른
+      // 말을 한다). 폴링 ref는 백그라운드 응답도 결국 같은 경로로 받으며, 몰수·서버시각
+      // 단조 가드를 통과한 값이다. 캐시는 첫 폴링 이전의 씨앗으로만 남긴다.
+      const lastStatus = liveMatchStatusRef.current ?? lastMatchStatusRef.current;
+      // 컨트롤러는 보드를 status에서, 정체성(matchId·목표)은 context에서 가져오며 둘을
+      // 대조하지 않는다 — 끝난 매치의 상태가 다른 매치의 이름표를 달고 그려지지 않게 막는다.
+      if (
+        !lastStatus
+        || (liveContext.matchId && lastStatus.matchId && lastStatus.matchId !== liveContext.matchId)
+      ) {
         return;
       }
       updateLiveActivityForMatch(liveContext, lastStatus, {

@@ -211,3 +211,48 @@ test('displayed tracking snapshot keeps raw elapsed when no match slot is availa
   assert.equal(displayed.elapsedSeconds, 17);
   assert.equal(displayed.startedAt, baseSnapshot.startedAt);
 });
+
+test('공식 출발 기준의 경과는 기기 시계 오차에 흔들리지 않는다', () => {
+  // 8/21 갤럭시 회귀 못. 기기 시계가 서버보다 18초 느리거나 빨라도 화면(그리고 매치 진행
+  // POST와 승부 판정의 순위 키)에 나가는 경과는 같아야 한다. 예전엔 원시 경과와 기준선이
+  // 똑같이 오염돼 상쇄될 때만 맞았고, 원시 쪽을 바로잡자 이 가지가 오차만큼 어긋났다.
+  const officialStartAt = '2026-05-12T00:10:00.000Z';
+  const trueNowMs = Date.parse('2026-05-12T00:20:00.000Z');
+  const trueElapsedSeconds = 600;
+
+  for (const clockErrorMs of [-18_000, 0, 18_000]) {
+    // 기기 시계가 서버보다 clockErrorMs만큼 앞서(뒤처져) 있다 — 러닝 시작 스탬프도 그 시계로 찍힌다.
+    const deviceStartedAtMs = Date.parse('2026-05-12T00:05:00.000Z') + clockErrorMs;
+    const deviceNowMs = trueNowMs + clockErrorMs;
+    const snapshot: BackgroundRunTrackingSnapshot = {
+      ...baseSnapshot,
+      startedAt: new Date(deviceStartedAtMs).toISOString(),
+    };
+
+    const displayed = buildDisplayedTrackingSnapshot({
+      snapshot,
+      // 원시 경과는 기기 시계 한 벌로 잰다(수술 이후의 규칙).
+      rawElapsedSeconds: Math.floor((deviceNowMs - deviceStartedAtMs) / 1000),
+      officialStartBaseline: {
+        matchId: 'm-1',
+        distanceKm: 0,
+        // 혼합 기준으로 만들어진 옛 값 — 이제 쓰이지 않아야 한다.
+        elapsedSeconds: Math.floor((Date.parse(officialStartAt) - deviceStartedAtMs) / 1000),
+        routeStartIndex: 0,
+        routeStartPoint: null,
+        startedAt: officialStartAt,
+      },
+      hasPreStartWarmup: false,
+      startNoiseGraceSeconds: 5,
+      startNoiseGraceKm: 0.05,
+      // 서버 보정 now는 어느 기기에서든 진짜 시각이다.
+      syncedNowMs: trueNowMs,
+    });
+
+    assert.equal(
+      displayed.elapsedSeconds,
+      trueElapsedSeconds,
+      `기기 시계 오차 ${clockErrorMs}ms에서 경과가 어긋났다`,
+    );
+  }
+});
