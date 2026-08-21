@@ -31,6 +31,11 @@ export type AnchorTarget = {
   onBody: boolean;
 };
 
+// 확대 조준이 '배경'으로 강등되는 문턱 — 초점면보다 f/zoom의 이 배수 넘게 얕은 천체는
+// 겨눠도 다가가지 않는다. 정상 조준(초점면 근처·앞쪽)과 배경(수백 f/zoom 뒤)은 수십 배
+// 이상 벌어져 있어 값에 민감하지 않다.
+const BACKDROP_GAP_FOCAL_RATIO = 8;
+
 export function clampZoomTo(zoom: number, fitZoom: number): number {
   return Math.min(
     fitZoom * UNIVERSE_MAX_ZOOM_FACTOR,
@@ -51,6 +56,7 @@ export function zoomAroundPoint(
 ): UniverseViewport {
   const nextZoom = clampZoomTo(nextZoomRaw, fitZoom);
   const ratio = nextZoom / viewport.zoom;
+  const focal = focalLengthFor(canvasHeight);
 
   // 겨눈 깊이. **확대만** 천체를 겨눈다 — 확대는 그리로 다가가는 일이라 커서 아래 천체의
   // 깊이가 곧 목적지다. 축소는 지금의 초점면에서 물러난다: 이 우주의 깊이는 가지마다
@@ -61,7 +67,18 @@ export function zoomAroundPoint(
   // 이다(가지 조상들은 카메라 뒤거나 중심이 커서 밖). 나라까지의 거리(수백 단위)를 한 칸에
   // 1.5배로 불리면 코앞(f/zoom ≈ 0.2)의 행성·은하가 한 칸에 수백 배로 무너진다 — 축소
   // 세 칸에 전국으로 튕겨나가던 폭주가 정확히 이것이었다.
-  const aimDepth = ratio > 1 && anchor?.onBody ? anchor.z : viewport.camDepth;
+  //
+  // 같은 이유로 확대 조준에도 문턱이 있다: 커서의 천체가 초점면보다 **한참 겉층**이면
+  // (초점거리 f/zoom의 몇 배 넘게 얕으면) 그건 목적지가 아니라 **배경**이다. 행성 사이
+  // 빈 하늘을 찍으면 커서를 품은 건 역시 나라뿐인데, 그걸 겨누고 확대하면 카메라가 한
+  // 칸에 수십 단위를 역주행해 온 동네가 한 프레임에 카메라 뒤로 사라진다 — 위 폭주의
+  // 정확한 거울상. 초점면 근처(몇 f/zoom 안)의 얕은 천체는 진짜 조준일 수 있으니 남긴다.
+  const aimingBackdrop = anchor?.onBody
+    ? viewport.camDepth - anchor.z > BACKDROP_GAP_FOCAL_RATIO * (focal / viewport.zoom)
+    : false;
+  const aimDepth = ratio > 1 && anchor?.onBody && !aimingBackdrop
+    ? anchor.z
+    : viewport.camDepth;
 
   // 카메라는 **겨눈 깊이까지의 거리를 배율에 반비례로** 좁힌다: (camDepth - z)·zoom 이 불변.
   // 확대하면 다가가고 축소하면 정확히 그 역으로 물러난다 — 그래서 굴린 만큼 되돌아온다.
@@ -71,7 +88,6 @@ export function zoomAroundPoint(
   // 다만 카메라의 실제 자리(camDepth + focal/zoom)가 '가장 물러난 뷰'(최소 배율에서
   // camDepth 0)의 카메라보다 뒤로 갈 수는 없다. 축소 조준이 겉층으로 갈아타며 물러날 때
   // 이 벽이 없으면 후퇴가 끝을 모르고 이어져, 나라가 리셋 뷰보다 한참 작은 점이 된다.
-  const focal = focalLengthFor(canvasHeight);
   const camDepthCeiling = focal / (fitZoom * UNIVERSE_MIN_ZOOM_FACTOR) - focal / nextZoom;
   const camDepth = Math.min(
     camDepthCeiling,

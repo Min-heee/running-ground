@@ -78,6 +78,31 @@ test('깊은 곳에서의 축소는 폭주하지 않는다 — 코앞의 것이 
   );
 });
 
+test('깊은 곳에서의 확대도 폭주하지 않는다 — 배경(나라)을 겨눠도 동네가 카메라 뒤로 튕기지 않는다', () => {
+  // 축소 폭주의 거울상: 행성 깊이에서 행성 사이 빈 하늘을 찍으면 커서를 품은 천체가
+  // 나라(z=0)뿐이다. 그걸 확대 조준으로 삼으면 한 칸에 camDepth가 수십 단위를 역주행해
+  // 행성·은하 껍질 전체가 한 프레임에 카메라 뒤로 사라졌다. 초점면보다 한참 겉층인 천체는
+  // 배경으로 취급해 초점면 확대로 남는다.
+  //
+  // 최대 배율 아래에서 시작해야 한다 — 최대에 붙은 채 확대하면 칸이 통째로 잘려 ratio=1이
+  // 되므로 이 경로가 아예 돌지 않는다(그래서 축소 폭주 테스트의 상태로는 못 잡는다).
+  const planetZ = 164.2;
+  const deep: UniverseViewport = { zoom: FIT * 5000, panX: 0, panY: 0, camDepth: planetZ };
+  const country = { x: 0, y: 0, z: 0, onBody: true };
+  const before = projectPoint(0, 0, planetZ, deep, W, H);
+  const view = notch(deep, -1, country);
+  const after = projectPoint(0, 0, planetZ, view, W, H);
+
+  assert.ok(after.visible, '확대 한 칸에 코앞의 행성이 카메라 뒤로 떨어졌다');
+  assert.ok(Math.abs(view.camDepth - deep.camDepth) < 1e-9, `배경 조준이 카메라 깊이를 끌었다: ${view.camDepth}`);
+
+  const growth = after.scale / before.scale;
+  assert.ok(
+    Math.abs(growth - 1 / NOTCH) < 0.02,
+    `한 칸 확대가 코앞의 것을 ×${growth.toFixed(3)}으로 바꿨다 (기대 ×${(1 / NOTCH).toFixed(3)})`,
+  );
+});
+
 test('축소는 반드시 작아진다 — 겨눈 천체가 화면에서 줄어든다', () => {
   // 한 칸 축소했더니 오히려 커지던 증상을 못 박는다. 배율만 보면 안 된다: 카메라 깊이가
   // 엉뚱하게 움직이면 배율이 줄어도 천체가 가까워져 더 커질 수 있다.
