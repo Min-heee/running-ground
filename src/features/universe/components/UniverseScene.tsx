@@ -92,7 +92,6 @@ export type SceneBody = {
   palette: SkyOrb['palette'];
   brightness: number;
   isMine: boolean;
-  stars: number;
 };
 
 function labelWidthFor(name: string) {
@@ -278,7 +277,7 @@ function UniverseSceneComponent({
       | {
         kind: 'region';
         nodeId: string;
-        meta: { name: string; level: string; scale: number; brightness: number; stars: number; isMine: boolean; averageDistanceKm: number };
+        meta: { name: string; level: string; scale: number; brightness: number; isMine: boolean; averageDistanceKm: number };
         placement: SpacePlacement;
         depth: number;
       };
@@ -339,13 +338,12 @@ function UniverseSceneComponent({
         palette: paletteForPlanet(planet),
         brightness: planet.brightness,
         isMine: planet.isMine,
-        stars: planet.stars,
       });
     };
 
     const visitRegion = (
       nodeId: string,
-      meta: { name: string; level: string; scale: number; brightness: number; stars: number; isMine: boolean; averageDistanceKm: number },
+      meta: { name: string; level: string; scale: number; brightness: number; isMine: boolean; averageDistanceKm: number },
       placement: SpacePlacement,
       depth: number,
     ) => {
@@ -414,7 +412,6 @@ function UniverseSceneComponent({
         palette: paletteForRegion(meta.level),
         brightness: meta.brightness,
           isMine: meta.isMine,
-          stars: meta.stars,
         });
       }
 
@@ -451,7 +448,6 @@ function UniverseSceneComponent({
             level: body.level,
             scale: body.scale,
             brightness: body.brightness,
-            stars: body.stars,
             isMine: body.isMine,
             averageDistanceKm: body.averageDistanceKm,
           },
@@ -469,7 +465,6 @@ function UniverseSceneComponent({
         level: rootEntry.node.level,
         scale: 1,
         brightness: 1,
-        stars: rootEntry.node.stars,
         isMine: false,
         averageDistanceKm: rootEntry.node.averageDistanceKm,
       },
@@ -708,8 +703,6 @@ function UniverseSceneComponent({
         >
           <Text style={styles.name} numberOfLines={1}>
             {body.name}
-            {/* 챔피언의 ★는 보석이다 — 골드는 오직 이긴 것에만 쓴다는 색 규율의 일부. */}
-            {body.stars > 0 ? <Text style={styles.stars}>{` ★${body.stars}`}</Text> : null}
           </Text>
           {/* 숫자는 고른 것에만 — 나머지 이름표는 캡션이다. 모든 천체가 통계를 달고 있으면
               박물관이 아니라 관리 대시보드가 된다. */}
@@ -748,13 +741,6 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.85)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,
-  },
-  stars: {
-    // 샴페인 골드 — 색 규율(three/palette.ts): 골드는 오직 '이긴 것'에만.
-    color: '#E8C87A',
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.4,
   },
   detail: {
     color: 'rgba(150, 168, 204, 0.6)',

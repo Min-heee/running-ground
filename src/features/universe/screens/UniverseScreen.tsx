@@ -228,7 +228,6 @@ export default function UniverseScreen() {
             <View style={styles.infoHeader}>
               <Text style={styles.infoName} numberOfLines={1}>
                 {shown.name}
-                {shown.stars > 0 ? ` ★${shown.stars}` : ''}
               </Text>
               {shown.planet?.isStar ? <Text style={styles.infoBadge}>항성</Text> : null}
             </View>
