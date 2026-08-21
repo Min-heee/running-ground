@@ -1,4 +1,5 @@
 import {
+  focalLengthFor,
   panToHold,
   unprojectAt,
 } from '@/features/universe/utils/universeProjection';
@@ -51,15 +52,31 @@ export function zoomAroundPoint(
   const nextZoom = clampZoomTo(nextZoomRaw, fitZoom);
   const ratio = nextZoom / viewport.zoom;
 
-  // 겨눈 깊이 — 커서가 천체 위면 그 천체의 깊이, 빈 하늘이면 지금의 초점면.
-  const aimDepth = anchor?.onBody ? anchor.z : viewport.camDepth;
+  // 겨눈 깊이. **확대만** 천체를 겨눈다 — 확대는 그리로 다가가는 일이라 커서 아래 천체의
+  // 깊이가 곧 목적지다. 축소는 지금의 초점면에서 물러난다: 이 우주의 깊이는 가지마다
+  // 뭉쳐 있어(자식 z = 부모 z ± 부모 크기 비례), 초점면만 지키면 f/zoom이 껍질 간격에
+  // 닿는 순서대로 은하→시군구→시도→나라가 저절로 차례차례 수축한다.
+  //
+  // 축소에 천체 조준을 쓰면 안 되는 이유: 행성 깊이에서 커서를 품은 천체는 대개 **나라**뿐
+  // 이다(가지 조상들은 카메라 뒤거나 중심이 커서 밖). 나라까지의 거리(수백 단위)를 한 칸에
+  // 1.5배로 불리면 코앞(f/zoom ≈ 0.2)의 행성·은하가 한 칸에 수백 배로 무너진다 — 축소
+  // 세 칸에 전국으로 튕겨나가던 폭주가 정확히 이것이었다.
+  const aimDepth = ratio > 1 && anchor?.onBody ? anchor.z : viewport.camDepth;
 
   // 카메라는 **겨눈 깊이까지의 거리를 배율에 반비례로** 좁힌다: (camDepth - z)·zoom 이 불변.
   // 확대하면 다가가고 축소하면 정확히 그 역으로 물러난다 — 그래서 굴린 만큼 되돌아온다.
   //
   // 예전엔 축소를 따로 다뤄 camDepth를 0쪽으로 끌었는데, 그건 겨눈 것과 아무 관계없는
   // 절대 깊이라 한 칸만 축소해도 보고 있던 것이 카메라 뒤로 떨어졌다.
-  const camDepth = aimDepth + (viewport.camDepth - aimDepth) / ratio;
+  // 다만 카메라의 실제 자리(camDepth + focal/zoom)가 '가장 물러난 뷰'(최소 배율에서
+  // camDepth 0)의 카메라보다 뒤로 갈 수는 없다. 축소 조준이 겉층으로 갈아타며 물러날 때
+  // 이 벽이 없으면 후퇴가 끝을 모르고 이어져, 나라가 리셋 뷰보다 한참 작은 점이 된다.
+  const focal = focalLengthFor(canvasHeight);
+  const camDepthCeiling = focal / (fitZoom * UNIVERSE_MIN_ZOOM_FACTOR) - focal / nextZoom;
+  const camDepth = Math.min(
+    camDepthCeiling,
+    aimDepth + (viewport.camDepth - aimDepth) / ratio,
+  );
   const moved = { ...viewport, camDepth, zoom: nextZoom };
 
   // 붙드는 것은 **커서 아래의 그 자리**다. 천체를 겨눴으면 그 천체의 깊이에서, 빈 하늘이면

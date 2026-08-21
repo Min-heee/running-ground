@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -46,6 +46,26 @@ export default function UniverseScreen() {
     setCanvas((previous) => (previous.width === width && previous.height === height
       ? previous
       : { width, height }));
+  }, []);
+
+  // 콜드 로드에서 onLayout이 영영 안 오는 일이 있다(웹 — 첫 레이아웃 관찰을 놓치는
+  // 레이스). 그러면 캔버스가 0×0에 갇혀 우주가 통째로 검은 화면이 된다. 잠깐 뒤에도
+  // 0×0이면 직접 잰다 — onLayout이 정상 동작한 뒤에는 아무 일도 하지 않는다.
+  const canvasWrapRef = useRef<View | null>(null);
+
+  useEffect(() => {
+    const probe = () => {
+      canvasWrapRef.current?.measure?.((_x, _y, width, height) => {
+        if (width > 0 && height > 0) {
+          setCanvas((previous) => (previous.width > 0 && previous.height > 0
+            ? previous
+            : { width, height }));
+        }
+      });
+    };
+    const timers = [300, 1200, 3000, 6000].map((delay) => setTimeout(probe, delay));
+
+    return () => timers.forEach((timer) => clearTimeout(timer));
   }, []);
 
   // 목적지의 좌표는 조상이 전부 있어야 나온다 — 먼저 사슬을 채우고 나서 날아간다.
@@ -169,7 +189,7 @@ export default function UniverseScreen() {
         </View>
       ) : null}
 
-      <View style={styles.canvasWrap} onLayout={handleCanvasLayout}>
+      <View ref={canvasWrapRef} style={styles.canvasWrap} onLayout={handleCanvasLayout}>
         {tree.loading ? <BrandLoadingView style={styles.loading} edges={[]} /> : null}
 
         {!tree.loading && tree.error ? (

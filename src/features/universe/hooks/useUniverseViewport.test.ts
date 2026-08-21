@@ -21,8 +21,10 @@ function notch(viewport: UniverseViewport, direction: 1 | -1, anchor: { x: numbe
   return zoomAroundPoint(viewport, viewport.zoom * factor, 290, 320, W, H, FIT, anchor);
 }
 
-test('확대한 만큼 축소하면 정확히 처음 자리로 돌아온다', () => {
-  // 커서가 한 천체 위에 머무는 흔한 경우 — 겨눈 깊이가 고정된다.
+test('확대한 만큼 축소하면 배율이 돌아오고 화면도 사실상 처음과 같다', () => {
+  // 커서가 한 천체 위에 머무는 흔한 경우. 확대는 겨눈 깊이로 다가가고, 축소는 **초점면**에서
+  // 물러난다 — 그래서 camDepth는 확대가 데려간 깊이에 그대로 남는 게 계약이다. 대신 물러난
+  // 카메라에서 그 깊이 차이는 f/zoom에 비해 미미해서, 투영된 화면은 처음과 사실상 같아야 한다.
   const anchor = { x: 120, y: -80, z: 42, onBody: true };
   let view = start;
 
@@ -32,15 +34,48 @@ test('확대한 만큼 축소하면 정확히 처음 자리로 돌아온다', ()
 
   assert.ok(view.zoom > start.zoom * 10, `20칸 확대가 배율을 키우지 못했다: ${view.zoom}`);
   assert.ok(view.camDepth > 0, `확대가 카메라를 겨눈 깊이로 데려가지 못했다: ${view.camDepth}`);
+  const dived = view.camDepth;
 
   for (let i = 0; i < 20; i += 1) {
     view = notch(view, 1, anchor);
   }
 
   assert.ok(Math.abs(view.zoom / start.zoom - 1) < 1e-9, `배율이 안 돌아옴: ${view.zoom} vs ${start.zoom}`);
-  assert.ok(Math.abs(view.camDepth - start.camDepth) < 1e-6, `깊이가 안 돌아옴: ${view.camDepth}`);
-  assert.ok(Math.abs(view.panX - start.panX) < 1e-6, `panX가 안 돌아옴: ${view.panX}`);
-  assert.ok(Math.abs(view.panY - start.panY) < 1e-6, `panY가 안 돌아옴: ${view.panY}`);
+  assert.ok(Math.abs(view.camDepth - dived) < 1e-9, `축소가 깊이를 건드렸다: ${view.camDepth} vs ${dived}`);
+
+  const before = projectPoint(anchor.x, anchor.y, anchor.z, start, W, H);
+  const after = projectPoint(anchor.x, anchor.y, anchor.z, view, W, H);
+
+  assert.ok(after.visible, '되돌아왔는데 겨눴던 천체가 카메라 뒤에 있다');
+  assert.ok(
+    Math.abs(after.scale / before.scale - 1) < 0.05,
+    `되돌아온 화면의 크기가 처음과 다르다: ×${after.scale / before.scale}`,
+  );
+  assert.ok(
+    Math.hypot(after.screenX - before.screenX, after.screenY - before.screenY) < 3,
+    `되돌아온 천체가 처음 자리에서 밀려났다: (${before.screenX}, ${before.screenY}) → (${after.screenX}, ${after.screenY})`,
+  );
+});
+
+test('깊은 곳에서의 축소는 폭주하지 않는다 — 코앞의 것이 그 칸의 배율만큼만 준다', () => {
+  // 병리의 회귀 못: 행성 깊이에서 커서를 품은 천체가 **나라(z=0)뿐**인 경우가 흔하다
+  // (가지 조상들은 카메라 뒤거나 중심이 커서 밖). 축소가 그 나라를 겨누면 나라까지의
+  // 거리(수백 단위)를 한 칸에 1.4배로 불려, 코앞(f/zoom ≈ 0.2)의 행성이 한 칸에 수백 배로
+  // 무너졌다 — 축소 세 칸에 전국으로 튕겨나가던 폭주. 축소는 초점면에서 물러나므로
+  // 코앞의 것은 딱 그 칸의 배율만큼만 줄어야 한다.
+  const planetZ = 164.2;
+  const deep: UniverseViewport = { zoom: FIT * 20000, panX: 0, panY: 0, camDepth: planetZ };
+  const country = { x: 0, y: 0, z: 0, onBody: true };
+  const before = projectPoint(0, 0, planetZ, deep, W, H);
+  const view = notch(deep, 1, country);
+  const after = projectPoint(0, 0, planetZ, view, W, H);
+  const shrink = after.scale / before.scale;
+
+  assert.ok(shrink < 1, `축소인데 코앞의 것이 줄지 않았다: ×${shrink}`);
+  assert.ok(
+    Math.abs(shrink - NOTCH) < 0.02,
+    `한 칸 축소가 코앞의 것을 ${(1 / shrink).toFixed(1)}배로 무너뜨렸다 (기대 ×${NOTCH.toFixed(3)}, 실제 ×${shrink.toFixed(3)})`,
+  );
 });
 
 test('축소는 반드시 작아진다 — 겨눈 천체가 화면에서 줄어든다', () => {
