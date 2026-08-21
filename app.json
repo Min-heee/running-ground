@@ -20,14 +20,14 @@
           "audio"
         ]
       },
-      "buildNumber": "59"
+      "buildNumber": "60"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/branding/adaptive-icon.png",
         "backgroundColor": "#4338CA"
       },
-      "versionCode": 49,
+      "versionCode": 50,
       "package": "com.minheee.runnigapp",
       "permissions": [
         "android.permission.ACTIVITY_RECOGNITION"
