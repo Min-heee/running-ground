@@ -112,7 +112,16 @@ export const MATCH_PROGRESS_MAX_SPEED_KM_PER_SECOND = MATCH_PROGRESS_MAX_SPEED_M
 // and froze the race board). Past saturation matchSessionSnapshots degrades the compare to the
 // continuous projection path, so raising MAX buys checkpoint fairness, not liveness.
 export const MATCH_CHECKPOINT_STEP_SECONDS = 10;
-export const MATCH_CHECKPOINT_MAX = 120;
+// 120 → 360 (2026-08-22, 60분 지평). 20분 격자는 이 앱의 실제 러닝 길이를 담지 못해서, 대부분의
+// 파티런이 후반 내내 투영 경로에서 비교됐다. 그 경로의 공통 경과는 **둘 중 늦게 보고한 쪽**에
+// 묶이므로, 상대 폰이 잠들어 보고가 끊기는 동안 내 거리가 그 침묵만큼 비례로 깎인다 — 8/21
+// 파티런에서 깨울 때마다 보드가 내 기록보다 0.3~0.4km 뒤처져 보이고(침묵 한도 90초 × 파티런
+// 속도) 상대가 다시 보고하면 도로 붙던 것이 정확히 이 산수였다. 격자 안에서는 두 사람의
+// '같은 초'에 실제로 기록된 거리끼리 비교하므로 투영도, 그 침묵 비례 축소도 없다.
+//
+// 비용은 참가자당 배열 240칸(2dp 숫자 ≈ 6바이트 → ~1.4KB), 진행 중인 매치에만. 더 긴 지평이
+// 필요해지면 MAX가 아니라 STEP을 키우는 게 옳다 — 같은 지평을 배열 크기 그대로 산다.
+export const MATCH_CHECKPOINT_MAX = 360;
 // Once one duel runner finishes, the other has a bounded window to land their own
 // finish before the server resolves the duel server-side (missing runner = DNF) so
 // neither client is stranded on a 'pending' verdict forever. Sized to the running

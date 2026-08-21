@@ -341,7 +341,7 @@ test('INTEGRATION: standings feed the common-checkpoint distance to LIVE runners
 
 // ---- Grid saturation fallback (2026-08-11, group-match-73eb939d) ----
 //
-// The grid holds MATCH_CHECKPOINT_MAX indices (20 min). A 33-minute 6km race filled every
+// The grid holds MATCH_CHECKPOINT_MAX indices (GRID_HORIZON_SECONDS). A 33-minute 6km race filled every
 // runner's last slot, the common index could never advance again, and the whole race board —
 // every runner's row, including one's own — froze at the 20-minute distances for the rest of
 // the race. The fix: at the last index the compare degrades to the continuous projection
@@ -349,7 +349,12 @@ test('INTEGRATION: standings feed the common-checkpoint distance to LIVE runners
 // Reverting the saturation guard makes officialElapsedSeconds read 1200 and every distance
 // read its frozen grid value — both assertions below then fail deterministically.
 
-import { MATCH_CHECKPOINT_MAX } from './matchConstants.mjs';
+import { MATCH_CHECKPOINT_MAX, MATCH_CHECKPOINT_STEP_SECONDS } from './matchConstants.mjs';
+
+// 격자가 담는 시간. 아래 포화 시나리오의 경과는 전부 이 지평 **상대**로 쓴다 — 초를 상수로
+// 박아두면 지평을 넓히는 순간(2026-08-22: 120→360) 픽스처가 '포화'가 아니라 '격자 안'을
+// 뜻하게 되어, 회귀가 아닌데도 테스트가 깨진다(실제로 깨졌다).
+const GRID_HORIZON_SECONDS = MATCH_CHECKPOINT_MAX * MATCH_CHECKPOINT_STEP_SECONDS;
 import { projectOfficialDistanceKm } from './matchPureHelpers.mjs';
 
 // Monotone ramp whose LAST slot is exactly finalKm — the shape a real 20-min grid ends with.
@@ -374,14 +379,14 @@ function stillRunning(userId, seedRank, { gridFinalKm, liveKm, liveElapsed, grid
   });
 }
 
-test('SATURATION: a race past the 20-min grid degrades to the MOVING projection, never freezes', () => {
+test('SATURATION: a race past the grid horizon degrades to the MOVING projection, never freezes', () => {
   // The incident shape at ~33 min: all four still running, grids full, live distances far past
   // the frozen 20-min values (3.51 / 3.51 / 3.49 / 1.89 were the real frozen board rows).
   const session = sessionFor('group', [
-    stillRunning('r1', 1, { gridFinalKm: 3.51, liveKm: 5.52, liveElapsed: 2005 }),
-    stillRunning('r2', 2, { gridFinalKm: 3.51, liveKm: 5.5, liveElapsed: 2003 }),
-    stillRunning('r3', 3, { gridFinalKm: 3.49, liveKm: 5.45, liveElapsed: 2001 }),
-    stillRunning('r4', 4, { gridFinalKm: 1.89, liveKm: 2.96, liveElapsed: 2000 }),
+    stillRunning('r1', 1, { gridFinalKm: 3.51, liveKm: 5.52, liveElapsed: GRID_HORIZON_SECONDS + 805 }),
+    stillRunning('r2', 2, { gridFinalKm: 3.51, liveKm: 5.5, liveElapsed: GRID_HORIZON_SECONDS + 803 }),
+    stillRunning('r3', 3, { gridFinalKm: 3.49, liveKm: 5.45, liveElapsed: GRID_HORIZON_SECONDS + 801 }),
+    stillRunning('r4', 4, { gridFinalKm: 1.89, liveKm: 2.96, liveElapsed: GRID_HORIZON_SECONDS + 800 }),
   ]);
   session.distanceKm = 6;
   const standings = buildOfficialSessionStandings(storeFor(session), session, NOW);
@@ -389,26 +394,26 @@ test('SATURATION: a race past the 20-min grid degrades to the MOVING projection,
 
   // Compared time = min LIVE elapsed over active runners (2000s) — NOT the frozen grid end (1200s).
   for (const standing of standings) {
-    assert.equal(standing.officialElapsedSeconds, 2000);
+    assert.equal(standing.officialElapsedSeconds, GRID_HORIZON_SECONDS + 800);
   }
 
-  // Every compared distance is the projection at 2000s and has moved PAST its frozen grid value.
+  // Every compared distance is the projection at the min live elapsed, past its frozen grid value.
   const expectations = [
-    ['r1', 5.52, 2005, 3.51],
-    ['r2', 5.5, 2003, 3.51],
-    ['r3', 5.45, 2001, 3.49],
-    ['r4', 2.96, 2000, 1.89],
+    ['r1', 5.52, GRID_HORIZON_SECONDS + 805, 3.51],
+    ['r2', 5.5, GRID_HORIZON_SECONDS + 803, 3.51],
+    ['r3', 5.45, GRID_HORIZON_SECONDS + 801, 3.49],
+    ['r4', 2.96, GRID_HORIZON_SECONDS + 800, 1.89],
   ];
   for (const [userId, liveKm, liveElapsed, frozenKm] of expectations) {
     const standing = byId.get(userId);
     assert.equal(
       standing.officialDistanceKm,
-      projectOfficialDistanceKm(liveKm, liveElapsed, 2000, 6),
+      projectOfficialDistanceKm(liveKm, liveElapsed, GRID_HORIZON_SECONDS + 800, 6),
       `${userId} must be projection-compared past saturation`,
     );
     assert.ok(
       standing.officialDistanceKm > frozenKm + 1,
-      `${userId} must have moved well past its frozen 20-min grid value`,
+      `${userId} must have moved well past its frozen grid value`,
     );
   }
 });
@@ -442,11 +447,11 @@ test('PRE-HORIZON: everyone still inside the grid keeps the fair checkpoint comp
 // 재발했다. grid-terminal 판정(마지막 칸 OR 지평선 초과)은 이 러너도 terminal로 본다.
 test('SATURATION despite a stuck grid: a runner who missed the final bucket cannot pin the board frozen', () => {
   const session = sessionFor('group', [
-    stillRunning('r1', 1, { gridFinalKm: 3.51, liveKm: 5.52, liveElapsed: 2005 }),
-    stillRunning('r2', 2, { gridFinalKm: 3.51, liveKm: 5.5, liveElapsed: 2003 }),
-    stillRunning('r3', 3, { gridFinalKm: 3.49, liveKm: 5.45, liveElapsed: 2001 }),
+    stillRunning('r1', 1, { gridFinalKm: 3.51, liveKm: 5.52, liveElapsed: GRID_HORIZON_SECONDS + 805 }),
+    stillRunning('r2', 2, { gridFinalKm: 3.51, liveKm: 5.5, liveElapsed: GRID_HORIZON_SECONDS + 803 }),
+    stillRunning('r3', 3, { gridFinalKm: 3.49, liveKm: 5.45, liveElapsed: GRID_HORIZON_SECONDS + 801 }),
     // The stuck runner: grid tops out at index 118, but elapsed is far past the horizon.
-    stillRunning('r4', 4, { gridFinalKm: 1.89, liveKm: 2.96, liveElapsed: 2000, gridLength: MATCH_CHECKPOINT_MAX - 1 }),
+    stillRunning('r4', 4, { gridFinalKm: 1.89, liveKm: 2.96, liveElapsed: GRID_HORIZON_SECONDS + 800, gridLength: MATCH_CHECKPOINT_MAX - 1 }),
   ]);
   session.distanceKm = 6;
   const standings = buildOfficialSessionStandings(storeFor(session), session, NOW);
@@ -454,9 +459,9 @@ test('SATURATION despite a stuck grid: a runner who missed the final bucket cann
 
   // The compare must be the MOVING projection at min live elapsed — never the frozen grid.
   for (const standing of standings) {
-    assert.equal(standing.officialElapsedSeconds, 2000);
+    assert.equal(standing.officialElapsedSeconds, GRID_HORIZON_SECONDS + 800);
   }
-  assert.equal(byId.get('r1').officialDistanceKm, projectOfficialDistanceKm(5.52, 2005, 2000, 6));
+  assert.equal(byId.get('r1').officialDistanceKm, projectOfficialDistanceKm(5.52, GRID_HORIZON_SECONDS + 805, GRID_HORIZON_SECONDS + 800, 6));
   assert.ok(byId.get('r1').officialDistanceKm > 3.51 + 1, 'stuck grid must not freeze the board');
 });
 
@@ -465,19 +470,19 @@ test('SATURATION despite a stuck grid: a runner who missed the final bucket cann
 // 뒤로 점프한 채 재동결했다. grid-terminal 판정에서는 재접속 러너도 terminal이라 투영이 유지된다.
 test('SATURATION survives a reconnecting runner with a stale grid — no backward jump', () => {
   const session = sessionFor('group', [
-    stillRunning('r1', 1, { gridFinalKm: 3.51, liveKm: 4.2, liveElapsed: 1505 }),
-    stillRunning('r2', 2, { gridFinalKm: 3.51, liveKm: 4.15, liveElapsed: 1503 }),
-    stillRunning('r3', 3, { gridFinalKm: 3.49, liveKm: 4.1, liveElapsed: 1501 }),
+    stillRunning('r1', 1, { gridFinalKm: 3.51, liveKm: 4.2, liveElapsed: GRID_HORIZON_SECONDS + 305 }),
+    stillRunning('r2', 2, { gridFinalKm: 3.51, liveKm: 4.15, liveElapsed: GRID_HORIZON_SECONDS + 303 }),
+    stillRunning('r3', 3, { gridFinalKm: 3.49, liveKm: 4.1, liveElapsed: GRID_HORIZON_SECONDS + 301 }),
     // Reconnected after a long screen-off gap: grid stuck at index 101, elapsed past horizon.
-    stillRunning('r4', 4, { gridFinalKm: 1.6, liveKm: 2.2, liveElapsed: 1500, gridLength: 102 }),
+    stillRunning('r4', 4, { gridFinalKm: 1.6, liveKm: 2.2, liveElapsed: GRID_HORIZON_SECONDS + 300, gridLength: 102 }),
   ]);
   session.distanceKm = 6;
   const standings = buildOfficialSessionStandings(storeFor(session), session, NOW);
   const byId = new Map(standings.map((standing) => [standing.userId, standing]));
 
   for (const standing of standings) {
-    assert.equal(standing.officialElapsedSeconds, 1500, 'must not rewind to the stale grid time (1020s)');
+    assert.equal(standing.officialElapsedSeconds, GRID_HORIZON_SECONDS + 300, 'must not rewind to the stale grid time');
   }
-  assert.equal(byId.get('r4').officialDistanceKm, projectOfficialDistanceKm(2.2, 1500, 1500, 6));
+  assert.equal(byId.get('r4').officialDistanceKm, projectOfficialDistanceKm(2.2, GRID_HORIZON_SECONDS + 300, GRID_HORIZON_SECONDS + 300, 6));
   assert.ok(byId.get('r1').officialDistanceKm > 3.51, 'board must stay ahead of the stale grid values');
 });

@@ -242,21 +242,19 @@ export function buildDuelProgressDisplayModel({
     || duelOpponentProgressModel.displayProgress.hasProgress
     || hasRemoteRunnerProgress(effectiveDuelOpponent),
   );
-  // 내 행 거리는 **내가 실제로 뛴 거리 아래로 내려가지 않는다**.
+  // 내 행과 상대 행은 **같은 기준**에서 나온 숫자여야 한다.
   //
-  // 공식 비교값은 두 사람이 공유하는 '같은 경과 시각'으로 되돌려 계산한 값이다(서버:
-  // officialElapsed = 두 사람의 마지막 보고 경과 중 작은 쪽). 그래서 상대의 통신이 잠깐
-  // 조용하면 **내 숫자가 그 침묵만큼 비례로 깎인다** — 화면이 꺼져 있던 쪽이 90초 문턱까지
-  // 밀리면 파티런 속도로 0.3~0.4km, 오너가 깨울 때마다 본 그 값이다. 잠시 뒤 다시 같아지는
-  // 것도 같은 공식이 제자리를 찾는 과정이었다.
+  // 여기를 내 로컬 거리로 바닥 깔아 보려던 시도가 있었다(깨어났을 때 내 기록보다 내 행이
+  // 0.3~0.4km 뒤처져 보이던 증상). 그러면 보드의 두 숫자가 서로 다른 기준이 되고, 순위는
+  // 그 두 숫자로 정해지므로 "1위 나 5.61km / 2위 상대 5.40km" 위에 "0.12km 따라가는 중"이
+  // 같이 뜨는 자기모순 화면이 만들어진다 — 잠금카드에서 방금 없앤 것과 정확히 같은 죄다.
   //
-  // 공유 기준은 **머리를 맞댄 간격**을 공정하게 만들려고 있는 것이지, 같은 화면의 내 기록과
-  // 내 행을 어긋나게 하려고 있는 게 아니다. 그래서 내 행만 바닥을 깐다. 간격(duelLiveGapKm)과
-  // 상대 거리는 서버 기준 그대로 두어 승부 판정과 어긋나지 않게 한다.
-  const syncedDuelDistanceKm = Math.max(
-    duelComparisonSnapshot?.currentDistanceKm ?? 0,
-    distanceKm,
-  );
+  // 그 뒤처짐의 진짜 원인은 표시가 아니라 **전송**이다: 서버는 두 사람이 공유하는 경과
+  // 시각(둘 중 늦게 보고한 쪽)으로 거리를 되돌려 비교하는데, 상대 폰이 잠들어 보고가 끊기면
+  // 내 숫자가 그 침묵만큼 비례로 깎인다. 그래서 고칠 곳은 두 군데다 — 잠금 순간 네이티브
+  // 전송을 확실히 깨우는 것(useTrackingAppStateSync), 그리고 긴 러닝이 체크포인트 격자를
+  // 벗어나 이 투영 경로로 떨어지지 않게 하는 것(backend MATCH_CHECKPOINT_MAX).
+  const syncedDuelDistanceKm = duelComparisonSnapshot?.currentDistanceKm ?? distanceKm;
   const syncedDuelOpponentDistanceKm = duelComparisonSnapshot?.opponentDistanceKm ?? duelOpponentProgressModel.displayProgress.distanceKm;
   const duelLiveGapKm = duelComparisonSnapshot?.gapKm ?? (
     hasDuelOpponentDisplayProgress
