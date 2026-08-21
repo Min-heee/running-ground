@@ -240,10 +240,18 @@ export function useLiveActivityBridge({
         });
         return;
       }
-      // Match foreground refresh: only when we already have a status response to draw the board
-      // from. Before the first status arrives, the start content (and the next bg/fg status) cover
-      // it; we never fabricate an empty board here.
-      const lastStatus = lastMatchStatusRef.current;
+      // Match foreground refresh: draw from the freshest status we have. The bg-flush cache is
+      // BACKGROUND-ONLY (its feeder lives behind flushBackgroundMatchProgressSync's isAppBackground
+      // gate), so on a screen-on run it stays null forever and this used to return here every tick —
+      // the card then showed nothing but its start content for the whole run: 시간 ticked (the widget
+      // clock is native and needs no push) while 페이스/간격 sat at the "--" sentinel the start push
+      // wrote. The runtime already polls match status in the foreground and keeps it in these refs,
+      // so fall back to them; the board/gap are then as fresh as the last poll, and pace/distance as
+      // fresh as this GPS tick. Only a match with no status at all (pre-first-response) skips.
+      const liveMatchStatusRef = liveContext.mode === 'group'
+        ? inputRef.current.groupMatchStatusRef
+        : inputRef.current.duelMatchStatusRef;
+      const lastStatus = lastMatchStatusRef.current ?? liveMatchStatusRef.current;
       if (!lastStatus) {
         return;
       }

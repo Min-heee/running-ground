@@ -12,6 +12,9 @@ import {
   setAppBackgroundState,
 } from '@/features/runs/tracking/background/backgroundSyncDiagnostics';
 import {
+  flushBackgroundMatchProgressSync,
+} from '@/features/runs/tracking/background/backgroundMatchProgressSync';
+import {
   startBackgroundMatchProgressTimer,
   stopBackgroundMatchProgressTimer,
 } from '@/features/runs/tracking/background/backgroundMatchProgressTimer';
@@ -164,6 +167,12 @@ export function useTrackingAppStateSync({
       // 매치는 진행 플러시가 자기 키로 켜므로 여기서는 솔로일 때만 무장된다(내부 가드).
       // fire-and-forget: 시동 실패는 오늘의 동작(JS 원장만)으로 남을 뿐이다.
       void armSoloDistanceAccumulatorOnBackground().catch(() => undefined);
+      // 매치 진행 플러시를 **잠기는 바로 이 순간** 한 번 돌린다. 네이티브 주기 전송(=화면이
+      // 꺼진 동안 상대 거리·페이스·잠금화면 카드를 살려두는 유일한 통로)은 오직 백그라운드
+      // 플러시에서만 무장되는데, 그 플러시를 3초 타이머에 맡기면 iOS가 JS를 얼리는 경주에
+      // 져서 한 번도 못 켜지는 일이 생긴다(잠금카드가 러닝 내내 --:--이던 이유). 바로 위
+      // setAppBackgroundState(true)로 게이트는 이미 열렸고, JS는 아직 살아 있는 창이다.
+      void flushBackgroundMatchProgressSync({ platform: Platform.OS }).catch(() => false);
     }
 
     if (nextState === 'active') {

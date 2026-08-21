@@ -38,7 +38,14 @@ function UniverseCanvasComponent({
         // 직교 투영이라 범위를 넓혀도 깊이 정밀도가 나빠지지 않는다.
         camera={{ position: [0, 0, 600], zoom: 1, near: -200000, far: 200000 }}
         // 네이티브(expo-gl)는 GLView가 기기 밀도를 이미 반영해서 dpr을 받지 않는다.
-        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+        //
+        // MSAA는 끈다. expo-gl은 안드로이드에서 msaaSamples를 아예 무시해서 원래부터 MSAA
+        // 없이 그려 왔고(=출시된 그림이 그것이다), iOS만 4×샘플 버퍼와 매 프레임 리졸브
+        // 블릿(~3.6GB/s)을 고스란히 내고 있었다. 이 장면은 95%가 알파 스프라이트라 MSAA가
+        // 다듬을 삼각형 실루엣이 거의 없다 — 구체의 현 오차도 48분할에서 서브픽셀이다.
+        // 남는 차이는 클로즈업의 행성·고리 테두리뿐이고, 그마저 안드로이드가 이미 쓰던 그림과
+        // 같아진다(두 플랫폼이 같은 모습으로 수렴).
+        gl={{ antialias: false, alpha: true, powerPreference: 'high-performance' }}
         style={{ width, height }}
       >
         <UniverseSky

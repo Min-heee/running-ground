@@ -161,8 +161,12 @@ export function updateLiveActivityForSolo(
 }
 
 // MATCH update from a fresh status response (the live board source) + my own snapshot metrics.
-// Called from the bg flush .then(nextStatus) handler and the foreground status appliers, always
-// fire-and-forget. No-op until a start + native ship.
+// Two callers, both fire-and-forget (useLiveActivityBridge): the bg-flush .then(nextStatus) hook —
+// the only updater while the screen is off — and the tracking-snapshot subscription, which redraws
+// screen-on from the runtime's polled status refs. There is no separate "foreground status applier"
+// calling in here; an earlier version of this comment claimed one, and because nothing actually
+// pushed, the card sat on its start content (페이스 --:--, 간격 --) for entire foreground runs.
+// No-op until a start + native ship.
 export function updateLiveActivityForMatch(
   context: LiveActivityRunContext,
   status: RunningMatchStatusResponse,

@@ -372,10 +372,13 @@ export function useTrackingSessionSnapshots({
     const syncedNowMs = getSyncedNowMs();
     return buildDisplayedTrackingSnapshot({
       snapshot,
-      rawElapsedSeconds: getBackgroundRunElapsedSeconds(
-        snapshot,
-        matchModeRef.current === 'solo' ? Date.now() : syncedNowMs,
-      ),
+      // 원시 경과는 **반드시 기기 시계로** 뺀다. snapshot.startedAt은 기기 시계 스탬프인데
+      // (background/index.ts의 Date.now()/GPS 타임스탬프) 여기에 서버 보정 now를 빼면
+      // 결과가 '진짜 경과 + 기기·서버 시계 오차'가 된다 — 갤럭시(서버보다 ~18초 느린 시계)에서
+      // 기록 탭의 시간이 두 계열(34:31 ↔ 34:50)로 갈려 초당 두 번 튀던 원인이 정확히 이것이다.
+      // 서버 기준이 필요한 매치 시간은 여기가 아니라 슬롯 앵커(syncedNowMs − slotStartAt)가
+      // 담당하고, 그 경로가 항상 이 원시값보다 우선한다(trackingDisplayModel).
+      rawElapsedSeconds: getBackgroundRunElapsedSeconds(snapshot, Date.now()),
       officialStartBaseline: officialStartBaselineRef.current,
       hasPreStartWarmup: Boolean(preStartWarmupMatchIdRef.current),
       matchSlotStartAt: activeMatchSlotStartAt,
@@ -387,7 +390,6 @@ export function useTrackingSessionSnapshots({
     activeMatchSlotStartAt,
     ensureOfficialStartBaseline,
     getSyncedNowMs,
-    matchModeRef,
     officialStartBaselineRef,
     officialStartDistanceNoiseGraceKm,
     officialStartDistanceNoiseGraceSeconds,
