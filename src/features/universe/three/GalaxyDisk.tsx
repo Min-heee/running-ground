@@ -37,8 +37,13 @@ import { smoothStep } from '@/features/universe/utils/universeSpace';
 // 팔에서 흩어지는 정도 — 0이면 실처럼 가늘어 부자연스럽다.
 const RANDOMNESS = 0.42;
 const RANDOMNESS_POWER = 2.8;
-// 파티클 예산 중 헤일로(원반 밖 구형 껍질의 늙은 별들)가 쓰는 몫.
-const HALO_SHARE = 0.07;
+// 헤일로(원반 밖 구형 껍질의 늙은 별들) — 이만큼에 하나씩 **섞어** 넣는다(≈7%).
+// 예전처럼 배열 끝에 몰아두면, 버퍼를 최대 개수로 한 번만 만들고 drawRange로 계단을
+// 오르내리는 지금 구조에서 낮은 계단이 헤일로를 통째로 잃는다 — 섞어 두면 어느 접두사를
+// 그려도 비율이 유지된다.
+const HALO_STRIDE = 14;
+// 파티클 수의 최대 계단(420×4). 버퍼는 이 크기로 한 번만 만든다.
+const MAX_POINT_STEPS = 4;
 
 function seeded(seed: number) {
   let value = seed % 2147483647;
@@ -91,10 +96,34 @@ function buildDiskGeometry({
   const lopAmp = 0.08 + random() * 0.09;
   const branchGain = [0.85 + random() * 0.1, 1, 1.05 + random() * 0.12];
 
-  const haloCount = kind === 'galaxy' ? Math.floor(count * HALO_SHARE) : 0;
-  const diskCount = count - haloCount;
+  let haloSeen = 0;
 
-  for (let index = 0; index < diskCount; index += 1) {
+  for (let index = 0; index < count; index += 1) {
+    // 헤일로 점 — 14개마다 하나. 접두사 어디를 잘라도 ≈7%가 유지된다.
+    if (kind === 'galaxy' && index % HALO_STRIDE === HALO_STRIDE - 1) {
+      const theta = random() * Math.PI * 2;
+      const cosPhi = random() * 2 - 1;
+      const sinPhi = Math.sqrt(Math.max(0, 1 - cosPhi * cosPhi));
+      const shell = (1.05 + random() * 0.3) * radius;
+
+      positions[index * 3] = shell * sinPhi * Math.cos(theta);
+      positions[index * 3 + 1] = shell * sinPhi * Math.sin(theta);
+      positions[index * 3 + 2] = shell * cosPhi * 0.5;
+
+      // 구상성단은 처음 네 개만 — 드물어야 성단이다.
+      const isGlobular = haloSeen < 4;
+      haloSeen += 1;
+      const shellFade = 1 - ((shell / radius - 1.05) / 0.3) * 0.6;
+      mixed.copy(isGlobular ? GLOBULAR_TINT : HALO_TINT).multiplyScalar(shellFade);
+
+      colors[index * 3] = mixed.r;
+      colors[index * 3 + 1] = mixed.g;
+      colors[index * 3 + 2] = mixed.b;
+      sizes[index] = isGlobular ? 1.9 : 0.6 + 2.8 * Math.pow(random(), 6);
+      twinkles[index] = 0.1;
+      phases[index] = random();
+      continue;
+    }
     // 중심으로 갈수록 조밀 — 제곱근 분포라 핵이 밝고 바깥이 성기다.
     const distance = Math.pow(random(), 0.62) * radius;
     const branchIndex = index % SPIRAL_BRANCHES;
@@ -184,30 +213,6 @@ function buildDiskGeometry({
     colors[index * 3 + 2] = mixed.b;
     sizes[index] = size;
     twinkles[index] = twinkle;
-    phases[index] = random();
-  }
-
-  // 헤일로 — 원반을 감싸는 구형 껍질의 늙은 별들과 구상성단 몇 개. 원반의 바깥 경계를
-  // 부드럽게 풀어 '오려낸 원' 문제를 반대 방향에서도 죽인다.
-  for (let index = diskCount; index < count; index += 1) {
-    const theta = random() * Math.PI * 2;
-    const cosPhi = random() * 2 - 1;
-    const sinPhi = Math.sqrt(Math.max(0, 1 - cosPhi * cosPhi));
-    const shell = (1.05 + random() * 0.3) * radius;
-
-    positions[index * 3] = shell * sinPhi * Math.cos(theta);
-    positions[index * 3 + 1] = shell * sinPhi * Math.sin(theta);
-    positions[index * 3 + 2] = shell * cosPhi * 0.5;
-
-    const isGlobular = index - diskCount < 4;
-    const fade = 1 - ((shell / radius - 1.05) / 0.3) * 0.6;
-    mixed.copy(isGlobular ? GLOBULAR_TINT : HALO_TINT).multiplyScalar(fade);
-
-    colors[index * 3] = mixed.r;
-    colors[index * 3 + 1] = mixed.g;
-    colors[index * 3 + 2] = mixed.b;
-    sizes[index] = isGlobular ? 1.9 : 0.6 + 2.8 * Math.pow(random(), 6);
-    twinkles[index] = 0.1;
     phases[index] = random();
   }
 
@@ -314,19 +319,25 @@ function GalaxyDiskComponent({
   // 원반은 **반지름 1**로 만들고 그룹 배율로 키운다. 화면 크기를 그대로 반지름에 넣으면
   // 배율이 조금만 바뀌어도 수천 개 파티클 버퍼를 매 프레임 다시 만들게 된다.
   //
-  // 파티클 수도 화면 크기를 따라가되 계단으로 끊는다 — 연속으로 따라가면 같은 문제가 난다.
-  const count = 420 * Math.min(4, Math.max(1, Math.round(pointSize)));
+  // 파티클 수는 화면 크기를 따라 계단으로 바뀌지만, 버퍼는 **최대 계단으로 한 번만** 만들고
+  // drawRange로 그릴 개수만 조절한다. 예전엔 계단(88px/147px)을 넘을 때마다 버퍼를 새로
+  // 만들어(수천 파티클 생성 + GPU 업로드) 확대 중 정확히 그 프레임에 멈칫이 꽂혔다.
+  // 접두사는 언제나 같은 바이트라 계단 전환이 정수 하나 쓰기가 됐다(헤일로는 인터리브 —
+  // buildDiskGeometry의 HALO_STRIDE 참고).
+  const count = 420 * Math.min(MAX_POINT_STEPS, Math.max(1, Math.round(pointSize)));
   const geometry = useMemo(
     () => buildDiskGeometry({
-      count,
+      count: 420 * MAX_POINT_STEPS,
       radius: 1,
       kind,
       seed,
       coreColor: new Color(coreColor),
       armColor: new Color(armColor),
     }),
-    [armColor, coreColor, count, kind, seed],
+    [armColor, coreColor, kind, seed],
   );
+
+  geometry.setDrawRange(0, count);
 
   // 파티클 버퍼는 우리가 만들었으므로 우리가 치운다. r3f는 prop으로 받은 geometry를
   // 정리해 주지 않아서(Points에는 dispose가 없다), 확대하며 원반이 수백 번 생겼다 사라지는

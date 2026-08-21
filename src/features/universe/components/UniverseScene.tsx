@@ -500,8 +500,12 @@ function UniverseSceneComponent({
       depth: 0,
     });
 
-    while (queue.length > 0 && collected.length < MAX_BODIES) {
-      const next = queue.shift();
+    // queue.shift()는 Hermes 배열에서 O(남은 길이)라 걷기 전체가 O(V²)였다 — 커서로 민다.
+    let head = 0;
+
+    while (head < queue.length && collected.length < MAX_BODIES) {
+      const next = queue[head];
+      head += 1;
 
       if (!next) {
         break;

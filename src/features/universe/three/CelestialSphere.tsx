@@ -9,6 +9,7 @@ import {
   MeshStandardMaterial,
   RingGeometry,
   ShaderMaterial,
+  SphereGeometry,
   Vector3,
 } from 'three';
 
@@ -18,8 +19,9 @@ import {
   getPlanetSurface,
   getRingTexture,
   getStarSurface,
+  listAllTextureBakes,
 } from '@/features/universe/three/planetTextures';
-import { getGlowTexture, getSpikedStarTexture } from '@/features/universe/three/textures';
+import { getGlowTexture, getSpikedStarTexture, getTrimmedUnitPlane } from '@/features/universe/three/textures';
 import { planetTraitsFor, starTraitsFor } from '@/features/universe/three/planetTraits';
 import { smoothStep } from '@/features/universe/utils/universeSpace';
 
@@ -88,20 +90,41 @@ function useAtmosphereMaterial(color: string, strength: number, fade: number) {
 // 정확히 그 빛의 반대면(밤면)에서 켜지려면 조명과 이 상수가 같은 곳을 가리켜야 한다.
 const KEY_LIGHT_DIR = new Vector3(-320, 380, 520).normalize();
 
-// 도시/바다 마스크를 미리 덥힌다 — 안 그러면 첫 지구형 클로즈업의 셰이더 컴파일 순간에
-// 잡음 텍스처(~80ms)가 동기로 만들어져 확대가 한 번 컥 걸린다. 첫 화면이 자리잡은 뒤
-// 한 장씩, 취소하지 않는다(캐시 채우기라 언제 끝나도 이득).
-let planetMasksPrewarmed = false;
+// 모든 원형 텍스처를 미리 덥힌다 — 안 그러면 첫 확대에서 필요한 순간마다 표면·마스크·
+// 구름·고리가 동기로 구워져(장당 수십~수백 ms) 확대가 컥컥 걸리는 행렬이 된다. 탭이
+// 자리잡은 뒤 한 장씩, 취소하지 않는다(전부 모듈 캐시 채우기라 언제 끝나도 이득).
+// 한꺼번에 굽지 않는 게 요점이다 — 몰아서 구우면 멈칫이 탭 열기로 옮겨갈 뿐이다.
+let sphereAssetsPrewarmed = false;
 
-function prewarmPlanetMasks() {
-  if (planetMasksPrewarmed) {
+export function prewarmSphereAssets() {
+  if (sphereAssetsPrewarmed) {
     return;
   }
 
-  planetMasksPrewarmed = true;
-  [0, 1, 2, 3].forEach((variant, index) => {
-    setTimeout(() => getPlanetMask(variant), 2000 + index * 400);
+  sphereAssetsPrewarmed = true;
+  listAllTextureBakes().forEach((bake, index) => {
+    setTimeout(bake, 2000 + index * 400);
   });
+}
+
+// 구체 지오메트리는 전부 공유한다 — 모든 구가 반지름 1(또는 껍질 배수)을 그룹 배율로
+// 키우므로 반지름×세그먼트 조합은 열몇 개뿐이다. 예전엔 몸통·구름·대기·광구·림이
+// 인스턴스마다 제 지오메트리를 만들고 세그먼트 계단(90px/260px)을 넘을 때마다 다시
+// 만들었다 — 정점 수천 개 생성 + GPU 업로드가 확대 중 정확히 그 프레임에 꽂힌다.
+// 공유분은 영원히 산다(dispose 금지 — r3f의 geometry prop은 어차피 자동 정리가 없다).
+const sphereGeometryCache = new Map<string, SphereGeometry>();
+
+function getSharedSphereGeometry(sphereRadius: number, segments: number): SphereGeometry {
+  const key = `${sphereRadius}:${segments}`;
+  const cached = sphereGeometryCache.get(key);
+
+  if (cached) {
+    return cached;
+  }
+
+  const geometry = new SphereGeometry(sphereRadius, segments, segments);
+  sphereGeometryCache.set(key, geometry);
+  return geometry;
 }
 
 function PlanetBody({
@@ -127,7 +150,7 @@ function PlanetBody({
   const cloudRef = useRef<Group>(null);
 
   useEffect(() => {
-    prewarmPlanetMasks();
+    prewarmSphereAssets();
   }, []);
   const atmosphere = useAtmosphereMaterial(
     traits.atmosphere?.color ?? '#FFFFFF',
@@ -233,22 +256,21 @@ function PlanetBody({
     // 때마다 정점 수천 개짜리 버퍼를 새로 만든다.
     <group rotation={[0, 0, traits.tilt]} scale={radius}>
       <group ref={bodyRef}>
-        <mesh material={litSurface ?? undefined}>
-          <sphereGeometry args={[1, segments, segments]} />
+        <mesh material={litSurface ?? undefined} geometry={getSharedSphereGeometry(1, segments)}>
           {litSurface ? null : (
             <meshStandardMaterial
               // 문턱을 넘을 때 재질을 갈아끼운다 — bumpMap을 산 재질에 꽂으면 needsUpdate
               // 없이는 셰이더가 재컴파일되지 않아 요철이 영영 안 살아난다.
               key={detailed ? 'detailed' : 'far'}
               map={surface}
-              color={new Color(traits.tint)}
+              color={traits.tint}
               // 표면 요철 — 같은 텍스처를 높이로도 쓴다. 명암 경계에서 지형이 살아난다.
               bumpMap={detailed ? surface : undefined}
               bumpScale={detailed ? 0.055 : 0}
               roughness={traits.kind === 'gas' ? 0.95 : 0.82}
               metalness={0.02}
               // 완전한 암흑면을 피할 만큼만 — 이게 크면 조명이 무의미해져 스티커처럼 보인다.
-              emissive={new Color(traits.tint)}
+              emissive={traits.tint}
               emissiveIntensity={0.02 + 0.03 * brightness}
               // 언제나 transparent — 토글하면 OPAQUE define이 구워져 근접 페이드가 죽는다.
               transparent
@@ -260,8 +282,7 @@ function PlanetBody({
 
       {detailed && traits.kind === 'terrestrial' ? (
         <group ref={cloudRef}>
-          <mesh>
-            <sphereGeometry args={[1.022, segments, segments]} />
+          <mesh geometry={getSharedSphereGeometry(1.022, segments)}>
             <meshStandardMaterial
               map={getCloudTexture()}
               transparent
@@ -274,9 +295,7 @@ function PlanetBody({
       ) : null}
 
       {detailed && traits.atmosphere ? (
-        <mesh material={atmosphere}>
-          <sphereGeometry args={[1.055, segments, segments]} />
-        </mesh>
+        <mesh material={atmosphere} geometry={getSharedSphereGeometry(1.055, segments)} />
       ) : null}
 
       {/* 고리는 detailed(54px) 문턱을 기다리지 않는다 — 고리는 그 행성의 실루엣이라
@@ -396,7 +415,6 @@ function StarBody({
 }) {
   const traits = useMemo(() => starTraitsFor(id), [id]);
   const bodyRef = useRef<Group>(null);
-  const color = new Color(traits.color);
   // 광구 가장자리 — 별은 원반이 아니라 타오르는 공이다. 테두리에 코로나 색을 얹어야
   // 표면과 코로나가 이어져 보인다.
   const limb = useAtmosphereMaterial(traits.coronaColor, 2.6, fade);
@@ -448,12 +466,16 @@ function StarBody({
 
   return (
     <group scale={radius}>
-      {/* 코로나 — 표면보다 훨씬 넓게 퍼지는 빛. 항성을 '밝은 공'이 아니라 광원으로 만든다. */}
-      <mesh position={[0, 0, -2 / Math.max(1e-6, radius)]}>
-        <planeGeometry args={[traits.corona * 2, traits.corona * 2]} />
+      {/* 코로나 — 표면보다 훨씬 넓게 퍼지는 빛. 항성을 '밝은 공'이 아니라 광원으로 만든다.
+          판은 잘라낸 공용 지오메트리 × 예전 크기의 0.8 — 같은 그림, 채우기 36% 절약. */}
+      <mesh
+        geometry={getTrimmedUnitPlane()}
+        scale={[traits.corona * 1.6, traits.corona * 1.6, 1]}
+        position={[0, 0, -2 / Math.max(1e-6, radius)]}
+      >
         <meshBasicMaterial
           map={getGlowTexture()}
-          color={new Color(traits.coronaColor)}
+          color={traits.coronaColor}
           transparent
           // 광륜은 살짝 물러난다 — 완벽한 방사형 그라데이션이 셀수록 원반이 램프로 읽힌다.
           // 이제 눈부심의 주역은 주연감광이 살린 원반과 블룸을 뚫는 뜨거운 대류 세포들이다.
@@ -466,23 +488,32 @@ function StarBody({
       {/* 스트리머 두 장 — 서로 반대로 돌며 간섭해 코로나가 흐른다. 가까이 갔을 때만. */}
       {detailed ? (
         <>
-          <mesh material={streamerOut} position={[0, 0, -1.5 / Math.max(1e-6, radius)]}>
-            <planeGeometry args={[traits.corona * 2, traits.corona * 2]} />
-          </mesh>
-          <mesh material={streamerIn} position={[0, 0, -1 / Math.max(1e-6, radius)]}>
-            <planeGeometry args={[traits.corona * 1.4, traits.corona * 1.4]} />
-          </mesh>
+          <mesh
+            geometry={getTrimmedUnitPlane()}
+            material={streamerOut}
+            scale={[traits.corona * 1.6, traits.corona * 1.6, 1]}
+            position={[0, 0, -1.5 / Math.max(1e-6, radius)]}
+          />
+          <mesh
+            geometry={getTrimmedUnitPlane()}
+            material={streamerIn}
+            scale={[traits.corona * 1.12, traits.corona * 1.12, 1]}
+            position={[0, 0, -1 / Math.max(1e-6, radius)]}
+          />
         </>
       ) : null}
 
       {/* 회절 십자 — 절대 회전하지 않는다. 실제 십자는 망원경 광학에 고정돼 있고, 도는
           광구 위에 정지한 십자가 겹치는 것이 관측 사진의 문법이다. */}
       {spikeOpacity > 0.02 ? (
-        <mesh position={[0, 0, 1.2 / Math.max(1e-6, radius)]}>
-          <planeGeometry args={[traits.corona * 3, traits.corona * 3]} />
+        <mesh
+          geometry={getTrimmedUnitPlane()}
+          scale={[traits.corona * 2.4, traits.corona * 2.4, 1]}
+          position={[0, 0, 1.2 / Math.max(1e-6, radius)]}
+        >
           <meshBasicMaterial
             map={getSpikedStarTexture()}
-            color={new Color(traits.coronaColor)}
+            color={traits.coronaColor}
             transparent
             opacity={spikeOpacity}
             depthWrite={false}
@@ -495,13 +526,12 @@ function StarBody({
       ) : null}
 
       <group ref={bodyRef}>
-        <mesh material={detailed ? photosphere : undefined}>
-          <sphereGeometry args={[1, segments, segments]} />
+        <mesh material={detailed ? photosphere : undefined} geometry={getSharedSphereGeometry(1, segments)}>
           {/* 멀리서는 끓일 필요가 없다 — 정지한 표면 무늬로 충분하고 훨씬 싸다. */}
           {detailed ? null : (
             <meshBasicMaterial
               map={getStarSurface()}
-              color={color}
+              color={traits.color}
               // 언제나 transparent — 토글하면 OPAQUE define이 구워져 페이드가 죽는다.
               transparent
               opacity={fade}
@@ -510,13 +540,13 @@ function StarBody({
         </mesh>
       </group>
 
-      <mesh material={limb}>
-        <sphereGeometry args={[1.06, segments, segments]} />
-      </mesh>
+      <mesh material={limb} geometry={getSharedSphereGeometry(1.06, segments)} />
 
-      {lit ? (
-        <pointLight color={color} intensity={260} distance={90} decay={2} />
-      ) : null}
+      {/* 조명은 항상 마운트, 세기만 토글한다 — 씬의 pointLight **개수**가 바뀌면 three가
+          모든 표준 재질 셰이더를 재컴파일한다(NUM_POINT_LIGHTS가 프로그램에 구워짐).
+          54px 문턱을 넘는 순간 안드로이드에서 100-300ms 멈칫이 정확히 그 프레임에 꽂히던
+          원인. intensity 0은 아무것도 비추지 않는다 — 그림은 같다. */}
+      <pointLight color={traits.color} intensity={lit ? 260 : 0} distance={90} decay={2} />
     </group>
   );
 }

@@ -402,3 +402,23 @@ export function getStarSurface(): DataTexture {
   starSurface.needsUpdate = true;
   return starSurface;
 }
+
+// 구울 수 있는 모든 원형의 목록 — 프리워밍(CelestialSphere)이 쓴다. 첫 확대에서 필요한
+// 순간에 구우면 250-600ms 멈칫의 행렬이 되므로, 탭이 자리잡은 뒤 한 장씩 미리 굽는다.
+// 전부 모듈 캐시에 남으니 언제 구워도 순수 이득이다.
+export function listAllTextureBakes(): (() => unknown)[] {
+  const bakes: (() => unknown)[] = [];
+
+  (Object.keys(VARIANTS) as PlanetKind[]).forEach((kind) => {
+    for (let variant = 0; variant < VARIANTS[kind]; variant += 1) {
+      bakes.push(() => getPlanetSurface(kind, variant));
+    }
+  });
+
+  for (let variant = 0; variant < VARIANTS.terrestrial; variant += 1) {
+    bakes.push(() => getPlanetMask(variant));
+  }
+
+  bakes.push(() => getStarSurface(), () => getCloudTexture(), () => getRingTexture());
+  return bakes;
+}

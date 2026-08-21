@@ -1,7 +1,27 @@
-import { DataTexture, RGBAFormat, UnsignedByteType, LinearFilter, ClampToEdgeWrapping } from 'three';
+import { DataTexture, PlaneGeometry, RGBAFormat, UnsignedByteType, LinearFilter, ClampToEdgeWrapping } from 'three';
 
 // 절차적 텍스처 — 캔버스 API 없이 픽셀 배열을 직접 만든다. RN에는 DOM canvas가 없으므로
 // (웹에서만 되는) CanvasTexture를 쓰면 네이티브에서 통째로 깨진다. DataTexture는 양쪽 동일.
+
+// 방사형 감쇠 판의 공용 지오메트리 — 바깥 20%를 잘라낸 단위 판. 글로우·코로나·스파이크·
+// 스트리머의 감쇠는 반지름 0.8 밖에서 픽셀당 1/255도 못 쓰는데, 그 띠가 판 면적의 36%다.
+// UV를 [0.1, 0.9]로 좁혀 **같은 그림**을 20% 작은 판으로 그린다(텍스처 샘플링과 vUv 기반
+// 셰이더 양쪽에 유효) — 판을 그냥 줄이면 감쇠 곡선까지 압축돼 그림이 바뀐다. 쓰는 쪽은
+// 예전 판 크기에 0.8을 곱해 이 지오메트리를 쓴다. 공용이라 영원히 산다(dispose 금지).
+let trimmedUnitPlane: PlaneGeometry | null = null;
+
+export function getTrimmedUnitPlane(): PlaneGeometry {
+  if (!trimmedUnitPlane) {
+    trimmedUnitPlane = new PlaneGeometry(1, 1);
+    const uvs = trimmedUnitPlane.attributes.uv;
+
+    for (let index = 0; index < uvs.count; index += 1) {
+      uvs.setXY(index, 0.1 + uvs.getX(index) * 0.8, 0.1 + uvs.getY(index) * 0.8);
+    }
+  }
+
+  return trimmedUnitPlane;
+}
 
 function buildRadialTexture(size: number, falloff: (t: number) => number): DataTexture {
   const data = new Uint8Array(size * size * 4);

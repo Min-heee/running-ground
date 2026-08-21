@@ -18,11 +18,12 @@ import {
   getNebulaTexture,
   getSpikedStarTexture,
   getStarPointTexture,
+  getTrimmedUnitPlane,
 } from '@/features/universe/three/textures';
 import { GalaxyDisk } from '@/features/universe/three/GalaxyDisk';
 import { HighlightRing } from '@/features/universe/three/HighlightRing';
 import { smoothStep } from '@/features/universe/utils/universeSpace';
-import { CelestialSphere } from '@/features/universe/three/CelestialSphere';
+import { CelestialSphere, prewarmSphereAssets } from '@/features/universe/three/CelestialSphere';
 
 // 3D 우주 레이어 (오너 2026-08-15: "실제 우주처럼"). 겹친 반투명 View로 내던 발광체를
 // 진짜 구체 + 가산합성 후광으로 바꾼다.
@@ -75,6 +76,30 @@ const PALETTE_COLORS: Record<SkyOrb['palette'], { core: string; glow: string; em
   planet: { core: '#B7E2FF', glow: '#5F96F0', emissive: 0.55 },
   star: { core: '#FFD467', glow: '#E8B45A', emissive: 1.5 },
 };
+
+// Color 인스턴스는 미리 만든다 — 렌더 본문에서 new Color를 부르면 제스처 프레임마다
+// 천체 수만큼 힙이 쌓여 Hermes GC가 주기적으로 프레임을 삼킨다(안드로이드 리듬 버벅임).
+const PALETTE_GLOW_COLORS: Record<SkyOrb['palette'], Color> = {
+  group: new Color(PALETTE_COLORS.group.glow),
+  galaxy: new Color(PALETTE_COLORS.galaxy.glow),
+  planet: new Color(PALETTE_COLORS.planet.glow),
+  star: new Color(PALETTE_COLORS.star.glow),
+};
+
+// 문자열 id → 시드도 마찬가지 — 같은 id의 reduce를 프레임마다 다시 돌 이유가 없다.
+const diskSeedCache = new Map<string, number>();
+
+function diskSeedFor(id: string): number {
+  const cached = diskSeedCache.get(id);
+
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const seed = Array.from(id).reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 2147483647, 7);
+  diskSeedCache.set(id, seed);
+  return seed;
+}
 
 // 별 배경 3겹 — 깊이별로 크기·밝기·표류 속도가 달라 시차가 생긴다.
 //
@@ -312,7 +337,7 @@ function Nebula({ width, height, fade }: { width: number; height: number; fade: 
         // 완벽한 원은 도형이다 — 눌러서 늘인다.
         scaleY: scale * (0.5 + random() * 0.45),
         rotation: random() * Math.PI,
-        color: palette[index % palette.length],
+        color: new Color(palette[index % palette.length]),
         opacity: 0.42 + random() * 0.3,
         variant: (index % 2) as 0 | 1,
         drift: (0.7 + random() * 0.6) * (index % 2 === 0 ? 1 : -1),
@@ -331,7 +356,9 @@ function Nebula({ width, height, fade }: { width: number; height: number; fade: 
   });
 
   return (
-    <>
+    // 페이드가 다 꺼지면 그리지 않는다(마운트는 유지 — 언마운트하면 돌아올 때 재구축 멈칫).
+    // 예전엔 0.1 바닥 때문에 깊은 확대 내내 보이지도 않는(≤3/255) 풀스크린 판을 계속 칠했다.
+    <group visible={fade > 0.02}>
       {clouds.map((cloud, index) => (
         <group
           key={cloud.key}
@@ -344,7 +371,7 @@ function Nebula({ width, height, fade }: { width: number; height: number; fade: 
             <planeGeometry args={[1, 1]} />
             <meshBasicMaterial
               map={getNebulaTexture(cloud.variant)}
-              color={new Color(cloud.color)}
+              color={cloud.color}
               transparent
               opacity={cloud.opacity * fade}
               depthWrite={false}
@@ -353,13 +380,14 @@ function Nebula({ width, height, fade }: { width: number; height: number; fade: 
           </mesh>
         </group>
       ))}
-    </>
+    </group>
   );
 }
 
 // 암흑 성간운 — 은하수 리본을 따라 놓이는 **어두운** 조각들. 대은하수의 그레이트 리프트가
 // 그렇듯, 별의 강 위에 빛을 삼키는 균열이 있어야 띠가 리본이 아니라 은하면으로 읽힌다.
 // 일반 합성이라 화면을 어둡게만 한다.
+const RIFT_COLOR = new Color('#04050A');
 function GreatRift({ width, height, fade }: { width: number; height: number; fade: number }) {
   const patches = useMemo(() => {
     const random = seededRandom(8151923);
@@ -386,7 +414,8 @@ function GreatRift({ width, height, fade }: { width: number; height: number; fad
   }, [height, width]);
 
   return (
-    <>
+    // Nebula와 같은 이유의 가시성 게이트 — 페이드가 꺼진 판은 칠하지 않는다.
+    <group visible={fade > 0.02}>
       {patches.map((patch) => (
         <mesh
           key={patch.key}
@@ -397,14 +426,14 @@ function GreatRift({ width, height, fade }: { width: number; height: number; fad
           <planeGeometry args={[1, 1]} />
           <meshBasicMaterial
             map={getNebulaTexture(patch.variant)}
-            color={new Color('#04050A')}
+            color={RIFT_COLOR}
             transparent
             opacity={patch.opacity * fade}
             depthWrite={false}
           />
         </mesh>
       ))}
-    </>
+    </group>
   );
 }
 
@@ -532,13 +561,12 @@ function ShootingStar({ width, height, enabled }: { width: number; height: numbe
 }
 
 function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; height: number }) {
-  const colors = PALETTE_COLORS[orb.palette];
   // 화면 좌표(좌상단 원점) → 월드 좌표(중앙 원점, y 위로).
   const worldX = orb.x - width / 2;
   const worldY = height / 2 - orb.y;
   const radius = orb.diameter / 2;
   const screenDiameter = orb.screenDiameter ?? orb.diameter;
-  const glowColor = new Color(colors.glow);
+  const glowColor = PALETTE_GLOW_COLORS[orb.palette];
 
   const fade = orb.opacity ?? 1;
 
@@ -558,10 +586,11 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
       {morph < 0.995 ? (
         // 판은 단위 크기, 확대는 mesh scale로 — 지오메트리 인자에 화면 반지름을 넣으면
         // 확대하는 매 프레임 모든 천체의 버퍼가 새로 만들어진다(실측된 최대 GPU 낭비).
-        <mesh scale={[radius * 4.6, radius * 4.6, 1]}>
+        // 잘라낸 공용 판 × (4.6×0.8): 글로우 감쇠 (1-t)^3.2은 반지름 0.8 밖에서 픽셀당
+        // 1/255도 못 쓴다 — 같은 그림을 면적 36% 작은 판으로 그린다.
+        <mesh geometry={getTrimmedUnitPlane()} scale={[radius * 3.68, radius * 3.68, 1]}>
           {/* 멀리 있는 것은 작고 흐려야 멀어 보인다. 크고 밝은 솜뭉치로 그리면 은하가
               아니라 화면에 묻은 얼룩이 된다. */}
-          <planeGeometry args={[1, 1]} />
           <meshBasicMaterial
             map={getGlowTexture()}
             color={glowColor}
@@ -580,7 +609,7 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
           opacity={fade * morph}
           kind={orb.palette === 'galaxy' ? 'galaxy' : 'group'}
           // 문자열 id를 안정적인 시드로 — 같은 지역은 항상 같은 기울기·회전을 갖는다.
-          seed={Array.from(orb.id).reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 2147483647, 7)}
+          seed={diskSeedFor(orb.id)}
           coreColor={DISK_COLORS[orb.palette === 'galaxy' ? 'galaxy' : 'group'].core}
           armColor={DISK_COLORS[orb.palette === 'galaxy' ? 'galaxy' : 'group'].arm}
           highlighted={orb.highlighted}
@@ -647,6 +676,11 @@ function UniverseSkyComponent({
   // 어느 화면에서든 같은 하늘이다.
   const areaScale = Math.max(0.3, Math.min(1.4, (width * height) / 480000));
 
+  // 하늘이 뜨자마자 행성·항성 텍스처를 미리 굽기 시작한다 — 첫 확대가 첫 요리가 되지 않게.
+  useEffect(() => {
+    prewarmSphereAssets();
+  }, []);
+
   return (
     <>
       {/* 은은한 환경광 — 완전한 암흑을 피하되 명암 경계는 살린다. 우주에는 하늘빛이 없어서
@@ -700,17 +734,19 @@ function UniverseSkyComponent({
         scale={Math.min(1.8, 1 + Math.log2(Math.max(0.25, zoom)) * 0.06)}
       >
         {/* 은하의 성운은 멀리서 볼 때의 배경이다. 한 태양계 안까지 들어와서도 같은 세기로
-            깔리면 행성 위에 보랏빛 안개를 씌운 꼴이 되어 표면이 통째로 뿌예진다. */}
+            깔리면 행성 위에 보랏빛 안개를 씌운 꼴이 되어 표면이 통째로 뿌예진다.
+            페이드는 0까지 내려간다(배율 128×에서 소멸) — 예전의 0.1 바닥은 깊은 확대 내내
+            보이지도 않는(≤3/255) 풀스크린 판 8장을 계속 칠하게 했다(갤럭시 GPU 최대 낭비). */}
         <Nebula
           width={width}
           height={height}
-          fade={Math.max(0.1, Math.min(1, 1 - Math.log2(Math.max(1, zoomFactor)) / 7))}
+          fade={Math.max(0, Math.min(1, 1 - Math.log2(Math.max(1, zoomFactor)) / 7))}
         />
 
         <GreatRift
           width={width}
           height={height}
-          fade={Math.max(0.1, Math.min(1, 1 - Math.log2(Math.max(1, zoomFactor)) / 7))}
+          fade={Math.max(0, Math.min(1, 1 - Math.log2(Math.max(1, zoomFactor)) / 7))}
         />
 
         {STAR_LAYERS.map((layer, index) => (

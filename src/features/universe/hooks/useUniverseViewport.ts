@@ -87,8 +87,33 @@ export function useUniverseViewport({
     setViewport({ zoom: fitZoomRef.current, panX: 0, panY: 0, camDepth: 0 });
   }, []);
 
-  const apply = useCallback((next: UniverseViewport) => {
-    setViewport(next);
+  // 제스처 이동은 **표시 프레임당 한 번만** 커밋한다. 120Hz 패널(갤럭시)은 이동 이벤트를
+  // 표시 프레임보다 자주 주는데, 그 사이의 값은 어차피 화면에 못 나간다. setViewport
+  // 한 번이 곧 리액트 씬 걷기 한 번이라, 이 병합이 제스처 중 JS 비용을 그대로 줄인다.
+  // 마지막 값만 남기므로 손가락 아래의 최신 상태는 잃지 않는다.
+  const pendingGestureRef = useRef<UniverseViewport | null>(null);
+  const gestureFrameRef = useRef<number | null>(null);
+
+  const applyGesture = useCallback((next: UniverseViewport) => {
+    pendingGestureRef.current = next;
+
+    if (gestureFrameRef.current === null) {
+      gestureFrameRef.current = requestAnimationFrame(() => {
+        gestureFrameRef.current = null;
+        const pending = pendingGestureRef.current;
+        pendingGestureRef.current = null;
+
+        if (pending) {
+          setViewport(pending);
+        }
+      });
+    }
+  }, []);
+
+  useEffect(() => () => {
+    if (gestureFrameRef.current !== null) {
+      cancelAnimationFrame(gestureFrameRef.current);
+    }
   }, []);
 
   // 직전 값에서 이어서 계산해야 하는 변화(휠처럼 한 프레임에 여러 번 들어오는 것)는 반드시
@@ -227,7 +252,7 @@ export function useUniverseViewport({
         const origin = containerOriginRef.current;
         const anchorX = (touches[0].pageX + touches[1].pageX) / 2 - origin.x;
         const anchorY = (touches[0].pageY + touches[1].pageY) / 2 - origin.y;
-        apply(zoomAroundPoint(
+        applyGesture(zoomAroundPoint(
           start.viewport,
           start.viewport.zoom * (nextDistance / start.distance),
           anchorX,
@@ -241,7 +266,7 @@ export function useUniverseViewport({
       }
 
       // 끌기는 배율도 깊이도 바꾸지 않는다 — 옆으로 흐를 뿐이다.
-      apply({
+      applyGesture({
         ...start.viewport,
         panX: start.viewport.panX + (gesture.dx - start.dx),
         panY: start.viewport.panY + (gesture.dy - start.dy),
@@ -253,7 +278,7 @@ export function useUniverseViewport({
     onPanResponderTerminate: () => {
       gestureStartRef.current = null;
     },
-  }), [apply, height, measureContainer, width]);
+  }), [applyGesture, height, measureContainer, width]);
 
   // 웹 휠 확대 — RN View에는 onWheel이 없어 DOM 리스너로 붙인다(웹에서만 동작).
   // 네이티브에서 원점을 재는 것과 **같은 View**를 가리킨다: 확대 중심의 기준이 두 벌이 되면
