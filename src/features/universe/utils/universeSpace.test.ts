@@ -194,9 +194,15 @@ test('배율 한계는 배수로 잰다 — 어느 화면에서도 체감이 같
   assert.ok(UNIVERSE_MAX_ZOOM_FACTOR > 200);
 });
 
-test('겨냥한 천체는 화면을 채운다', () => {
+test('겨냥한 천체는 화면을 채우고 살짝 넘친다 — 그 안의 것들이 읽히도록', () => {
+  // 부모를 화면 안에 얌전히 담으면 정작 보러 들어간 자식들이 서너 픽셀이 된다(폰에서
+  // 실측: 경기도로 날아가면 시/군/구 31개가 2.8~4.1px, 이름표 0개). 그래서 반지름이
+  // 화면 반폭보다 크게 — 부모가 화면 밖으로 조금 나가도록 — 잡는다.
   const radius = 3;
+  const halfMin = 390 / 2;
   const zoom = zoomToFrame(radius, 390, 600);
-  assert.ok(radius * zoom > 100 && radius * zoom < 195);
+
+  assert.ok(radius * zoom > halfMin, '부모가 화면을 다 못 채운다');
+  assert.ok(radius * zoom < halfMin * 1.5, '부모가 지나치게 넘쳐 방향을 잃는다');
   assert.equal(zoomToFrame(0, 390, 600), 1);
 });

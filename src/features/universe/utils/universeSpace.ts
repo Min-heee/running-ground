@@ -20,11 +20,14 @@ const CHILD_FILL = 0.92;
 // 자식 반지름 상한 = (궤도 간격, 같은 궤도의 각도 간격) 중 좁은 쪽 × 이 비율. 형제끼리
 // 겹치지 않게 하는 유일한 장치다.
 //
-// 0.44 → 0.3 → 0.16 → 0.115로 계속 낮췄다 (오너 2026-08-16: "훨씬 거리를 벌려줘, 원래
-// 우주는 광활하잖아", 2026-08-17: "좀 더 거리를 벌려도 괜찮을 거 같아"). 겹치지만 않으면
-// 되는 게 아니라 천체 사이에 **빈 하늘이 압도적으로 넓어야** 우주로 읽힌다 — 실제 별 사이
-// 거리는 별 지름의 수천만 배다.
-const CHILD_CLEARANCE = 0.115;
+// 0.44 → 0.3 → 0.16 → 0.115로 낮췄다가 **0.3으로 되돌렸다**(2026-08-22).
+//
+// 낮추던 시절의 근거는 "천체 사이에 빈 하늘이 압도적으로 넓어야 우주로 읽힌다"였고 그건
+// 지금도 맞다. 다만 폰에서 재보니 대가가 이랬다: 경기도로 날아간 직후 시/군/구 31개가
+// 2.8~4.1px, **이름표 0/31**. 회원 층도 1.0~4.1px. 빈 하늘이 넓은 게 아니라 아무것도
+// 없는 화면이었다(오너 2026-08-22: "너무 별들이 안 보여, 막 엄청 찾아야 나오네").
+// 광활함은 배경 별밭과 층 사이의 거리가 만든다 — 정작 찾아야 할 천체까지 지울 필요는 없다.
+const CHILD_CLEARANCE = 0.3;
 // 자식이 하나뿐이면 궤도가 의미 없다 — 부모 중심에 앉힌다.
 const SINGLE_CHILD_RADIUS = 0.55;
 // 크기 차이는 보이되 큰 쪽이 이웃을 삼키지는 않게: 상한의 55~100% 사이에서만 논다.
@@ -219,51 +222,71 @@ export function placeChildren(
     ? sizeFloor + (1 - sizeFloor) * Math.min(1, scales[index] / maxScale)
     : 1);
 
-  // 중심의 자식은 첫 궤도까지의 거리 안에 들어가야 한다 — 그 궤도의 이웃과 닿지 않게.
+  // 궤도 자식이 실제로 받은 몫 — 중심도 이보다 더 쓰지 않는다.
+  const ringRooms: number[] = [];
+  const ringPlacements = slots.map((slot, slotIndex) => {
+    const index = slotIndex + 1;
+    const inRing = countByRing.get(slot.ring) ?? 1;
+    const baseOrbit = ringGap * (slot.ring + 1);
+    const angleStep = (Math.PI * 2) / inRing;
+    // 이웃에게 줄 몫을 뺀 '빈 자리' 안에서만 흔든다.
+    const reserved = ringGap * CHILD_CLEARANCE * 2;
+    const radialFree = Math.max(0, ringGap - reserved);
+    const angularFree = Math.max(0, angleStep - reserved / baseOrbit);
+    // 흔들려도 궤도가 가장 바깥 테두리를 넘지 않게 묶는다 — 넘으면 자식이 부모 밖으로
+    // 나가고, 그러면 '부모 밖이면 가지 전체를 건너뛴다'는 컬링 전제가 깨진다.
+    const orbit = Math.max(
+      ringGap * 0.5,
+      Math.min(span, baseOrbit + jitter(index, 3.1) * radialFree * JITTER_OF_FREE_SPACE),
+    );
+    const angle = slot.angle + jitter(index, 7.7) * angularFree * JITTER_OF_FREE_SPACE;
+    const angularGap = angleStep * orbit;
+    // 세 가지 상한: 안팎 궤도와의 간격, 같은 궤도 이웃과의 간격, 그리고 부모의 테두리.
+    // 마지막이 없으면 궤도가 하나뿐일 때(자식 2~7개) 자식이 부모 밖으로 삐져나간다.
+    const room = Math.min(
+      ringGap * CHILD_CLEARANCE,
+      angularGap * CHILD_CLEARANCE,
+      (parent.radius - orbit) * 0.98,
+    );
+    ringRooms.push(room);
+
+    return {
+      x: parent.x + Math.cos(angle) * orbit,
+      y: parent.y + Math.sin(angle) * orbit,
+      // 깊이 — 이것 때문에 어떤 천체는 앞에, 어떤 천체는 뒤에 놓인다. 화면에서 겹칠 수
+      // 있게 되는 것이 핵심이다: 절대 안 겹치는 배치는 그 자체로 평면처럼 읽힌다.
+      z: parent.z + jitter(index, 1.3) * parent.radius * DEPTH_SPREAD,
+      radius: room * sizeFactorFor(index),
+    };
+  });
+
+  // 중심의 자식은 **이웃까지 실제로 남은 거리** 안에 들어가야 한다.
+  //
+  // 예전엔 궤도 간격 × 몫으로만 정했다. 그 몫이 작을 때는 우연히 맞았지만, 몫을 키우자
+  // 중심 하나만 이웃의 다섯 배로 부풀었다 — 궤도의 자식은 부모 테두리에도 묶이는데
+  // 중심은 아무것에도 안 묶여 있었기 때문이다. 이웃의 자리를 알고 나서 재는 게 옳다.
+  const centerReach = ringPlacements.reduce(
+    (limit, placement) => Math.min(
+      limit,
+      Math.hypot(placement.x - parent.x, placement.y - parent.y) - placement.radius,
+    ),
+    parent.radius,
+  );
+  // 그리고 **이웃보다 더 넉넉한 몫을 쓰지 않는다.** 중심은 궤도 자식과 달리 부모 테두리에
+  // 안 묶여서, 몫을 키우면 혼자만 부풀어 이웃을 삼킨 것처럼 보인다.
+  const mostGenerousRingRoom = ringRooms.reduce((max, room) => Math.max(max, room), 0);
   const center: SpacePlacement = {
     x: parent.x,
     y: parent.y,
     z: parent.z,
-    radius: ringGap * CHILD_CLEARANCE * sizeFactorFor(0),
+    radius: Math.max(0, Math.min(
+      ringGap * CHILD_CLEARANCE,
+      centerReach * 0.85,
+      mostGenerousRingRoom,
+    )) * sizeFactorFor(0),
   };
 
-  return [
-    center,
-    ...slots.map((slot, slotIndex) => {
-      const index = slotIndex + 1;
-      const inRing = countByRing.get(slot.ring) ?? 1;
-      const baseOrbit = ringGap * (slot.ring + 1);
-      const angleStep = (Math.PI * 2) / inRing;
-      // 이웃에게 줄 몫을 뺀 '빈 자리' 안에서만 흔든다.
-      const reserved = ringGap * CHILD_CLEARANCE * 2;
-      const radialFree = Math.max(0, ringGap - reserved);
-      const angularFree = Math.max(0, angleStep - reserved / baseOrbit);
-      // 흔들려도 궤도가 가장 바깥 테두리를 넘지 않게 묶는다 — 넘으면 자식이 부모 밖으로
-      // 나가고, 그러면 '부모 밖이면 가지 전체를 건너뛴다'는 컬링 전제가 깨진다.
-      const orbit = Math.max(
-        ringGap * 0.5,
-        Math.min(span, baseOrbit + jitter(index, 3.1) * radialFree * JITTER_OF_FREE_SPACE),
-      );
-      const angle = slot.angle + jitter(index, 7.7) * angularFree * JITTER_OF_FREE_SPACE;
-      const angularGap = angleStep * orbit;
-      // 세 가지 상한: 안팎 궤도와의 간격, 같은 궤도 이웃과의 간격, 그리고 부모의 테두리.
-      // 마지막이 없으면 궤도가 하나뿐일 때(자식 2~7개) 자식이 부모 밖으로 삐져나간다.
-      const room = Math.min(
-        ringGap * CHILD_CLEARANCE,
-        angularGap * CHILD_CLEARANCE,
-        (parent.radius - orbit) * 0.98,
-      );
-
-      return {
-        x: parent.x + Math.cos(angle) * orbit,
-        y: parent.y + Math.sin(angle) * orbit,
-        // 깊이 — 이것 때문에 어떤 천체는 앞에, 어떤 천체는 뒤에 놓인다. 화면에서 겹칠 수
-        // 있게 되는 것이 핵심이다: 절대 안 겹치는 배치는 그 자체로 평면처럼 읽힌다.
-        z: parent.z + jitter(index, 1.3) * parent.radius * DEPTH_SPREAD,
-        radius: room * sizeFactorFor(index),
-      };
-    }),
-  ];
+  return [center, ...ringPlacements];
 }
 
 // --- 화면 크기에 따른 해상 정도 -------------------------------------------------
@@ -338,5 +361,9 @@ export function zoomToFrame(radius: number, canvasWidth: number, canvasHeight: n
     return 1;
   }
 
-  return ((Math.min(canvasWidth, canvasHeight) / 2) * 0.62) / radius;
+  // 0.62 → 1.15: 부모를 화면 안에 얌전히 담는 대신 **살짝 넘치게** 잡는다. 자식은 부모
+  // 반지름의 몇 %짜리라, 부모를 통째로 담으면 정작 보러 들어간 자식들이 서너 픽셀이 된다.
+  // 지도 앱이 도(道)로 줌인하면 도의 일부와 읽을 수 있는 시(市) 이름을 보여주지, 도 전체와
+  // 못 읽을 글씨를 보여주지 않는다.
+  return ((Math.min(canvasWidth, canvasHeight) / 2) * 1.15) / radius;
 }

@@ -46,9 +46,12 @@ function buildMockUniverseBodies(nodes: { id: string; name: string; level: strin
     scale: averageOfAverages > 0
       ? Math.min(2.2, Math.max(0.45, node.averageDistanceKm / averageOfAverages))
       : 1,
+    // 바닥은 백엔드(universeBodies.mjs)의 ACTIVE_BRIGHTNESS_FLOOR/IDLE_BRIGHTNESS와 같은
+    // 값이어야 한다. 목이 실제보다 밝으면 폰이 왜 어두운지를 개발 화면에서 영영 못 본다
+    // (2026-08-22에 실제로 그랬다 — 목은 화사한데 실기기는 이름표만 뜬 검은 화면이었다).
     brightness: maxTotal > 0
-      ? Math.max(0.15, Math.log1p(node.totalDistanceKm) / Math.log1p(maxTotal))
-      : 0.05,
+      ? Math.max(0.55, Math.log1p(node.totalDistanceKm) / Math.log1p(maxTotal))
+      : 0.4,
     isMine: false,
   }));
 }
@@ -146,7 +149,7 @@ function buildMockGalaxy(node: { id: string; name: string; participants: number;
     scale: maxLifetimeKm > 0
       ? Number((0.22 + 0.78 * (lifetimeDistanceKm / maxLifetimeKm)).toFixed(3))
       : 0.22,
-    brightness: Number(Math.max(0.05, 0.35 + 0.65 * (1 - index / NAMES.length)).toFixed(2)),
+    brightness: Number(Math.max(0.4, 0.55 + 0.45 * (1 - index / NAMES.length)).toFixed(2)),
     stars: index === 0 ? 2 : index === 1 ? 1 : 0,
     isStar: false,
     isMine: index === 3,

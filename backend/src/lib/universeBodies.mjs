@@ -33,9 +33,15 @@ export const MAX_GALAXY_SCALE = 2.2;
 // 행성 최소 크기 — 오늘 가입한 사람도 점으로는 보여야 탭할 수 있다.
 export const MIN_PLANET_SCALE = 0.22;
 
-// 이번 달에 뛴 흔적이 있으면 최소 이만큼은 빛난다. 0km면 꺼진 채로 궤도만 돈다.
-export const ACTIVE_BRIGHTNESS_FLOOR = 0.15;
-export const IDLE_BRIGHTNESS = 0.05;
+// 이번 달에 뛴 흔적이 있으면 최소 이만큼은 빛난다.
+//
+// 0.15/0.05 → 0.55/0.4 (2026-08-22). "0km면 꺼진 채로 궤도만 돈다"는 회원이 전국에 깔린
+// 우주를 전제한 값이었다. 실제로는 아직 대부분의 지역이 0km라, 하늘의 거의 전부가 최저
+// 밝기로 깔려 **이름표만 뜨고 그 아래가 비어 보였다**(오너 2026-08-22 실기기: "너무 별들이
+// 안 보여"). 밝기는 '보이냐 안 보이냐'가 아니라 '얼마나 밝냐'를 말해야 한다 — 지역은 언제나
+// 하나의 천체로 보이고, 이번 달 거리는 그 위에서 세기를 가른다.
+export const ACTIVE_BRIGHTNESS_FLOOR = 0.55;
+export const IDLE_BRIGHTNESS = 0.4;
 
 function toNonNegativeNumber(value) {
   const parsed = Number(value);

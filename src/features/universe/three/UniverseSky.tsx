@@ -651,14 +651,14 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
         // 확대하는 매 프레임 모든 천체의 버퍼가 새로 만들어진다(실측된 최대 GPU 낭비).
         // 잘라낸 공용 판 × (4.6×0.8): 글로우 감쇠 (1-t)^3.2은 반지름 0.8 밖에서 픽셀당
         // 1/255도 못 쓴다 — 같은 그림을 면적 36% 작은 판으로 그린다.
-        <mesh geometry={getTrimmedUnitPlane()} scale={[radius * 3.68, radius * 3.68, 1]}>
+        <mesh geometry={getTrimmedUnitPlane()} scale={[radius * 2.5, radius * 2.5, 1]}>
           {/* 멀리 있는 것은 작고 흐려야 멀어 보인다. 크고 밝은 솜뭉치로 그리면 은하가
               아니라 화면에 묻은 얼룩이 된다. */}
           <meshBasicMaterial
             map={getGlowTexture()}
             color={glowColor}
             transparent
-            opacity={(0.42 + 0.46 * orb.brightness) * fade * (1 - morph)}
+            opacity={(0.5 + 0.5 * orb.brightness) * fade * (1 - morph)}
             depthWrite={false}
             blending={AdditiveBlending}
           />
