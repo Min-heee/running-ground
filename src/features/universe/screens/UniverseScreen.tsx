@@ -9,6 +9,9 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+
+import { Feather } from '@expo/vector-icons';
 
 import { BrandLoadingView } from '@/components/BrandLoadingView';
 import { StateMessageCard } from '@/components/ui/StateMessageCard';
@@ -113,6 +116,17 @@ export default function UniverseScreen() {
     handleWarp();
   }, [handleWarp, starBirth]);
 
+  // 탭바를 숨긴 화면의 유일한 출구. 왔던 곳으로 돌려보내되, 히스토리가 없으면(딥링크·
+  // 알림으로 바로 들어온 경우) 홈으로 — 어느 쪽이든 갇히지 않는다.
+  const handleExit = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace('/(tabs)/home');
+  }, []);
+
   const handleResetView = useCallback(() => {
     setSelected(null);
     controlsRef.current?.reset();
@@ -123,10 +137,21 @@ export default function UniverseScreen() {
   const shown = selected ?? focused;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <Text style={styles.title}>스페이스</Text>
+          <View style={styles.titleRow}>
+            <Pressable
+              onPress={handleExit}
+              hitSlop={12}
+              style={styles.exitButton}
+              accessibilityRole="button"
+              accessibilityLabel="스페이스 나가기"
+            >
+              <Feather name="x" size={18} color="rgba(214, 228, 255, 0.95)" />
+            </Pressable>
+            <Text style={styles.title}>스페이스</Text>
+          </View>
           <View style={styles.headerActions}>
             {/* 끌다가 우주 밖으로 나가면 돌아올 길이 이것뿐이다 — 그래서 항상 떠 있다. */}
             <Pressable onPress={handleResetView} hitSlop={8} style={styles.ghostButton}>
@@ -260,6 +285,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  exitButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(150, 180, 255, 0.4)',
+    backgroundColor: 'rgba(90, 130, 220, 0.14)',
   },
   title: {
     color: 'rgba(242, 246, 255, 0.98)',

@@ -59,6 +59,13 @@ export default function TabsLayout() {
       marginTop: 2,
     },
   }), [tabBarBottomPadding, tabBarHeight]);
+  // 스페이스는 탭바를 숨긴다 (오너 2026-08-22). 우주를 보는 화면 아래에 밝은 흰 띠가
+  // 깔려 있으면 몰입이 끊기고, 세로 공간도 그만큼 하늘에서 뺏긴다. 나가는 길은 화면
+  // 안의 '나가기' 버튼이 대신한다 — 그게 없으면 탭바를 숨기는 순간 갇힌다.
+  const universeOptions = useMemo(() => ({
+    ...getTabScreenOptions('universe'),
+    tabBarStyle: { display: 'none' as const },
+  }), []);
   const tabListeners = useMemo(() => ({
     friends: buildTabInputListeners('friends'),
     home: buildTabInputListeners('home'),
@@ -85,7 +92,7 @@ export default function TabsLayout() {
       screenOptions={screenOptions}
     >
       <Tabs.Screen name="league" options={tabOptions.league} listeners={tabListeners.league} />
-      <Tabs.Screen name="universe" options={tabOptions.universe} listeners={tabListeners.universe} />
+      <Tabs.Screen name="universe" options={universeOptions} listeners={tabListeners.universe} />
       <Tabs.Screen name="friends" options={tabOptions.friends} listeners={tabListeners.friends} />
       <Tabs.Screen name="running" options={tabOptions.running} listeners={tabListeners.running} />
       <Tabs.Screen name="home" options={tabOptions.home} listeners={tabListeners.home} />
