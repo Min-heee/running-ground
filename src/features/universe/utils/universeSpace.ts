@@ -33,6 +33,15 @@ const SINGLE_CHILD_RADIUS = 0.55;
 // 서버 쪽 바닥(0.22)이 이미 최소 가시성을 보장한다.
 const SIZE_FLOOR = 0.55;
 
+// 지도 층(시/도)의 천체 크기 — 부모 반지름 대비. 이 층은 자리가 지도에 못 박혀 있어 크기를
+// 이웃 간격에서 뽑으면 붙어 있는 지역만 작아진다. 몫으로 고정하고, 겹침은 이완이 푼다.
+// 폰 캔버스(375폭) 첫 화면에서 가장 큰 시도가 반지름 ~13px, 대부분이 이름표 문턱을 넘는다.
+const MAP_BODY_RADIUS = 0.075;
+// 밀어낸 뒤 남길 최소 빈 하늘(부모 반지름 대비).
+const MAP_BODY_GAP = 0.03;
+// 이완 횟수. 16개 × 120쌍이라 비용은 없다시피 하고, 배치는 캐시된다(UniverseScene).
+const MAP_RELAX_PASSES = 40;
+
 // 우주의 크기는 **고정**이다. 화면 크기로 정하면 안 된다: 키보드가 올라오거나 검색 목록이
 // 펼쳐지거나 기기를 돌리는 순간 모든 좌표가 한꺼번에 다시 계산되는데 카메라는 그대로라,
 // 보고 있던 천체가 아무 동작 없이 화면 밖 수천 픽셀로 날아간다. 화면에 맞추는 일은 카메라가
@@ -56,11 +65,26 @@ export const UNIVERSE_MIN_ZOOM_FACTOR = 0.35;
 // 이름표(UniverseScene의 labelled)가 받친다.
 export const UNIVERSE_MAX_ZOOM_FACTOR = 160000;
 
-// 나라 전체가 화면에 들어차는 배율.
-export function fitZoomFor(canvasWidth: number, canvasHeight: number): number {
-  const half = Math.min(canvasWidth, canvasHeight) / 2;
+// 시/도가 실제로 차지하는 범위(루트 반지름 대비 반폭·반높이). 대한민국은 **세로로 길다** —
+// 측정값 941×1640(루트 지름의 47%×82%)에 여백을 붙인 값이다.
+export const MAP_EXTENT_X = 0.55;
+export const MAP_EXTENT_Y = 0.9;
 
-  return half > 0 ? (half * 0.92) / UNIVERSE_ROOT_RADIUS : 1;
+// 첫 화면 배율 — **지도가 실제로 차지하는 범위**를 화면에 맞춘다.
+//
+// 예전엔 반지름 1000짜리 추상 원을 화면의 짧은 변에 맞췄다. 그런데 그 원은 세로로 긴 지도를
+// 감싸느라 커진 것이라, 세로로 긴 폰에서 성좌가 화면 폭의 절반·높이의 절반짜리 패치로
+// 쪼그라들어 사방이 빈 하늘만 남았다(오너 2026-08-22: "너무 넓어서 별 찾기도 힘들어").
+// 세로로 긴 지도와 세로로 긴 폰은 사실 잘 맞는 짝이다 — 원이 아니라 지도를 맞추면 된다.
+export function fitZoomFor(canvasWidth: number, canvasHeight: number): number {
+  if (canvasWidth <= 0 || canvasHeight <= 0) {
+    return 1;
+  }
+
+  const byWidth = canvasWidth / (2 * MAP_EXTENT_X);
+  const byHeight = canvasHeight / (2 * MAP_EXTENT_Y);
+
+  return (Math.min(byWidth, byHeight) * 0.92) / UNIVERSE_ROOT_RADIUS;
 }
 
 export type SpacePlacement = {
@@ -111,35 +135,57 @@ export function placeOnMap(
   }));
   const maxScale = scales.reduce((max, scale) => Math.max(max, scale), 0);
 
-  return placed.map((body, index) => {
-    let nearest = parent.radius;
+  // 크기는 이웃까지의 거리가 아니라 **이 층의 몫**으로 정한다. 예전엔 가장 가까운 이웃까지의
+  // 거리에 비례시켰는데, 지도 간격이 극단적으로 불규칙해서(수도권은 붙어 있고 제주는 홀로
+  // 떨어져 있다) 회원이 가장 많은 서울·인천·대전·세종이 정확히 가장 작은 점이 됐다 —
+  // 폰에서 4.8~6.0px, 이름표도 못 다는 크기(오너 2026-08-22: "별 찾기도 힘들어").
+  const radiusFor = (index: number) => parent.radius * MAP_BODY_RADIUS * (maxScale > 0
+    ? SIZE_FLOOR + (1 - SIZE_FLOOR) * Math.min(1, scales[index] / maxScale)
+    : 1);
+  const radii = placed.map((_, index) => radiusFor(index));
 
-    for (let other = 0; other < placed.length; other += 1) {
-      if (other !== index) {
-        nearest = Math.min(nearest, Math.hypot(body.x - placed[other].x, body.y - placed[other].y));
+  // 겹치는 만큼만 서로 밀어낸다. 지도 자리를 그대로 두면 붙은 지역끼리 겹치고, 크기를 줄이면
+  // 안 보인다 — 그래서 **자리를 조금 양보**한다. 겹치지 않는 지역(제주·강원)은 한 걸음도
+  // 움직이지 않으므로 전체 지도 모양은 그대로 읽힌다. 결정적이라 매번 같은 자리다.
+  const margin = parent.radius * MAP_BODY_GAP;
+
+  for (let pass = 0; pass < MAP_RELAX_PASSES; pass += 1) {
+    for (let index = 0; index < placed.length; index += 1) {
+      for (let other = index + 1; other < placed.length; other += 1) {
+        const dx = placed[other].x - placed[index].x;
+        const dy = placed[other].y - placed[index].y;
+        const gap = radii[index] + radii[other] + margin;
+        const distance = Math.hypot(dx, dy);
+
+        if (distance >= gap) {
+          continue;
+        }
+
+        // 완전히 같은 자리(지도 점이 없는 지역들)면 인덱스로 방향을 갈라 결정적으로 흩는다.
+        const angle = distance > 1e-6 ? Math.atan2(dy, dx) : (index + other) * 2.399963;
+        const push = (gap - distance) / 2;
+        placed[index].x -= Math.cos(angle) * push;
+        placed[index].y -= Math.sin(angle) * push;
+        placed[other].x += Math.cos(angle) * push;
+        placed[other].y += Math.sin(angle) * push;
       }
     }
 
-    const sizeFactor = maxScale > 0
-      ? SIZE_FLOOR + (1 - SIZE_FLOOR) * Math.min(1, scales[index] / maxScale)
-      : 1;
+    // 부모 밖으로 밀려나면 안 된다 — 컬링이 '부모 밖이면 가지 전체를 건너뛴다'를 전제한다.
+    for (let index = 0; index < placed.length; index += 1) {
+      const dx = placed[index].x - parent.x;
+      const dy = placed[index].y - parent.y;
+      const limit = reach - radii[index];
+      const distance = Math.hypot(dx, dy);
 
-    return {
-      ...body,
-      // 이웃까지 거리의 일부만 쓰되, 위아래를 묶는다. 지도 간격은 극단적으로 불규칙해서
-      // (수도권은 붙어 있고 제주는 홀로 떨어져 있다) 비례만 시키면 서울은 점이 되고 제주는
-      // 화면을 덮는다.
-      //
-      // 이 층은 자리가 실제 지도에 못 박혀 있어서 **천체를 서로 밀어낼 수가 없다**. 사이를
-      // 벌리는 길은 하나뿐 — 천체를 작게 만드는 것이다. 0.42면 이웃한 둘이 각자 간격의
-      // 42%를 차지해 사실상 맞닿는다 (오너 2026-08-17: "지역끼리 좀 더 거리를 벌려도
-      // 괜찮을 거 같아").
-      radius: Math.max(
-        parent.radius * 0.016,
-        Math.min(parent.radius * 0.055, nearest * 0.26),
-      ) * sizeFactor,
-    };
-  });
+      if (distance > limit && distance > 1e-6) {
+        placed[index].x = parent.x + (dx / distance) * limit;
+        placed[index].y = parent.y + (dy / distance) * limit;
+      }
+    }
+  }
+
+  return placed.map((body, index) => ({ ...body, radius: radii[index] }));
 }
 
 export function placeChildren(

@@ -12,6 +12,8 @@ import {
   fitZoomFor,
   resolveProgress,
   smoothStep,
+  MAP_EXTENT_X,
+  MAP_EXTENT_Y,
   UNIVERSE_MAX_ZOOM_FACTOR,
   UNIVERSE_MIN_ZOOM_FACTOR,
   UNIVERSE_ROOT_RADIUS,
@@ -166,10 +168,22 @@ test('세계 크기는 화면과 무관하다 — 화면이 바뀌어도 좌표�
   const large = placeChildren({ x: 0, y: 0, z: 0, radius: UNIVERSE_ROOT_RADIUS }, [2, 1, 1, 1]);
   assert.deepEqual(small, large);
 
-  // 화면에 맞추는 일은 배율이 한다.
-  const fit = fitZoomFor(390, 620);
-  assert.ok(UNIVERSE_ROOT_RADIUS * fit < 390 / 2);
-  assert.ok(UNIVERSE_ROOT_RADIUS * fit > 390 / 2 - 40);
+  // 화면에 맞추는 일은 배율이 한다. 맞추는 대상은 반지름 1000짜리 **추상 원이 아니라
+  // 시/도가 실제로 차지하는 범위**다 — 그 원은 세로로 긴 지도를 감싸느라 커진 것이라,
+  // 원을 맞추면 세로로 긴 폰에서 성좌가 화면 한복판의 작은 패치로 쪼그라든다.
+  for (const [W, H] of [[390, 620], [375, 602], [1200, 800]]) {
+    const fit = fitZoomFor(W, H);
+    const mapWidthPx = MAP_EXTENT_X * 2 * UNIVERSE_ROOT_RADIUS * fit;
+    const mapHeightPx = MAP_EXTENT_Y * 2 * UNIVERSE_ROOT_RADIUS * fit;
+
+    assert.ok(mapWidthPx <= W && mapHeightPx <= H, `지도가 ${W}x${H} 화면을 넘쳤다`);
+    // 그리고 **채워야** 한다 — 어느 한 축은 화면의 8할 이상.
+    assert.ok(
+      mapWidthPx > W * 0.8 || mapHeightPx > H * 0.8,
+      `지도가 ${W}x${H} 화면에서 너무 작다 (${mapWidthPx.toFixed(0)}x${mapHeightPx.toFixed(0)})`,
+    );
+  }
+
   // 크기를 못 재는 순간(레이아웃 전)에도 안전한 값이 나와야 한다.
   assert.equal(fitZoomFor(0, 0), 1);
 });

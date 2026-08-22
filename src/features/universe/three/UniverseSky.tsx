@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
+import type { MutableRefObject } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import {
   AdditiveBlending,
@@ -7,6 +8,7 @@ import {
   Color,
   type DataTexture,
   type Group,
+  type MeshBasicMaterial,
   type Points,
   ShaderMaterial,
 } from 'three';
@@ -106,9 +108,9 @@ function diskSeedFor(id: string): number {
 // 어두운 하늘에서는 별이 **많고 작아야** 우주가 된다 (오너 2026-08-17: "어두운 곳에 빤짝하는
 // 별들만 있잖아"). 크고 적으면 점이 아니라 얼룩으로 보인다.
 const STAR_LAYERS = [
-  { count: 540, z: -420, size: 1.9, opacity: 0.55, drift: 0.004, twinkle: 0.75 },
-  { count: 320, z: -260, size: 2.7, opacity: 0.78, drift: 0.009, twinkle: 0.6 },
-  { count: 150, z: -140, size: 3.9, opacity: 0.95, drift: 0.016, twinkle: 0.45 },
+  { count: 540, z: -420, size: 1.9, opacity: 0.68, drift: 0.004, twinkle: 0.75 },
+  { count: 320, z: -260, size: 2.7, opacity: 0.9, drift: 0.009, twinkle: 0.6 },
+  { count: 150, z: -140, size: 3.9, opacity: 1, drift: 0.016, twinkle: 0.45 },
 ];
 
 // 은하수 — 하늘을 가로지르는 대각선 리본. 발광 판이 아니라 **밀도**로 그린다: 티끌만 한
@@ -181,6 +183,16 @@ void main() {
   gl_FragColor = vec4(tint, mask * uOpacity * vAlpha);
 }
 `;
+
+// 배경이 제스처마다 리액트를 다시 통과하지 않도록, 카메라 값은 **ref로** 건네고
+// 배경은 useFrame에서 직접 읽는다. 배경에 필요한 건 이 셋뿐이다.
+export type SkyViewport = { zoom: number; panX: number; panY: number; zoomFactor: number };
+
+// 배경 판의 페이드 — 배율 128×에서 소멸. 예전엔 0.1 바닥이 있어 깊은 확대 내내 보이지도
+// 않는 풀스크린 판을 계속 칠했다.
+function backdropFadeFor(zoomFactor: number): number {
+  return Math.max(0, Math.min(1, 1 - Math.log2(Math.max(1, zoomFactor)) / 7));
+}
 
 function seededRandom(seed: number) {
   let value = seed;
@@ -318,8 +330,14 @@ function StarLayer({
 // 깊고 어두운 남색 계열만 쓴다. 밝은 보라·자홍을 가산합성으로 겹치면 하늘이 통째로 들려
 // 올라가 별이 배경에 묻힌다 — 성운은 '보이는 것'이 아니라 '있는 줄 아는 것'이어야 한다.
 // 판마다 표류 속도가 달라 실타래 층이 서로 미끄러진다 — 값싼 체적감.
-function Nebula({ width, height, fade }: { width: number; height: number; fade: number }) {
+function Nebula({ width, height, viewportRef }: {
+  width: number;
+  height: number;
+  viewportRef: MutableRefObject<SkyViewport>;
+}) {
   const plateRefs = useRef<(Group | null)[]>([]);
+  const groupRef = useRef<Group>(null);
+  const materialRefs = useRef<(MeshBasicMaterial | null)[]>([]);
   const clouds = useMemo(() => {
     const random = seededRandom(20260815);
     const palette = ['#101430', '#0C1A3C', '#111B3A', '#1E1240'];
@@ -346,11 +364,25 @@ function Nebula({ width, height, fade }: { width: number; height: number; fade: 
   }, [height, width]);
 
   useFrame((_, delta) => {
+    // 페이드는 배율에서 나오는데, 그걸 prop으로 받으면 제스처 프레임마다 이 판들과 그 위의
+    // 하늘 전체가 리액트를 다시 통과한다. 값 하나만 여기서 직접 쓴다 — 그림은 그대로.
+    const fade = backdropFadeFor(viewportRef.current.zoomFactor);
+
+    if (groupRef.current) {
+      groupRef.current.visible = fade > 0.02;
+    }
+
     clouds.forEach((cloud, index) => {
       const plate = plateRefs.current[index];
 
       if (plate) {
         plate.rotation.z += delta * 0.006 * cloud.drift;
+      }
+
+      const material = materialRefs.current[index];
+
+      if (material) {
+        material.opacity = cloud.opacity * fade;
       }
     });
   });
@@ -358,7 +390,7 @@ function Nebula({ width, height, fade }: { width: number; height: number; fade: 
   return (
     // 페이드가 다 꺼지면 그리지 않는다(마운트는 유지 — 언마운트하면 돌아올 때 재구축 멈칫).
     // 예전엔 0.1 바닥 때문에 깊은 확대 내내 보이지도 않는(≤3/255) 풀스크린 판을 계속 칠했다.
-    <group visible={fade > 0.02}>
+    <group ref={groupRef}>
       {clouds.map((cloud, index) => (
         <group
           key={cloud.key}
@@ -370,10 +402,13 @@ function Nebula({ width, height, fade }: { width: number; height: number; fade: 
           <mesh rotation={[0, 0, cloud.rotation]} scale={[cloud.scaleX, cloud.scaleY, 1]}>
             <planeGeometry args={[1, 1]} />
             <meshBasicMaterial
+              ref={(node) => {
+                materialRefs.current[index] = node;
+              }}
               map={getNebulaTexture(cloud.variant)}
               color={cloud.color}
               transparent
-              opacity={cloud.opacity * fade}
+              opacity={cloud.opacity}
               depthWrite={false}
               blending={AdditiveBlending}
             />
@@ -388,12 +423,18 @@ function Nebula({ width, height, fade }: { width: number; height: number; fade: 
 // 그렇듯, 별의 강 위에 빛을 삼키는 균열이 있어야 띠가 리본이 아니라 은하면으로 읽힌다.
 // 일반 합성이라 화면을 어둡게만 한다.
 const RIFT_COLOR = new Color('#04050A');
-function GreatRift({ width, height, fade }: { width: number; height: number; fade: number }) {
+function GreatRift({ width, height, viewportRef }: {
+  width: number;
+  height: number;
+  viewportRef: MutableRefObject<SkyViewport>;
+}) {
+  const groupRef = useRef<Group>(null);
+  const materialRefs = useRef<(MeshBasicMaterial | null)[]>([]);
   const patches = useMemo(() => {
     const random = seededRandom(8151923);
     const reach = Math.hypot(width, height);
 
-    return Array.from({ length: 4 }, (_, index) => {
+    return Array.from({ length: 2 }, (_, index) => {
       const along = (index / 3 - 0.5) * reach * 0.85 + (random() - 0.5) * width * 0.2;
       const off = (random() - 0.5) * height * 0.1;
       const scale = Math.min(width, height) * (0.55 + random() * 0.5);
@@ -407,16 +448,32 @@ function GreatRift({ width, height, fade }: { width: number; height: number; fad
         scaleX: scale,
         scaleY: scale * 0.35,
         rotation: BAND_ANGLE + (random() - 0.5) * 0.24,
-        opacity: 0.5 + random() * 0.15,
+        opacity: 0.3 + random() * 0.1,
         variant: (index % 2) as 0 | 1,
       };
     });
   }, [height, width]);
 
+  useFrame(() => {
+    const fade = backdropFadeFor(viewportRef.current.zoomFactor);
+
+    if (groupRef.current) {
+      groupRef.current.visible = fade > 0.02;
+    }
+
+    patches.forEach((patch, index) => {
+      const material = materialRefs.current[index];
+
+      if (material) {
+        material.opacity = patch.opacity * fade;
+      }
+    });
+  });
+
   return (
     // Nebula와 같은 이유의 가시성 게이트 — 페이드가 꺼진 판은 칠하지 않는다.
-    <group visible={fade > 0.02}>
-      {patches.map((patch) => (
+    <group ref={groupRef}>
+      {patches.map((patch, index) => (
         <mesh
           key={patch.key}
           position={[patch.x, patch.y, patch.z]}
@@ -425,10 +482,13 @@ function GreatRift({ width, height, fade }: { width: number; height: number; fad
         >
           <planeGeometry args={[1, 1]} />
           <meshBasicMaterial
+            ref={(node) => {
+              materialRefs.current[index] = node;
+            }}
             map={getNebulaTexture(patch.variant)}
             color={RIFT_COLOR}
             transparent
-            opacity={patch.opacity * fade}
+            opacity={patch.opacity}
             depthWrite={false}
           />
         </mesh>
@@ -470,7 +530,11 @@ void main() {
 
 const METEOR_POINTS = 24;
 
-function ShootingStar({ width, height, enabled }: { width: number; height: number; enabled: boolean }) {
+function ShootingStar({ width, height, viewportRef }: {
+  width: number;
+  height: number;
+  viewportRef: MutableRefObject<SkyViewport>;
+}) {
   const geometry = useMemo(() => {
     const positions = new Float32Array(METEOR_POINTS * 3);
     const ts = new Float32Array(METEOR_POINTS);
@@ -514,8 +578,6 @@ function ShootingStar({ width, height, enabled }: { width: number; height: numbe
   const flight = useRef<{ bornAt: number; life: number; travel: number } | null>(null);
   // 첫 유성은 조금 이르게 — 머문 사람이 보게.
   const nextAt = useRef(14 + Math.random() * 12);
-  const enabledRef = useRef(enabled);
-  enabledRef.current = enabled;
 
   useFrame((state) => {
     const now = state.clock.elapsedTime;
@@ -523,7 +585,8 @@ function ShootingStar({ width, height, enabled }: { width: number; height: numbe
 
     if (!flight.current) {
       // 은하 안까지 들어와 있으면 쏘지 않는다 — 유성은 넓은 하늘의 것이다.
-      if (enabledRef.current && now >= nextAt.current) {
+      // 은하 안까지 들어와 있으면 쏘지 않는다 — 배율은 ref에서 직접 읽는다.
+      if (viewportRef.current.zoomFactor < 3 && now >= nextAt.current) {
         const angle = -(25 + Math.random() * 15) * (Math.PI / 180);
         const flip = Math.random() < 0.5 ? -1 : 1;
         const length = 90 + Math.random() * 50;
@@ -595,7 +658,7 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
             map={getGlowTexture()}
             color={glowColor}
             transparent
-            opacity={(0.2 + 0.34 * orb.brightness) * fade * (1 - morph)}
+            opacity={(0.42 + 0.46 * orb.brightness) * fade * (1 - morph)}
             depthWrite={false}
             blending={AdditiveBlending}
           />
@@ -653,39 +716,46 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
   );
 }
 
-function UniverseSkyComponent({
-  orbs,
-  width,
-  height,
-  zoom = 1,
-  panX = 0,
-  panY = 0,
-  zoomFactor = 1,
-}: {
-  orbs: SkyOrb[];
+// 하늘의 배경 — 조명, 별밭 열한 겹, 성운/암흑운 판, 유성. **폭·높이 말고는 아무것도 받지
+// 않는다.** 카메라 값은 ref로 들어와 useFrame이 직접 시차 그룹 변환과 판 투명도에 쓴다.
+//
+// 이렇게 가르는 이유: 제스처 한 프레임마다 UniverseSky 전체가 리렌더되면서 배경의 파이버
+// 마흔 개가 매번 다시 조정됐다. 정작 배경에서 프레임마다 달라지는 건 그룹 변환 하나와
+// 페이드 두 개뿐이다 — 그림은 픽셀 하나 안 바뀌고, 안드로이드에서 특히 비싼 그 조정만 사라진다.
+function SkyBackdropComponent({ width, height, viewportRef }: {
   width: number;
   height: number;
-  zoom?: number;
-  panX?: number;
-  panY?: number;
-  // 처음 배율(나라가 화면에 꽉 차는 배율) 대비 몇 배인지 — 배경을 얼마나 물릴지 정한다.
-  zoomFactor?: number;
+  viewportRef: MutableRefObject<SkyViewport>;
 }) {
   // 별 개수는 화면 **면적**을 따라간다 — 개수가 고정이면 폰 화면에서는 같은 별들이 1/4
   // 면적에 몰려 하늘이 눈보라가 되고, 초광폭 모니터에서는 성겨진다. 밀도가 상수여야
   // 어느 화면에서든 같은 하늘이다.
   const areaScale = Math.max(0.3, Math.min(1.4, (width * height) / 480000));
+  const parallaxRef = useRef<Group>(null);
 
-  // 하늘이 뜨자마자 행성·항성 텍스처를 미리 굽기 시작한다 — 첫 확대가 첫 요리가 되지 않게.
-  useEffect(() => {
-    prewarmSphereAssets();
-  }, []);
+  useFrame(() => {
+    const group = parallaxRef.current;
+
+    if (!group) {
+      return;
+    }
+
+    const { panX, panY, zoom } = viewportRef.current;
+    // 배경은 시차 — pan의 일부만 따라오고 확대에는 거의 반응하지 않는다. 멀리 있는 것이
+    // 덜 움직여야 깊이가 생긴다. 이동·확대 모두 상한을 둔다: 이 우주는 배율 수천 배까지
+    // 가고 그때 pan은 수만 픽셀이라, 비례로 따라가면 배경 별밭이 화면 밖으로 통째로 밀려나
+    // 칠흑만 남고 성운은 25배로 부풀어 화면을 하얗게 덮는다.
+    group.position.x = Math.max(-width, Math.min(width, panX * 0.18));
+    group.position.y = -Math.max(-height, Math.min(height, panY * 0.18));
+    const scale = Math.min(1.8, 1 + Math.log2(Math.max(0.25, zoom)) * 0.06);
+    group.scale.setScalar(scale);
+  });
 
   return (
     <>
       {/* 은은한 환경광 — 완전한 암흑을 피하되 명암 경계는 살린다. 우주에는 하늘빛이 없어서
           이 값이 크면 행성의 밤면까지 밝아지고, 그러면 구가 아니라 스티커로 보인다. */}
-      <ambientLight intensity={0.13} color="#5D6B9E" />
+      <ambientLight intensity={0.2} color="#5D6B9E" />
       <directionalLight position={[-320, 380, 520]} intensity={2.2} color="#EAF1FF" />
       {/* 림 라이트: 카메라 반대편에서 스쳐 들어와 천체 가장자리에 얇은 빛 띠를 남긴다. */}
       <directionalLight position={[420, -280, -360]} intensity={1.1} color="#7FA8FF" />
@@ -720,34 +790,12 @@ function UniverseSkyComponent({
         />
       ))}
 
-      {/* 배경은 시차 — pan의 일부만 따라오고 확대에는 거의 반응하지 않는다. 멀리 있는 것이
-          덜 움직여야 깊이가 생긴다.
-          이동·확대 모두 상한을 둔다: 이 우주는 배율 400배까지 가고 그때 pan은 수만 픽셀이라,
-          비례로 따라가면 배경 별밭이 화면 밖으로 통째로 밀려나 칠흑만 남고 성운은 25배로
-          부풀어 화면을 하얗게 덮는다. */}
-      <group
-        position={[
-          Math.max(-width, Math.min(width, panX * 0.18)),
-          -Math.max(-height, Math.min(height, panY * 0.18)),
-          0,
-        ]}
-        scale={Math.min(1.8, 1 + Math.log2(Math.max(0.25, zoom)) * 0.06)}
-      >
+      <group ref={parallaxRef}>
         {/* 은하의 성운은 멀리서 볼 때의 배경이다. 한 태양계 안까지 들어와서도 같은 세기로
-            깔리면 행성 위에 보랏빛 안개를 씌운 꼴이 되어 표면이 통째로 뿌예진다.
-            페이드는 0까지 내려간다(배율 128×에서 소멸) — 예전의 0.1 바닥은 깊은 확대 내내
-            보이지도 않는(≤3/255) 풀스크린 판 8장을 계속 칠하게 했다(갤럭시 GPU 최대 낭비). */}
-        <Nebula
-          width={width}
-          height={height}
-          fade={Math.max(0, Math.min(1, 1 - Math.log2(Math.max(1, zoomFactor)) / 7))}
-        />
+            깔리면 행성 위에 보랏빛 안개를 씌운 꼴이 되어 표면이 통째로 뿌예진다. */}
+        <Nebula width={width} height={height} viewportRef={viewportRef} />
 
-        <GreatRift
-          width={width}
-          height={height}
-          fade={Math.max(0, Math.min(1, 1 - Math.log2(Math.max(1, zoomFactor)) / 7))}
-        />
+        <GreatRift width={width} height={height} viewportRef={viewportRef} />
 
         {STAR_LAYERS.map((layer, index) => (
           <StarLayer
@@ -789,8 +837,45 @@ function UniverseSkyComponent({
           warmthRange={HERO_WARMTH}
         />
 
-        <ShootingStar width={width} height={height} enabled={zoomFactor < 3} />
+        <ShootingStar width={width} height={height} viewportRef={viewportRef} />
       </group>
+    </>
+  );
+}
+
+// 폭·높이가 그대로면 절대 다시 그리지 않는다 — 이 memo가 이 수술의 전부다.
+const SkyBackdrop = memo(SkyBackdropComponent);
+
+function UniverseSkyComponent({
+  orbs,
+  width,
+  height,
+  zoom = 1,
+  panX = 0,
+  panY = 0,
+  zoomFactor = 1,
+}: {
+  orbs: SkyOrb[];
+  width: number;
+  height: number;
+  zoom?: number;
+  panX?: number;
+  panY?: number;
+  // 처음 배율(나라가 화면에 꽉 차는 배율) 대비 몇 배인지 — 배경을 얼마나 물릴지 정한다.
+  zoomFactor?: number;
+}) {
+  // 카메라 값은 렌더마다 ref에 적어 두고, 배경은 그 ref를 useFrame에서 읽는다.
+  const viewportRef = useRef<SkyViewport>({ zoom, panX, panY, zoomFactor });
+  viewportRef.current = { zoom, panX, panY, zoomFactor };
+
+  // 하늘이 뜨자마자 행성·항성 텍스처를 미리 굽기 시작한다 — 첫 확대가 첫 요리가 되지 않게.
+  useEffect(() => {
+    prewarmSphereAssets();
+  }, []);
+
+  return (
+    <>
+      <SkyBackdrop width={width} height={height} viewportRef={viewportRef} />
 
       {/* 천체는 이미 투영된 화면 좌표로 온다 — 여기서 다시 변환하지 않는다. 원근 투영은
           아핀이 아니라 그룹 변환으로 표현할 수 없고, 무엇보다 이름표 레이어와 같은 숫자를
