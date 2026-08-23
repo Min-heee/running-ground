@@ -29,6 +29,37 @@ import {
 } from '@/features/universe/hooks/useUniverseSearch';
 import type { UniverseSearchResult } from '@/lib/api/types';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
+import { readPerf, type PerfSnapshot } from '@/features/universe/three/perfProbe';
+
+// 성능 계측 표시 — 제목을 **길게 누르면** 켜진다. 실기기에서만 알 수 있는 숫자를 오너가
+// 직접 읽어 보내 줄 수 있게 두는 임시 창구다(개발 브라우저는 탭이 가려지면 프레임 루프가
+// 얼어서 측정이 통째로 오염된다). 켜지 않으면 존재하지 않는 것과 같다.
+function PerfHud() {
+  const [snapshot, setSnapshot] = useState<PerfSnapshot | null>(null);
+
+  useEffect(() => {
+    const timer = setInterval(() => setSnapshot(readPerf()), 500);
+    return () => clearInterval(timer);
+  }, []);
+
+  if (!snapshot) {
+    return null;
+  }
+
+  return (
+    <View style={styles.perfHud} pointerEvents="none">
+      <Text style={styles.perfText}>
+        {`${snapshot.fps}fps · 최악 ${snapshot.worstMs}ms`}
+      </Text>
+      <Text style={styles.perfText}>
+        {`천체 ${snapshot.bodies} · 원반 ${snapshot.disks}`}
+      </Text>
+      <Text style={styles.perfText}>
+        {`${snapshot.megaPixels}MP · dpr ${snapshot.dpr}`}
+      </Text>
+    </View>
+  );
+}
 
 // 우주는 테마와 무관하게 항상 어둡다 — 라이트 모드라고 흰 우주를 그릴 수는 없어서, 이
 // 화면만 고정 우주색을 쓴다 (다른 탭은 colors 토큰을 그대로 따른다).
@@ -41,6 +72,7 @@ export default function UniverseScreen() {
   const [canvas, setCanvas] = useState({ width: 0, height: 0 });
   const [selected, setSelected] = useState<SceneBody | null>(null);
   const [focused, setFocused] = useState<SceneBody | null>(null);
+  const [showPerf, setShowPerf] = useState(false);
   // 장면이 좌표 계산을 맡는다 — 화면은 "이 경로로 데려가 줘"라고만 부탁한다.
   const controlsRef = useRef<UniverseSceneControls | null>(null);
 
@@ -150,7 +182,13 @@ export default function UniverseScreen() {
             >
               <Feather name="x" size={18} color="rgba(214, 228, 255, 0.95)" />
             </Pressable>
-            <Text style={styles.title}>스페이스</Text>
+            <Text
+              style={styles.title}
+              onLongPress={() => setShowPerf((shown) => !shown)}
+              suppressHighlighting
+            >
+              스페이스
+            </Text>
           </View>
           <View style={styles.headerActions}>
             {/* 끌다가 우주 밖으로 나가면 돌아올 길이 이것뿐이다 — 그래서 항상 떠 있다. */}
@@ -245,6 +283,8 @@ export default function UniverseScreen() {
         ) : null}
 
         {starBirth.showing ? <StarBirthOverlay onDone={handleBirthDone} /> : null}
+
+        {showPerf ? <PerfHud /> : null}
       </View>
 
       <View style={styles.footer}>
@@ -285,6 +325,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  perfHud: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(4, 6, 14, 0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(150, 180, 255, 0.35)',
+  },
+  perfText: {
+    color: 'rgba(214, 228, 255, 0.95)',
+    fontSize: 11,
+    fontVariant: ['tabular-nums'],
   },
   titleRow: {
     flexDirection: 'row',

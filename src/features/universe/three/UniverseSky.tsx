@@ -26,6 +26,7 @@ import { GalaxyDisk } from '@/features/universe/three/GalaxyDisk';
 import { HighlightRing } from '@/features/universe/three/HighlightRing';
 import { smoothStep } from '@/features/universe/utils/universeSpace';
 import { CelestialSphere, prewarmSphereAssets } from '@/features/universe/three/CelestialSphere';
+import { recordCanvas, recordFrame, recordScene } from '@/features/universe/three/perfProbe';
 
 // 3D 우주 레이어 (오너 2026-08-15: "실제 우주처럼"). 겹친 반투명 View로 내던 발광체를
 // 진짜 구체 + 가산합성 후광으로 바꾼다.
@@ -722,6 +723,21 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
 // 이렇게 가르는 이유: 제스처 한 프레임마다 UniverseSky 전체가 리렌더되면서 배경의 파이버
 // 마흔 개가 매번 다시 조정됐다. 정작 배경에서 프레임마다 달라지는 건 그룹 변환 하나와
 // 페이드 두 개뿐이다 — 그림은 픽셀 하나 안 바뀌고, 안드로이드에서 특히 비싼 그 조정만 사라진다.
+// 프레임 루프 안에서만 알 수 있는 것들을 계측기에 적어 둔다 — 화면에 띄우는 건 화면 쪽 몫.
+function FrameProbe({ width, height }: { width: number; height: number }) {
+  const dpr = useThree((state) => state.viewport.dpr);
+
+  useEffect(() => {
+    recordCanvas(width, height, dpr);
+  }, [dpr, height, width]);
+
+  useFrame(() => {
+    recordFrame(Date.now());
+  });
+
+  return null;
+}
+
 function SkyBackdropComponent({ width, height, viewportRef }: {
   width: number;
   height: number;
@@ -873,8 +889,11 @@ function UniverseSkyComponent({
     prewarmSphereAssets();
   }, []);
 
+  recordScene(orbs.length, orbs.filter((orb) => orb.shape === 'disk' && orb.morph > 0.005).length);
+
   return (
     <>
+      <FrameProbe width={width} height={height} />
       <SkyBackdrop width={width} height={height} viewportRef={viewportRef} />
 
       {/* 천체는 이미 투영된 화면 좌표로 온다 — 여기서 다시 변환하지 않는다. 원근 투영은
