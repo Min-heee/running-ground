@@ -406,6 +406,15 @@ export function getStarSurface(): DataTexture {
 // 구울 수 있는 모든 원형의 목록 — 프리워밍(CelestialSphere)이 쓴다. 첫 확대에서 필요한
 // 순간에 구우면 250-600ms 멈칫의 행렬이 되므로, 탭이 자리잡은 뒤 한 장씩 미리 굽는다.
 // 전부 모듈 캐시에 남으니 언제 구워도 순수 이득이다.
+import {
+  getBlackbodyRamp,
+  getDustLaneTexture,
+  getGlowTexture,
+  getNebulaTexture,
+  getSpikedStarTexture,
+  getStarPointTexture,
+} from '@/features/universe/three/textures';
+
 export function listAllTextureBakes(): (() => unknown)[] {
   const bakes: (() => unknown)[] = [];
 
@@ -420,5 +429,16 @@ export function listAllTextureBakes(): (() => unknown)[] {
   }
 
   bakes.push(() => getStarSurface(), () => getCloudTexture(), () => getRingTexture());
+  // 하늘 쪽 절차적 텍스처도 같이 덥힌다. 원반의 먼지 띠(256×256, 픽셀마다 삼각함수)는
+  // 첫 은하가 그려지는 그 프레임에 구워져 첫 확대의 멈칫에 얹혔다.
+  bakes.push(
+    () => getDustLaneTexture(),
+    () => getStarPointTexture(),
+    () => getGlowTexture(),
+    () => getSpikedStarTexture(),
+    () => getBlackbodyRamp(),
+    () => getNebulaTexture(0),
+    () => getNebulaTexture(1),
+  );
   return bakes;
 }

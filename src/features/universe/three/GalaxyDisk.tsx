@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useReducer, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import {
   AdditiveBlending,
@@ -42,8 +42,10 @@ const RANDOMNESS_POWER = 2.8;
 // 오르내리는 지금 구조에서 낮은 계단이 헤일로를 통째로 잃는다 — 섞어 두면 어느 접두사를
 // 그려도 비율이 유지된다.
 const HALO_STRIDE = 14;
-// 파티클 수의 최대 계단(420×4). 버퍼는 이 크기로 한 번만 만든다.
-const MAX_POINT_STEPS = 4;
+// 파티클 수의 최대 계단. 버퍼는 이 크기로 한 번만 만들고 drawRange로 계단을 오르내린다.
+// 4 → 3: pointSize가 3.4에서 잘리므로 round()가 4에 닿을 수 없다 — 4번째 계단은 한 번도
+// 쓰인 적 없는 25%의 순수 낭비였다(그림은 완전히 동일).
+const MAX_POINT_STEPS = 3;
 
 function seeded(seed: number) {
   let value = seed % 2147483647;
@@ -284,6 +286,129 @@ void main() {
 }
 `;
 
+// 원반 버퍼는 **비싸고, 한꺼번에 몰린다**. 첫 확대에 시/도 열여섯이 동시에 원반으로
+// 바뀌면서 파티클 2만 개를 한 프레임에 만들다 화면이 멎었다(오너 2026-08-22: "처음 확대하면
+// 끊겼다가 멈췄다가 실행돼"). 그래서 두 가지를 둔다.
+//
+//  ① 캐시 — 같은 지역은 평생 한 번만 만든다. 컬링으로 화면을 들락거려도 다시 안 만든다.
+//  ② 프레임당 예산 — 남은 것은 다음 프레임으로 미룬다. 아직 못 만든 원반은 해석적 핵(수식,
+//     지오메트리 없음)만으로 빛나고 있다가 버퍼가 도착하면 별이 채워진다. 멈추는 대신
+//     '차오른다'.
+const diskGeometryCache = new Map<string, BufferGeometry>();
+const diskGeometryRefs = new Map<string, number>();
+type DiskBuildJob = { key: string; build: () => BufferGeometry; notify: () => void };
+const pendingDiskBuilds: DiskBuildJob[] = [];
+let diskBuildFrame: number | null = null;
+let diskBuildTimer: ReturnType<typeof setTimeout> | null = null;
+// 한 프레임에 하나. 폰(Hermes)에서 원반 하나가 프레임 예산의 절반쯤을 먹는다.
+const DISK_BUILDS_PER_FRAME = 1;
+// 살아 있는 원반이 참조하지 않는 버퍼는 이만큼까지만 들고 있는다.
+const DISK_GEOMETRY_CACHE_MAX = 40;
+
+function evictIdleDiskGeometries() {
+  if (diskGeometryCache.size <= DISK_GEOMETRY_CACHE_MAX) {
+    return;
+  }
+
+  for (const key of diskGeometryCache.keys()) {
+    if (diskGeometryCache.size <= DISK_GEOMETRY_CACHE_MAX) {
+      return;
+    }
+
+    // 화면에 살아 있는 것은 절대 버리지 않는다 — 버리면 그 원반이 통째로 사라진다.
+    if ((diskGeometryRefs.get(key) ?? 0) > 0) {
+      continue;
+    }
+
+    diskGeometryCache.get(key)?.dispose();
+    diskGeometryCache.delete(key);
+    diskGeometryRefs.delete(key);
+  }
+}
+
+// 프레임에 맞춰 돌리되, **프레임이 안 오는 경우까지 대비한다.** requestAnimationFrame은
+// 화면이 가려지면 굶는다 — 그 상태로 큐를 rAF에만 맡기면 원반이 영영 안 만들어져 지역이
+// 핵만 남은 채로 굳는다. 타이머를 나란히 걸어 둘 중 먼저 오는 쪽이 일한다.
+function scheduleDiskBuilds() {
+  if (pendingDiskBuilds.length === 0) {
+    return;
+  }
+
+  if (diskBuildFrame === null) {
+    diskBuildFrame = requestAnimationFrame(pumpDiskBuilds);
+  }
+
+  if (diskBuildTimer === null) {
+    diskBuildTimer = setTimeout(pumpDiskBuilds, 120);
+  }
+}
+
+function pumpDiskBuilds() {
+  if (diskBuildFrame !== null) {
+    cancelAnimationFrame(diskBuildFrame);
+    diskBuildFrame = null;
+  }
+
+  if (diskBuildTimer !== null) {
+    clearTimeout(diskBuildTimer);
+    diskBuildTimer = null;
+  }
+
+  let budget = DISK_BUILDS_PER_FRAME;
+
+  while (budget > 0) {
+    const job = pendingDiskBuilds.shift();
+
+    if (!job) {
+      break;
+    }
+
+    if (!diskGeometryCache.has(job.key)) {
+      diskGeometryCache.set(job.key, job.build());
+      evictIdleDiskGeometries();
+    }
+
+    job.notify();
+    budget -= 1;
+  }
+
+  scheduleDiskBuilds();
+}
+
+function useDiskGeometry(key: string, build: () => BufferGeometry): BufferGeometry | null {
+  const [, bump] = useReducer((tick: number) => tick + 1, 0);
+  const buildRef = useRef(build);
+  buildRef.current = build;
+
+  useEffect(() => {
+    diskGeometryRefs.set(key, (diskGeometryRefs.get(key) ?? 0) + 1);
+
+    return () => {
+      diskGeometryRefs.set(key, Math.max(0, (diskGeometryRefs.get(key) ?? 0) - 1));
+    };
+  }, [key]);
+
+  useEffect(() => {
+    if (diskGeometryCache.has(key)) {
+      return undefined;
+    }
+
+    const job: DiskBuildJob = { key, build: () => buildRef.current(), notify: bump };
+    pendingDiskBuilds.push(job);
+    scheduleDiskBuilds();
+
+    return () => {
+      const index = pendingDiskBuilds.indexOf(job);
+
+      if (index >= 0) {
+        pendingDiskBuilds.splice(index, 1);
+      }
+    };
+  }, [key]);
+
+  return diskGeometryCache.get(key) ?? null;
+}
+
 function GalaxyDiskComponent({
   radius,
   brightness,
@@ -325,7 +450,10 @@ function GalaxyDiskComponent({
   // 접두사는 언제나 같은 바이트라 계단 전환이 정수 하나 쓰기가 됐다(헤일로는 인터리브 —
   // buildDiskGeometry의 HALO_STRIDE 참고).
   const count = 420 * Math.min(MAX_POINT_STEPS, Math.max(1, Math.round(pointSize)));
-  const geometry = useMemo(
+  // 버퍼는 지역마다 하나뿐이고(캐시), 만드는 일은 프레임 예산을 타고 들어온다. 아직
+  // 못 만든 동안에는 null — 해석적 핵만 빛나고 있다가 도착하면 별이 채워진다.
+  const geometry = useDiskGeometry(
+    `${seed}:${kind}:${coreColor}:${armColor}`,
     () => buildDiskGeometry({
       count: 420 * MAX_POINT_STEPS,
       radius: 1,
@@ -334,15 +462,12 @@ function GalaxyDiskComponent({
       coreColor: new Color(coreColor),
       armColor: new Color(armColor),
     }),
-    [armColor, coreColor, kind, seed],
   );
 
-  geometry.setDrawRange(0, count);
+  geometry?.setDrawRange(0, count);
 
-  // 파티클 버퍼는 우리가 만들었으므로 우리가 치운다. r3f는 prop으로 받은 geometry를
-  // 정리해 주지 않아서(Points에는 dispose가 없다), 확대하며 원반이 수백 번 생겼다 사라지는
-  // 이 화면에서는 GPU 버퍼가 그대로 쌓인다.
-  useEffect(() => () => geometry.dispose(), [geometry]);
+  // 버퍼의 수명은 이제 캐시가 쥔다(useDiskGeometry) — 화면에 아무도 안 쓰는 것부터
+  // 상한을 넘을 때 버린다. 여기서 dispose하면 같은 버퍼를 쓰는 다른 원반이 통째로 사라진다.
 
   // 재질은 한 번 만들고 유니폼만 갱신한다 — 페이드·밝기를 의존성에 넣으면 확대하는 내내
   // 프레임마다 셰이더 프로그램이 쌓인다(CelestialSphere의 규율과 같다).
@@ -388,7 +513,9 @@ function GalaxyDiskComponent({
   pointsMaterial.uniforms.uPointSize.value = pointSize;
   pointsMaterial.uniforms.uPixelScale.value = dpr * 0.5;
   pointsMaterial.uniforms.uOpacity.value = (0.55 + 0.45 * brightness) * opacity;
-  coreMaterial.uniforms.uOpacity.value = (0.22 + 0.26 * brightness) * opacity * coreFade;
+  coreMaterial.uniforms.uOpacity.value = (0.22 + 0.26 * brightness) * opacity
+    // 별이 아직 없으면 핵이 그 자리를 대신한다.
+    * (geometry ? coreFade : Math.max(coreFade, 0.75));
   // 먼지는 서서히 들어온다 — 이진 게이트는 완전히 보이는 크기에서 어두운 판을 한 프레임에
   // 툭 떨어뜨렸다.
   const dustFade = smoothStep(1.45, 1.9, pointSize);
@@ -427,7 +554,8 @@ function GalaxyDiskComponent({
           단, **셋 다 처음부터 마운트되어 있어야** 한다. 문턱에서 조건부로 마운트하면
           나중에 태어난 것이 더 큰 id를 받아 형제들 위에 그려진다(먼지가 별을 이중으로
           덮던 실제 버그). 그래서 끄는 건 unmount가 아니라 visible로 한다. */}
-      <mesh material={coreMaterial} rotation={[0, 0, barAngle]} visible={coreFade > 0.01}>
+      {/* 버퍼가 아직이면 핵만으로 버틴다 — 빈 자리 대신 빛나는 덩어리가 보이게. */}
+      <mesh material={coreMaterial} rotation={[0, 0, barAngle]} visible={coreFade > 0.01 || !geometry}>
         <planeGeometry args={[1.05, 1.05]} />
       </mesh>
 
@@ -449,7 +577,7 @@ function GalaxyDiskComponent({
           </mesh>
         ) : null}
 
-        <points geometry={geometry} material={pointsMaterial} />
+        {geometry ? <points geometry={geometry} material={pointsMaterial} /> : null}
       </group>
 
       {/* 내 지역 — 숨쉬는 1px 링(정면으로 눕혀 원반과 같은 평면에 놓는다). 은하만 한
