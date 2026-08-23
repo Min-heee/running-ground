@@ -69,7 +69,14 @@ const HII_PINK = new Color('#FF8FA8').multiplyScalar(1.15);
 const HALO_TINT = new Color('#C8B79A').multiplyScalar(0.25);
 const GLOBULAR_TINT = new Color('#FFF2DC').multiplyScalar(0.8);
 
-function buildDiskGeometry({
+type DiskGeometryBuilder = {
+  geometry: BufferGeometry;
+  // 예산만큼 채우고 끝났는지 알려준다. 폰에서 원반 하나를 통째로 만들면 그 한 프레임이
+  // 20~40ms가 되어(실기기 계측: 최악 프레임 42ms) 눈에 띄는 멈칫이 된다 — 나눠 채운다.
+  step: (budget: number) => boolean;
+};
+
+function createDiskGeometryBuilder({
   count,
   radius,
   kind,
@@ -83,7 +90,7 @@ function buildDiskGeometry({
   seed: number;
   coreColor: Color;
   armColor: Color;
-}): BufferGeometry {
+}): DiskGeometryBuilder {
   const random = seeded(seed);
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
@@ -99,124 +106,7 @@ function buildDiskGeometry({
   const branchGain = [0.85 + random() * 0.1, 1, 1.05 + random() * 0.12];
 
   let haloSeen = 0;
-
-  for (let index = 0; index < count; index += 1) {
-    // 헤일로 점 — 14개마다 하나. 접두사 어디를 잘라도 ≈7%가 유지된다.
-    if (kind === 'galaxy' && index % HALO_STRIDE === HALO_STRIDE - 1) {
-      const theta = random() * Math.PI * 2;
-      const cosPhi = random() * 2 - 1;
-      const sinPhi = Math.sqrt(Math.max(0, 1 - cosPhi * cosPhi));
-      const shell = (1.05 + random() * 0.3) * radius;
-
-      positions[index * 3] = shell * sinPhi * Math.cos(theta);
-      positions[index * 3 + 1] = shell * sinPhi * Math.sin(theta);
-      positions[index * 3 + 2] = shell * cosPhi * 0.5;
-
-      // 구상성단은 처음 네 개만 — 드물어야 성단이다.
-      const isGlobular = haloSeen < 4;
-      haloSeen += 1;
-      const shellFade = 1 - ((shell / radius - 1.05) / 0.3) * 0.6;
-      mixed.copy(isGlobular ? GLOBULAR_TINT : HALO_TINT).multiplyScalar(shellFade);
-
-      colors[index * 3] = mixed.r;
-      colors[index * 3 + 1] = mixed.g;
-      colors[index * 3 + 2] = mixed.b;
-      sizes[index] = isGlobular ? 1.9 : 0.6 + 2.8 * Math.pow(random(), 6);
-      twinkles[index] = 0.1;
-      phases[index] = random();
-      continue;
-    }
-    // 중심으로 갈수록 조밀 — 제곱근 분포라 핵이 밝고 바깥이 성기다.
-    const distance = Math.pow(random(), 0.62) * radius;
-    const branchIndex = index % SPIRAL_BRANCHES;
-    const branchAngle = (branchIndex / SPIRAL_BRANCHES) * Math.PI * 2;
-    const spinAngle = kind === 'galaxy' ? distance * (SPIRAL_SPIN / radius) : 0;
-
-    const scatter = () =>
-      Math.pow(random(), RANDOMNESS_POWER) * (random() < 0.5 ? 1 : -1) * RANDOMNESS * distance;
-
-    const scatterX = scatter();
-    const scatterY = scatter();
-    const scatterZ = scatter();
-
-    // 은하군은 팔이 없다 — 구성원이 공통 중심을 도는 타원형 무리라 각도를 무작위로 흩는다.
-    const angle = kind === 'galaxy'
-      ? branchAngle + spinAngle
-      : random() * Math.PI * 2;
-    const flatten = kind === 'galaxy' ? 0.14 : 0.55;
-    // 치우침 — 원반의 한쪽이 다른 쪽보다 뻗는다. 실제 은하 대부분이 그렇다(lopsidedness).
-    const lop = kind === 'galaxy' ? 1 + lopAmp * Math.sin(angle + lopPhase) : 1;
-    const finalDistance = distance * lop;
-
-    const px = Math.cos(angle) * finalDistance + scatterX;
-    const py = Math.sin(angle) * finalDistance + scatterY;
-
-    positions[index * 3] = px;
-    positions[index * 3 + 1] = py;
-    // 두께는 화면 깊이 방향(z)으로만 — 원반이 화면과 나란해 정면으로 보인다.
-    positions[index * 3 + 2] = scatterZ * flatten;
-
-    // 치우침이 반지름 밖으로 밀어낸 별까지 서서히 꺼지도록 상한을 1.15로 늘린다.
-    const reach = Math.min(1.15, finalDistance / radius);
-    // 가장자리는 서서히 꺼진다. 밀도만으로 끝을 내면 반지름에서 딱 잘려서, 멀어져 점들이
-    // 한 덩어리로 뭉쳤을 때 은하가 아니라 **오려낸 회색 원**으로 보인다.
-    const rim = 1 - Math.max(0, (reach - 0.5) / 0.65) ** 1.7;
-
-    // 별 크기의 멱법칙 — 대부분 0.6 근처, 아주 드물게 3을 넘는다. 눈은 이 위계를
-    // '진짜 별밭'으로 읽는다. 밝은 소수만 블룸 문턱을 넘어 바늘끝처럼 반짝인다.
-    let size = 0.6 + 2.8 * Math.pow(random(), 6);
-    let twinkle = 0.15 + random() * 0.3;
-
-    const colorReach = Math.min(1, reach);
-    // 팔 위에 앉은 점인지 — 흩어짐이 작으면 팔의 능선이다.
-    const onArm = Math.abs(scatterX) + Math.abs(scatterY) < 0.05 * Math.max(1e-6, distance);
-
-    if (kind === 'galaxy' && colorReach < 0.25) {
-      // 벌지 — 늙고 따뜻한 별들. 거의 깜빡이지 않는다.
-      mixed.copy(BULGE_INNER).lerp(BULGE_OUTER, colorReach / 0.25);
-      twinkle = 0.1;
-    } else if (
-      kind === 'galaxy'
-      && onArm
-      && colorReach >= 0.3
-      && colorReach <= 0.9
-      && random() < 0.05
-    ) {
-      // HII 영역 — 팔 능선에 꿰인 분홍 진주. 별이 태어나는 자리라 크고 또렷하다.
-      mixed.copy(HII_PINK);
-      size = 1.6 + random() * 0.6;
-      twinkle = 0.5;
-    } else {
-      mixed.copy(coreColor).lerp(armColor, colorReach);
-      // 중간 반지름은 채도를 낮춘다 — 핵의 온기와 팔끝의 파랑 사이에 잿빛 계곡이 있어야
-      // 두 색이 한 그라데이션의 양 끝이 아니라 서로 다른 종족으로 읽힌다.
-      const desat = 0.25 * Math.max(0, 1 - Math.abs(colorReach - 0.5) * 2);
-      const luminance = mixed.r * 0.2126 + mixed.g * 0.7152 + mixed.b * 0.0722;
-      mixed.lerp(new Color(luminance, luminance, luminance), desat);
-    }
-
-    mixed.multiplyScalar(rim * (kind === 'galaxy' ? branchGain[branchIndex % branchGain.length] : 1));
-
-    // 성간 소광 — 먼지 띠 안의 별은 어두워지고 붉어진다. 띠 텍스처와 같은 함수를 읽으므로
-    // 별과 먼지가 정확히 같은 자리에서 만난다.
-    if (kind === 'galaxy') {
-      const lane = dustLaneStrength(px / radius, py / radius);
-
-      if (lane > 0.01) {
-        const dark = 1 - 0.5 * lane;
-        mixed.r *= dark * (1 - lane * 0.1);
-        mixed.g *= dark * (1 - lane * 0.28);
-        mixed.b *= dark * (1 - lane * 0.4);
-      }
-    }
-
-    colors[index * 3] = mixed.r;
-    colors[index * 3 + 1] = mixed.g;
-    colors[index * 3 + 2] = mixed.b;
-    sizes[index] = size;
-    twinkles[index] = twinkle;
-    phases[index] = random();
-  }
+  let index = 0;
 
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new BufferAttribute(positions, 3));
@@ -224,7 +114,142 @@ function buildDiskGeometry({
   geometry.setAttribute('aSize', new BufferAttribute(sizes, 1));
   geometry.setAttribute('aTwinkle', new BufferAttribute(twinkles, 1));
   geometry.setAttribute('aPhase', new BufferAttribute(phases, 1));
-  return geometry;
+
+  const step = (budget: number) => {
+    const end = Math.min(count, index + budget);
+
+    for (; index < end; index += 1) {
+      // 헤일로 점 — 14개마다 하나. 접두사 어디를 잘라도 ≈7%가 유지된다.
+      if (kind === 'galaxy' && index % HALO_STRIDE === HALO_STRIDE - 1) {
+        const theta = random() * Math.PI * 2;
+        const cosPhi = random() * 2 - 1;
+        const sinPhi = Math.sqrt(Math.max(0, 1 - cosPhi * cosPhi));
+        const shell = (1.05 + random() * 0.3) * radius;
+
+        positions[index * 3] = shell * sinPhi * Math.cos(theta);
+        positions[index * 3 + 1] = shell * sinPhi * Math.sin(theta);
+        positions[index * 3 + 2] = shell * cosPhi * 0.5;
+
+        // 구상성단은 처음 네 개만 — 드물어야 성단이다.
+        const isGlobular = haloSeen < 4;
+        haloSeen += 1;
+        const shellFade = 1 - ((shell / radius - 1.05) / 0.3) * 0.6;
+        mixed.copy(isGlobular ? GLOBULAR_TINT : HALO_TINT).multiplyScalar(shellFade);
+
+        colors[index * 3] = mixed.r;
+        colors[index * 3 + 1] = mixed.g;
+        colors[index * 3 + 2] = mixed.b;
+        sizes[index] = isGlobular ? 1.9 : 0.6 + 2.8 * Math.pow(random(), 6);
+        twinkles[index] = 0.1;
+        phases[index] = random();
+        continue;
+      }
+      // 중심으로 갈수록 조밀 — 제곱근 분포라 핵이 밝고 바깥이 성기다.
+      const distance = Math.pow(random(), 0.62) * radius;
+      const branchIndex = index % SPIRAL_BRANCHES;
+      const branchAngle = (branchIndex / SPIRAL_BRANCHES) * Math.PI * 2;
+      const spinAngle = kind === 'galaxy' ? distance * (SPIRAL_SPIN / radius) : 0;
+
+      const scatter = () =>
+        Math.pow(random(), RANDOMNESS_POWER) * (random() < 0.5 ? 1 : -1) * RANDOMNESS * distance;
+
+      const scatterX = scatter();
+      const scatterY = scatter();
+      const scatterZ = scatter();
+
+      // 은하군은 팔이 없다 — 구성원이 공통 중심을 도는 타원형 무리라 각도를 무작위로 흩는다.
+      const angle = kind === 'galaxy'
+        ? branchAngle + spinAngle
+        : random() * Math.PI * 2;
+      const flatten = kind === 'galaxy' ? 0.14 : 0.55;
+      // 치우침 — 원반의 한쪽이 다른 쪽보다 뻗는다. 실제 은하 대부분이 그렇다(lopsidedness).
+      const lop = kind === 'galaxy' ? 1 + lopAmp * Math.sin(angle + lopPhase) : 1;
+      const finalDistance = distance * lop;
+
+      const px = Math.cos(angle) * finalDistance + scatterX;
+      const py = Math.sin(angle) * finalDistance + scatterY;
+
+      positions[index * 3] = px;
+      positions[index * 3 + 1] = py;
+      // 두께는 화면 깊이 방향(z)으로만 — 원반이 화면과 나란해 정면으로 보인다.
+      positions[index * 3 + 2] = scatterZ * flatten;
+
+      // 치우침이 반지름 밖으로 밀어낸 별까지 서서히 꺼지도록 상한을 1.15로 늘린다.
+      const reach = Math.min(1.15, finalDistance / radius);
+      // 가장자리는 서서히 꺼진다. 밀도만으로 끝을 내면 반지름에서 딱 잘려서, 멀어져 점들이
+      // 한 덩어리로 뭉쳤을 때 은하가 아니라 **오려낸 회색 원**으로 보인다.
+      const rim = 1 - Math.max(0, (reach - 0.5) / 0.65) ** 1.7;
+
+      // 별 크기의 멱법칙 — 대부분 0.6 근처, 아주 드물게 3을 넘는다. 눈은 이 위계를
+      // '진짜 별밭'으로 읽는다. 밝은 소수만 블룸 문턱을 넘어 바늘끝처럼 반짝인다.
+      let size = 0.6 + 2.8 * Math.pow(random(), 6);
+      let twinkle = 0.15 + random() * 0.3;
+
+      const colorReach = Math.min(1, reach);
+      // 팔 위에 앉은 점인지 — 흩어짐이 작으면 팔의 능선이다.
+      const onArm = Math.abs(scatterX) + Math.abs(scatterY) < 0.05 * Math.max(1e-6, distance);
+
+      if (kind === 'galaxy' && colorReach < 0.25) {
+        // 벌지 — 늙고 따뜻한 별들. 거의 깜빡이지 않는다.
+        mixed.copy(BULGE_INNER).lerp(BULGE_OUTER, colorReach / 0.25);
+        twinkle = 0.1;
+      } else if (
+        kind === 'galaxy'
+        && onArm
+        && colorReach >= 0.3
+        && colorReach <= 0.9
+        && random() < 0.05
+      ) {
+        // HII 영역 — 팔 능선에 꿰인 분홍 진주. 별이 태어나는 자리라 크고 또렷하다.
+        mixed.copy(HII_PINK);
+        size = 1.6 + random() * 0.6;
+        twinkle = 0.5;
+      } else {
+        mixed.copy(coreColor).lerp(armColor, colorReach);
+        // 중간 반지름은 채도를 낮춘다 — 핵의 온기와 팔끝의 파랑 사이에 잿빛 계곡이 있어야
+        // 두 색이 한 그라데이션의 양 끝이 아니라 서로 다른 종족으로 읽힌다.
+        const desat = 0.25 * Math.max(0, 1 - Math.abs(colorReach - 0.5) * 2);
+        const luminance = mixed.r * 0.2126 + mixed.g * 0.7152 + mixed.b * 0.0722;
+        mixed.lerp(new Color(luminance, luminance, luminance), desat);
+      }
+
+      mixed.multiplyScalar(rim * (kind === 'galaxy' ? branchGain[branchIndex % branchGain.length] : 1));
+
+      // 성간 소광 — 먼지 띠 안의 별은 어두워지고 붉어진다. 띠 텍스처와 같은 함수를 읽으므로
+      // 별과 먼지가 정확히 같은 자리에서 만난다.
+      if (kind === 'galaxy') {
+        const lane = dustLaneStrength(px / radius, py / radius);
+
+        if (lane > 0.01) {
+          const dark = 1 - 0.5 * lane;
+          mixed.r *= dark * (1 - lane * 0.1);
+          mixed.g *= dark * (1 - lane * 0.28);
+          mixed.b *= dark * (1 - lane * 0.4);
+        }
+      }
+
+      colors[index * 3] = mixed.r;
+      colors[index * 3 + 1] = mixed.g;
+      colors[index * 3 + 2] = mixed.b;
+      sizes[index] = size;
+      twinkles[index] = twinkle;
+      phases[index] = random();
+  
+    }
+
+    if (index >= count) {
+      geometry.attributes.position.needsUpdate = true;
+      geometry.attributes.aColor.needsUpdate = true;
+      geometry.attributes.aSize.needsUpdate = true;
+      geometry.attributes.aTwinkle.needsUpdate = true;
+      geometry.attributes.aPhase.needsUpdate = true;
+      return true;
+    }
+
+    return false;
+  };
+
+  return { geometry, step };
 }
 
 // 점 하나하나가 제 크기와 박자를 갖는다 — pointsMaterial은 균일한 크기만 그릴 수 있어
@@ -296,12 +321,33 @@ void main() {
 //     '차오른다'.
 const diskGeometryCache = new Map<string, BufferGeometry>();
 const diskGeometryRefs = new Map<string, number>();
-type DiskBuildJob = { key: string; build: () => BufferGeometry; notify: () => void };
+type DiskBuildJob = {
+  key: string;
+  create: () => DiskGeometryBuilder;
+  builder: DiskGeometryBuilder | null;
+  notify: () => void;
+};
 const pendingDiskBuilds: DiskBuildJob[] = [];
 let diskBuildFrame: number | null = null;
 let diskBuildTimer: ReturnType<typeof setTimeout> | null = null;
-// 한 프레임에 하나. 폰(Hermes)에서 원반 하나가 프레임 예산의 절반쯤을 먹는다.
-const DISK_BUILDS_PER_FRAME = 1;
+// 한 프레임에 채울 파티클 수. 실기기 계측(8/23)에서 fps는 57~60으로 멀쩡한데 최악 프레임만
+// 17→28→42ms로 튀었고, 그 값이 화면의 원반 수를 그대로 따라갔다 — 원반 하나를 통째로 만드는
+// 일이 폰에서는 프레임 하나보다 길다는 뜻이다. 그래서 '원반 단위'가 아니라 '파티클 단위'로
+// 나눠 채운다. 200개면 한 조각이 대략 4~6ms다.
+const DISK_PARTICLES_PER_FRAME = 200;
+// 로딩 화면 뒤에서는 마음껏 만든다 — 어차피 아무도 그 프레임을 보고 있지 않다.
+const DISK_PARTICLES_PER_FRAME_WARMUP = 4000;
+let diskBuildBudget = DISK_PARTICLES_PER_FRAME;
+
+// 진입 로딩이 떠 있는 동안에만 예산을 푼다(화면 쪽에서 켜고 끈다).
+export function setDiskBuildWarmup(warming: boolean) {
+  diskBuildBudget = warming ? DISK_PARTICLES_PER_FRAME_WARMUP : DISK_PARTICLES_PER_FRAME;
+}
+
+// 아직 만들 것이 남았는지 — 진입 로딩이 언제 걷혀도 되는지 판단하는 데 쓴다.
+export function getPendingDiskBuildCount(): number {
+  return pendingDiskBuilds.length;
+}
 // 살아 있는 원반이 참조하지 않는 버퍼는 이만큼까지만 들고 있는다.
 const DISK_GEOMETRY_CACHE_MAX = 40;
 
@@ -354,28 +400,41 @@ function pumpDiskBuilds() {
     diskBuildTimer = null;
   }
 
-  let budget = DISK_BUILDS_PER_FRAME;
+  let budget = diskBuildBudget;
 
   while (budget > 0) {
-    const job = pendingDiskBuilds.shift();
+    const job = pendingDiskBuilds[0];
 
     if (!job) {
       break;
     }
 
-    if (!diskGeometryCache.has(job.key)) {
-      diskGeometryCache.set(job.key, job.build());
-      evictIdleDiskGeometries();
+    if (diskGeometryCache.has(job.key)) {
+      pendingDiskBuilds.shift();
+      job.notify();
+      continue;
     }
 
-    job.notify();
-    budget -= 1;
+    if (!job.builder) {
+      job.builder = job.create();
+    }
+
+    const slice = Math.min(budget, DISK_PARTICLES_PER_FRAME_WARMUP);
+    const done = job.builder.step(slice);
+    budget -= slice;
+
+    if (done) {
+      pendingDiskBuilds.shift();
+      diskGeometryCache.set(job.key, job.builder.geometry);
+      evictIdleDiskGeometries();
+      job.notify();
+    }
   }
 
   scheduleDiskBuilds();
 }
 
-function useDiskGeometry(key: string, build: () => BufferGeometry): BufferGeometry | null {
+function useDiskGeometry(key: string, build: () => DiskGeometryBuilder): BufferGeometry | null {
   const [, bump] = useReducer((tick: number) => tick + 1, 0);
   const buildRef = useRef(build);
   buildRef.current = build;
@@ -393,7 +452,12 @@ function useDiskGeometry(key: string, build: () => BufferGeometry): BufferGeomet
       return undefined;
     }
 
-    const job: DiskBuildJob = { key, build: () => buildRef.current(), notify: bump };
+    const job: DiskBuildJob = {
+      key,
+      create: () => buildRef.current(),
+      builder: null,
+      notify: bump,
+    };
     pendingDiskBuilds.push(job);
     scheduleDiskBuilds();
 
@@ -410,6 +474,7 @@ function useDiskGeometry(key: string, build: () => BufferGeometry): BufferGeomet
 }
 
 function GalaxyDiskComponent({
+  morph = 1,
   radius,
   brightness,
   kind,
@@ -422,6 +487,9 @@ function GalaxyDiskComponent({
   coreFade = 1,
   pointSize = 2,
 }: {
+  // 0이면 아직 먼 빛 한 점이라 **그리지 않는다**. 다만 컴포넌트는 살아 있어서 버퍼는
+  // 미리 만들어진다 — 첫 확대가 만들기 작업과 마주치지 않게 하는 장치다.
+  morph?: number;
   radius: number;
   brightness: number;
   kind: DiskKind;
@@ -454,7 +522,7 @@ function GalaxyDiskComponent({
   // 못 만든 동안에는 null — 해석적 핵만 빛나고 있다가 도착하면 별이 채워진다.
   const geometry = useDiskGeometry(
     `${seed}:${kind}:${coreColor}:${armColor}`,
-    () => buildDiskGeometry({
+    () => createDiskGeometryBuilder({
       count: 420 * MAX_POINT_STEPS,
       radius: 1,
       kind,
@@ -548,7 +616,11 @@ function GalaxyDiskComponent({
   });
 
   return (
-    <group rotation={[0, 0, yaw]} scale={[radius, radius * Math.cos(tilt), radius]}>
+    <group
+      rotation={[0, 0, yaw]}
+      scale={[radius, radius * Math.cos(tilt), radius]}
+      visible={morph > 0.005}
+    >
       {/* 핵 — 해석적 벌지. 같은 z의 형제들은 생성 순서대로 그려지므로(three의 투명 정렬은
           renderOrder → 깊이 → id 순) 핵 → 먼지 → 별의 겹침이 JSX 순서로 보장된다 —
           단, **셋 다 처음부터 마운트되어 있어야** 한다. 문턱에서 조건부로 마운트하면

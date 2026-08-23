@@ -666,8 +666,11 @@ function CelestialBody({ orb, width, height }: { orb: SkyOrb; width: number; hei
         </mesh>
       ) : null}
 
-      {morph > 0.005 && orb.shape === 'disk' ? (
+      {/* 문턱을 넘기 **전에도 마운트한다** — 그래야 버퍼가 미리 만들어져 첫 확대가
+          만들기 작업을 만나지 않는다. 그리는 건 morph가 열어 준다. */}
+      {orb.shape === 'disk' ? (
         <GalaxyDisk
+          morph={morph}
           radius={radius * 2.1}
           brightness={orb.brightness}
           opacity={fade * morph}

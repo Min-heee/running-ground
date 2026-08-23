@@ -415,6 +415,19 @@ import {
   getStarPointTexture,
 } from '@/features/universe/three/textures';
 
+// 첫 화면(지역 층)이 실제로 쓰는 것들 — 작고 빠르다. 진입 로딩은 **이것만** 기다린다.
+export function listSkyTextureBakes(): (() => unknown)[] {
+  return [
+    () => getGlowTexture(),
+    () => getStarPointTexture(),
+    () => getSpikedStarTexture(),
+    () => getBlackbodyRamp(),
+    () => getDustLaneTexture(),
+    () => getNebulaTexture(0),
+    () => getNebulaTexture(1),
+  ];
+}
+
 export function listAllTextureBakes(): (() => unknown)[] {
   const bakes: (() => unknown)[] = [];
 
@@ -431,14 +444,6 @@ export function listAllTextureBakes(): (() => unknown)[] {
   bakes.push(() => getStarSurface(), () => getCloudTexture(), () => getRingTexture());
   // 하늘 쪽 절차적 텍스처도 같이 덥힌다. 원반의 먼지 띠(256×256, 픽셀마다 삼각함수)는
   // 첫 은하가 그려지는 그 프레임에 구워져 첫 확대의 멈칫에 얹혔다.
-  bakes.push(
-    () => getDustLaneTexture(),
-    () => getStarPointTexture(),
-    () => getGlowTexture(),
-    () => getSpikedStarTexture(),
-    () => getBlackbodyRamp(),
-    () => getNebulaTexture(0),
-    () => getNebulaTexture(1),
-  );
+  bakes.push(...listSkyTextureBakes());
   return bakes;
 }

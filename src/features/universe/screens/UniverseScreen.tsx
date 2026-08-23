@@ -30,6 +30,7 @@ import {
 import type { UniverseSearchResult } from '@/lib/api/types';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
 import { readPerf, type PerfSnapshot } from '@/features/universe/three/perfProbe';
+import { runSpaceWarmup } from '@/features/universe/three/warmup';
 
 // 성능 계측 표시 — 제목을 **길게 누르면** 켜진다. 실기기에서만 알 수 있는 숫자를 오너가
 // 직접 읽어 보내 줄 수 있게 두는 임시 창구다(개발 브라우저는 탭이 가려지면 프레임 루프가
@@ -73,6 +74,14 @@ export default function UniverseScreen() {
   const [selected, setSelected] = useState<SceneBody | null>(null);
   const [focused, setFocused] = useState<SceneBody | null>(null);
   const [showPerf, setShowPerf] = useState(false);
+  // 진입 준비 — 처음 한 번 치르는 비용(텍스처 굽기·원반 만들기·셰이더 첫 컴파일)을 로딩
+  // 뒤에서 끝낸다. 예전엔 그게 사용자의 첫 확대 밑에서 터졌다(오너 2026-08-23).
+  const [warming, setWarming] = useState(true);
+
+  useEffect(() => {
+    const handle = runSpaceWarmup(() => setWarming(false));
+    return handle.cancel;
+  }, []);
   // 장면이 좌표 계산을 맡는다 — 화면은 "이 경로로 데려가 줘"라고만 부탁한다.
   const controlsRef = useRef<UniverseSceneControls | null>(null);
 
@@ -253,8 +262,6 @@ export default function UniverseScreen() {
       ) : null}
 
       <View ref={canvasWrapRef} style={styles.canvasWrap} onLayout={handleCanvasLayout}>
-        {tree.loading ? <BrandLoadingView style={styles.loading} edges={[]} /> : null}
-
         {!tree.loading && tree.error ? (
           <View style={styles.errorWrap}>
             <StateMessageCard
@@ -267,6 +274,8 @@ export default function UniverseScreen() {
           </View>
         ) : null}
 
+        {/* 준비가 끝나기 전에도 장면은 **마운트해 둔다** — 그래야 그 시간 동안 원반이
+            만들어지고 셰이더가 컴파일된다. 로딩 화면이 그 위를 덮고 있을 뿐이다. */}
         {!tree.loading && !tree.error && hasCanvas ? (
           <UniverseScene
             rootId={tree.rootId}
@@ -281,6 +290,9 @@ export default function UniverseScreen() {
             controlsRef={controlsRef}
           />
         ) : null}
+
+        {/* 로딩은 **장면 위에** 온다 — 형제 순서가 곧 위아래라, 먼저 그리면 장면에 덮인다. */}
+        {tree.loading || warming ? <BrandLoadingView style={styles.loading} edges={[]} /> : null}
 
         {starBirth.showing ? <StarBirthOverlay onDone={handleBirthDone} /> : null}
 
