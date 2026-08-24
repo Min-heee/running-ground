@@ -67,6 +67,8 @@ class MatchUploadForegroundService : Service() {
   // OWN partial wakelock: keeps the CPU running so the scheduler ticks screen-off even under
   // Samsung deep-sleep. Released in stop/onDestroy/exception — never leaked.
   private var wakeLock: PowerManager.WakeLock? = null
+  // vc51 — 현재 잡힌 락이 타임아웃부(고아 부활)인지. ensureWakeLock의 승격 규칙이 쓴다.
+  private var wakeLockTimed = false
 
   // Latest JS-built payload. @Volatile so the update intent (from the JS/main thread) is visible
   // to the scheduler thread without a lock.
@@ -111,6 +113,9 @@ class MatchUploadForegroundService : Service() {
         intent.let { distanceAccumulator.configureFromIntent(it) }
         distanceAccumulator.beginSession()
         distanceWanted = true
+        // vc51 — 세션을 디스크에 남긴다: One UI가 프로세스를 죽여도 STICKY 재기동(null
+        // intent)이 이 기록으로 갑옷을 스스로 되살린다. JS를 기다리지 않는다.
+        persistDistanceSession()
         ensureForeground()
         ensureWakeLock()
         startDistanceUpdates()
@@ -120,14 +125,37 @@ class MatchUploadForegroundService : Service() {
         distanceAccumulator.seed(seedMeters)
         // Publish so a synchronous getAccumulatedDistanceMeters() right after seed returns the seed.
         MatchDistanceBus.emit(distanceAccumulator.totalMeters)
+        // vc51 — 시드가 죽은 소비자를 되살린다: 세션은 원했는데(GPS 소비자가 죽어 있으면)
+        // 재시동한다. JS는 '이미 돈다'고 믿고 시드만 보내는 경우가 있는데(vc50 거짓 성공
+        // 래치의 잔재), 그 시드가 도착했다는 것 자체가 서비스는 살아 있다는 뜻이므로 여기서
+        // 소비자를 다시 붙이는 게 안전한 최선이다. 반대로 세션을 원한 적 없는 서비스가
+        // 시드 인텐트만으로 태어났다면(START 유실) 좀비로 남지 않게 즉시 정리한다.
+        if (distanceWanted) {
+          // 디스크 총거리는 살아 있는 세션의 시드만 갱신한다 — 길 잃은 시드가 죽은 세션의
+          // 기록(부활 재료)을 덮어쓰면 잠든 구간이 유실 방향으로 사라진다.
+          persistDistanceTotal()
+          if (fusedCallback == null && legacyLocationListener == null) {
+            ensureForeground()
+            ensureWakeLock()
+            startDistanceUpdates()
+          }
+        } else {
+          stopServiceIfIdle()
+        }
       }
       ACTION_DISTANCE_RESET -> {
         distanceAccumulator.reset()
         MatchDistanceBus.reset()
+        // 리셋은 디스크 기록도 통째로 지운다 — 0으로 시작하는 세션 기록을 남겨두면
+        // STICKY 부활이 끝난 세션을 0부터 되살릴 수 있다.
+        clearPersistedDistanceSession()
       }
       ACTION_DISTANCE_STOP -> {
         // Stop ONLY the distance consumer; the periodic re-POST may still need the service alive.
         distanceWanted = false
+        // vc51 — 명시적 정지는 디스크 기록도 지운다: 다음 STICKY 재기동이 끝난 매치의
+        // 세션을 되살리면 안 된다.
+        clearPersistedDistanceSession()
         stopDistanceUpdates()
         stopServiceIfIdle()
       }
@@ -137,6 +165,15 @@ class MatchUploadForegroundService : Service() {
         mergeCapKm = if (capKm.isFinite() && capKm > 0) capKm else Double.NaN
       }
       else -> {
+        // vc51 — STICKY 재기동(null intent): One UI가 프로세스를 죽였다가 되살린 경우다.
+        // 이전 프로세스의 메모리는 전부 사라졌으므로, 디스크에 남긴 세션 기록으로 거리
+        // 누적기를 스스로 되살린다 — 필터 상수 복원, 죽기 직전 총거리로 시딩, FGS+웨이크락
+        // +GPS 소비자 재가동. 재전송 캐던스의 페이로드(url/token/body)는 디스크에 남기지
+        // 않으므로(토큰 영속은 별개 결정) 캐던스는 JS가 깨어날 때 되살아난다 — 거리와
+        // 프로세스 생존이 이 재기동의 몫이다. 기록이 없으면 이전과 동일하게 no-op 틱.
+        if (intent == null) {
+          reviveDistanceSessionFromDisk()
+        }
         // START or UPDATE both carry the freshest payload — cache it.
         if (intent?.action == ACTION_START) {
           // 새 매치의 시동은 이전 매치의 병합 상한을 물려받으면 안 된다 — JS가 시동 직후
@@ -228,17 +265,37 @@ class MatchUploadForegroundService : Service() {
     return CHANNEL_ID
   }
 
-  private fun ensureWakeLock() {
-    if (wakeLock?.isHeld == true) {
-      return
-    }
+  // 기본은 무기한: 매치 스코프 락은 stop/onDestroy가 결정적으로 놓는다. timeoutMs는 vc51
+  // STICKY 부활 전용 상한 — JS가 영영 안 돌아오는 고아 부활이 락을 무기한 쥐는 것을 남은
+  // TTL로 자른다. 이미 잡힌 락의 규칙: timed 요청은 절대 기존 락을 격하하지 않고(무기한
+  // 락이 이미 있으면 그대로), untimed 요청이 timed 락을 만나면 release→acquire로 승격한다
+  // (release()가 타임아웃 릴리저 콜백을 지우므로, acquire()만 다시 얹으면 옛 타임아웃이
+  // 새 무기한 락을 몰래 놓아버린다 — 그 함정 때문에 반드시 release 먼저다. 두 문장 사이
+  // 메인 스레드가 실행 중이라 CPU는 잠들 수 없다).
+  private fun ensureWakeLock(timeoutMs: Long? = null) {
     try {
       val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
-      val lock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
-      lock.setReferenceCounted(false)
-      // No timeout: this match-scoped lock is released deterministically on stop/onDestroy.
-      lock.acquire()
-      wakeLock = lock
+      val lock = wakeLock ?: powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG).also {
+        it.setReferenceCounted(false)
+        wakeLock = it
+      }
+      val wantTimed = timeoutMs != null && timeoutMs > 0
+      if (lock.isHeld) {
+        if (wantTimed || !wakeLockTimed) {
+          return
+        }
+        lock.release()
+        lock.acquire()
+        wakeLockTimed = false
+        return
+      }
+      if (wantTimed) {
+        lock.acquire(timeoutMs!!)
+        wakeLockTimed = true
+      } else {
+        lock.acquire()
+        wakeLockTimed = false
+      }
     } catch (error: Throwable) {
       Log.w(TAG, "wakelock acquire failed: ${error.message}")
     }
@@ -254,6 +311,7 @@ class MatchUploadForegroundService : Service() {
       Log.w(TAG, "wakelock release failed: ${error.message}")
     } finally {
       wakeLock = null
+      wakeLockTimed = false
     }
   }
 
@@ -488,6 +546,14 @@ class MatchUploadForegroundService : Service() {
     val advanced = distanceAccumulator.consume(location)
     if (advanced != null) {
       MatchDistanceBus.emit(advanced)
+      // vc51 — 전진할 때마다 총거리를 디스크에 남긴다(스로틀). 프로세스가 죽으면 STICKY
+      // 재기동이 이 값으로 시딩해 잠든 구간의 거리를 이어간다. apply()는 비동기 배치라
+      // GPS 콜백(메인 루퍼)에서 불러도 싸다.
+      val nowMs = System.currentTimeMillis()
+      if (nowMs - lastTotalPersistMs >= TOTAL_PERSIST_THROTTLE_MS) {
+        lastTotalPersistMs = nowMs
+        persistDistanceTotal()
+      }
     }
   }
 
@@ -496,6 +562,93 @@ class MatchUploadForegroundService : Service() {
       this,
       android.Manifest.permission.ACCESS_FINE_LOCATION,
     ) == PackageManager.PERMISSION_GRANTED
+  }
+
+  // MARK: vc51 — distance-session persistence (STICKY-relaunch revival)
+
+  private val sessionPrefs
+    get() = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+  @Volatile private var lastTotalPersistMs: Long = 0L
+
+  // 세션 전체(원함 + 필터 상수 + 총거리 + 마감시각)를 남긴다 — ACTION_DISTANCE_START에서.
+  // 마감시각은 좀비 방지의 핵심이다: 러닝 중 프로세스가 죽고 사용자가 앱을 영영 다시 열지
+  // 않으면(STOP이 도착할 길이 없다), STICKY 재기동이 이 세션을 계속 되살려 GPS+웨이크락을
+  // 무기한 태운다. 어떤 러닝도 넘지 않는 상한을 시동 시점에 박아, 그 뒤의 부활은 스스로
+  // 기록을 지우고 거부한다.
+  private fun persistDistanceSession() {
+    try {
+      sessionPrefs.edit()
+        .putBoolean(PREF_DISTANCE_WANTED, true)
+        .putString(PREF_DISTANCE_CONFIG, distanceAccumulator.configJson())
+        .putLong(PREF_DISTANCE_TOTAL_BITS, java.lang.Double.doubleToRawLongBits(distanceAccumulator.totalMeters))
+        .putLong(PREF_DISTANCE_DEADLINE_MS, System.currentTimeMillis() + DISTANCE_SESSION_TTL_MS)
+        .apply()
+    } catch (error: Throwable) {
+      Log.w(TAG, "persistDistanceSession failed: ${error.message}")
+    }
+  }
+
+  // 총거리만 갱신 — 전진/시드/리셋마다.
+  private fun persistDistanceTotal() {
+    try {
+      sessionPrefs.edit()
+        .putLong(PREF_DISTANCE_TOTAL_BITS, java.lang.Double.doubleToRawLongBits(distanceAccumulator.totalMeters))
+        .apply()
+    } catch (error: Throwable) {
+      Log.w(TAG, "persistDistanceTotal failed: ${error.message}")
+    }
+  }
+
+  private fun clearPersistedDistanceSession() {
+    try {
+      sessionPrefs.edit()
+        .remove(PREF_DISTANCE_WANTED)
+        .remove(PREF_DISTANCE_CONFIG)
+        .remove(PREF_DISTANCE_TOTAL_BITS)
+        .remove(PREF_DISTANCE_DEADLINE_MS)
+        .apply()
+    } catch (error: Throwable) {
+      Log.w(TAG, "clearPersistedDistanceSession failed: ${error.message}")
+    }
+  }
+
+  // STICKY 재기동(null intent)에서만 호출 — 명시적 정지 없이 프로세스가 죽었던 경우다.
+  // 필터 상수를 복원하고, 죽기 직전 총거리로 시딩하고, 소비자를 되살린다. beginSession이
+  // 앵커를 비우므로 재기동 후 첫 픽스는 원점만 잡고 아무 거리도 적립하지 않는다(점프 없음).
+  // ensureForeground는 안드 12+에서 백그라운드 재기동 시 거부될 수 있지만(try/catch로
+  // 흡수), GPS 소비자와 시딩된 총거리는 그와 무관하게 살아난다 — 부분 부활이 무부활보다
+  // 낫다. 실패해도 절대 크래시하지 않는다.
+  private fun reviveDistanceSessionFromDisk() {
+    try {
+      val prefs = sessionPrefs
+      if (!prefs.getBoolean(PREF_DISTANCE_WANTED, false)) {
+        return
+      }
+      // 마감 지난 세션은 부활 금지 + 기록 소각 — 버려진 러닝이 좀비로 배터리를 태우는 것을
+      // 여기서 끊는다. 마감값이 없으면(깨진 기록) 역시 소각한다.
+      val deadlineMs = prefs.getLong(PREF_DISTANCE_DEADLINE_MS, 0L)
+      if (deadlineMs <= 0L || System.currentTimeMillis() > deadlineMs) {
+        Log.i(TAG, "distance session expired — not reviving")
+        clearPersistedDistanceSession()
+        return
+      }
+      prefs.getString(PREF_DISTANCE_CONFIG, null)?.let { distanceAccumulator.configureFromJson(it) }
+      distanceAccumulator.beginSession()
+      val totalBits = prefs.getLong(PREF_DISTANCE_TOTAL_BITS, 0L)
+      val totalMeters = java.lang.Double.longBitsToDouble(totalBits)
+      if (totalMeters.isFinite() && totalMeters > 0) {
+        distanceAccumulator.seed(totalMeters)
+        MatchDistanceBus.emit(distanceAccumulator.totalMeters)
+      }
+      distanceWanted = true
+      // 고아 부활의 락은 남은 TTL까지만 — 그 뒤는 놓아준다(위 ensureWakeLock 주석 참조).
+      ensureWakeLock(timeoutMs = deadlineMs - System.currentTimeMillis())
+      startDistanceUpdates()
+      Log.i(TAG, "distance session revived from disk (total=${distanceAccumulator.totalMeters}m)")
+    } catch (error: Throwable) {
+      Log.w(TAG, "reviveDistanceSessionFromDisk failed: ${error.message}")
+    }
   }
 
   override fun onDestroy() {
@@ -561,6 +714,16 @@ class MatchUploadForegroundService : Service() {
     // MAX_FUTURE_LOCATION_MS). Absent → JS-source default 3.0 / today's symmetric age window.
     const val EXTRA_MIN_MOVEMENT_METERS = "minMovementMeters"
     const val EXTRA_MAX_FUTURE_LOCATION_MS = "maxFutureLocationMs"
+
+    // vc51 distance-session persistence (STICKY-relaunch revival).
+    private const val PREFS_NAME = "rg_match_upload_service"
+    private const val PREF_DISTANCE_WANTED = "distance_wanted"
+    private const val PREF_DISTANCE_CONFIG = "distance_config"
+    private const val PREF_DISTANCE_TOTAL_BITS = "distance_total_bits"
+    private const val PREF_DISTANCE_DEADLINE_MS = "distance_deadline_ms"
+    private const val TOTAL_PERSIST_THROTTLE_MS = 5000L
+    // 어떤 실제 러닝도 넘지 않는 세션 수명 상한 — 마감 뒤의 STICKY 부활은 거부된다.
+    private const val DISTANCE_SESSION_TTL_MS = 6L * 60L * 60L * 1000L
 
     private const val DEFAULT_INTERVAL_MS = 3000L
     // ~2s GPS cadence for the distance consumer (the accumulator consumes every fix; the gate
@@ -679,6 +842,73 @@ private class DistanceAccumulator {
       ?.takeIf { it > 0 }
     minMovementMeters = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_MIN_MOVEMENT_METERS) ?: 3.0
     maxFutureLocationMs = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_MAX_FUTURE_LOCATION_MS)
+  }
+
+  // vc51 — 세션 영속용 설정 직렬화/복원. STICKY 재기동은 새 프로세스라 인텐트로 받았던
+  // 필터 상수가 전부 사라진다 — 디스크의 이 JSON이 유일한 사본이다. null(=미전달 게이트
+  // 꺼짐)은 키를 생략해, 재기동 후에도 '옛 번들 = 게이트 꺼짐' 계약이 그대로 복원된다.
+  // 키 이름은 인텐트 extra와 동일한 문자열을 재사용한다.
+  fun configJson(): String {
+    val json = JSONObject()
+    json.put(MatchUploadForegroundService.EXTRA_MAX_ACCURACY_METERS, maxAccuracyMeters)
+    json.put(MatchUploadForegroundService.EXTRA_DISTANCE_GATE_BASE_METERS, distanceGateBaseMeters)
+    json.put(MatchUploadForegroundService.EXTRA_DISTANCE_GATE_ACCURACY_SCALE, distanceGateAccuracyScale)
+    json.put(MatchUploadForegroundService.EXTRA_TELEPORT_MIN_METERS, teleportMinMeters)
+    json.put(MatchUploadForegroundService.EXTRA_MAX_SPEED_MPS, maxSpeedMps)
+    json.put(MatchUploadForegroundService.EXTRA_MAX_LOCATION_AGE_MS, maxLocationAgeMs)
+    json.put(MatchUploadForegroundService.EXTRA_MIN_MOVEMENT_METERS, minMovementMeters)
+    putOptional(json, MatchUploadForegroundService.EXTRA_MIN_TIME_DELTA_MS, minTimeDeltaMs)
+    putOptional(json, MatchUploadForegroundService.EXTRA_TELEPORT_ACCURACY_SCALE, teleportAccuracyScale)
+    putOptional(json, MatchUploadForegroundService.EXTRA_TELEPORT_MAX_SPEED_MPS, teleportMaxSpeedMps)
+    putOptional(json, MatchUploadForegroundService.EXTRA_STATIONARY_SPEED_MPS, stationarySpeedMps)
+    putOptional(json, MatchUploadForegroundService.EXTRA_POOR_ACCURACY_METERS, poorAccuracyMeters)
+    putOptional(json, MatchUploadForegroundService.EXTRA_COLD_START_STABLE_FIX_COUNT, coldStartStableFixCount?.toDouble())
+    putOptional(json, MatchUploadForegroundService.EXTRA_COLD_START_MAX_CLUSTER_RADIUS_METERS, coldStartMaxClusterRadiusMeters)
+    putOptional(json, MatchUploadForegroundService.EXTRA_COLD_START_MAX_ACCURACY_METERS, coldStartMaxAccuracyMeters)
+    putOptional(json, MatchUploadForegroundService.EXTRA_COLD_START_MAX_WINDOW_MS, coldStartMaxWindowMs)
+    putOptional(json, MatchUploadForegroundService.EXTRA_MAX_CREDITABLE_FIX_GAP_MS, maxCreditableFixGapMs)
+    putOptional(json, MatchUploadForegroundService.EXTRA_MAX_FUTURE_LOCATION_MS, maxFutureLocationMs)
+    return json.toString()
+  }
+
+  fun configureFromJson(raw: String) {
+    try {
+      val json = JSONObject(raw)
+      maxAccuracyMeters = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_MAX_ACCURACY_METERS) ?: maxAccuracyMeters
+      distanceGateBaseMeters = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_DISTANCE_GATE_BASE_METERS) ?: distanceGateBaseMeters
+      distanceGateAccuracyScale = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_DISTANCE_GATE_ACCURACY_SCALE) ?: distanceGateAccuracyScale
+      teleportMinMeters = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_TELEPORT_MIN_METERS) ?: teleportMinMeters
+      maxSpeedMps = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_MAX_SPEED_MPS) ?: maxSpeedMps
+      maxLocationAgeMs = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_MAX_LOCATION_AGE_MS) ?: maxLocationAgeMs
+      minMovementMeters = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_MIN_MOVEMENT_METERS) ?: 3.0
+      minTimeDeltaMs = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_MIN_TIME_DELTA_MS)
+      teleportAccuracyScale = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_TELEPORT_ACCURACY_SCALE)
+      teleportMaxSpeedMps = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_TELEPORT_MAX_SPEED_MPS)
+      stationarySpeedMps = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_STATIONARY_SPEED_MPS)
+      poorAccuracyMeters = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_POOR_ACCURACY_METERS)
+      coldStartStableFixCount = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_COLD_START_STABLE_FIX_COUNT)
+        ?.let { rawCount ->
+          // configureFromIntent와 같은 가드: 버퍼가 닿을 수 없는 개수는 웜업을 끈다.
+          val count = Math.round(rawCount).toInt()
+          if (count in 2..COLD_START_MAX_BUFFER_FIXES) count else null
+        }
+      coldStartMaxClusterRadiusMeters = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_COLD_START_MAX_CLUSTER_RADIUS_METERS)
+      coldStartMaxAccuracyMeters = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_COLD_START_MAX_ACCURACY_METERS)
+      coldStartMaxWindowMs = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_COLD_START_MAX_WINDOW_MS)
+      maxCreditableFixGapMs = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_MAX_CREDITABLE_FIX_GAP_MS)
+        ?.takeIf { it > 0 }
+      maxFutureLocationMs = json.optFiniteDouble(MatchUploadForegroundService.EXTRA_MAX_FUTURE_LOCATION_MS)
+    } catch (error: Throwable) {
+      // 깨진 JSON이면 기본값(항상-존재 6개는 JS 미러 기본, 나머지 게이트 꺼짐) 그대로 —
+      // 절대 크래시하지 않는다.
+      Log.w("RGNativeUpload", "configureFromJson failed: ${error.message}")
+    }
+  }
+
+  private fun putOptional(json: JSONObject, key: String, value: Double?) {
+    if (value != null && value.isFinite()) {
+      json.put(key, value)
+    }
   }
 
   // Drop the anchors + warmup buffer so the session re-runs the cold-start warmup (or, on an old
@@ -917,5 +1147,11 @@ private fun Intent.readDouble(key: String, fallback: Double): Double {
 // DISABLES the corresponding gate — the backward-compat contract for old JS bundles.
 private fun Intent.readOptionalDouble(key: String): Double? {
   val value = getDoubleExtra(key, Double.NaN)
+  return if (value.isFinite()) value else null
+}
+
+// vc51 — JSON 쪽 optional 읽기: 없거나 깨진 키는 null(=게이트 꺼짐). Intent 쪽과 같은 계약.
+private fun JSONObject.optFiniteDouble(key: String): Double? {
+  val value = optDouble(key, Double.NaN)
   return if (value.isFinite()) value else null
 }

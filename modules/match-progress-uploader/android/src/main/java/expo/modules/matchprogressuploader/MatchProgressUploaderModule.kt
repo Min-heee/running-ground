@@ -118,16 +118,28 @@ class MatchProgressUploaderModule : Module() {
 
     Function("startDistanceAccumulator") { options: Map<String, Any?> ->
       MatchDistanceBus.setListener(distanceListener)
+      // vc51 — 진짜 결과를 돌려준다. vc50까지는 무조건 true라서, 안드 12+가
+      // ForegroundServiceStartNotAllowedException으로 시동을 거부해도 JS는 '이미 돈다'고
+      // 래치해 다시는 시동을 안 걸었다 (2026-08-23 민병희 갤럭시 사고의 무장 실패 반쪽).
+      // JS 쪽 재시도(distanceAccumulatorController: started=false면 래치하지 않고 다음
+      // 하트비트에 재시동)는 이미 OTA로 깔려 있고, 이 반환값이 그 회로를 개통한다.
+      // '진짜'의 범위: 디스패치가 예외 없이 접수됐는가까지다 — 서비스 내부의 startForeground
+      // 실패는 여기서 안 보이지만, 주 실패 모드(백그라운드 FGS 시동 거부·컨텍스트 부재)는
+      // 전부 디스패치에서 던진다.
       startDistanceService(MatchUploadForegroundService.ACTION_DISTANCE_START, options)
-      true
     }
 
     // Seed the native running total to the JS authoritative total at start so native + JS share one
     // origin (the JS merge then takes max(jsKm, nativeKm) — never a sum).
     Function("seedDistanceAccumulator") { startMeters: Double ->
-      val intent = buildDistanceIntent(MatchUploadForegroundService.ACTION_DISTANCE_SEED) ?: return@Function
-      intent.putExtra(MatchUploadForegroundService.EXTRA_DISTANCE_SEED_METERS, startMeters)
-      dispatchServiceIntent(intent)
+      val intent = buildDistanceIntent(MatchUploadForegroundService.ACTION_DISTANCE_SEED)
+      if (intent == null) {
+        false
+      } else {
+        intent.putExtra(MatchUploadForegroundService.EXTRA_DISTANCE_SEED_METERS, startMeters)
+        // vc51 — 시드도 진짜 결과를 돌려준다(추가 반환이라 옛 번들은 무시, 와이어 안전).
+        dispatchServiceIntent(intent)
+      }
     }
 
     // SYNCHRONOUS read of the native distance total in meters, published by the service via
@@ -171,9 +183,11 @@ class MatchProgressUploaderModule : Module() {
   }
 
   // Dispatch a distance-accumulator service intent carrying the JS filter constants (for START) or
-  // nothing extra (RESET/STOP). Mirrors startUploadService. Best-effort: never throws into JS.
-  private fun startDistanceService(action: String, options: Map<String, Any?>) {
-    val intent = buildDistanceIntent(action) ?: return
+  // nothing extra (RESET/STOP). Mirrors startUploadService. Never throws into JS — but since vc51
+  // it RETURNS whether the dispatch was actually accepted, so JS can stop trusting a swallowed
+  // failure as success.
+  private fun startDistanceService(action: String, options: Map<String, Any?>): Boolean {
+    val intent = buildDistanceIntent(action) ?: return false
     if (action == MatchUploadForegroundService.ACTION_DISTANCE_START) {
       putDistanceOption(intent, MatchUploadForegroundService.EXTRA_MAX_ACCURACY_METERS, options["maxAccuracyMeters"])
       putDistanceOption(intent, MatchUploadForegroundService.EXTRA_DISTANCE_GATE_BASE_METERS, options["distanceGateBaseMeters"])
@@ -201,7 +215,7 @@ class MatchProgressUploaderModule : Module() {
       putDistanceOption(intent, MatchUploadForegroundService.EXTRA_MIN_MOVEMENT_METERS, options["minMovementMeters"])
       putDistanceOption(intent, MatchUploadForegroundService.EXTRA_MAX_FUTURE_LOCATION_MS, options["maxFutureLocationMs"])
     }
-    dispatchServiceIntent(intent)
+    return dispatchServiceIntent(intent)
   }
 
   private fun putDistanceOption(intent: Intent, key: String, value: Any?) {
@@ -224,18 +238,22 @@ class MatchProgressUploaderModule : Module() {
   }
 
   // Dispatch a built service intent (foreground-start on O+ for START which promotes the FGS; plain
-  // start for SEED/RESET/STOP which only message an already-running service). Best-effort.
-  private fun dispatchServiceIntent(intent: Intent) {
-    val context = appContextOrNull ?: return
-    try {
+  // start for SEED/RESET/STOP which only message an already-running service). Never throws into JS;
+  // returns whether the OS actually accepted the dispatch (vc51 — the swallowed catch here is
+  // exactly where vc50 turned a refused start into a false success).
+  private fun dispatchServiceIntent(intent: Intent): Boolean {
+    val context = appContextOrNull ?: return false
+    return try {
       if (intent.action == MatchUploadForegroundService.ACTION_DISTANCE_START
         && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         context.startForegroundService(intent)
       } else {
         context.startService(intent)
       }
+      true
     } catch (error: Throwable) {
       Log.w("RGNativeUpload", "distance service dispatch failed: ${error.message}")
+      false
     }
   }
 
