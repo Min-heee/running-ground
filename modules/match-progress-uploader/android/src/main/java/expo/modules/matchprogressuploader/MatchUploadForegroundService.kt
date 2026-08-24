@@ -664,6 +664,29 @@ class MatchUploadForegroundService : Service() {
   companion object {
     private const val TAG = "RGNativeUpload"
 
+    // vc51 — 디스크에 남은 세션 총거리를 읽는다 (모듈의 getPersistedDistanceSessionMeters).
+    // 부활 서비스가 아예 없는 새 프로세스(재기동이 배달되지 않은 경우)에서, 앱 재실행 직후
+    // JS가 start→seed로 디스크 기록을 덮어쓰기 **전에** 죽은 러닝의 마지막 총거리를 회수할
+    // 유일한 통로다. 원함 플래그가 없거나 마감이 지났으면 0 — 좀비 총거리는 새 러닝으로
+    // 새어들지 않는다. 읽기 전용: 기록은 건드리지 않는다(소각은 부활/정지 경로의 몫).
+    fun readPersistedDistanceSessionMeters(context: Context): Double {
+      return try {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean(PREF_DISTANCE_WANTED, false)) {
+          return 0.0
+        }
+        val deadlineMs = prefs.getLong(PREF_DISTANCE_DEADLINE_MS, 0L)
+        if (deadlineMs <= 0L || System.currentTimeMillis() > deadlineMs) {
+          return 0.0
+        }
+        val meters = java.lang.Double.longBitsToDouble(prefs.getLong(PREF_DISTANCE_TOTAL_BITS, 0L))
+        if (meters.isFinite() && meters > 0) meters else 0.0
+      } catch (error: Throwable) {
+        Log.w(TAG, "readPersistedDistanceSessionMeters failed: ${error.message}")
+        0.0
+      }
+    }
+
     const val ACTION_START = "expo.modules.matchprogressuploader.action.START"
     const val ACTION_UPDATE = "expo.modules.matchprogressuploader.action.UPDATE"
     const val ACTION_STOP = "expo.modules.matchprogressuploader.action.STOP"

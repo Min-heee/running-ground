@@ -148,6 +148,15 @@ class MatchProgressUploaderModule : Module() {
       MatchDistanceBus.totalMeters
     }
 
+    // vc51 — 디스크에 남은(살아 있는·마감 전) 세션 총거리 읽기. 프로세스가 죽은 러닝을 앱
+    // 재실행이 복원할 때, JS가 재시동/시딩으로 기록을 덮어쓰기 전에 이 값을 먼저 회수해
+    // 잠든 구간을 원장에 적립한다. 세션이 없거나 만료면 0. 순수 읽기 — 아무것도 바꾸지
+    // 않는다.
+    Function("getPersistedDistanceSessionMeters") {
+      val context = appContextOrNull ?: return@Function 0.0
+      MatchUploadForegroundService.readPersistedDistanceSessionMeters(context)
+    }
+
     // Reset the native total + per-fix anchor (new run start).
     Function("resetDistanceAccumulator") {
       startDistanceService(MatchUploadForegroundService.ACTION_DISTANCE_RESET, emptyMap())
