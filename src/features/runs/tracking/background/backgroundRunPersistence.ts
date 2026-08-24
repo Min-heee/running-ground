@@ -19,6 +19,7 @@ import {
   type BackgroundRunTrackingSnapshot,
 } from '@/features/runs/tracking/background/snapshotStore';
 import {
+  captureRelaunchNativeEvidence,
   consumeRelaunchNativeEvidenceMeters,
   resolveRelaunchGapCreditMeters,
 } from '@/features/runs/tracking/background/relaunchGapCredit';
@@ -193,6 +194,10 @@ export async function restoreBackgroundRunSnapshot(matchId: string): Promise<boo
     // HANDS-FREE FINISH (Stage 4a) — make sure cold-start hydration has landed before consulting
     // the freeze for the staleness decision below (idempotent; resolves instantly once hydrated).
     await hydrateLocalGoalFreezes();
+    // 재실행 갭 정산 — 증거 포획을 **구조적으로** 앞세운다. 루트 레이아웃의 선포획이 보통
+    // 먼저 끝나 있지만(idempotent 래치라 여기 await는 공짜), 커밋 간격에 기대는 순서 보장은
+    // 마운트 구조가 바뀌면 소리 없이 깨진다 — 3차 적대 검증이 지적한 잠재 취약점.
+    await captureRelaunchNativeEvidence();
 
     const uri = getStorageUri(matchId);
     if (!uri) {
@@ -216,6 +221,10 @@ export async function restoreBackgroundRunSnapshot(matchId: string): Promise<boo
       : STALE_THRESHOLD_MS;
     if (Date.now() - data.savedAt > staleThresholdMs) {
       await FileSystem.deleteAsync(uri, { idempotent: true });
+      // 스냅샷을 소각하면 그 런의 네이티브 증거도 함께 폐기한다 — 여기서 살려두면 죽은 런
+      // A의 증거가 나중에 복원되는 **다른** 매치 B에 적립될 수 있다(네이티브 기록엔
+      // matchId가 없다; 3차 적대 검증의 probe D). 증거의 주인이 소각됐으니 증거도 없다.
+      consumeRelaunchNativeEvidenceMeters();
       return false;
     }
 
