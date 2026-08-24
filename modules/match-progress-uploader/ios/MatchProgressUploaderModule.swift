@@ -218,7 +218,15 @@ public class MatchProgressUploaderModule: Module {
       self.runOnMain {
         self.startDistanceAccumulator(options: options)
       }
-      return true
+      // 빌드 61 — vc51 계약의 iOS 반쪽: 진짜 결과를 돌려준다. 예전의 무조건 true는 권한이
+      // denied/restricted/notDetermined라 드라이버가 세션을 no-op해도 JS가 '이미 돈다'고
+      // 래치해 다시는 시동을 안 걸게 만들었다(안드 8/23 사고의 iOS 쌍둥이). 판정은
+      // 드라이버의 armUpdatesIfAuthorized와 같은 분기 조건 — 허용 상태에서만 true라서,
+      // false를 받은 JS 재시도 회로(하트비트마다 재시동)가 사용자가 권한을 켠 뒤의 다음
+      // 하트비트에 자동으로 무장한다. (클래스 메서드는 deprecated지만 스레드 안전하고
+      // 기능은 그대로다 — 인스턴스 판독은 메인 스레드 생성이 필요해 여기선 못 쓴다.)
+      let status = CLLocationManager.authorizationStatus()
+      return status == .authorizedAlways || status == .authorizedWhenInUse
     }
 
     // Set the native running total to the given meters (the JS authoritative total at start) so
@@ -227,6 +235,9 @@ public class MatchProgressUploaderModule: Module {
     Function("seedDistanceAccumulator") { (startMeters: Double) in
       self.runOnMain {
         self.distanceAccumulator.seed(meters: startMeters)
+        // 빌드 61 — 시드도 디스크 기록을 갱신한다(세션이 살아 있을 때만 — 길 잃은 시드가
+        // 죽은 세션의 부검 재료를 덮어쓰면 안 된다; 안드 vc51과 같은 규칙).
+        DistanceSessionStore.persistTotal(self.distanceAccumulator.totalMeters)
       }
     }
 
@@ -235,10 +246,20 @@ public class MatchProgressUploaderModule: Module {
       return self.distanceAccumulator.totalMeters
     }
 
+    // 빌드 61 — 디스크에 남은(살아 있는·마감 전) 세션 총거리 읽기. 잠금 중 프로세스가
+    // 죽은 러닝을 앱 재실행이 복원할 때, JS가 재시동/시딩으로 덮어쓰기 전에 이 값을 먼저
+    // 회수해 잠든 구간을 원장에 적립한다(relaunchGapCredit — JS 소비쪽은 이미 배포돼 있어
+    // 이 함수가 생기는 순간 자동 개통된다). 세션이 없거나 만료면 0. 순수 읽기.
+    Function("getPersistedDistanceSessionMeters") { () -> Double in
+      return DistanceSessionStore.readActiveTotalMeters()
+    }
+
     // Reset the native total + per-fix anchor to zero (new run start).
     Function("resetDistanceAccumulator") {
       self.runOnMain {
         self.distanceAccumulator.reset()
+        // 리셋은 디스크 기록도 통째로 지운다 — 0짜리 세션 기록을 남기지 않는다.
+        DistanceSessionStore.clear()
       }
     }
 
@@ -290,6 +311,9 @@ public class MatchProgressUploaderModule: Module {
   private func stopAfterTerminalFinishAck() {
     periodicWantsLocation = false
     distanceWantsLocation = false
+    // 빌드 61 — 매치가 끝났다(서버 ACK): 세션 기록도 소각한다. 완주 거리는 프리즈/저장
+    // 대기열이 지키므로 이 기록은 더 이상 부검 재료가 아니다.
+    DistanceSessionStore.clear()
     locationDriver?.clearPayload()
     teardownLocationDriverIfIdle()
   }
@@ -303,6 +327,11 @@ public class MatchProgressUploaderModule: Module {
     // lose accrued distance — the JS merge seeds the baseline separately.
     distanceAccumulator.beginSession()
     distanceWantsLocation = true
+    // 빌드 61 — 세션을 디스크에 남긴다(6시간 마감 포함): 잠금 중 iOS가 프로세스를 죽여도
+    // 앱 재실행의 relaunchGapCredit이 이 기록으로 잠든 구간을 회수한다. iOS엔 START_STICKY
+    // 부활이 없으므로(연속 위치 갱신은 죽은 앱을 되살리지 못한다) 영속이 곧 갑옷의
+    // 전부다 — 안드 vc51의 절반 계약.
+    DistanceSessionStore.beginSession(totalMeters: distanceAccumulator.totalMeters)
     // Reuse the SAME shared driver as the periodic re-POST (no new CLLocationManager). If the
     // periodic path has not started it, this brings it up at the periodic default cadence; the
     // distance accumulator does not care about the throttle interval (it consumes every fix).
@@ -314,6 +343,9 @@ public class MatchProgressUploaderModule: Module {
     // Stop feeding distance, then tear down the shared session ONLY if the periodic re-POST no
     // longer needs it either — so distance stop never starves an in-flight match re-POST.
     distanceWantsLocation = false
+    // 빌드 61 — 명시적 정지는 디스크 기록도 지운다: JS가 살아서 stop을 보냈다는 것 자체가
+    // JS 원장이 무사하다는 뜻이고, 남겨두면 죽은 기록이 다음 러닝의 부검에 새어든다.
+    DistanceSessionStore.clear()
     teardownLocationDriverIfIdle()
   }
 
@@ -351,6 +383,13 @@ public class MatchProgressUploaderModule: Module {
         }
         if let advancedMeters = self.distanceAccumulator.consume(location: location) {
           self.sendEvent("onDistanceAccumulated", ["meters": advancedMeters])
+          // 빌드 61 — 전진할 때마다 총거리를 디스크에 남긴다(5초 스로틀, 메인 스레드 한정
+          // 상태라 락 불필요). 프로세스가 죽으면 이 값이 재실행 정산의 증거가 된다.
+          let nowMs = Date().timeIntervalSince1970 * 1000
+          if nowMs - self.lastDistancePersistMs >= MatchProgressUploaderModule.distancePersistThrottleMs {
+            self.lastDistancePersistMs = nowMs
+            DistanceSessionStore.persistTotal(advancedMeters)
+          }
         }
       },
       onTerminalAck: { [weak self] in
@@ -417,6 +456,10 @@ public class MatchProgressUploaderModule: Module {
   // 체크포인트에서 조용히 끝난다. 데이터 레이스 방지를 위해 모든 읽기/쓰기를
   // runSaveQueue(직렬)에서만 수행한다 (URLSession 콜백도 이 큐로 되돌아온다).
   private var runSaveGeneration: Int = 0
+  // 빌드 61 — 거리 세션 영속의 전진 스로틀 시계(메인 스레드 한정).
+  private var lastDistancePersistMs: Double = 0
+  private static let distancePersistThrottleMs: Double = 5000
+
   // 메인 스레드 전용 (UIApplication API 짝).
   private var runSaveBackgroundTaskId: UIBackgroundTaskIdentifier = .invalid
   private let runSaveQueue = DispatchQueue(label: "rg.run-save-uploader")
@@ -890,6 +933,8 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
   private let nativeMeters: () -> Double?
 
   private var manager: CLLocationManager?
+  // 빌드 61 — 매니저 보유와 갱신 시작을 분리(권한 대기 중엔 매니저만 들고 있는다).
+  private var updatesStarted = false
 
   // Latest JS-built payload (the native side only re-sends this — never recomputes it).
   private var url: String?
@@ -973,40 +1018,61 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
   }
 
   func start() {
-    // Reuse an existing session if already started.
-    if manager != nil {
+    // 빌드 61 재구성 — 매니저 생성과 갱신 무장을 분리한다. 예전엔 권한이 없으면 매니저를
+    // 놓아버려서(delegate=nil) 사용자가 설정에서 권한을 켜도 승격 콜백을 영영 못 받았다.
+    // 이제 매니저·델리게이트는 유지하고(GPS는 안 돌아 배터리 비용 0) 무장만 미룬다 —
+    // locationManagerDidChangeAuthorization이 승격 순간 재무장한다. start()는 여전히 idempotent.
+    if manager == nil {
+      let created = CLLocationManager()
+      created.delegate = self
+      created.desiredAccuracy = kCLLocationAccuracyBestForNavigation
+      created.distanceFilter = kCLDistanceFilterNone
+      created.pausesLocationUpdatesAutomatically = false
+      created.activityType = .fitness
+      manager = created
+    }
+    armUpdatesIfAuthorized()
+  }
+
+  // AUTHORIZATION / CRASH-SAFETY: read the status WITHOUT prompting (the run flow already asks).
+  // 빌드 61 — WhenInUse에서도 배경 갱신을 켠다: UIBackgroundModes에 location이 선언된 앱은
+  // WhenInUse + 전면 시작 세션의 배경 배달이 합법이다(스트라바/NRC의 표준 경로 — 예전 주석의
+  // 크래시 공포는 선언 없는 빌드에만 해당). 선언은 그래도 런타임에 재확인한다 — 이 플래그를
+  // 선언 없이 켜면 예외가 난다.
+  private func armUpdatesIfAuthorized() {
+    guard let manager = manager, !updatesStarted else {
       return
     }
 
-    let manager = CLLocationManager()
-    manager.delegate = self
-    manager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
-    manager.distanceFilter = kCLDistanceFilterNone
-    manager.pausesLocationUpdatesAutomatically = false
-    manager.activityType = .fitness
-
-    // AUTHORIZATION / CRASH-SAFETY: read the status WITHOUT prompting (the running app already
-    // requests Always for background tracking). Only enable background updates for .authorizedAlways.
-    let status = manager.authorizationStatus
-    switch status {
+    switch manager.authorizationStatus {
     case .authorizedAlways:
-      // Safe to run a background location session: Always + UIBackgroundModes:location entitlement.
       manager.allowsBackgroundLocationUpdates = true
       manager.showsBackgroundLocationIndicator = true
-      self.manager = manager
       manager.startUpdatingLocation()
+      updatesStarted = true
     case .authorizedWhenInUse:
-      // Start updates so we still re-POST while the app is in use, but NEVER flip the background
-      // flag without Always (doing so crashes). Foreground-only re-POSTs; no bg-mode risk.
-      self.manager = manager
+      if PeriodicLocationDriver.bundleDeclaresLocationBackgroundMode {
+        manager.allowsBackgroundLocationUpdates = true
+        manager.showsBackgroundLocationIndicator = true
+      }
       manager.startUpdatingLocation()
+      updatesStarted = true
     default:
-      // notDetermined / denied / restricted: no-op the periodic path so it can NEVER crash. The
-      // existing JS-driven path remains the only uploader. Release the unused manager.
-      manager.delegate = nil
-      self.manager = nil
+      // notDetermined / denied / restricted: 아직 못 켠다 — 매니저는 남겨 승격을 기다린다.
+      break
     }
   }
+
+  // 승격(설정에서 허용) 시 재무장. 강등이면 iOS가 스스로 배달을 멈추므로 상태만 남는다 —
+  // JS 쪽은 정직한 시동 결과(false)와 하트비트 재시도가 상황을 계속 알린다.
+  func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+    armUpdatesIfAuthorized()
+  }
+
+  private static let bundleDeclaresLocationBackgroundMode: Bool = {
+    let modes = Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String]
+    return modes?.contains("location") ?? false
+  }()
 
   func stop() {
     // BATTERY/LIFECYCLE: fully stop + release the location session and clear cached state.
@@ -1015,6 +1081,7 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
       manager.delegate = nil
     }
     manager = nil
+    updatesStarted = false
     url = nil
     token = nil
     body = nil
@@ -1521,5 +1588,57 @@ private final class DistanceAccumulator {
     }
 
     return value
+  }
+}
+
+
+// MARK: - 빌드 61: 거리 세션 영속 (안드 vc51 SharedPreferences의 iOS 반쪽)
+//
+// 잠금 중 iOS가 프로세스를 죽이면(jetsam) 메모리의 누적 총거리가 함께 사라진다 — iOS엔
+// START_STICKY 부활이 없으므로 이 디스크 기록이 유일한 생존자다. 앱 재실행의
+// relaunchGapCredit(JS, 이미 배포됨)이 getPersistedDistanceSessionMeters로 읽어 잠든 구간을
+// 원장에 적립한다. 6시간 마감이 버려진 기록의 좀비화를 막고(과거 러닝이 새 러닝에 적립되는
+// 사고 차단), 명시적 정지/리셋/서버 종결 ACK가 기록을 소각한다. 모든 쓰기는 메인 스레드
+// (드라이버 델리게이트·runOnMain)에서만 온다; UserDefaults 자체도 스레드 안전하다.
+private enum DistanceSessionStore {
+  private static let wantedKey = "rg.matchUpload.distanceSessionWanted"
+  private static let totalKey = "rg.matchUpload.distanceSessionTotalMeters"
+  private static let deadlineKey = "rg.matchUpload.distanceSessionDeadlineMs"
+  private static let sessionTtlMs: Double = 6 * 60 * 60 * 1000
+
+  private static var defaults: UserDefaults { UserDefaults.standard }
+
+  static func beginSession(totalMeters: Double) {
+    defaults.set(true, forKey: wantedKey)
+    defaults.set(totalMeters.isFinite && totalMeters > 0 ? totalMeters : 0, forKey: totalKey)
+    defaults.set(Date().timeIntervalSince1970 * 1000 + sessionTtlMs, forKey: deadlineKey)
+  }
+
+  // 살아 있는 세션의 총거리만 갱신한다 — 길 잃은 시드/전진이 죽은 세션의 부검 재료를
+  // 덮어쓰지 못하게(안드 vc51과 같은 유실-방향 가드).
+  static func persistTotal(_ totalMeters: Double) {
+    guard defaults.bool(forKey: wantedKey) else {
+      return
+    }
+    defaults.set(totalMeters.isFinite && totalMeters > 0 ? totalMeters : 0, forKey: totalKey)
+  }
+
+  static func clear() {
+    defaults.removeObject(forKey: wantedKey)
+    defaults.removeObject(forKey: totalKey)
+    defaults.removeObject(forKey: deadlineKey)
+  }
+
+  static func readActiveTotalMeters() -> Double {
+    guard defaults.bool(forKey: wantedKey) else {
+      return 0
+    }
+    let deadlineMs = defaults.double(forKey: deadlineKey)
+    let nowMs = Date().timeIntervalSince1970 * 1000
+    guard deadlineMs > 0, nowMs <= deadlineMs else {
+      return 0
+    }
+    let totalMeters = defaults.double(forKey: totalKey)
+    return totalMeters.isFinite && totalMeters > 0 ? totalMeters : 0
   }
 }
