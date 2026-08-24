@@ -27,3 +27,4 @@ dist/
 
 # 우주 사이트 정적 빌드 산출물 — 배포 때 만들고 올린다.
 dist-web/
+modules/*/android/build/
