@@ -19,7 +19,7 @@ import {
   getLocalGoalFreeze,
   listLocalGoalFreezes,
 } from '@/features/runs/sync/localGoalFreezeStore';
-import { createTrackedRun, forceResetRunningMatchState, getApiErrorMessage } from '@/services';
+import { createTrackedRun, forceResetRunningMatchState, getApiErrorMessage, leaveRunningMatch } from '@/services';
 import { clearPendingRunSave, persistPendingRunSave } from '@/features/runs/save/pendingRunSaveQueue';
 import { settlePendingScreenOffGapNow } from '@/features/runs/tracking/background/screenOffGapReconcile';
 import type { SaveTrackingOptions } from '@/features/runs/hooks/useRunTracking';
@@ -29,13 +29,14 @@ import {
   resolveMatchSaveLeavingSource,
   shouldSuppressPostSaveNavigation,
 } from './matchSaveLeaving';
-import { buildRunSaveResultSnapshot } from './runSaveResultMapper';
+import { buildCurrentUserForfeitMatchResult, buildRunSaveResultSnapshot } from './runSaveResultMapper';
 import {
   clearPendingMatchSaveContext,
   getPendingMatchSaveContext,
   resolvePendingMatchSaveFallbacks,
   setPendingMatchSaveContext,
 } from './pendingMatchSaveContext';
+import { shouldConvertSaveToSubGoalForfeit } from './subGoalForfeitGate';
 import { runCleanupAfterSave } from './runCleanupAfterSave';
 import { runPointRankingPostProcessor } from './runPointRankingPostProcessor';
 import type { UseRunSaveFlowInput } from './types';
@@ -166,7 +167,7 @@ export function useRunSaveCommand({
       });
       const {
         activeMatchId,
-        resolvedMatchResult,
+        resolvedMatchResult: fallbackResolvedMatchResult,
         matchSource,
         matchModeFallback,
       } = resolvePendingMatchSaveFallbacks({
@@ -195,6 +196,50 @@ export function useRunSaveCommand({
         ? matchMode
         : pendingSaveContext?.mode ?? roomLinkedMatchContext?.mode ?? matchModeFallback ?? null;
 
+      // ── 완주 선언 거리 게이트, 클라 반쪽 (2026-08-23 실전 사고) ────────────────────
+      // '대결종료'는 매치가 붙어 있으면 무조건 status='finished'를 보냈고, 서버는 그 말을
+      // 그대로 믿어 4.93km에서 종료한 러너가 7km 그룹런 1위로 확정됐다. 목표 미달 종료는
+      // 완주가 아니라 기권이다 — '기권하기'를 누른 러너와 같은 기록으로 남는다. 서버도
+      // 같은 게이트를 갖지만(미달 선언은 'running' 강등 후 §B4 DNF), 클라가 먼저 기권을
+      // 선언해야 상대 화면이 스톨 창을 기다리지 않고 즉시 정리되고 내 기록에도 '기권'
+      // 카드가 남는다. 판정 거리는 실제로 전송할 값(프리즈 우선 finishIntent)과 동일하게
+      // 잡는다: 프리즈가 있으면 목표를 밟았다는 증거라 게이트는 절대 안 걸린다. 목표
+      // 거리를 모르거나(런타임 소실 저장) 이미 확정된 결과가 있으면(상대 기권 승, 기권
+      // 커맨드 경로의 override) 건드리지 않는다 — 승자를 기권시키는 사고가 더 나쁘다.
+      const goalFreeze = activeMatchId ? getLocalGoalFreeze(activeMatchId) : null;
+      const matchProgress = activeMatchId ? buildDisplayedMatchProgress(trackingSnapshot) : null;
+      const finishIntent = activeMatchId && matchProgress
+        ? buildPendingFinishIntentFromFreeze(goalFreeze, {
+            matchId: activeMatchId,
+            elapsedSeconds: matchProgress.elapsedSeconds,
+            distanceKm: matchProgress.distanceKm,
+            pace: matchProgress.currentPace,
+          })
+        : null;
+      const matchGoalDistanceKm = activeMatchId
+        ? [duelMatchStatus, groupMatchStatus]
+            .find((matchStatus) => matchStatus?.matchId === activeMatchId)?.distanceKm ?? null
+        : null;
+      const savingAsSubGoalForfeit = shouldConvertSaveToSubGoalForfeit({
+        activeMatchId,
+        declaredFinishDistanceKm: finishIntent?.distanceKm ?? null,
+        matchGoalDistanceKm,
+        resolvedMatchMode: resolvedMatchMode === 'duel' || resolvedMatchMode === 'group'
+          ? resolvedMatchMode
+          : null,
+        hasResolvedMatchResult: Boolean(fallbackResolvedMatchResult),
+      });
+      const resolvedMatchResult = savingAsSubGoalForfeit
+        && matchProgress
+        && (resolvedMatchMode === 'duel' || resolvedMatchMode === 'group')
+        ? buildCurrentUserForfeitMatchResult({
+            currentDistanceKm: matchProgress.distanceKm,
+            mode: resolvedMatchMode,
+            source: matchSource,
+            trackedMatchResult: fallbackResolvedMatchResult,
+          })
+        : fallbackResolvedMatchResult;
+
       if (activeMatchId) {
         // Set BEFORE createTrackedRun: the context must survive a mid-save failure so the
         // retry can re-thread it. Cleared only in runCleanupAfterSave (success) and on the
@@ -214,7 +259,6 @@ export function useRunSaveCommand({
       // BOTH save flows — the auto-exit path routes saveForfeitResultAndNavigate →
       // handleSaveTracking; forfeit saves are inherently safe (a freeze exists only if the goal
       // was crossed, and min() can only lower values).
-      const goalFreeze = activeMatchId ? getLocalGoalFreeze(activeMatchId) : null;
       const clampedDisplayedSnapshot = applyGoalFreezeToDisplayedSnapshot(displayedSnapshot, goalFreeze);
 
       // iOS 케이던스 복원 (오너 2026-08-06 파티런 '--' 사고): 라이브 스텝 이벤트가
@@ -281,29 +325,31 @@ export function useRunSaveCommand({
 
       if (activeMatchId) {
         try {
-          // HANDS-FREE FINISH (Stage 3d) — the save-time final push had the same drift leak as
-          // the match-end delivery: it posted the LIVE progress with status 'finished'. Prefer
-          // the at-crossing freeze when one exists for this match; without one this is exactly
-          // the live progress as before. Server first-write-wins keeps re-pushes idempotent.
-          const progress = buildDisplayedMatchProgress(trackingSnapshot);
-          const finishIntent = buildPendingFinishIntentFromFreeze(goalFreeze, {
-            matchId: activeMatchId,
-            elapsedSeconds: progress.elapsedSeconds,
-            distanceKm: progress.distanceKm,
-            pace: progress.currentPace,
-          });
-          await pushRunningMatchProgress({
-            matchId: activeMatchId,
-            distanceKm: finishIntent.distanceKm,
-            elapsedSeconds: finishIntent.finishElapsedSeconds,
-            currentPace: finishIntent.pace,
-            status: 'finished',
-          }, {
-            // FIX-D2 — see SAVE_TIME_FINISH_PUSH_TIMEOUT_MS: this push is redundant insurance
-            // for the finish delivery, so it self-aborts fast instead of adding a full 5s RTT
-            // to the tap→run-detail path.
-            timeoutMs: SAVE_TIME_FINISH_PUSH_TIMEOUT_MS,
-          });
+          if (savingAsSubGoalForfeit) {
+            // 목표 미달 '대결종료' → 서버에 기권을 선언한다 (finished 선언 금지 — 예전엔
+            // 이 자리에서 미달 거리로 finished를 보내 순위에 올랐다). 기권 커맨드와 같은
+            // 계약: 로컬은 이미 기권으로 확정됐고(블롭이 기권 카드로 저장된다) 서버
+            // leave는 최선-노력이라, 실패해도 저장은 계속되고 §B4가 서버 쪽을 정리한다.
+            await leaveRunningMatch({ matchId: activeMatchId });
+          } else if (finishIntent) {
+            // HANDS-FREE FINISH (Stage 3d) — the save-time final push had the same drift leak
+            // as the match-end delivery: it posted the LIVE progress with status 'finished'.
+            // Prefer the at-crossing freeze when one exists for this match; without one this is
+            // exactly the live progress as before. Server first-write-wins keeps re-pushes
+            // idempotent — and the server now distance-verifies the declaration too.
+            await pushRunningMatchProgress({
+              matchId: activeMatchId,
+              distanceKm: finishIntent.distanceKm,
+              elapsedSeconds: finishIntent.finishElapsedSeconds,
+              currentPace: finishIntent.pace,
+              status: 'finished',
+            }, {
+              // FIX-D2 — see SAVE_TIME_FINISH_PUSH_TIMEOUT_MS: this push is redundant insurance
+              // for the finish delivery, so it self-aborts fast instead of adding a full 5s RTT
+              // to the tap→run-detail path.
+              timeoutMs: SAVE_TIME_FINISH_PUSH_TIMEOUT_MS,
+            });
+          }
         } catch {
           setError('러닝 결과는 계산됐지만 경쟁 상태를 마지막으로 반영하지 못했어요.');
         }

@@ -151,7 +151,7 @@ function createProfileSnapshot(id, averagePace = '08:00/km') {
 
   updateRunningMatchProgress(store, loser, {
     matchId: session.id,
-    distanceKm: 0.8,
+    distanceKm: 1,
     elapsedSeconds: 310,
     currentPace: '06:20/km',
     status: 'finished',
@@ -188,7 +188,7 @@ function createProfileSnapshot(id, averagePace = '08:00/km') {
 
   updateRunningMatchProgress(store, loser, {
     matchId: session.id,
-    distanceKm: 0.8,
+    distanceKm: 1,
     elapsedSeconds: 300,
     currentPace: '06:20/km',
     status: 'finished',
@@ -269,7 +269,7 @@ function createProfileSnapshot(id, averagePace = '08:00/km') {
 
   updateRunningMatchProgress(store, users[4], {
     matchId: session.id,
-    distanceKm: 0.2,
+    distanceKm: 1,
     elapsedSeconds: 300,
     currentPace: '08:00/km',
     status: 'finished',
@@ -309,7 +309,7 @@ function createProfileSnapshot(id, averagePace = '08:00/km') {
 
   updateRunningMatchProgress(store, loser, {
     matchId: session.id,
-    distanceKm: 0.8,
+    distanceKm: 1,
     elapsedSeconds: 300,
     currentPace: '06:20/km',
     status: 'finished',

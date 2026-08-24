@@ -199,7 +199,18 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
   // progress uploads and makes finish irreversible against stale heartbeats.
   const reachedGoalDistance = normalizedProgress.distanceKm >= session.distanceKm - MATCH_GOAL_DISTANCE_TOLERANCE_KM;
   const alreadyFinished = currentParticipant.liveStatus === 'finished' || Boolean(currentParticipant.finishedAt);
-  const requestedFinished = alreadyFinished || status === 'finished' || reachedGoalDistance;
+  // 완주 **선언은 거리로 검증한다** (2026-08-24 실전 사고: 4.93km에서 '대결종료'를 누른
+  // 러너가 7km 그룹런 1위로 확정됐다 — 클라이언트의 저장 흐름은 매치가 붙어 있으면
+  // 무조건 status='finished'를 보내고, 예전의 이 줄은 그 말을 그대로 믿었다). 검증은
+  // **원시 신고 거리**로 한다: 정규화 거리는 속도 상한이 수면 랙을 천천히 풀기 때문에,
+  // 깨어나며 목표를 넘긴 정직한 완주가 정규화 값으로는 목표 미달로 보일 수 있다 — 서버가
+  // 순위 키(elapsedSeconds)도 원시 신고값을 믿는 이상, 거리 게이트가 원시값을 보는 것이
+  // 더 약한 신뢰가 아니다. 목표 미달 선언은 아래 사다리에서 'running'으로 강등되어
+  // §B4 폴백이 완주자들 아래 DNF로 봉인한다 — 절대 순위에 오르지 못한다.
+  const declaredFinishReachedGoal = status === 'finished'
+    && Number.isFinite(distanceKm)
+    && distanceKm >= session.distanceKm - MATCH_GOAL_DISTANCE_TOLERANCE_KM;
+  const requestedFinished = alreadyFinished || declaredFinishReachedGoal || reachedGoalDistance;
 
   // F4: seal the §B4 fallback FIRST, from raw participant state, BEFORE we apply any
   // finished state. This way a late finish push from the missing runner is blocked even
@@ -256,7 +267,13 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
     ? (requestedFinished || status === 'finished' ? 'running' : status)
     : requestedFinished
       ? 'finished'
-      : status;
+      : status === 'finished'
+        // 목표 미달 완주 선언 — 완주도, 몰수도 아닌 'running'으로 강등한다. 여기서
+        // 'forfeited'를 박으면 되돌릴 수 없어서(몰수는 종료 상태), 부분 거리를 실은 첫
+        // 저장 푸시와 진짜 목표 거리를 실은 내구 재전송이 경합하는 정직한 완주를 영구히
+        // 파괴한다. 'running'은 되돌릴 수 있고, 진짜 미완주자는 §B4가 DNF로 정리한다.
+        ? 'running'
+        : status;
 
   // B-2 (finish-flow relief 2026-07-07): an already-finished participant re-pushing 'finished'
   // (post-finish heartbeat / durable finish resend) must NOT re-stamp the live fields. Distance
@@ -345,6 +362,14 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
           : null;
       if (Number.isInteger(measured) && measured > 0) {
         currentParticipant.finishElapsedSeconds = measured;
+        // 완주로 받아들인 푸시의 원시 거리로 저장 거리를 목표까지 끌어올린다 — 속도 상한이
+        // 눌러 둔 저장 거리(수면 랙)가 남아 있으면 페이스 라벨이 그 랙으로 계산된다.
+        if (Number.isFinite(distanceKm)) {
+          const finishDistanceKm = Math.min(session.distanceKm, distanceKm);
+          if (finishDistanceKm > (currentParticipant.liveDistanceKm ?? 0)) {
+            currentParticipant.liveDistanceKm = Number(finishDistanceKm.toFixed(3));
+          }
+        }
         // F2: the displayed self-time (liveElapsedSeconds, the value the runner sees and
         // the value buildOfficialSessionStandings reads when no frozen finish exists) must
         // equal the authoritative rank key, so the shown time and the ranked time can never

@@ -376,6 +376,15 @@ export async function startNativeDistanceAccumulator(
   }
 
   const started = module.startDistanceAccumulator(NATIVE_DISTANCE_ACCUMULATOR_OPTIONS);
+
+  // 거짓 성공 래치 무장해제 (2026-08-23 민병희 갤럭시): 시동 실패를 true로 래치하면 이후의
+  // 모든 재호출이 '이미 돈다'는 재시딩 경로로 빠져 영영 재시동을 안 한다. vc50 Kotlin은
+  // 무조건 true를 돌려줘서 이 가드는 지금은 잠들어 있지만, 실제 결과를 돌려주는 바이너리
+  // (vc51+)부터는 실패가 래치되지 않고 다음 하트비트가 다시 시동을 건다.
+  if (!started) {
+    return false;
+  }
+
   // SEED immediately after start so the native baseline == the JS total at this instant. start has
   // reset the per-fix anchor, so the next fix only sets the origin (no jump) and the seed sets the
   // total — together native == JS at t0.

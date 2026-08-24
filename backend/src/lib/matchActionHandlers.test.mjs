@@ -356,3 +356,60 @@ test('a standing-still runner still refreshes liveUpdatedAt (elapsed advances on
   assert.notEqual(after.liveUpdatedAt, before, 'a live push with fresh elapsed must restamp');
   assert.equal(after.liveDistanceKm, 3.05, 'distance genuinely did not move');
 });
+
+// ── 완주 선언 거리 게이트 (2026-08-23 실전 사고) ─────────────────────────────
+// 4.93km에서 '대결종료'를 누른 러너가 7km 그룹런 1위로 확정됐다. 클라이언트 저장
+// 흐름은 매치가 붙어 있으면 무조건 status='finished'를 보내고, 서버는 그 말을 그대로
+// 믿었다. 이제 완주 선언은 원시 신고 거리로 검증한다 — 목표 미달 선언은 'running'으로
+// 강등되어(되돌릴 수 있음) §B4가 미완주자로 정리한다.
+
+test('a sub-goal finish declaration is demoted to running — no finish stamps, no rank entry', () => {
+  const { store, session, pusher } = createRunningDuelFixture('short-finish-duel');
+
+  updateRunningMatchProgress(store, { id: pusher.id }, {
+    matchId: 'short-finish-duel',
+    distanceKm: 4.2,
+    elapsedSeconds: 1320,
+    currentPace: '08:45/km',
+    status: 'finished',
+  });
+
+  const mine = session.participants.find((participant) => participant.userId === pusher.id);
+  assert.equal(mine.liveStatus, 'running', 'a 4.2km finish claim against a 6km goal is not a finish');
+  assert.equal(mine.finishedAt, null, 'no finish timestamp may land');
+  assert.equal(mine.finishElapsedSeconds, null, 'the rank key must never be frozen from a sub-goal claim');
+  assert.equal(mine.liveDistanceKm, 4.2, 'the pushed distance itself still lands as live progress');
+
+  // The demotion is REVERSIBLE: the durable resend that finally carries the goal distance
+  // (or an honest later finish) must still complete the run.
+  updateRunningMatchProgress(store, { id: pusher.id }, {
+    matchId: 'short-finish-duel',
+    distanceKm: 6,
+    elapsedSeconds: 1560,
+    currentPace: '06:40/km',
+    status: 'finished',
+  });
+
+  assert.equal(mine.liveStatus, 'finished', 'a later goal-distance finish still completes');
+  assert.equal(mine.finishElapsedSeconds, 1560);
+});
+
+test('a goal-reaching RAW finish declaration is accepted even when the speed-clamped normalized distance lags', () => {
+  const { store, session, pusher } = createRunningDuelFixture('raw-finish-duel');
+
+  // 3.05km → 6.18km in 120s is far over the 12 m/s clamp, so the NORMALIZED distance
+  // cannot reach the goal — exactly the wake-after-sleep shape. The gate must judge the
+  // RAW declared distance (the server already trusts raw elapsedSeconds as the rank key).
+  updateRunningMatchProgress(store, { id: pusher.id }, {
+    matchId: 'raw-finish-duel',
+    distanceKm: 6.18,
+    elapsedSeconds: 2100,
+    currentPace: '05:40/km',
+    status: 'finished',
+  });
+
+  const mine = session.participants.find((participant) => participant.userId === pusher.id);
+  assert.equal(mine.liveStatus, 'finished');
+  assert.equal(mine.finishElapsedSeconds, 2100);
+  assert.equal(mine.liveDistanceKm, 6, 'the accepted finish stores min(goal, raw) — the ledger says the goal, not GPS overshoot');
+});

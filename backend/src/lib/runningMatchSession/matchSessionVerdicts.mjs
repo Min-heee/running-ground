@@ -6,15 +6,20 @@ import {
 } from './matchSessionFallbackSeals.mjs';
 
 // The authoritative pace for each side is derived from the SAME official numbers
-// (goal distance over the runner's frozen finishElapsedSeconds for a finisher, the
-// official average pace otherwise) so the two paces can never diverge per device.
+// so the two paces can never diverge per device. 완주자의 분자는 **그 러너가 실제로 기록한
+// 거리**다 — 예전엔 목표 거리를 썼는데, 목표 미달 기록이 완주로 새어 들어온 사고에서
+// 4.93km/2589초짜리 기록이 "6:10/km"(= 2589초 ÷ 7km)라는 존재한 적 없는 페이스를 달았다.
+// 정직한 완주자는 기록 거리가 목표에 얼어 있어 라벨이 그대로다.
 function resolveDuelVerdictPaceLabel(standing, goalDistanceKm) {
   if (!standing) {
     return null;
   }
 
   if (Number.isInteger(standing.finishElapsedSeconds) && standing.finishElapsedSeconds > 0) {
-    return buildProgressAveragePaceLabel(goalDistanceKm, standing.finishElapsedSeconds);
+    const recordedDistanceKm = Number.isFinite(standing.liveDistanceKm) && standing.liveDistanceKm > 0
+      ? Math.min(goalDistanceKm, standing.liveDistanceKm)
+      : goalDistanceKm;
+    return buildProgressAveragePaceLabel(recordedDistanceKm, standing.finishElapsedSeconds);
   }
 
   return typeof standing.officialAveragePace === 'string' && standing.officialAveragePace.trim()

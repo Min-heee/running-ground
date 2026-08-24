@@ -23,6 +23,8 @@ import {
 import {
   stopBackgroundMatchProgressTimer,
 } from '@/features/runs/tracking/background/backgroundMatchProgressTimer';
+import { startNativeDistanceAccumulator } from '@/features/runs/tracking/background/distanceAccumulatorController';
+import { getAccumulatedDistanceMeters } from '@/features/runs/tracking/background/routeAccumulator';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
 import type { LastSyncedMatchProgress } from '@/features/runs/viewModels/matchProgress';
@@ -273,6 +275,21 @@ export function useMatchProgressSync({
       // save-fallback matchSource the foreground sites capture (room context ⇒ party).
       matchSource: roomLinkedMatchContext ? 'party' : 'official',
     });
+
+    // ── 전경 무장 (2026-08-23 민병희 갤럭시 사고) ────────────────────────────────
+    // 네이티브 거리 누적기(FGS+웨이크락)는 원래 첫 백그라운드 플러시에서만 켜졌다 —
+    // 화면을 끄는 바로 그 순간의 단 한 번 시동. 그 시동이 지면(안드 12+ 백그라운드 FGS
+    // 제한, One UI 살해와의 경주) 갑옷 없이 죽는다: 0.26km에서 기록이 죽은 뿌리다.
+    // 매치가 붙어 있는 동안(전경, FGS 시동이 항상 허용되는 유일한 창) 여기서 미리 켠다.
+    // 같은 키 재호출은 재시딩이라(idempotent) 이 효과가 거리 틱마다 다시 돌아도 안전하고,
+    // 그 재시딩이 전경 동안 네이티브 총계를 JS 권위값에 계속 붙들어 드리프트를 0으로
+    // 묶는다(플러시 경로의 fresh-reseed와 같은 규칙). 깨어날 때의 stop은 그대로다 —
+    // 다음 틱의 이 줄이 다시 무장한다. 구 바이너리·킬스위치에선 컨트롤러가 no-op.
+    // 주기 재전송(cadence)은 여기서 절대 켜지 않는다 — 전경 채널의 주인은 JS다.
+    void startNativeDistanceAccumulator(
+      activeHeartbeatMatchId,
+      getAccumulatedDistanceMeters(),
+    ).catch(() => undefined);
 
     return undefined;
   }, [

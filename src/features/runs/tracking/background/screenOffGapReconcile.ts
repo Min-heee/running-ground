@@ -129,7 +129,11 @@ export function captureScreenOffGapOnWake({
   }
 
   // 갭 규칙 없는 바이너리의 네이티브 총거리는 블랙아웃 직선을 품고 있을 수 있다 — 믿지 않는다.
+  // 이하의 모든 탈출은 이유를 남긴다 (2026-08-23 사고: 한 러너의 폰에서 왜 깨어남 크레딧이
+  // 없었는지 진단 로그만으로는 알 수 없었다 — 침묵 탈출은 사후 부검을 불가능하게 만든다).
+  // 유일한 예외는 '러닝 중이 아님' — 러닝 밖의 모든 화면 켜짐마다 찍히는 소음이라 뺀다.
   if (!isGapRuleBinarySupported()) {
+    rgDiagLog('[RG gap] SKIP capture: no gap-rule binary');
     return false;
   }
 
@@ -145,19 +149,25 @@ export function captureScreenOffGapOnWake({
   const lastAliveAtMs = diagnostics.lastDistanceAdvanceAtMs ?? diagnostics.lastSnapshotAtMs;
 
   if (lastAliveAtMs === null) {
+    rgDiagLog('[RG gap] SKIP capture: no liveness clock yet');
     return false;
   }
 
   const staleGapMs = nowMs - lastAliveAtMs;
 
   if (staleGapMs < MIN_STALE_GAP_MS) {
+    rgDiagLog(`[RG gap] SKIP capture: gap ${Math.round(staleGapMs / 1000)}s below floor`);
     return false;
   }
 
   const nativeMetersAtWake = getMergeableNativeDistanceMeters();
 
-  // 네이티브가 없거나(솔로 런·구버전) 앞서지 않으면 정산할 게 없다.
+  // 네이티브가 없거나(솔로 런·구버전) 앞서지 않으면 정산할 게 없다. native=0 이 찍히면
+  // 누적기가 아예 무장되지 못한 채 잠들었다는 뜻이다 — 민병희 사고의 시그니처.
   if (nativeMetersAtWake - getAccumulatedDistanceMeters() < MIN_CREDIT_METERS) {
+    rgDiagLog(
+      `[RG gap] SKIP capture: native not ahead (native=${nativeMetersAtWake.toFixed(0)}m js=${getAccumulatedDistanceMeters().toFixed(0)}m gap=${Math.round(staleGapMs / 1000)}s)`,
+    );
     return false;
   }
 

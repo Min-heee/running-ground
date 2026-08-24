@@ -1493,16 +1493,30 @@ await runTest('match progress finishes within goal distance tolerance before exa
   });
 });
 
-await runTest('match progress accepts client finished status as a terminal signal', async () => {
+await runTest('match progress verifies a client finished declaration against the goal distance', async () => {
   const { store, slotStartAt } = createActiveDuelStore();
   store.matchSessions[0].distanceKm = 0.5;
 
   await withBackend(store, async ({ request }) => {
-    const clientFinished = await request('host-token', 'POST', '/api/running/matches/progress', {
+    // 2026-08-23 실전 사고: 목표 미달(4.93/7km)에서 '대결종료'를 누른 러너가 1위로
+    // 확정됐다. 목표 미달 완주 선언은 이제 'running'으로 강등된다(되돌릴 수 있음 —
+    // §B4가 미완주자로 정리한다). 예전의 이 테스트는 "클라이언트 finished를 그대로
+    // 종결 신호로 믿는다"는 낡은 계약을 못 박고 있었다.
+    const shortClaim = await request('host-token', 'POST', '/api/running/matches/progress', {
       matchId: 'duel-contract-match',
       distanceKm: 0.47,
       elapsedSeconds: 1530,
       currentPace: '05:02/km',
+      status: 'finished',
+    });
+    assert.equal(shortClaim.currentUserLiveStatus, 'running');
+
+    // 목표 거리에 닿은 선언은 예전 그대로 종결 신호다.
+    const clientFinished = await request('host-token', 'POST', '/api/running/matches/progress', {
+      matchId: 'duel-contract-match',
+      distanceKm: 0.5,
+      elapsedSeconds: 1560,
+      currentPace: '05:07/km',
       status: 'finished',
     });
     assert.equal(clientFinished.currentUserLiveStatus, 'finished');
@@ -1514,7 +1528,7 @@ await runTest('match progress accepts client finished status as a terminal signa
       matchId: 'duel-contract-match',
     });
     assert.equal(guestView.opponent.liveStatus, 'finished');
-    assert.equal(guestView.opponent.liveDistanceKm, 0.47);
+    assert.equal(guestView.opponent.liveDistanceKm, 0.5);
     assert.equal(typeof guestView.opponent.finishedAt, 'string');
   });
 });
@@ -1526,7 +1540,7 @@ await runTest('match progress remains finished when a later heartbeat reports lo
   await withBackend(store, async ({ request }) => {
     await request('host-token', 'POST', '/api/running/matches/progress', {
       matchId: 'duel-contract-match',
-      distanceKm: 0.47,
+      distanceKm: 0.5,
       elapsedSeconds: 1530,
       currentPace: '05:02/km',
       status: 'finished',
@@ -1559,7 +1573,7 @@ await runTest('match progress remains finished when a later heartbeat reports lo
     });
     assert.equal(guestViewAfterStaleHeartbeat.opponent.liveStatus, 'finished');
     assert.equal(guestViewAfterStaleHeartbeat.opponent.finishedAt, firstFinishedAt);
-    assert.equal(guestViewAfterStaleHeartbeat.opponent.liveDistanceKm, 0.47);
+    assert.equal(guestViewAfterStaleHeartbeat.opponent.liveDistanceKm, 0.5);
   });
 });
 
