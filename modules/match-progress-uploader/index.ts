@@ -98,6 +98,8 @@ type MatchProgressUploaderNativeModule = {
   //   - resetDistanceAccumulator / stopDistanceAccumulator: clear / stop the accumulation.
   startDistanceAccumulator?(options: DistanceAccumulatorOptions): boolean;
   seedDistanceAccumulator?(startMeters: number): void;
+  // vc51 — 디스크에 남은(살아 있는·마감 전) 세션 총거리 읽기. 이전 바이너리엔 없다.
+  getPersistedDistanceSessionMeters?(): number;
   getAccumulatedDistanceMeters?(): number;
   resetDistanceAccumulator?(): void;
   stopDistanceAccumulator?(): void;
@@ -421,6 +423,22 @@ export function getAccumulatedDistanceMeters(): number {
 
   try {
     const meters = nativeModule?.getAccumulatedDistanceMeters?.();
+    return typeof meters === 'number' && Number.isFinite(meters) && meters > 0 ? meters : 0;
+  } catch {
+    return 0;
+  }
+}
+
+// vc51 — 프로세스가 죽은 러닝의 마지막 네이티브 총거리(m)를 디스크에서 읽는다. 재실행
+// 정산(relaunchGapCredit)이 재시동/시딩으로 기록을 덮어쓰기 전에 한 번 읽는 용도. 세션이
+// 없거나 만료됐거나 함수가 없는 바이너리(vc50 이하)면 0.
+export function getPersistedDistanceSessionMeters(): number {
+  if (nativeModule == null || typeof nativeModule.getPersistedDistanceSessionMeters !== 'function') {
+    return 0;
+  }
+
+  try {
+    const meters = nativeModule.getPersistedDistanceSessionMeters();
     return typeof meters === 'number' && Number.isFinite(meters) && meters > 0 ? meters : 0;
   } catch {
     return 0;

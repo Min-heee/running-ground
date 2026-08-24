@@ -18,9 +18,23 @@ import {
   setSnapshotState,
   type BackgroundRunTrackingSnapshot,
 } from '@/features/runs/tracking/background/snapshotStore';
+import {
+  consumeRelaunchNativeEvidenceMeters,
+  resolveRelaunchGapCreditMeters,
+} from '@/features/runs/tracking/background/relaunchGapCredit';
+import {
+  creditExternalDistanceMeters,
+  setPreWakeFixFloorMs,
+} from '@/features/runs/tracking/background/routeAccumulator';
+import { MIN_CREDIT_METERS } from '@/features/runs/tracking/background/screenOffGapReconcile';
+import { MAX_REASONABLE_RUNNING_SPEED_MPS } from '@/features/runs/tracking/background/locationDistance';
+import { rgDiagLog } from '@/utils/rgPerfTrace';
 
 const STORAGE_DIR_NAME = 'rg-bg-tracking';
-const STALE_THRESHOLD_MS = 30 * 60 * 1000;
+// 2026-08-24 상향(30분 → 2시간): 화면을 끝까지 꺼두는 파티런에서 30분은 실전 러닝보다
+// 짧다 — 8/23 사고의 7km 그룹런이 이미 45분대였고, 체크포인트 지평도 60분이다. 프로세스가
+// 죽은 러닝의 복원(그리고 아래의 재실행 갭 정산)이 이 천장에 걸리면 기록 전체가 사라진다.
+const STALE_THRESHOLD_MS = 2 * 60 * 60 * 1000;
 // HANDS-FREE FINISH (Stage 4a) — when a local goal freeze exists for the match, the persisted
 // snapshot is a REAL finished run (the goal was crossed), not an abandoned one: deleting it at
 // the 30min mark would destroy the only local copy of the route/record before the user reopens
@@ -217,6 +231,35 @@ export async function restoreBackgroundRunSnapshot(matchId: string): Promise<boo
       startedAt: data.snapshot.startedAt ?? current.startedAt,
       status: 'running',
     });
+
+    // ── 재실행 갭 정산 (2026-08-24, vc51 짝) ──────────────────────────────────────
+    // 프로세스가 죽은 사이 네이티브(부활 누적기 또는 디스크 세션 기록)가 센 거리를, 재무장
+    // 경로가 죽기 전 JS 값으로 재시딩해 지우기 **전에** 원장에 적립한다. 콜드 재실행에는
+    // AppState 전이가 없어 화면꺼짐 갭 포획이 영영 안 돌기 때문에(2차 적대 검증), 여기가
+    // 유일한 정산 지점이다. 안전 규칙은 갭 포획과 동일: 잠든 시간 × 최대 달리기 속도 상한
+    // + 80m 바닥. 증거 소비는 1회라 이중 적립이 불가능하고, 같은 프로세스에서 뒤늦게 도는
+    // 갭 포획이 있어도 원장이 이미 커져 'native not ahead'로 스스로 물러난다.
+    const relaunchEvidenceMeters = consumeRelaunchNativeEvidenceMeters();
+    if (relaunchEvidenceMeters > 0) {
+      const gapMs = Math.max(0, Date.now() - data.savedAt);
+      const creditMeters = resolveRelaunchGapCreditMeters({
+        evidenceMeters: relaunchEvidenceMeters,
+        restoredMeters: data.accumulatedDistanceMeters,
+        gapMs,
+        maxSpeedMps: MAX_REASONABLE_RUNNING_SPEED_MPS,
+        minCreditMeters: MIN_CREDIT_METERS,
+      });
+      if (creditMeters > 0) {
+        creditExternalDistanceMeters(creditMeters);
+        // 이 순간 이전에 찍힌 픽스는 원장에 못 들어온다 — 크레딧이 그 구간을 이미 보상했다
+        // (갭 포획의 정산과 같은 이중 적립 방지 걸쇠).
+        setPreWakeFixFloorMs(Date.now());
+        rgDiagLog(`[RG gap] RELAUNCH SETTLE +${creditMeters.toFixed(0)}m (evidence=${relaunchEvidenceMeters.toFixed(0)}m gap=${Math.round(gapMs / 1000)}s)`);
+      } else {
+        rgDiagLog(`[RG gap] relaunch evidence below floor (${creditMeters.toFixed(0)}m)`);
+      }
+    }
+
     emitSnapshot();
     return true;
   } catch {

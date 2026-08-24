@@ -7,6 +7,7 @@ import '@/features/runs/tracking/background';
 import { setUnauthorizedHandler } from '@/services/apiClient';
 import { clearSession, getBackendAccessToken } from '@/lib/session/sessionState';
 import { initializeLiveGapPushConfigPersistence } from '@/features/runs/liveGap/liveGapPushConfigPersistence';
+import { captureRelaunchNativeEvidence } from '@/features/runs/tracking/background/relaunchGapCredit';
 import { useConfigureNotificationHandler } from '@/navigation/notificationHandler';
 import { useRootAuthGate } from '@/navigation/rootAuthGate';
 import { colors, getAppliedThemeMode } from '@/theme/tokens';
@@ -46,6 +47,10 @@ export default function RootLayout() {
     // future changes to device storage. Device-level preference, so it runs once at mount
     // independently of the auth gate.
     void initializeLiveGapPushConfigPersistence();
+    // 재실행 갭 정산의 증거 선포획 — 트래킹 화면의 stop(디스크 기록 소각)·재시딩(증거
+    // 덮어쓰기)보다 먼저 읽어야 해서 루트에서 가장 먼저 부른다. 러닝이 없던 실행이면
+    // 증거 0으로 조용히 끝난다.
+    void captureRelaunchNativeEvidence();
   }, []);
 
   useEffect(() => {

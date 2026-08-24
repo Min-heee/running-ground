@@ -149,6 +149,8 @@ type NativeDistanceAccumulatorModule = {
   getAccumulatedDistanceMeters(): number;
   resetDistanceAccumulator(): void;
   stopDistanceAccumulator(): void;
+  // vc51 — 죽은 세션의 디스크 총거리 읽기(재실행 정산 전용). 이전 바이너리엔 없다.
+  getPersistedDistanceSessionMeters?(): number;
 };
 
 let injectedModule: NativeDistanceAccumulatorModule | null | undefined;
@@ -171,6 +173,33 @@ async function resolveNativeDistanceAccumulatorModule(): Promise<NativeDistanceA
 // Test seam: inject a fake native module (or null to force the unavailable path).
 export function setNativeDistanceAccumulatorModuleForTest(module: NativeDistanceAccumulatorModule | null | undefined) {
   injectedModule = module;
+}
+
+// 재실행 정산 전용 — 모듈을 읽기만을 위해 미리 캐시한다(아무것도 시동하지 않는다). 아래의
+// 동기 읽기들은 캐시가 없으면 0을 돌려주므로, 정산은 반드시 이걸 await한 뒤 읽어야 한다.
+export async function ensureNativeDistanceAccumulatorModuleResolved(
+  resolveModule: () => Promise<NativeDistanceAccumulatorModule | null> = resolveNativeDistanceAccumulatorModule,
+): Promise<void> {
+  await ensureCachedModule(resolveModule);
+}
+
+// vc51 재실행 정산 — 프로세스가 죽은 러닝이 디스크에 남긴 마지막 네이티브 총거리(m).
+// 부활 서비스조차 못 뜬 새 프로세스에서 잠든 구간을 회수할 유일한 통로다. 킬스위치·캐시
+// 부재·구 바이너리(함수 없음)·만료 세션은 전부 0 — 절대 던지지 않는다.
+export function getPersistedNativeDistanceSessionMeters(): number {
+  if (!ENABLE_NATIVE_DISTANCE_MERGE || !cachedModule) {
+    return 0;
+  }
+
+  try {
+    if (typeof cachedModule.getPersistedDistanceSessionMeters !== 'function') {
+      return 0;
+    }
+    const meters = cachedModule.getPersistedDistanceSessionMeters();
+    return Number.isFinite(meters) && meters > 0 ? meters : 0;
+  } catch {
+    return 0;
+  }
 }
 
 // PURE merge decision — the single safety-critical helper, unit-tested in isolation.
