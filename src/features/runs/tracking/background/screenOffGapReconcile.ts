@@ -191,6 +191,26 @@ export function captureScreenOffGapOnWake({
   return true;
 }
 
+// ── 잠금 중 재개 포획 (2026-08-24 iOS 사고) ──────────────────────────────────────
+// iOS는 화면이 잠긴 동안 JS를 재웠다 깨웠다 한다(실측 1.4~4.3분 블랙아웃 후 재개 — 한 러너
+// 8/23 5회 2.19km 유실, 회원F 8/17, 회원G, 회원J 동일 시그니처). 화면은 계속 꺼져
+// 있으므로 AppState 'active'가 오지 않아 깨어남 포획이 영영 안 돌고, 재개 ~12초 뒤 '신선'
+// 판정과 함께 플러시/솔로 가드의 되심기가 네이티브 리드(유일한 증거)를 지운다. 그래서
+// 위치 태스크가 픽스 묶음을 반영하기 **직전에**(원장이 아직 블랙아웃 이전 상태일 때)
+// 여기를 불러 갭이 보이면 포획한다 — 반영 후의 기존 정산이 재생 몫을 자동 차감하며
+// 적립한다(아래 reconcileScreenOffGapAfterFixesAppended). 정상 주행(갭 < 문턱)은 포획
+// 함수에 들어가기 전에 조용히 빠져나가 픽스마다 SKIP 로그가 쌓이지 않는다.
+export function maybeCaptureBlackoutEndGap({ nowMs = Date.now() }: { nowMs?: number } = {}): boolean {
+  const diagnostics = getBackgroundSyncDiagnostics();
+  const lastAliveAtMs = diagnostics.lastDistanceAdvanceAtMs ?? diagnostics.lastSnapshotAtMs;
+
+  if (lastAliveAtMs === null || nowMs - lastAliveAtMs < MIN_STALE_GAP_MS) {
+    return false;
+  }
+
+  return captureScreenOffGapOnWake({ nowMs });
+}
+
 // 위치 픽스가 JS 원장에 반영된 **직후** 호출된다(백그라운드 태스크·전면 워치 둘 다). 첫
 // 묶음이 정산을 확정한다 — 방금 반영된 몫은 이미 JS 총거리에 들어 있어 자동으로 빠진다.
 export function reconcileScreenOffGapAfterFixesAppended() {

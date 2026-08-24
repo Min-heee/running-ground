@@ -8,7 +8,7 @@ import {
 import { setGapRuleBinarySupport } from '@/features/runs/tracking/background/distanceAccumulatorController';
 import { resolveNativeGapRuleBinary } from '@/features/runs/tracking/background/nativeGapRuleSupport';
 import { appendTrackedLocation } from '@/features/runs/tracking/background/routeAccumulator';
-import { reconcileScreenOffGapAfterFixesAppended } from '@/features/runs/tracking/background/screenOffGapReconcile';
+import { maybeCaptureBlackoutEndGap, reconcileScreenOffGapAfterFixesAppended } from '@/features/runs/tracking/background/screenOffGapReconcile';
 import { reseedSoloDistanceAccumulatorAfterFixes } from '@/features/runs/tracking/background/soloDistanceGuard';
 import {
   BACKGROUND_RUN_TASK_NAME,
@@ -92,6 +92,11 @@ function defineBackgroundRunTask(taskName: string) {
       ? (data as { locations?: Location.LocationObject[] }).locations ?? []
       : [];
 
+    // 잠금 중 재개 포획 — 반드시 묶음 반영 **전에**(원장이 아직 블랙아웃 이전 상태일 때
+    // 갭·네이티브 리드를 읽어야 한다). iOS는 잠금 중 JS를 재웠다 깨웠다 해서 AppState
+    // 'active' 없이 여기로만 되살아난다 — 이 한 줄이 없으면 그 블랙아웃 거리는 전부
+    // 유실된다(2026-08-24 iOS 사고). 정상 주행에서는 문턱 미달로 즉시 no-op.
+    maybeCaptureBlackoutEndGap();
     locations.forEach(appendTrackedLocation);
     // 깨어난 뒤 첫 묶음이면 화면꺼짐 갭 정산을 확정한다 — 반드시 묶음 반영 **후에**. 정산은
     // '포획한 네이티브 − 지금의 JS'라, OS가 밀린 픽스를 이 묶음으로 재생했다면 그 몫은 방금

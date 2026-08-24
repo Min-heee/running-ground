@@ -18,6 +18,7 @@ import {
   sumObservedRouteDistanceMeters,
 } from './routeAccumulator';
 import {
+  maybeCaptureBlackoutEndGap,
   captureScreenOffGapOnWake,
   getScreenOffGapCaptureForTest,
   MIN_CREDIT_METERS,
@@ -256,4 +257,31 @@ test('바이너리 판별: 갭 규칙 최소 빌드 미만·판독 불가는 전
   assert.equal(resolveNativeGapRuleBinary('ios', undefined), false);
   assert.equal(resolveNativeGapRuleBinary('ios', 'abc'), false);
   assert.equal(resolveNativeGapRuleBinary('ios', 0), false);
+});
+
+
+// ── 잠금 중 재개 포획 (2026-08-24 iOS 사고) ──────────────────────────────────────
+// iOS는 잠금 중 JS를 재웠다 깨웠다 한다 — AppState 'active' 없이 위치 태스크 콜백으로만
+// 되살아난다. 그 재개 순간의 포획이 블랙아웃 거리를 살리는 유일한 길이다.
+
+test('블랙아웃이 끝나는 픽스 묶음이 AppState 전이 없이도 갭을 포획·정산한다 (8/23 사고 모양)', async () => {
+  // 2.6km에서 143초 블랙아웃 — 네이티브는 374m를 더 세어 두었다.
+  await armRunningRun({ jsMeters: 2600, nativeMeters: 2974 });
+  const nowMs = Date.now() + 143_000;
+
+  assert.equal(maybeCaptureBlackoutEndGap({ nowMs }), true, '45초를 넘는 갭은 재개 묶음에서 포획된다');
+  reconcileScreenOffGapAfterFixesAppended();
+  assert.equal(Math.round(getAccumulatedDistanceMeters()), 2974, '블랙아웃 동안 네이티브가 센 374m가 원장에 들어온다');
+});
+
+test('정상 주행의 픽스 묶음은 포획 함수에 들어가지도 않는다 — 픽스마다 로그·포획 없음', async () => {
+  await armRunningRun({ jsMeters: 2600, nativeMeters: 2610 });
+
+  assert.equal(maybeCaptureBlackoutEndGap({ nowMs: Date.now() + 2_000 }), false);
+  assert.equal(getScreenOffGapCaptureForTest(), null, '포획 상태가 만들어지지 않는다');
+});
+
+test('신선도 시계가 아직 없으면(런 시작 직후 첫 묶음) 포획하지 않는다', () => {
+  // armRunningRun 없이 — 진단 시계가 비어 있는 초기 상태를 흉내낸다.
+  assert.equal(maybeCaptureBlackoutEndGap({ nowMs: Date.now() + 120_000 }), false);
 });
