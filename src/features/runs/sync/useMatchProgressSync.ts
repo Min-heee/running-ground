@@ -280,12 +280,12 @@ export function useMatchProgressSync({
     // 네이티브 거리 누적기(FGS+웨이크락)는 원래 첫 백그라운드 플러시에서만 켜졌다 —
     // 화면을 끄는 바로 그 순간의 단 한 번 시동. 그 시동이 지면(안드 12+ 백그라운드 FGS
     // 제한, One UI 살해와의 경주) 갑옷 없이 죽는다: 0.26km에서 기록이 죽은 뿌리다.
-    // 매치가 붙어 있는 동안(전경, FGS 시동이 항상 허용되는 유일한 창) 여기서 미리 켠다.
-    // 같은 키 재호출은 재시딩이라(idempotent) 이 효과가 거리 틱마다 다시 돌아도 안전하고,
-    // 그 재시딩이 전경 동안 네이티브 총계를 JS 권위값에 계속 붙들어 드리프트를 0으로
-    // 묶는다(플러시 경로의 fresh-reseed와 같은 규칙). 깨어날 때의 stop은 그대로다 —
-    // 다음 틱의 이 줄이 다시 무장한다. 구 바이너리·킬스위치에선 컨트롤러가 no-op.
-    // 주기 재전송(cadence)은 여기서 절대 켜지 않는다 — 전경 채널의 주인은 JS다.
+    // 매치가 붙는 순간(전경, FGS 시동이 항상 허용되는 유일한 창) 여기서 **최초 1회**
+    // 미리 켠다 — 이 효과의 deps는 목표 거리(상수)라 매치당 한 번만 돈다. 틱마다의
+    // 재무장·재시딩은 refreshMatchProgressHeartbeat 쪽이 맡는다(하트비트 간격 + 깨어날
+    // 때마다 돌아서, 깨어날 때의 stop 뒤에도 다음 화면꺼짐 전에 갑옷이 다시 입혀진다).
+    // 구 바이너리·킬스위치에선 컨트롤러가 no-op. 주기 재전송(cadence)은 여기서 절대
+    // 켜지 않는다 — 전경 채널의 주인은 JS다.
     void startNativeDistanceAccumulator(
       activeHeartbeatMatchId,
       getAccumulatedDistanceMeters(),
@@ -791,6 +791,18 @@ export function useMatchProgressSync({
     }
 
     matchProgressHeartbeatRef.current = now;
+
+    // 전경 재무장 + 재시딩 (적대 검증 2026-08-24가 잡은 구멍: 부착 효과의 deps는 목표
+    // 거리라 매치당 딱 한 번 돈다 — '틱마다 재무장'은 저기서는 일어나지 않는다). 진짜
+    // 틱은 여기다: 이 하트비트는 간격마다, 그리고 **깨어날 때마다**(useTrackingAppStateSync
+    // 가 wake에서 refreshMatchProgressHeartbeat를 부른다) 돈다. 이미 도는 누적기면 JS
+    // 권위값 재시딩(드리프트 고정), 깨어날 때의 stop이 껐으면 전경 재시동 — 첫 화면꺼짐
+    // 만이 아니라 **매** 화면꺼짐 전에 갑옷이 입혀진다. 구 바이너리·킬스위치엔 no-op.
+    void startNativeDistanceAccumulator(
+      target.matchId,
+      getAccumulatedDistanceMeters(),
+    ).catch(() => undefined);
+
     const progress = callbackRef.current.buildDisplayedMatchProgress(snapshot);
     const heartbeatStatus = resolveMatchProgressHeartbeatStatus({
       progressDistanceKm: progress.distanceKm,

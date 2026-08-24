@@ -36,7 +36,7 @@ import {
   resolvePendingMatchSaveFallbacks,
   setPendingMatchSaveContext,
 } from './pendingMatchSaveContext';
-import { shouldConvertSaveToSubGoalForfeit } from './subGoalForfeitGate';
+import { isDecidedMatchResult, shouldConvertSaveToSubGoalForfeit } from './subGoalForfeitGate';
 import { runCleanupAfterSave } from './runCleanupAfterSave';
 import { runPointRankingPostProcessor } from './runPointRankingPostProcessor';
 import type { UseRunSaveFlowInput } from './types';
@@ -227,7 +227,10 @@ export function useRunSaveCommand({
         resolvedMatchMode: resolvedMatchMode === 'duel' || resolvedMatchMode === 'group'
           ? resolvedMatchMode
           : null,
-        hasResolvedMatchResult: Boolean(fallbackResolvedMatchResult),
+        // 존재 여부가 아니라 **확정** 여부다 — 라이브 매치는 스탠딩만 동기화돼도 항상
+        // PENDING('결과 집계 중') 블롭을 들고 있어서, Boolean(블롭)으로 막으면 변환이
+        // 정확히 사고 경로(미확정 매치에서 대결종료)에서 영영 안 걸린다.
+        hasDecidedMatchResult: isDecidedMatchResult(fallbackResolvedMatchResult),
       });
       const resolvedMatchResult = savingAsSubGoalForfeit
         && matchProgress

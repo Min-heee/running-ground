@@ -652,6 +652,11 @@ function buildResultFromSession(store, session, currentUserId, now) {
       ? standing.finishElapsedSeconds
       : null;
     const forfeited = standing.liveStatus === 'forfeited';
+    // 완주자만 기록 거리로 보정한다 — 미완주/기권 행은 오늘의 표기(목표 거리) 그대로.
+    const recordedDistanceKm = Number.isInteger(finishElapsedSeconds) && finishElapsedSeconds > 0
+      && Number.isFinite(standing.liveDistanceKm) && standing.liveDistanceKm > 0
+      ? Math.min(goalDistanceKm, standing.liveDistanceKm)
+      : goalDistanceKm;
 
     let resultTone = null;
     if (mode === 'duel' && duelVerdict?.resolved) {
@@ -668,9 +673,13 @@ function buildResultFromSession(store, session, currentUserId, now) {
       districtName: region.districtName,
       provinceName: region.provinceName,
       cityName: region.cityName,
-      paceSecondsPerKm: resolvePaceSecondsPerKm(goalDistanceKm, finishElapsedSeconds, standing.officialAveragePace),
+      // 2026-08-23 사고의 쌍둥이 공식 — 목표 거리로 나누면 미달 완주자의 페이스가
+      // 조작된다(4.93km/2589s가 6:10/km로). 판정 라벨(matchSessionVerdicts)과 같은
+      // 규칙으로 기록 거리 min(goal, liveDistanceKm)를 쓴다. 새 게이트 이후의 완주는
+      // 거리가 목표로 들려 올라와 값이 같고, 레거시 미달 완주 행만 정직해진다.
+      paceSecondsPerKm: resolvePaceSecondsPerKm(recordedDistanceKm, finishElapsedSeconds, standing.officialAveragePace),
       finishElapsedSeconds,
-      distanceKm: goalDistanceKm,
+      distanceKm: recordedDistanceKm,
       rank: Number.isInteger(standing.officialRank) ? standing.officialRank : null,
       resultTone,
       forfeited,
