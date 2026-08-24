@@ -486,3 +486,68 @@ test('SATURATION survives a reconnecting runner with a stale grid — no backwar
   assert.equal(byId.get('r4').officialDistanceKm, projectOfficialDistanceKm(2.2, GRID_HORIZON_SECONDS + 300, GRID_HORIZON_SECONDS + 300, 6));
   assert.ok(byId.get('r1').officialDistanceKm > 3.51, 'board must stay ahead of the stale grid values');
 });
+
+// ── 그리드 침묵 밸브 (2026-08-25 실전: 30-50m 보드 동결 주기) ─────────────────────
+// 한쪽 도착이 끊기면 공통 버킷(min)이 고정돼 **모든** 행이 얼었다. 밸브: 그리드 꼭대기가
+// 벽시계보다 30초 넘게 뒤처진 러너는 공통 기준에서 빠지고, 자기 마지막 값으로 표시된다.
+
+function runningGrid(topIndex, kmPerBucket = 0.03) {
+  return Array.from({ length: topIndex + 1 }, (_, k) => Number((kmPerBucket * (k + 1)).toFixed(2)));
+}
+
+function liveRunner(userId, { topIndex, liveElapsedSeconds, liveUpdatedAtMsAgo }) {
+  return participant(userId, {
+    liveStatus: 'running',
+    finishedAt: null,
+    finishElapsedSeconds: null,
+    liveDistanceKm: Number((0.03 * (topIndex + 1)).toFixed(2)),
+    liveElapsedSeconds,
+    liveUpdatedAt: iso(-liveUpdatedAtMsAgo),
+    checkpoints: runningGrid(topIndex),
+  });
+}
+
+test('VALVE: a 40s-silent runner stops pinning the common bucket — my row keeps advancing', () => {
+  // 세션 벽시계 600초. 내 그리드 꼭대기 = 600초(신선), 상대 = 560초(40초 침묵 > 30초 문턱).
+  // 상대의 90초 스톨 사다리는 아직 멀었다(40초) — 밸브가 없으면 이 40초 내내 내 행이
+  // 상대의 560초 버킷에 얼어붙는다(오너가 본 30-50m).
+  const me = liveRunner('me', { topIndex: 59, liveElapsedSeconds: 600, liveUpdatedAtMsAgo: 1000 });
+  const rival = liveRunner('rival', { topIndex: 55, liveElapsedSeconds: 560, liveUpdatedAtMsAgo: 40_000 });
+  const session = sessionFor('duel', [me, rival]);
+  session.startedAt = iso(-600 * 1000);
+
+  const standings = buildOfficialSessionStandings(storeFor(session), session, NOW);
+  const mine = standings.find((s) => s.userId === 'me');
+  const theirs = standings.find((s) => s.userId === 'rival');
+
+  assert.equal(mine.officialDistanceKm, runningGrid(59)[59], 'my row reads MY latest bucket, not the silent runner\'s');
+  // 침묵 러너는 자기 마지막 시점 값 그대로 — 앞으로 투사하지 않는다.
+  assert.equal(theirs.officialDistanceKm, Number(theirs.liveDistanceKm.toFixed(2)));
+});
+
+test('VALVE: 20s behind stays INSIDE the fair compare — no flap at intrinsic slack', () => {
+  // 버킷 10s + 하트비트 2.5s + 지터의 고유 슬랙 안(20초 뒤짐)은 오늘의 공정 비교 그대로:
+  // 공통 버킷 = min(59, 57) = 57, 내 행도 그 시점의 내 값.
+  const me = liveRunner('me', { topIndex: 59, liveElapsedSeconds: 600, liveUpdatedAtMsAgo: 1000 });
+  const rival = liveRunner('rival', { topIndex: 57, liveElapsedSeconds: 580, liveUpdatedAtMsAgo: 20_000 });
+  const session = sessionFor('duel', [me, rival]);
+  session.startedAt = iso(-600 * 1000);
+
+  const standings = buildOfficialSessionStandings(storeFor(session), session, NOW);
+  const mine = standings.find((s) => s.userId === 'me');
+
+  assert.equal(mine.officialDistanceKm, runningGrid(59)[57], 'within the threshold the common bucket still pins fairly');
+});
+
+test('VALVE: a resumed runner rejoins the fair compare without rewinding the common bucket', () => {
+  // 재개 푸시는 벽시계 정규화+백필로 그리드를 현재 버킷까지 채운다 — 복귀가 min을 되감지
+  // 않는다. 여기서는 백필 완료 상태를 직접 만든다: 둘 다 꼭대기 600초 → 공통 버킷 59.
+  const me = liveRunner('me', { topIndex: 59, liveElapsedSeconds: 600, liveUpdatedAtMsAgo: 1000 });
+  const rival = liveRunner('rival', { topIndex: 59, liveElapsedSeconds: 600, liveUpdatedAtMsAgo: 1500 });
+  const session = sessionFor('duel', [me, rival]);
+  session.startedAt = iso(-600 * 1000);
+
+  const standings = buildOfficialSessionStandings(storeFor(session), session, NOW);
+  assert.equal(standings.find((s) => s.userId === 'me').officialDistanceKm, runningGrid(59)[59]);
+  assert.equal(standings.find((s) => s.userId === 'rival').officialDistanceKm, runningGrid(59)[59]);
+});

@@ -6,7 +6,8 @@ import {
   buildProgressAveragePaceLabel,
   formatPaceMinutesLabel,
 } from '../matchFormatting.mjs';
-import { MATCH_CHECKPOINT_MAX, MATCH_CHECKPOINT_STEP_SECONDS } from '../matchConstants.mjs';
+import { MATCH_CHECKPOINT_GRID_STALE_SECONDS,
+  MATCH_CHECKPOINT_MAX, MATCH_CHECKPOINT_STEP_SECONDS } from '../matchConstants.mjs';
 import { highestFilledCheckpointIndex, resolveCommonCheckpoint } from '../matchCheckpointHelpers.mjs';
 import {
   projectOfficialDistanceKm,
@@ -258,11 +259,29 @@ export function buildOfficialSessionStandings(store, session, now = new Date()) 
   // any runner without a checkpoint at that index, and entirely for legacy in-flight sessions
   // (checkpoints undefined) or the first 10s before any checkpoint exists. The finisher sort
   // (:~282-307, finishElapsedSeconds) is UNTOUCHED so the win/lose verdict never moves.
+  // 그리드 침묵 밸브 (2026-08-25 실전, 30-50m 보드 동결 주기): 도착이 끊긴 러너의 그리드
+  // 꼭대기가 벽시계보다 MATCH_CHECKPOINT_GRID_STALE_SECONDS 넘게 뒤처지면 공통 기준(min)
+  // 에서 제외한다 — 없으면 그 러너의 마지막 버킷이 **모두의 행**(내 행 포함)을 얼려버린다
+  // (그룹 보드엔 이걸 풀 밸브가 아예 없어 background 상대는 20분까지 고정됐다). 제외된
+  // 러너의 행은 아래 projectOfficialDistanceKm 폴백으로 떨어져 자기 마지막 시점의 값으로
+  // 표시된다(앞으로 투사하지 않는다 — safeOfficialElapsed가 자기 elapsed로 클램프). 재개
+  // 푸시는 벽시계 정규화 + 백필로 그리드를 현재 버킷까지 즉시 채우므로, 복귀가 min을
+  // 되감는 일은 없다(8/11 적대 검증의 되감기 함정과 무관). 판정은 상태 없는 파생값이라
+  // liveUpdatedAt 재스탬프에 면역이고, 서버에서 한 번 계산돼 양쪽 폰이 같은 숫자를 본다.
+  // startedAt이 없으면(이론상) 밸브를 끄고 오늘의 동작 그대로 둔다.
+  const valveStartedAtMs = Date.parse(typeof session.startedAt === 'string' ? session.startedAt : '');
+  const valveWallElapsedSeconds = Number.isFinite(valveStartedAtMs)
+    ? Math.floor((now.getTime() - valveStartedAtMs) / 1000)
+    : null;
+  const hasFreshCheckpointGrid = (snapshot) => valveWallElapsedSeconds === null
+    || valveWallElapsedSeconds
+      - (highestFilledCheckpointIndex(snapshot.checkpoints) + 1) * MATCH_CHECKPOINT_STEP_SECONDS
+      <= MATCH_CHECKPOINT_GRID_STALE_SECONDS;
   const commonCheckpoint = resolveCommonCheckpoint(
     liveCheckpointSnapshots.map((snapshot) => ({
       userId: snapshot.userId,
       checkpoints: snapshot.checkpoints,
-      isActive: true,
+      isActive: hasFreshCheckpointGrid(snapshot),
     })),
   );
   // GRID SATURATION FALLBACK (2026-08-11, group-match-73eb939d): the grid stores at most

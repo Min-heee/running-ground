@@ -40,52 +40,9 @@ function safe(run: () => void): void {
   }
 }
 
-// Identify "me" + extract a single current distance per group participant. Prefer the official
-// frozen distance once ready, else the live distance. `mySeedRank` (the response's mySeedRank)
-// marks which participant is the current user.
-function buildGroupBoard(
-  participants: GroupMatchParticipant[],
-  mySeedRank: number | undefined,
-): LiveCardBoardRunner[] {
-  const meSeedRank = mySeedRank ?? 1;
-  return participants.map((participant) => ({
-    name: participant.name,
-    distanceKm: participant.officialReady && typeof participant.officialDistanceKm === 'number'
-      ? participant.officialDistanceKm
-      : participant.liveDistanceKm ?? 0,
-    isMe: participant.seedRank === meSeedRank,
-  }));
-}
+import { buildBoardFromMatchStatus } from './liveActivityBoardModel';
 
-// Build the match board (duel or group) from a status response + my own current distance/name.
-// Returns [] when there is no usable opponent/participant data yet (the card then renders the
-// solo-shaped time/distance/pace, which buildLiveCardState handles for an empty board).
-export function buildBoardFromMatchStatus(
-  status: RunningMatchStatusResponse,
-  myDistanceKm: number,
-  myName: string,
-): LiveCardBoardRunner[] {
-  if (status.mode === 'group') {
-    const participants = status.participants ?? [];
-    if (participants.length === 0) {
-      return [];
-    }
-    return buildGroupBoard(participants, status.mySeedRank);
-  }
-
-  // duel
-  const opponent = status.opponent;
-  if (!opponent) {
-    return [];
-  }
-  const opponentDistanceKm = opponent.officialReady && typeof opponent.officialDistanceKm === 'number'
-    ? opponent.officialDistanceKm
-    : opponent.liveDistanceKm ?? 0;
-  return [
-    { name: myName, distanceKm: myDistanceKm, isMe: true },
-    { name: opponent.name, distanceKm: opponentDistanceKm, isMe: false },
-  ];
-}
+export { buildBoardFromMatchStatus };
 
 export type LiveActivityRunContext = {
   mode: 'solo' | 'duel' | 'group';

@@ -677,9 +677,17 @@ public class MatchProgressUploaderModule: Module {
     }
     let elapsedSeconds = max(0, requestElapsedSeconds)
 
-    // my distance (km) from the native accumulator (the same source getAccumulatedDistanceMeters
-    // exposes), so distance keeps moving screen-off.
-    let myDistanceKm = distanceAccumulator.totalMeters / 1000.0
+    // my distance (km): prefer the REQUEST body's distanceKm — it is the official-start-adjusted
+    // JS total lifted by the merge (빌드 62: 누적기 생값은 슬롯 전 웜업 미터가 낀다). Fall back
+    // to the accumulator so the card keeps moving even without a parsed request.
+    var requestDistanceKm: Double? = nil
+    if
+      let requestBody = requestBody,
+      let request = (try? JSONSerialization.jsonObject(with: requestBody)) as? [String: Any]
+    {
+      requestDistanceKm = doubleFromJSON(request["distanceKm"])
+    }
+    let myDistanceKm = requestDistanceKm ?? (distanceAccumulator.totalMeters / 1000.0)
 
     // Build the board EXACTLY like buildBoardFromMatchStatus/buildGroupBoard.
     let board = buildBoardFromResponse(response: response, mode: mode, myDistanceKm: myDistanceKm)
@@ -758,8 +766,20 @@ public class MatchProgressUploaderModule: Module {
     }
     let opponentName = (opponent["name"] as? String) ?? ""
     let opponentDistanceKm = liveOrOfficialKm(opponent)
+    // 기준 혼합 금지 (빌드 62 — JS liveActivityController와 같은 계약): 상대 행이 공정비교
+    // 기준이면 내 행도 같은 시점의 내 값(officialComparison.userDistanceKm)을 쓴다. 생값을
+    // 섞으면 기준 시차만큼 간격이 부풀어 잠금카드가 인앱 보드와 50-60m 어긋난다.
+    var myBoardDistanceKm = myDistanceKm
+    let opponentOfficialReady = (opponent["officialReady"] as? Bool) ?? false
+    if
+      opponentOfficialReady,
+      let comparison = response["officialComparison"] as? [String: Any],
+      let myOfficial = doubleFromJSON(comparison["userDistanceKm"])
+    {
+      myBoardDistanceKm = myOfficial
+    }
     return [
-      BoardRunner(name: MatchProgressUploaderModule.myDisplayNameFallback, distanceKm: myDistanceKm, isMe: true),
+      BoardRunner(name: MatchProgressUploaderModule.myDisplayNameFallback, distanceKm: myBoardDistanceKm, isMe: true),
       BoardRunner(name: opponentName, distanceKm: opponentDistanceKm, isMe: false),
     ]
   }

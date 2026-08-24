@@ -121,6 +121,13 @@ export const MATCH_CHECKPOINT_STEP_SECONDS = 10;
 //
 // 비용은 참가자당 배열 240칸(2dp 숫자 ≈ 6바이트 → ~1.4KB), 진행 중인 매치에만. 더 긴 지평이
 // 필요해지면 MAX가 아니라 STEP을 키우는 게 옳다 — 같은 지평을 배열 크기 그대로 산다.
+// 그리드 침묵 밸브 (2026-08-25 실전: 한쪽 푸시가 10초+ 끊기면 공통 버킷이 고정돼 모든
+// 러너의 행이 최대 수십~수백 미터 얼어붙었다 — background 상대는 20분까지). 벽시계 대비
+// 그리드 꼭대기가 이 초를 넘게 뒤처진 러너는 공통 기준(min)에서 제외한다. 문턱은 고유
+// 슬랙(버킷 10s + 하트비트 2.5s + 왕복 지터)보다 넉넉해야 정상 상태에서 펄럭이지 않는다
+// — 15s는 펄럭인다(적대 검증).
+export const MATCH_CHECKPOINT_GRID_STALE_SECONDS = 30;
+
 export const MATCH_CHECKPOINT_MAX = 360;
 // Once one duel runner finishes, the other has a bounded window to land their own
 // finish before the server resolves the duel server-side (missing runner = DNF) so
