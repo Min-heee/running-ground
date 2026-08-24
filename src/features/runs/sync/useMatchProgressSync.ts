@@ -23,8 +23,14 @@ import {
 import {
   stopBackgroundMatchProgressTimer,
 } from '@/features/runs/tracking/background/backgroundMatchProgressTimer';
-import { startNativeDistanceAccumulator } from '@/features/runs/tracking/background/distanceAccumulatorController';
+import {
+  ENABLE_DISTANCE_ADVANCE_FRESHNESS,
+  isGapRuleBinarySupported,
+  isNativeDistanceAccumulatorStartedFor,
+  startNativeDistanceAccumulator,
+} from '@/features/runs/tracking/background/distanceAccumulatorController';
 import { getAccumulatedDistanceMeters } from '@/features/runs/tracking/background/routeAccumulator';
+import { isMyMatchDistanceStale } from '@/features/runs/sync/matchDistanceStaleness';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
 import type { LastSyncedMatchProgress } from '@/features/runs/viewModels/matchProgress';
@@ -798,10 +804,28 @@ export function useMatchProgressSync({
     // 가 wake에서 refreshMatchProgressHeartbeat를 부른다) 돈다. 이미 도는 누적기면 JS
     // 권위값 재시딩(드리프트 고정), 깨어날 때의 stop이 껐으면 전경 재시동 — 첫 화면꺼짐
     // 만이 아니라 **매** 화면꺼짐 전에 갑옷이 입혀진다. 구 바이너리·킬스위치엔 no-op.
-    void startNativeDistanceAccumulator(
-      target.matchId,
-      getAccumulatedDistanceMeters(),
-    ).catch(() => undefined);
+    //
+    // 신선도 가드 (2차 적대 검증이 잡은 역주입): 깨어난 직후엔 밀린 keep-alive 틱/GPS
+    // 스냅샷이 AppState 리스너(=captureScreenOffGapOnWake)보다 **먼저** 이 함수를 부를 수
+    // 있다 — RN은 그 순서를 보장하지 않는다. JS가 아직 신선하지 않은데 재시딩하면 잠든
+    // 사이 네이티브만 아는 리드(3400m>3000m)가 stale JS 값으로 내려앉아 갭 포획의 'native
+    // not ahead' 게이트에 걸리고, 그 구간은 영영 사라진다 — 회원F 갭 사고의 재발명. 그래서
+    // 플러시 경로(backgroundMatchProgressSync :784-798)와 똑같은 신선도 신호로 가른다:
+    // 신선할 때만 재시딩, 신선하지 않으면 **꺼져 있을 때의 재시동만**(시동 시딩은 JS
+    // 총계로 시작하지만, 꺼진 누적기엔 지킬 리드가 없다 — 포획이 이미 봤거나 이미 잃었다).
+    const rearmDiagnostics = getBackgroundSyncDiagnostics();
+    const isMyDistanceFreshNow = !isMyMatchDistanceStale({
+      lastUpdatedAtMs: (ENABLE_DISTANCE_ADVANCE_FRESHNESS && isGapRuleBinarySupported())
+        ? rearmDiagnostics.lastDistanceAdvanceAtMs ?? rearmDiagnostics.lastSnapshotAtMs
+        : rearmDiagnostics.lastSnapshotAtMs,
+      nowMs: now,
+    });
+    if (isMyDistanceFreshNow || !isNativeDistanceAccumulatorStartedFor(target.matchId)) {
+      void startNativeDistanceAccumulator(
+        target.matchId,
+        getAccumulatedDistanceMeters(),
+      ).catch(() => undefined);
+    }
 
     const progress = callbackRef.current.buildDisplayedMatchProgress(snapshot);
     const heartbeatStatus = resolveMatchProgressHeartbeatStatus({
