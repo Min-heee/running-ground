@@ -60,8 +60,10 @@ const MAX_BODIES = 520;
 // 이름표 크기. LABEL_BOX_WIDTH는 실제로 그려지는 상자의 폭(가장 긴 지역명이 안 잘리는
 // 크기), 나머지 둘은 겹침 판정에 쓰는 어림값 — 이름 길이에 따라 실제 차지하는 폭이 다르다.
 const LABEL_BOX_WIDTH = 116;
-const LABEL_CHAR_WIDTH = 12;
-const LABEL_MAX_WIDTH = 108;
+// 실측 상향(2026-08-26): 한글 13pt는 글자당 ~14px — 12px로 검사하면 긴 이름의
+// 가장자리 글자가 이웃과 물린다.
+const LABEL_CHAR_WIDTH = 14;
+const LABEL_MAX_WIDTH = 140;
 const LABEL_HEIGHT = 28;
 
 export type UniverseSceneControls = {
@@ -655,11 +657,21 @@ function UniverseSceneComponent({
     // 고른 것·조준한 것은 **우선권을 갖고 충돌 검사에 참여한다** — 예전엔 검사를 통째로
     // 건너뛰고 뒤에 덧붙여서, 이미 자리 잡은 이름표 위에 그대로 겹쳤다(글자 씹힘의 두
     // 번째 뿌리). 먼저 놓인 상자가 이기는 픽커 규칙이므로, 앞에 세우면 강제 표시와 충돌
-    // 회피가 동시에 성립한다.
-    const forcedKeys = new Set([selectedKey, focused?.key].filter(Boolean));
-    const forced = bodies.filter((body) => forcedKeys.has(body.key));
+    // 회피가 동시에 성립한다. 서열은 **고른 것 > 조준한 것 > 크기순**이고, 강제끼리도
+    // 충돌하면 뒤쪽이 진다 — 1차 수정은 강제 전원을 무조건 살려서, 고른 '동구' 위에
+    // 조준된 '전남광주통합특별시'가 그대로 겹쳐 인쇄됐다(오너 영상 2026-08-26 2차).
+    // 조준한 것이 배경 크기(backdrop)면 아예 후보에서 뺀다 — 배경 필터 우회가 두 번째
+    // 구멍이었다. 절대 보장은 고른 것 하나뿐이다(검색 도착이 실패로 읽히면 안 된다).
+    const selectedBody = bodies.find((body) => body.key === selectedKey);
+    const focusedBody = focused?.key === selectedKey
+      ? undefined
+      : bodies.find((body) => body.key === focused?.key && body.screenRadius < backdropRadiusPx);
+    const forcedKeys = new Set(
+      [selectedBody?.key, focusedBody?.key].filter((key): key is string => Boolean(key)),
+    );
     const ordered = [
-      ...forced,
+      ...(selectedBody ? [selectedBody] : []),
+      ...(focusedBody ? [focusedBody] : []),
       ...candidates.filter((body) => !forcedKeys.has(body.key)),
     ];
 
@@ -677,9 +689,9 @@ function UniverseSceneComponent({
       height,
     );
 
-    // 강제 표시는 충돌 결과와 무관하게 살아남는다(우선권이라 밀릴 일도 없지만, 화면 밖
-    // 판정 등으로 빠져도 이름은 붙어야 한다 — 검색 도착이 실패로 읽히면 안 된다).
-    return ordered.filter((body) => visible.has(body.key) || forcedKeys.has(body.key));
+    // 고른 것만 절대 생존(맨 앞이라 충돌로 밀릴 수 없고, 화면 밖 판정으로 빠져도 붙는다).
+    // 조준한 것을 포함한 나머지는 전부 충돌 결과에 복종한다.
+    return ordered.filter((body) => visible.has(body.key) || body.key === selectedKey);
   }, [bodies, fitZoom, focused, height, selectedKey, width, zoom]);
 
   // 누를 수 있는 것: 이름이 붙은 것 + 고른 것. 전부에 터치 영역을 두면 뒤에 깔린 거대한
