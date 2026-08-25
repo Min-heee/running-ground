@@ -21,6 +21,7 @@ import {
   getStarSurface,
   listAllTextureBakes,
 } from '@/features/universe/three/planetTextures';
+import { isSpaceWarmupHolding } from '@/features/universe/three/warmup';
 import { getGlowTexture, getSpikedStarTexture, getTrimmedUnitPlane } from '@/features/universe/three/textures';
 import { planetTraitsFor, starTraitsFor } from '@/features/universe/three/planetTraits';
 import { smoothStep } from '@/features/universe/utils/universeSpace';
@@ -90,10 +91,15 @@ function useAtmosphereMaterial(color: string, strength: number, fade: number) {
 // 정확히 그 빛의 반대면(밤면)에서 켜지려면 조명과 이 상수가 같은 곳을 가리켜야 한다.
 const KEY_LIGHT_DIR = new Vector3(-320, 380, 520).normalize();
 
-// 모든 원형 텍스처를 미리 덥힌다 — 안 그러면 첫 확대에서 필요한 순간마다 표면·마스크·
-// 구름·고리가 동기로 구워져(장당 수십~수백 ms) 확대가 컥컥 걸리는 행렬이 된다. 탭이
-// 자리잡은 뒤 한 장씩, 취소하지 않는다(전부 모듈 캐시 채우기라 언제 끝나도 이득).
-// 한꺼번에 굽지 않는 게 요점이다 — 몰아서 구우면 멈칫이 탭 열기로 옮겨갈 뿐이다.
+// 잔여 텍스처 드레인 — 이제 무거운 베이크의 본대는 진입 로딩(runSpaceWarmup)이 굽고,
+// 여기는 로딩이 상한(MAX_HOLD)에 잘렸을 때 남은 꼬리를 이어 굽는 안전망이다.
+//
+// **절대시각 타이머 금지** (2026-08-25 사고의 뿌리): 예전의 setTimeout(bake, 2000+i*400)
+// 팬아웃은 베이크 하나가 슬롯을 넘기는 순간 밀린 타이머들이 한 프레임에 몰아 실행돼
+// 1-2.3초 메가 프레임을 만들었다(오너 영상 실측 1128ms/2254ms). 연쇄 예약(이전 베이크가
+// **끝난 뒤** 다음을 예약)은 구조적으로 몰릴 수 없다 — 최악이 한 프레임에 한 장이다.
+// 홀드가 아직 잡고 있는 동안은 양보한다(같은 목록을 홀드가 굽는 중 — 겹쳐 구우면 스피너
+// 프레임이 두 장 값을 낸다). 전부 모듈 캐시 채우기라 중복 호출은 공짜다.
 let sphereAssetsPrewarmed = false;
 
 export function prewarmSphereAssets() {
@@ -102,9 +108,25 @@ export function prewarmSphereAssets() {
   }
 
   sphereAssetsPrewarmed = true;
-  listAllTextureBakes().forEach((bake, index) => {
-    setTimeout(bake, 2000 + index * 400);
-  });
+  const bakes = listAllTextureBakes();
+  let cursor = 0;
+
+  const drainNext = () => {
+    if (cursor >= bakes.length) {
+      return;
+    }
+
+    if (isSpaceWarmupHolding()) {
+      setTimeout(drainNext, 250);
+      return;
+    }
+
+    bakes[cursor]();
+    cursor += 1;
+    setTimeout(drainNext, 250);
+  };
+
+  setTimeout(drainNext, 250);
 }
 
 // 구체 지오메트리는 전부 공유한다 — 모든 구가 반지름 1(또는 껍질 배수)을 그룹 배율로

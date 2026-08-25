@@ -408,6 +408,7 @@ export function getStarSurface(): DataTexture {
 // 전부 모듈 캐시에 남으니 언제 구워도 순수 이득이다.
 import {
   getBlackbodyRamp,
+  getDeepGalaxyTexture,
   getDustLaneTexture,
   getGlowTexture,
   getNebulaTexture,
@@ -425,11 +426,28 @@ export function listSkyTextureBakes(): (() => unknown)[] {
     () => getDustLaneTexture(),
     () => getNebulaTexture(0),
     () => getNebulaTexture(1),
+    // 깊은 은하 스프라이트 3장(64×64 DataTexture, 장당 한 자릿수 ms) — 마운트 렌더가
+    // 동기로 굽던 걸 목록에 넣어 마운트를 베이크 없는 렌더로 만든다(위생).
+    () => getDeepGalaxyTexture(0),
+    () => getDeepGalaxyTexture(1),
+    () => getDeepGalaxyTexture(2),
   ];
 }
 
+// **순서가 계약이다** (2026-08-25 첫 조작 1.1-2.3초 프레임 사고): 이 목록은 진입 로딩이
+// 앞에서부터 굽고, 로딩이 상한으로 잘리면 남은 꼬리는 뒤에서 한 장씩 이어 굽는다. 그래서
+// ① 첫 화면이 쓰는 하늘 텍스처가 맨 앞(상한이 잘라도 첫 화면은 항상 완성), ② 그 뒤는
+// 싼 것부터 무거운 것 순(잘려도 제일 무거운 놈들만 남게) — 고리·구름·마스크·항성·표면.
 export function listAllTextureBakes(): (() => unknown)[] {
-  const bakes: (() => unknown)[] = [];
+  const bakes: (() => unknown)[] = [...listSkyTextureBakes()];
+
+  bakes.push(() => getRingTexture(), () => getCloudTexture());
+
+  for (let variant = 0; variant < VARIANTS.terrestrial; variant += 1) {
+    bakes.push(() => getPlanetMask(variant));
+  }
+
+  bakes.push(() => getStarSurface());
 
   (Object.keys(VARIANTS) as PlanetKind[]).forEach((kind) => {
     for (let variant = 0; variant < VARIANTS[kind]; variant += 1) {
@@ -437,13 +455,5 @@ export function listAllTextureBakes(): (() => unknown)[] {
     }
   });
 
-  for (let variant = 0; variant < VARIANTS.terrestrial; variant += 1) {
-    bakes.push(() => getPlanetMask(variant));
-  }
-
-  bakes.push(() => getStarSurface(), () => getCloudTexture(), () => getRingTexture());
-  // 하늘 쪽 절차적 텍스처도 같이 덥힌다. 원반의 먼지 띠(256×256, 픽셀마다 삼각함수)는
-  // 첫 은하가 그려지는 그 프레임에 구워져 첫 확대의 멈칫에 얹혔다.
-  bakes.push(...listSkyTextureBakes());
   return bakes;
 }
