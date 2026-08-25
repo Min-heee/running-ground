@@ -1,4 +1,4 @@
-import { listAllTextureBakes } from '@/features/universe/three/planetTextures';
+import { pendingTextureBakeCount, stepTextureBakes } from '@/features/universe/three/planetTextures';
 import { getPendingDiskBuildCount, setDiskBuildWarmup } from '@/features/universe/three/GalaxyDisk';
 
 // 진입 준비 (오너 2026-08-23: "처음 탭 들어가고 접속을 하다가 좀 지나면 괜찮아지네, 그럼
@@ -56,23 +56,21 @@ export function runSpaceWarmup(onReady: () => void): WarmupHandle {
     onReady();
   };
 
-  // 텍스처는 한 프레임에 한 장씩 굽는다. 로딩 표시도 결국 같은 스레드에서 도니까,
-  // 한꺼번에 구우면 스피너까지 멎어 '멈춘 앱'으로 보인다.
-  const bakes = listAllTextureBakes();
-  let baked = 0;
+  // 틱마다 공용 펌프를 60ms 마감으로 전진시킨다. 무거운 베이크는 행 단위 재개형이라
+  // 마감에서 그 자리에 멈추고, 스피너는 네이티브 드라이버라 JS가 60ms 묶여도 계속 돈다.
+  // (입력은 화면의 로딩 차단막이 막는다 — 2026-08-26 사고: 차단막이 없어 홀드 중 조작이
+  // 가능했고, 장당 350-800ms짜리 통베이크가 전부 손가락 밑에서 터졌다.)
+  const HOLD_BAKE_BUDGET_MS = 60;
 
   const tick = () => {
     if (cancelled) {
       return;
     }
 
-    if (baked < bakes.length) {
-      bakes[baked]();
-      baked += 1;
-    }
+    stepTextureBakes(Date.now() + HOLD_BAKE_BUDGET_MS);
 
     const elapsed = Date.now() - startedAt;
-    const ready = baked >= bakes.length && getPendingDiskBuildCount() === 0;
+    const ready = pendingTextureBakeCount() === 0 && getPendingDiskBuildCount() === 0;
 
     if (elapsed >= MAX_HOLD_MS || (ready && elapsed >= MIN_HOLD_MS)) {
       finish();

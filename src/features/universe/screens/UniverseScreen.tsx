@@ -291,8 +291,16 @@ export default function UniverseScreen() {
           />
         ) : null}
 
-        {/* 로딩은 **장면 위에** 온다 — 형제 순서가 곧 위아래라, 먼저 그리면 장면에 덮인다. */}
-        {tree.loading || warming ? <BrandLoadingView style={styles.loading} edges={[]} /> : null}
+        {/* 로딩은 **장면 위에** 온다 — 형제 순서가 곧 위아래라, 먼저 그리면 장면에 덮인다.
+            반드시 화면 전체를 덮고 터치를 삼켜야 한다 (2026-08-26 사고: 로고만 떠 있고
+            캔버스가 노출돼 홀드 중에도 줌이 됐다 — 굽는 중의 조작은 베이크를 전부 손가락
+            밑에서 터뜨린다). pointerEvents 기본값(auto)이 차단막 역할을 한다. 에러가 뜨면 차단막을 내린다 —
+            '다시 시도' 버튼이 워밍업 10초 동안 가려지면 안 된다(적대 검증). */}
+        {(tree.loading || warming) && !tree.error ? (
+          <View style={styles.loadingShield}>
+            <BrandLoadingView style={styles.loading} edges={[]} />
+          </View>
+        ) : null}
 
         {starBirth.showing ? <StarBirthOverlay onDone={handleBirthDone} /> : null}
 
@@ -467,7 +475,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loading: {
+    flex: 1,
     backgroundColor: 'transparent',
+  },
+  loadingShield: {
+    ...StyleSheet.absoluteFillObject,
+    // 장면이 은은히 비치되 '로딩 중'이 확실히 읽히게 — 그리고 이 배경이 터치를 삼킨다.
+    backgroundColor: 'rgba(5, 9, 22, 0.72)',
   },
   errorWrap: {
     paddingHorizontal: 16,

@@ -19,7 +19,8 @@ import {
   getPlanetSurface,
   getRingTexture,
   getStarSurface,
-  listAllTextureBakes,
+  pendingTextureBakeCount,
+  stepTextureBakes,
 } from '@/features/universe/three/planetTextures';
 import { isSpaceWarmupHolding } from '@/features/universe/three/warmup';
 import { getGlowTexture, getSpikedStarTexture, getTrimmedUnitPlane } from '@/features/universe/three/textures';
@@ -108,22 +109,23 @@ export function prewarmSphereAssets() {
   }
 
   sphereAssetsPrewarmed = true;
-  const bakes = listAllTextureBakes();
-  let cursor = 0;
+
+  // 잔여 드레인은 회당 8ms만 굽는다 — 홀드가 상한에 잘린 꼬리를 사용자가 조작하는 와중에
+  // 이어 굽더라도, 8ms 슬라이스는 프레임에 안 보인다(행 단위 재개형이라 가능해진 것).
+  const DRAIN_STEP_BUDGET_MS = 8;
+  const DRAIN_INTERVAL_MS = 120;
 
   const drainNext = () => {
-    if (cursor >= bakes.length) {
-      return;
-    }
-
     if (isSpaceWarmupHolding()) {
       setTimeout(drainNext, 250);
       return;
     }
 
-    bakes[cursor]();
-    cursor += 1;
-    setTimeout(drainNext, 250);
+    const remaining = stepTextureBakes(Date.now() + DRAIN_STEP_BUDGET_MS);
+
+    if (remaining > 0 || pendingTextureBakeCount() > 0) {
+      setTimeout(drainNext, DRAIN_INTERVAL_MS);
+    }
   };
 
   setTimeout(drainNext, 250);

@@ -127,11 +127,56 @@ const ICE_PALETTES: { low: Rgb; high: Rgb }[] = [
   { low: [96, 122, 158], high: [214, 230, 246] },
 ];
 
-function buildSurface(kind: PlanetKind, variant: number): DataTexture {
-  const data = new Uint8Array(SURFACE_WIDTH * SURFACE_HEIGHT * 4);
+// ── 행 단위 재개형 베이크 (2026-08-26 '로딩 중 조작' 사고) ─────────────────────────
+// 무거운 텍스처(512×256 fbm)는 Hermes에서 장당 350-800ms다. 통째로 구우면 그 프레임이
+// 통째로 멎는다 — 로딩 홀드 안이든, 상한에 잘린 꼬리를 나중에 굽든, 구워지는 그 순간
+// 사용자가 조작 중이면 1초급 멈칫이 된다(오너 영상 실측 880-2254ms). 그래서 모든 무거운
+// 베이크를 **행 단위로 재개**할 수 있게 쪼갠다: step(deadline)이 마감까지 행을 굽고
+// 멈추며, 마지막 행에서 텍스처를 완성해 캐시에 넣는다. 행 하나(512픽셀 fbm)는 ~1-3ms라
+// 마감 초과는 그 정도로 바운드된다. 수학은 예전 몸통 그대로 — 한 픽셀도 다르면 안 된다.
+type SlicedTextureSpec = {
+  width: number;
+  height: number;
+  renderRow: (y: number, data: Uint8Array) => void;
+  finalize: (texture: DataTexture) => void;
+};
+
+type SlicedTextureJob = { isDone: () => boolean; step: (deadlineMs: number) => void };
+
+function createSlicedTextureJob(spec: SlicedTextureSpec): SlicedTextureJob {
+  const data = new Uint8Array(spec.width * spec.height * 4);
+  let y = 0;
+  let done = false;
+
+  return {
+    isDone: () => done,
+    step(deadlineMs: number) {
+      if (done) {
+        return;
+      }
+
+      while (y < spec.height) {
+        spec.renderRow(y, data);
+        y += 1;
+
+        if (Date.now() >= deadlineMs) {
+          break;
+        }
+      }
+
+      if (y >= spec.height) {
+        const texture = new DataTexture(data, spec.width, spec.height, RGBAFormat, UnsignedByteType);
+        spec.finalize(texture);
+        done = true;
+      }
+    },
+  };
+}
+
+function surfaceRowRenderer(kind: PlanetKind, variant: number): (y: number, data: Uint8Array) => void {
   const seed = (kind.length * 7919 + variant * 104729) % 2147483647;
 
-  for (let y = 0; y < SURFACE_HEIGHT; y += 1) {
+  return (y: number, data: Uint8Array) => {
     // v를 위도로: 극지방 처리를 위해 -1(남극) ~ 1(북극).
     const v = y / (SURFACE_HEIGHT - 1);
     const latitude = Math.cos(v * Math.PI);
@@ -195,16 +240,16 @@ function buildSurface(kind: PlanetKind, variant: number): DataTexture {
       data[index + 2] = Math.round(color[2]);
       data[index + 3] = 255;
     }
-  }
+  };
+}
 
-  const texture = new DataTexture(data, SURFACE_WIDTH, SURFACE_HEIGHT, RGBAFormat, UnsignedByteType);
-  // 가로는 한 바퀴 돌아 이어지고, 세로(극)는 잘린다.
+// 가로는 한 바퀴 돌아 이어지고, 세로(극)는 잘린다 — 모든 구면 텍스처 공통 마무리.
+function finalizeSphericalTexture(texture: DataTexture) {
   texture.wrapS = RepeatWrapping;
   texture.wrapT = ClampToEdgeWrapping;
   texture.magFilter = LinearFilter;
   texture.minFilter = LinearFilter;
   texture.needsUpdate = true;
-  return texture;
 }
 
 const surfaceCache = new Map<string, DataTexture>();
@@ -215,21 +260,16 @@ const maskCache = new Map<number, DataTexture>();
 // 표면 텍스처의 알파에 싣지 않고 **따로** 만든다: 해상 교차 페이드 중에는 재질이
 // transparent가 되는데, 그때 지도의 알파가 255 미만이면 행성이 반투명해져 뒤가 비친다.
 // 같은 시드·같은 고도 공식을 쓰므로 바다 마스크는 표면의 바다와 정확히 겹친다.
-export function getPlanetMask(variant: number): DataTexture {
-  const safeVariant = Math.abs(variant) % VARIANTS.terrestrial;
-  const cached = maskCache.get(safeVariant);
+const MASK_WIDTH = 256;
+const MASK_HEIGHT = 128;
 
-  if (cached) {
-    return cached;
-  }
-
-  const width = 256;
-  const height = 128;
-  const data = new Uint8Array(width * height * 4);
+function maskRowRenderer(safeVariant: number): (y: number, data: Uint8Array) => void {
+  const width = MASK_WIDTH;
+  const height = MASK_HEIGHT;
   const seed = ('terrestrial'.length * 7919 + safeVariant * 104729) % 2147483647;
   const seaLevel = 0.5;
 
-  for (let y = 0; y < height; y += 1) {
+  return (y: number, data: Uint8Array) => {
     const v = y / (height - 1);
     const latitude = Math.cos(v * Math.PI);
     const sinTheta = Math.sin(v * Math.PI);
@@ -255,43 +295,88 @@ export function getPlanetMask(variant: number): DataTexture {
       data[index + 2] = 0;
       data[index + 3] = 255;
     }
-  }
-
-  const texture = new DataTexture(data, width, height, RGBAFormat, UnsignedByteType);
-  texture.wrapS = RepeatWrapping;
-  texture.wrapT = ClampToEdgeWrapping;
-  texture.magFilter = LinearFilter;
-  texture.minFilter = LinearFilter;
-  texture.needsUpdate = true;
-  maskCache.set(safeVariant, texture);
-  return texture;
+  };
 }
 
-export function getPlanetSurface(kind: PlanetKind, variant: number): DataTexture {
-  const safeVariant = Math.abs(variant) % VARIANTS[kind];
-  const key = `${kind}:${safeVariant}`;
-  const cached = surfaceCache.get(key);
+const maskJobs = new Map<number, SlicedTextureJob>();
+
+function maskJobFor(safeVariant: number): SlicedTextureJob {
+  const existing = maskJobs.get(safeVariant);
+
+  if (existing) {
+    return existing;
+  }
+
+  const job = createSlicedTextureJob({
+    width: MASK_WIDTH,
+    height: MASK_HEIGHT,
+    renderRow: maskRowRenderer(safeVariant),
+    finalize: (texture) => {
+      finalizeSphericalTexture(texture);
+      maskCache.set(safeVariant, texture);
+      maskJobs.delete(safeVariant);
+    },
+  });
+  maskJobs.set(safeVariant, job);
+  return job;
+}
+
+export function getPlanetMask(variant: number): DataTexture {
+  const safeVariant = Math.abs(variant) % VARIANTS.terrestrial;
+  const cached = maskCache.get(safeVariant);
 
   if (cached) {
     return cached;
   }
 
-  const texture = buildSurface(kind, safeVariant);
-  surfaceCache.set(key, texture);
-  return texture;
+  // 캐시 미스의 동기 폴백 — 진행 중이던 조각 작업이 있으면 그걸 끝까지 돌린다(이중 작업
+  // 없음). 펌프가 다 덮은 뒤에는 사실상 도달하지 않는 안전망이다.
+  maskJobFor(safeVariant).step(Number.POSITIVE_INFINITY);
+  return maskCache.get(safeVariant) as DataTexture;
+}
+
+const surfaceJobs = new Map<string, SlicedTextureJob>();
+
+function surfaceJobFor(kind: PlanetKind, safeVariant: number): SlicedTextureJob {
+  const key = `${kind}:${safeVariant}`;
+  const existing = surfaceJobs.get(key);
+
+  if (existing) {
+    return existing;
+  }
+
+  const job = createSlicedTextureJob({
+    width: SURFACE_WIDTH,
+    height: SURFACE_HEIGHT,
+    renderRow: surfaceRowRenderer(kind, safeVariant),
+    finalize: (texture) => {
+      finalizeSphericalTexture(texture);
+      surfaceCache.set(key, texture);
+      surfaceJobs.delete(key);
+    },
+  });
+  surfaceJobs.set(key, job);
+  return job;
+}
+
+export function getPlanetSurface(kind: PlanetKind, variant: number): DataTexture {
+  const safeVariant = Math.abs(variant) % VARIANTS[kind];
+  const cached = surfaceCache.get(`${kind}:${safeVariant}`);
+
+  if (cached) {
+    return cached;
+  }
+
+  surfaceJobFor(kind, safeVariant).step(Number.POSITIVE_INFINITY);
+  return surfaceCache.get(`${kind}:${safeVariant}`) as DataTexture;
 }
 
 let cloudTexture: DataTexture | null = null;
+let cloudJob: SlicedTextureJob | null = null;
 
 // 구름 — 알파만 있는 흰 층. 표면보다 조금 크게, 조금 더 빠르게 돌려 깊이를 만든다.
-export function getCloudTexture(): DataTexture {
-  if (cloudTexture) {
-    return cloudTexture;
-  }
-
-  const data = new Uint8Array(CLOUD_WIDTH * CLOUD_HEIGHT * 4);
-
-  for (let y = 0; y < CLOUD_HEIGHT; y += 1) {
+function cloudRowRenderer(): (y: number, data: Uint8Array) => void {
+  return (y: number, data: Uint8Array) => {
     const v = y / (CLOUD_HEIGHT - 1);
     const sinTheta = Math.sin(v * Math.PI);
     const latitude = Math.cos(v * Math.PI);
@@ -310,15 +395,34 @@ export function getCloudTexture(): DataTexture {
       data[index + 2] = 255;
       data[index + 3] = Math.round(Math.min(1, alpha) * 235);
     }
+  };
+}
+
+function cloudJobFor(): SlicedTextureJob {
+  if (cloudJob) {
+    return cloudJob;
   }
 
-  cloudTexture = new DataTexture(data, CLOUD_WIDTH, CLOUD_HEIGHT, RGBAFormat, UnsignedByteType);
-  cloudTexture.wrapS = RepeatWrapping;
-  cloudTexture.wrapT = ClampToEdgeWrapping;
-  cloudTexture.magFilter = LinearFilter;
-  cloudTexture.minFilter = LinearFilter;
-  cloudTexture.needsUpdate = true;
-  return cloudTexture;
+  cloudJob = createSlicedTextureJob({
+    width: CLOUD_WIDTH,
+    height: CLOUD_HEIGHT,
+    renderRow: cloudRowRenderer(),
+    finalize: (texture) => {
+      finalizeSphericalTexture(texture);
+      cloudTexture = texture;
+      cloudJob = null;
+    },
+  });
+  return cloudJob;
+}
+
+export function getCloudTexture(): DataTexture {
+  if (cloudTexture) {
+    return cloudTexture;
+  }
+
+  cloudJobFor().step(Number.POSITIVE_INFINITY);
+  return cloudTexture as unknown as DataTexture;
 }
 
 let ringTexture: DataTexture | null = null;
@@ -358,16 +462,11 @@ export function getRingTexture(): DataTexture {
 }
 
 let starSurface: DataTexture | null = null;
+let starJob: SlicedTextureJob | null = null;
 
 // 항성 표면 — 대류 알갱이(granulation)와 흑점. 색은 재질 쪽에서 온도별로 곱한다.
-export function getStarSurface(): DataTexture {
-  if (starSurface) {
-    return starSurface;
-  }
-
-  const data = new Uint8Array(SURFACE_WIDTH * SURFACE_HEIGHT * 4);
-
-  for (let y = 0; y < SURFACE_HEIGHT; y += 1) {
+function starRowRenderer(): (y: number, data: Uint8Array) => void {
+  return (y: number, data: Uint8Array) => {
     const v = y / (SURFACE_HEIGHT - 1);
     const sinTheta = Math.sin(v * Math.PI);
     const latitude = Math.cos(v * Math.PI);
@@ -392,15 +491,34 @@ export function getStarSurface(): DataTexture {
       data[index + 2] = value;
       data[index + 3] = 255;
     }
+  };
+}
+
+function starJobFor(): SlicedTextureJob {
+  if (starJob) {
+    return starJob;
   }
 
-  starSurface = new DataTexture(data, SURFACE_WIDTH, SURFACE_HEIGHT, RGBAFormat, UnsignedByteType);
-  starSurface.wrapS = RepeatWrapping;
-  starSurface.wrapT = ClampToEdgeWrapping;
-  starSurface.magFilter = LinearFilter;
-  starSurface.minFilter = LinearFilter;
-  starSurface.needsUpdate = true;
-  return starSurface;
+  starJob = createSlicedTextureJob({
+    width: SURFACE_WIDTH,
+    height: SURFACE_HEIGHT,
+    renderRow: starRowRenderer(),
+    finalize: (texture) => {
+      finalizeSphericalTexture(texture);
+      starSurface = texture;
+      starJob = null;
+    },
+  });
+  return starJob;
+}
+
+export function getStarSurface(): DataTexture {
+  if (starSurface) {
+    return starSurface;
+  }
+
+  starJobFor().step(Number.POSITIVE_INFINITY);
+  return starSurface as unknown as DataTexture;
 }
 
 // 구울 수 있는 모든 원형의 목록 — 프리워밍(CelestialSphere)이 쓴다. 첫 확대에서 필요한
@@ -434,26 +552,115 @@ export function listSkyTextureBakes(): (() => unknown)[] {
   ];
 }
 
-// **순서가 계약이다** (2026-08-25 첫 조작 1.1-2.3초 프레임 사고): 이 목록은 진입 로딩이
-// 앞에서부터 굽고, 로딩이 상한으로 잘리면 남은 꼬리는 뒤에서 한 장씩 이어 굽는다. 그래서
-// ① 첫 화면이 쓰는 하늘 텍스처가 맨 앞(상한이 잘라도 첫 화면은 항상 완성), ② 그 뒤는
-// 싼 것부터 무거운 것 순(잘려도 제일 무거운 놈들만 남게) — 고리·구름·마스크·항성·표면.
-export function listAllTextureBakes(): (() => unknown)[] {
-  const bakes: (() => unknown)[] = [...listSkyTextureBakes()];
+// ── 공용 베이크 펌프 (2026-08-26 '로딩 중 조작' 사고) ──────────────────────────────
+// 진입 로딩 홀드와 잔여 드레인이 **같은 큐를 같은 커서로** 굽는다 — 목록을 각자 들면
+// 이중 작업은 캐시가 막아줘도 순서·진행률이 갈라진다. 순서가 계약이다: ① 첫 화면이 쓰는
+// 하늘 텍스처가 맨 앞(상한이 잘라도 첫 화면은 항상 완성), ② 그 뒤는 싼 것부터 무거운 것
+// 순(잘려도 제일 무거운 놈들만 남게) — 고리·구름·마스크·항성·표면. 무거운 항목은 행 단위
+// 재개형이라 마감(deadline)을 넘기는 순간 그 자리에서 멈추고 다음 호출이 이어 굽는다.
+type BakeQueueEntry = {
+  isDone: () => boolean;
+  advance: (deadlineMs: number) => void;
+};
 
-  bakes.push(() => getRingTexture(), () => getCloudTexture());
+function monolithicEntry(run: () => unknown): BakeQueueEntry {
+  let done = false;
 
-  for (let variant = 0; variant < VARIANTS.terrestrial; variant += 1) {
-    bakes.push(() => getPlanetMask(variant));
+  return {
+    isDone: () => done,
+    advance: () => {
+      run();
+      done = true;
+    },
+  };
+}
+
+let bakeQueue: BakeQueueEntry[] | null = null;
+let bakeCursor = 0;
+
+function ensureBakeQueue(): BakeQueueEntry[] {
+  if (bakeQueue) {
+    return bakeQueue;
   }
 
-  bakes.push(() => getStarSurface());
+  const queue: BakeQueueEntry[] = [];
+
+  // 하늘 텍스처들 — 전부 작아서(64-256px, fbm 없음 또는 얕음) 통째로 굽는다.
+  listSkyTextureBakes().forEach((bake) => queue.push(monolithicEntry(bake)));
+  queue.push(monolithicEntry(() => getRingTexture()));
+
+  // 무거운 것들 — 행 단위 재개형.
+  queue.push({ isDone: () => cloudTexture !== null, advance: (d) => cloudJobFor().step(d) });
+
+  for (let variant = 0; variant < VARIANTS.terrestrial; variant += 1) {
+    queue.push({ isDone: () => maskCache.has(variant), advance: (d) => maskJobFor(variant).step(d) });
+  }
+
+  queue.push({ isDone: () => starSurface !== null, advance: (d) => starJobFor().step(d) });
 
   (Object.keys(VARIANTS) as PlanetKind[]).forEach((kind) => {
     for (let variant = 0; variant < VARIANTS[kind]; variant += 1) {
-      bakes.push(() => getPlanetSurface(kind, variant));
+      queue.push({
+        isDone: () => surfaceCache.has(`${kind}:${variant}`),
+        advance: (d) => surfaceJobFor(kind, variant).step(d),
+      });
     }
   });
 
-  return bakes;
+  bakeQueue = queue;
+  return queue;
+}
+
+// 마감까지 큐를 전진시키고 남은 항목 수를 돌려준다. 재진입 안전(모두 캐시 채우기).
+export function stepTextureBakes(deadlineMs: number): number {
+  const queue = ensureBakeQueue();
+
+  while (bakeCursor < queue.length) {
+    const entry = queue[bakeCursor];
+
+    if (entry.isDone()) {
+      bakeCursor += 1;
+      continue;
+    }
+
+    entry.advance(deadlineMs);
+
+    if (entry.isDone()) {
+      bakeCursor += 1;
+    }
+
+    if (Date.now() >= deadlineMs) {
+      break;
+    }
+  }
+
+  return pendingTextureBakeCount();
+}
+
+export function pendingTextureBakeCount(): number {
+  const queue = ensureBakeQueue();
+  let remaining = 0;
+
+  for (let index = bakeCursor; index < queue.length; index += 1) {
+    if (!queue[index].isDone()) {
+      remaining += 1;
+    }
+  }
+
+  return remaining;
+}
+
+// 테스트 전용 — 캐시·작업·큐를 전부 초기화해 콜드 스타트를 재현한다.
+export function resetPlanetTexturesForTest() {
+  surfaceCache.clear();
+  maskCache.clear();
+  surfaceJobs.clear();
+  maskJobs.clear();
+  cloudTexture = null;
+  cloudJob = null;
+  starSurface = null;
+  starJob = null;
+  ringTexture = null;
+  bakeQueue = null;
+  bakeCursor = 0;
 }
