@@ -639,35 +639,47 @@ function UniverseSceneComponent({
 
   // 이름은 큰 것부터 자리를 잡고, 겹치면 접는다. 확대하면 사이가 벌어져 접혔던 이름이 돌아온다.
   const labelled = useMemo(() => {
+    // 화면을 통째로 덮는 배경 부모(깊이 줌에서 뒤에 깔린 시·도)는 이름표를 접는다 —
+    // 그 이름표는 MAX_TOUCH_RADIUS 캡 탓에 화면 한가운데 떠서, 항성 이름 위에 겹쳐
+    // '글자 씹힘'을 만들었다(오너 영상 2026-08-26). 몸통이 배경이 된 천체는 이미 하단
+    // 브레드크럼/선택 카드가 이름을 말해준다. 고른 것만 예외.
+    const backdropRadiusPx = Math.min(width, height) * 0.75;
     const sorted = bodies
       .filter((body) => body.screenRadius >= BODY_LABEL_PX && body.nameOpacity > 0.06)
+      .filter((body) => body.screenRadius < backdropRadiusPx || body.key === selectedKey)
       .sort((left, right) => right.screenRadius - left.screenRadius);
     // 나라 전체가 보이는 거리에서는 이름을 성좌의 캡션처럼 소수만 남긴다 — 첫 화면이
     // 통계 대시보드 40칸으로 읽히면 우주가 아니라 관리 화면이 된다.
     const candidates = zoom < fitZoom * 1.5 ? sorted.slice(0, 14) : sorted;
 
+    // 고른 것·조준한 것은 **우선권을 갖고 충돌 검사에 참여한다** — 예전엔 검사를 통째로
+    // 건너뛰고 뒤에 덧붙여서, 이미 자리 잡은 이름표 위에 그대로 겹쳤다(글자 씹힘의 두
+    // 번째 뿌리). 먼저 놓인 상자가 이기는 픽커 규칙이므로, 앞에 세우면 강제 표시와 충돌
+    // 회피가 동시에 성립한다.
+    const forcedKeys = new Set([selectedKey, focused?.key].filter(Boolean));
+    const forced = bodies.filter((body) => forcedKeys.has(body.key));
+    const ordered = [
+      ...forced,
+      ...candidates.filter((body) => !forcedKeys.has(body.key)),
+    ];
+
     const visible = pickVisibleLabels(
-      candidates.map((body) => ({
+      ordered.map((body) => ({
         id: body.key,
         centerX: body.screenX,
         top: body.screenY + Math.min(body.screenRadius, MAX_TOUCH_RADIUS) + 4,
         width: labelWidthFor(body.name),
-        height: LABEL_HEIGHT,
+        // 고른 것은 이름 아래 상세 줄(인당/이번 달 km)까지 두 줄이다 — 한 줄 높이로
+        // 검사하면 상세 줄 위에 다른 이름표가 얹힌다(글자 씹힘의 세 번째 뿌리).
+        height: body.key === selectedKey ? LABEL_HEIGHT * 2 : LABEL_HEIGHT,
       })),
       width,
       height,
     );
-    const picked = candidates.filter((body) => visible.has(body.key));
 
-    // 고른 것과 조준한 것(화면 중앙)은 **크기와 무관하게** 이름이 붙는다. 수백 명 은하의
-    // 꼬리 행성은 최대 배율에서도 이름표 문턱에 못 미칠 수 있는데, 검색으로 날아와 놓고
-    // 이름 없는 점만 보이면 도착이 실패로 읽힌다. 이름표가 곧 터치 상자라 탭도 같이 살아난다.
-    const forcedKeys = new Set([selectedKey, focused?.key].filter(Boolean));
-    const forced = bodies.filter(
-      (body) => forcedKeys.has(body.key) && !picked.some((shown) => shown.key === body.key),
-    );
-
-    return [...picked, ...forced];
+    // 강제 표시는 충돌 결과와 무관하게 살아남는다(우선권이라 밀릴 일도 없지만, 화면 밖
+    // 판정 등으로 빠져도 이름은 붙어야 한다 — 검색 도착이 실패로 읽히면 안 된다).
+    return ordered.filter((body) => visible.has(body.key) || forcedKeys.has(body.key));
   }, [bodies, fitZoom, focused, height, selectedKey, width, zoom]);
 
   // 누를 수 있는 것: 이름이 붙은 것 + 고른 것. 전부에 터치 영역을 두면 뒤에 깔린 거대한
