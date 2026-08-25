@@ -81,8 +81,11 @@ export default function TabsLayout() {
     home: getTabScreenOptions('home'),
     universe: getTabScreenOptions('universe'),
     league: getTabScreenOptions('league'),
-    market: getTabScreenOptions('market'),
-    race: getTabScreenOptions('race'),
+    // 마켓·레이스 탭 숨김 (오너 2026-08-25): 탭바에서만 뺀다 — href: null은 버튼을
+    // 제거할 뿐 라우트는 남아서, 딥링크·프로그램 내비게이션·복귀는 그대로 동작한다.
+    // 되살릴 땐 href만 지우면 된다.
+    market: { ...getTabScreenOptions('market'), href: null as null },
+    race: { ...getTabScreenOptions('race'), href: null as null },
     mypage: getTabScreenOptions('mypage'),
     running: getTabScreenOptions('running'),
   }), []);
