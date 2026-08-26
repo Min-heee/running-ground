@@ -23,7 +23,7 @@ import {
   stepTextureBakes,
 } from '@/features/universe/three/planetTextures';
 import { isSpaceWarmupHolding } from '@/features/universe/three/warmup';
-import { getGlowTexture, getSpikedStarTexture, getTrimmedUnitPlane } from '@/features/universe/three/textures';
+import { getGlowTexture, getTrimmedUnitPlane } from '@/features/universe/three/textures';
 import { planetTraitsFor, starTraitsFor } from '@/features/universe/three/planetTraits';
 import { smoothStep } from '@/features/universe/utils/universeSpace';
 
@@ -362,6 +362,7 @@ uniform sampler2D uMap;
 uniform vec3 uColor;
 uniform float uOpacity;
 uniform float uTime;
+uniform float uDetail;
 varying vec2 vUv;
 varying vec3 vViewNormal;
 void main() {
@@ -369,7 +370,14 @@ void main() {
   float a = texture2D(uMap, vUv + warp).r;
   float b = texture2D(uMap, vUv * 1.7 - warp * 1.6 + vec2(0.37)).r;
   float g = mix(a, b, 0.5 + 0.5 * sin(uTime * 0.35));
-  vec3 col = uColor * (0.62 + 0.55 * g) + uColor * smoothstep(0.82, 1.0, g) * 0.9;
+  // 예전 0.62+0.55g는 알갱이 대부분(g 0.72~1.0)에서 1.0을 넘어 클램프됐다 — 근접 항성이
+  // 민짜 주황 공이 되던 뿌리. 하이라이트가 클램프 아래 머물게 낮추고, 뜨거운 세포만
+  // smoothstep으로 살린다.
+  vec3 col = uColor * (0.46 + 0.44 * g) + uColor * smoothstep(0.86, 1.0, g) * 0.55;
+  // 근접 전용 미세 알갱이 — 화면을 채운 광구도 끓는 질감을 유지한다. 멀리서는(uDetail 0)
+  // 오늘의 그림 그대로라 원거리 별 수십 개의 비용·모습이 변하지 않는다.
+  float c = texture2D(uMap, vUv * 3.9 + warp * 2.4 + vec2(0.61, 0.13)).r;
+  col *= mix(1.0, 0.8 + 0.4 * c, uDetail);
   float mu = clamp(abs(vViewNormal.z), 0.0, 1.0);
   col *= 0.32 + 0.68 * pow(mu, 0.85);
   col *= mix(vec3(1.0, 0.74, 0.52), vec3(1.0), 0.35 + 0.65 * mu);
@@ -455,6 +463,7 @@ function StarBody({
       uColor: { value: new Color(traits.color) },
       uOpacity: { value: 1 },
       uTime: { value: 0 },
+      uDetail: { value: 0 },
     },
     vertexShader: PHOTOSPHERE_VERTEX,
     fragmentShader: PHOTOSPHERE_FRAGMENT,
@@ -466,10 +475,14 @@ function StarBody({
   useEffect(() => () => photosphere.dispose(), [photosphere]);
 
   // 코로나는 클로즈업에서 접는다 — corona×2 판이 화면을 덮으면 가산합성이 검은 바닥을
-  // 들어올린다. 광구가 주인공인 거리에서는 광구가 빛나면 된다. 0으로 죽이지는 않는다.
-  const coronaFold = 1 - 0.6 * smoothStep(300, 600, screenDiameter);
+  // 들어올리고 림 주변이 주황 안개로 씻긴다(오너 2026-08-26: 근접 항성이 민짜로). 예전
+  // 300→600·0.6보다 일찍, 더 깊게 접는다 — 광구가 주인공인 거리에서는 광구가 빛나면 된다.
+  // 0으로 죽이지는 않는다.
+  const coronaFold = 1 - 0.72 * smoothStep(200, 520, screenDiameter);
 
   photosphere.uniforms.uOpacity.value = fade;
+  // 근접 미세 알갱이 — 화면을 채우기 시작하면 켠다(셰이더 주석 참조).
+  photosphere.uniforms.uDetail.value = smoothStep(220, 560, screenDiameter);
   streamerOut.uniforms.uOpacity.value = 0.5 * fade * coronaFold;
   streamerIn.uniforms.uOpacity.value = 0.35 * fade * coronaFold;
 
@@ -483,15 +496,10 @@ function StarBody({
     streamerIn.uniforms.uTime.value = state.clock.elapsedTime;
   });
 
-  // 회절 십자는 원거리 광학의 산물 — 광구가 화면을 채우기 시작하면 물러난다.
-  // 회절 십자는 **먼 점광원의 문법**이다 — 구체로 풀린 뒤에도 몸통만큼 남아 있으면
-  // 마름모 덩어리로 읽힌다(오너 영상 2026-08-26: ~120px 항성 위 거대 마름모). 원거리
-  // 스프라이트(54px 문턱)에서 넘겨받은 직후 잠깐 이어주고 150px까지 완전히 걷는다 —
-  // 그 뒤의 눈부심은 코로나·광구·스트리머 몫이다. (예전 260→420 창은 이미 행성계가
-  // 화면을 채운 배율에서도 마름모를 남겼다.)
-  const spikeOpacity = detailed
-    ? (0.45 + 0.35 * brightness) * fade * (1 - smoothStep(70, 150, screenDiameter))
-    : 0;
+  // 회절 십자는 구체 레벨에서 **완전히 은퇴** (오너 2026-08-26 사진 3장: 십자/마름모가
+  // 구체 위에 남는 순간부터 이질적으로 읽힌다 — 페이드 창을 어떻게 잡아도 중간 배율
+  // 어딘가에선 보였다). 원거리 반짝임은 54px 아래의 점 스프라이트가 이미 담당하고,
+  // 구체로 풀린 뒤의 눈부심은 코로나·광구·스트리머 몫이다.
 
   return (
     <group scale={radius}>
@@ -530,28 +538,6 @@ function StarBody({
             position={[0, 0, -1 / Math.max(1e-6, radius)]}
           />
         </>
-      ) : null}
-
-      {/* 회절 십자 — 절대 회전하지 않는다. 실제 십자는 망원경 광학에 고정돼 있고, 도는
-          광구 위에 정지한 십자가 겹치는 것이 관측 사진의 문법이다. */}
-      {spikeOpacity > 0.02 ? (
-        <mesh
-          geometry={getTrimmedUnitPlane()}
-          scale={[traits.corona * 2.4, traits.corona * 2.4, 1]}
-          position={[0, 0, 1.2 / Math.max(1e-6, radius)]}
-        >
-          <meshBasicMaterial
-            map={getSpikedStarTexture()}
-            color={traits.coronaColor}
-            transparent
-            opacity={spikeOpacity}
-            depthWrite={false}
-            // 십자의 z(+1.2px)는 광구 앞면(+반지름)보다 뒤라 깊이 검사에 걸려 실루엣
-            // 안쪽이 통째로 잘린다 — 가산합성이라 깊이가 무의미하니 검사 자체를 끈다.
-            depthTest={false}
-            blending={AdditiveBlending}
-          />
-        </mesh>
       ) : null}
 
       <group ref={bodyRef}>
