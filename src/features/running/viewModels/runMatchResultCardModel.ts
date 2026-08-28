@@ -140,6 +140,10 @@ export function buildDuelBoardRows(input: {
   myDisplayPaceLabel: string | null;
   myDurationLabel: string | null;
   opponentDurationLabel: string | null;
+  // 기록 주인의 닉네임 (오너 2026-08-28: '나' 표기 전면 폐지). 이 카드는 친구 기록
+  // 화면에서도 렌더되므로 뷰어가 아니라 기록 OWNER의 이름이어야 한다 — 내 기록이면
+  // 내 프로필 이름, 친구 기록이면 친구 이름. 없으면 '나' 최후 폴백.
+  ownerName?: string | null;
 }): MatchBoardRow[] {
   const tone = input.matchResult.resultTone;
   // 판정 전(집계 중)의 tone 부재를 '무'로 보여주면 무승부로 오해한다 — '—' 대기 표기.
@@ -149,7 +153,7 @@ export function buildDuelBoardRows(input: {
     leadLabel: tone === 'win' ? 'WIN' : tone === 'lose' ? 'LOSE' : tone === 'draw' ? '무' : pendingLabel,
     leadTone: tone === 'win' ? 'win' : tone === 'lose' ? 'lose' : 'draw',
     rankNumber: null,
-    name: '나',
+    name: input.ownerName?.trim() || '나',
     metricLabel: joinMetric(input.myDisplayPaceLabel, input.myDurationLabel),
     isMe: true,
     userId: null,
@@ -215,7 +219,9 @@ function toGroupRow(participant: GroupBoardParticipant): MatchBoardRow {
     leadLabel: `${participant.rank}`,
     leadTone: 'rank',
     rankNumber: participant.rank,
-    name: participant.isMe ? '나' : participant.name,
+    // /result 참가자 이름은 서버가 각 러너의 실제 계정 이름으로 채운다 — 내 행도
+    // 그대로 닉네임 노출 (오너 2026-08-28), '나'는 이름 부재 폴백.
+    name: participant.name.trim() || (participant.isMe ? '나' : '러너'),
     metricLabel: participant.forfeited
       ? '기권'
       : joinMetric(formatPaceLabelFromSeconds(participant.paceSecondsPerKm), durationLabel),

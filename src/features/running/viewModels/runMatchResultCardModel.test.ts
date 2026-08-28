@@ -143,12 +143,24 @@ test('duel board rows: winner first with WIN/LOSE leads, draw shows 무', () => 
     myDisplayPaceLabel: '12:30/km',
     myDurationLabel: '00:15',
     opponentDurationLabel: '00:14',
+    ownerName: '민병희',
   });
+  // 오너 2026-08-28: 내 행도 무조건 기록 주인의 닉네임 — '나'는 이름 부재 폴백뿐.
   assert.deepEqual(winRows.map((row) => [row.leadLabel, row.name, row.isMe]), [
-    ['WIN', '나', true],
+    ['WIN', '민병희', true],
     ['LOSE', '준호', false],
   ]);
   assert.equal(winRows[0].metricLabel, '12:30/km · 00:15');
+
+  // ownerName 부재(옛 링크/이름 없는 프로필)만 '나' 폴백.
+  const fallbackRows = buildDuelBoardRows({
+    matchResult: { resultTone: 'win', opponentName: '준호', opponentPaceLabel: undefined },
+    myDisplayPaceLabel: null,
+    myDurationLabel: null,
+    opponentDurationLabel: null,
+    ownerName: '  ',
+  });
+  assert.equal(fallbackRows[0].name, '나');
 
   const loseRows = buildDuelBoardRows({
     matchResult: { resultTone: 'lose', opponentName: '준호', opponentPaceLabel: undefined },
@@ -179,8 +191,13 @@ test('group board rows: top 3 only, my row appended when outside the podium', ()
 
   const meInTop = buildGroupBoardRows([participant(1, true), participant(2), participant(3), participant(4)]);
   assert.deepEqual(meInTop.map((row) => [row.leadLabel, row.isMe]), [['1', true], ['2', false], ['3', false]]);
-  assert.equal(meInTop[0].name, '나');
+  // 오너 2026-08-28: 내 행도 /result의 실제 닉네임 그대로 — '나'는 이름 부재 폴백뿐.
+  assert.equal(meInTop[0].name, '러너1');
   assert.equal(meInTop[0].rankNumber, 1);
+  assert.equal(
+    buildGroupBoardRows([{ ...participant(1, true), name: ' ' }, participant(2), participant(3)])[0].name,
+    '나',
+  );
 
   const meOutside = buildGroupBoardRows([
     participant(1), participant(2), participant(3), participant(4), participant(5, true),

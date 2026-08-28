@@ -41,6 +41,12 @@ type UseRunDetailMatchReconcileParams = {
   // is terminal (>24h: the session is long pruned AND no saved run backs a reconstruction).
   runRecordTimestamp: string | null;
   savedMatchResult: RunMatchResult | null;
+  // 친구 기록이면 오버레이 전면 차단 (오너 2026-08-28 닉네임화의 적대검증 발견): /status와
+  // /result의 my* 필드는 항상 "요청한 사용자"(뷰어) 기준이라, 친구의 미확정 기록 위에 이
+  // 오버레이를 얹으면 친구 닉네임 행에 뷰어의 판정/페이스가 붙는 오표기가 된다. 친구 기록의
+  // 유일한 owner 관점 소스는 저장 블롭뿐 — 서버가 §B4로 치유하면 포커스 재조회가 치유된
+  // 블롭을 그대로 보여준다 (loadRunDetail 재시도는 그래서 유지).
+  isFriendRecord?: boolean;
 };
 
 // C3 / group parity + §3-⑦ reconcile cluster, extracted from useRunDetail: for a duel OR
@@ -59,6 +65,7 @@ export function useRunDetailMatchReconcile({
   origin,
   runRecordTimestamp,
   savedMatchResult,
+  isFriendRecord = false,
 }: UseRunDetailMatchReconcileParams) {
   // C3: a reconciled duel matchResult rebuilt from the server's official record when the
   // saved one was unresolved at save time. Null means "use the as-saved record".
@@ -80,7 +87,10 @@ export function useRunDetailMatchReconcile({
     ? savedReconcileContext.distanceKm
     : Number.isFinite(routeDistanceKm) ? routeDistanceKm : 0;
   const reconcileSlotStartAt = matchSlotStartAt ?? '';
-  const shouldReconcileMatch = Boolean(savedReconcileContext && reconcileMatchId && reconcileMode);
+  // isFriendRecord면 항상 false — 뷰어 관점 오버레이가 친구 기록을 오표기하는 것을 차단
+  // (runResultFallback도 runReconcile에서만 불리므로 이 게이트 하나로 전부 막힌다).
+  const shouldReconcileMatch = Boolean(savedReconcileContext && reconcileMatchId && reconcileMode)
+    && !isFriendRecord;
   const isReconcileTerminal = terminalMatchResult !== null;
 
   // §3-⑦ /result fallback: when the /status reconcile yields no resolved verdict (or /status

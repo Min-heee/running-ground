@@ -119,7 +119,8 @@ const DuelRunner = memo(function DuelRunner({
 }) {
   const participantForfeited = isForfeited(participant);
   const isCurrentUser = Boolean(participant.isCurrentUser);
-  const fallbackLabel = isCurrentUser ? '나' : participant.name.slice(0, 1);
+  // 내 동그라미도 닉네임 첫 글자 (오너 2026-08-28) — VM 폴백이 '나'면 그대로 '나'.
+  const fallbackLabel = participant.name.slice(0, 1);
   const runnerStyle = useMemo(
     () => [
       styles.duelRunnerWrap,

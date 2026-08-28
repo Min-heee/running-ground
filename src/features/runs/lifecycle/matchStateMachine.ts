@@ -491,6 +491,9 @@ export type DuelReservationRoomViewInput = {
   fallbackDistanceKm: number | null;
   fallbackIsTestMatch: boolean;
   syncedNowMs: number;
+  // 오너 2026-08-28: 내 행 이름도 무조건 닉네임 — '나'는 프로필 이름 부재 폴백.
+  // (뱃지의 '나' 마커는 유지 — 이름이 아니라 내 행 표시자.)
+  currentUserName?: string | null;
 };
 
 export type DuelReservationRoomView = {
@@ -515,10 +518,11 @@ export type DuelReservationRoomView = {
 
 function buildDuelReservationParticipants(
   matchStatus: RunningMatchStatusResponse | null,
+  currentUserName?: string | null,
 ): DuelReservationParticipant[] {
   const selfRow: DuelReservationParticipant = {
     id: 'self',
-    name: '나',
+    name: currentUserName?.trim() || '나',
     badgeLabel: '나',
     isSelf: true,
     statusLabel: '예약 완료',
@@ -542,6 +546,7 @@ export function buildDuelReservationRoomView({
   fallbackDistanceKm,
   fallbackIsTestMatch,
   syncedNowMs,
+  currentUserName,
 }: DuelReservationRoomViewInput): DuelReservationRoomView {
   const slotStartAt = matchStatus?.slotStartAt ?? fallbackSlotStartAt;
   const distanceKm = matchStatus?.distanceKm ?? fallbackDistanceKm;
@@ -564,7 +569,7 @@ export function buildDuelReservationRoomView({
     distanceKm,
     distanceLabel: typeof distanceKm === 'number' ? `${distanceKm.toFixed(1)}km` : '거리 미정',
     startTimeLabel: slotStartAt ?? null,
-    participants: buildDuelReservationParticipants(matchStatus),
+    participants: buildDuelReservationParticipants(matchStatus, currentUserName),
     autoStartNotice: isTestMatch
       ? '테스트 카운트다운이 끝나면 자동으로 대결이 시작돼요.'
       : '시작 시간이 되면 자동으로 대결이 시작돼요.',
@@ -642,7 +647,9 @@ function buildGroupReservationParticipants(
       const isSelf = participant.seedRank === mySeedRank;
       return {
         id: participant.id,
-        name: isSelf ? '나' : participant.name,
+        // 내 행도 서버 로스터의 실제 닉네임으로 (오너 2026-08-28) — '나'는 이름 부재
+        // 폴백. 뱃지의 '나'는 이름이 아니라 내 행 마커라 유지.
+        name: participant.name.trim() || (isSelf ? '나' : '러너'),
         badgeLabel: isSelf ? '나' : `순서 ${participant.seedRank}`,
         isSelf,
         statusLabel: '예약 완료',

@@ -80,6 +80,9 @@ export function useRunDetail({
     origin,
     runRecordTimestamp,
     savedMatchResult,
+    // 친구 기록에는 뷰어 관점(/status·/result의 my*) 오버레이를 절대 얹지 않는다 — 친구
+    // 닉네임 행에 뷰어의 판정/기록이 붙는 오표기 방지 (2026-08-28 적대검증 발견).
+    isFriendRecord: Boolean(friendId),
   });
 
   const backHref: Href = friendId

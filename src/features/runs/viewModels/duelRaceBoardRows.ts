@@ -11,6 +11,7 @@ type DuelRaceBoardSectionInput = Pick<
   LiveMatchRaceBoardViewModelInput,
   | 'currentUserDuelLiveStatus'
   | 'currentUserDuelResultLabel'
+  | 'currentUserName'
   | 'distanceKm'
   | 'duelDistanceKm'
   | 'effectiveDuelOpponent'
@@ -24,6 +25,7 @@ type DuelRaceBoardSectionInput = Pick<
 export function buildDuelRaceBoardSection({
   currentUserDuelLiveStatus,
   currentUserDuelResultLabel,
+  currentUserName,
   distanceKm,
   duelDistanceKm,
   effectiveDuelOpponent,
@@ -88,7 +90,7 @@ export function buildDuelRaceBoardSection({
     const progressiveRows = sortProgressiveRaceRows([
       {
         id: 'current-user',
-        name: '나',
+        name: currentUserName?.trim() || '나',
         distanceKm: currentBoardDistanceKm,
         remainingKm: Math.max(0, duelDistanceKm - currentBoardDistanceKm),
         progress: duelDistanceKm > 0 ? currentBoardDistanceKm / duelDistanceKm : 0,
@@ -156,7 +158,7 @@ export function buildDuelRaceBoardSection({
       {
         id: 'current-user-fallback',
         rank: 1,
-        name: '나',
+        name: currentUserName?.trim() || '나',
         distanceKm,
         remainingKm: Math.max(0, duelDistanceKm - distanceKm),
         progress: duelDistanceKm > 0 ? distanceKm / duelDistanceKm : 0,

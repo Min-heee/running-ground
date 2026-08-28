@@ -96,7 +96,8 @@ const GroupTowerRow = memo(function GroupTowerRow({
   const isCurrentUser = Boolean(participant.isCurrentUser);
   const participantForfeited = isForfeited(participant);
   const rankNumber = resolveRankNumber(participant, index);
-  const displayName = isCurrentUser ? '나' : participant.name;
+  // 내 행도 무조건 닉네임 (오너 2026-08-28) — 이름은 VM이 폴백('나')까지 책임진다.
+  const displayName = participant.name;
   const rowStyle = useMemo(
     () => [
       styles.towerRow,

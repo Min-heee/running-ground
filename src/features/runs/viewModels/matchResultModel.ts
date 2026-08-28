@@ -65,6 +65,7 @@ export function buildDuelMatchFinishModel({
   currentUserLiveStatus,
   duelVerdict,
   currentUserFinishElapsedSeconds,
+  currentUserName,
   matchId,
 }: {
   opponent: DuelMatchOpponent | null;
@@ -75,6 +76,8 @@ export function buildDuelMatchFinishModel({
   currentUserLiveStatus?: RunningMatchLiveStatus | null;
   duelVerdict?: DuelVerdict | null;
   currentUserFinishElapsedSeconds?: number | null;
+  // 오너 2026-08-28: 결과 행의 내 이름도 무조건 닉네임 — '나'는 프로필 이름 부재 폴백.
+  currentUserName?: string | null;
   // C1: the originating matchId. Its PRESENCE marks this as a real server-tracked duel whose
   // win/lose is server-authoritative — so when the server verdict is not yet resolved we must
   // NOT invent a distance-based winner (the screen-off "always win" bug). Absent (a synthetic/
@@ -228,7 +231,7 @@ export function buildDuelMatchFinishModel({
     // C1: a pending result shows the in-progress label, never a WIN/LOSER/DRAW, so the live
     // card never claims a definite verdict before the server resolves one.
     resultLabel: isPending ? 'ING' : resolveDuelCurrentRowLabel({ isDraw, resultTone, currentForfeited }),
-    name: '나',
+    name: currentUserName?.trim() || '나',
     // C4: the 나 column pace + duration come from the SAME finish elapsed/distance the
     // server froze (when resolved), so the result card 나 pace and the bottom metric pace
     // never diverge (the 6:17-vs-6:14 bug).
@@ -432,7 +435,8 @@ export function buildGroupMatchFinishModel({
     return {
       id: participant.id,
       rank: participant.rank,
-      name: participant.isCurrentUser ? '나' : participant.name,
+      // 내 행도 서버 로스터의 실제 닉네임으로 (오너 2026-08-28) — '나'는 이름 부재 폴백.
+      name: participant.name.trim() || (participant.isCurrentUser ? '나' : '러너'),
       paceLabel: rowLabels.paceLabel,
       durationLabel: rowLabels.durationLabel,
       distanceKm: participant.currentDistanceKm,

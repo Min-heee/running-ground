@@ -12,6 +12,7 @@ type GroupRaceBoardSectionInput = Pick<
   LiveMatchRaceBoardViewModelInput,
   | 'currentUserArenaPace'
   | 'currentUserGroupLiveStatus'
+  | 'currentUserName'
   | 'distanceKm'
   | 'groupArenaUsesLivePace'
   | 'groupDistanceKm'
@@ -23,6 +24,7 @@ type GroupRaceBoardSectionInput = Pick<
 export function buildGroupRaceBoardSection({
   currentUserArenaPace,
   currentUserGroupLiveStatus,
+  currentUserName,
   distanceKm,
   groupArenaUsesLivePace,
   groupDistanceKm,
@@ -38,7 +40,8 @@ export function buildGroupRaceBoardSection({
     const progressiveRows = buildProgressiveRaceBoardRows(groupLiveStandings.map((participant) => ({
       id: participant.id,
       rank: participant.rank,
-      name: participant.name,
+      // 컴포넌트 마스크 제거 후 폴백은 VM 책임 — 내 행도 실제 닉네임, '나'는 이름 부재 폴백.
+      name: participant.name.trim() || (participant.isCurrentUser ? '나' : '러너'),
       paceLabel: participant.isCurrentUser
         ? currentUserArenaPace
         : buildParticipantAveragePaceLabel(participant, groupArenaUsesLivePace),
@@ -91,7 +94,7 @@ export function buildGroupRaceBoardSection({
       {
         id: 'current-user-fallback',
         rank: 1,
-        name: '나',
+        name: currentUserName?.trim() || '나',
         distanceKm,
         remainingKm: Math.max(0, groupDistanceKm - distanceKm),
         progress: groupDistanceKm > 0 ? distanceKm / groupDistanceKm : 0,

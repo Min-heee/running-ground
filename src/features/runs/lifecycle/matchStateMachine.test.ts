@@ -647,10 +647,11 @@ test('group reservation room view lists the whole roster ordered by seedRank, ma
   assert.equal(view.startTimeLabel, status.slotStartAt);
   assert.equal(view.reservation.statusLabel, '5분 남음');
   assert.equal(view.autoStartNotice, '시작 시간이 되면 자동으로 대결이 시작돼요.');
-  // Sorted by seedRank 1,2,3.
+  // Sorted by seedRank 1,2,3. 내 행도 로스터의 실제 닉네임 (오너 2026-08-28) —
+  // '나'는 이름이 아니라 뱃지 마커로만 남는다.
   assert.deepEqual(
     view.participants.map((participant) => participant.name),
-    ['김러너', '나', '박러너'],
+    ['김러너', '이러너', '박러너'],
   );
   // mySeedRank === 2 -> the seedRank-2 member is 나.
   assert.equal(view.participants[1].isSelf, true);

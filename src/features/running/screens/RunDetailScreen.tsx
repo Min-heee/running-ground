@@ -12,6 +12,7 @@ import { RunHeroCard } from '@/features/running/components/RunSummaryCards';
 import { useRunDetail } from '@/features/running/hooks/useRunDetail';
 import { formatRunStartLabel } from '@/features/running/utils/runStartLabel';
 import { RunRouteMap } from '@/features/runs/RunRouteMap';
+import { getCurrentUserProfile } from '@/lib/session/sessionState';
 import { forceResetRunningMatchState, getApiErrorMessage } from '@/services';
 import { colors, spacing, radii } from '@/theme/tokens';
 
@@ -19,6 +20,7 @@ export default function RunDetailScreen() {
   const {
     runId,
     friendId,
+    friendName,
     origin,
     matchDistanceKm,
     matchId,
@@ -26,6 +28,7 @@ export default function RunDetailScreen() {
     matchSlotStartAt,
   } = useLocalSearchParams<{
     friendId?: string;
+    friendName?: string;
     matchDistanceKm?: string;
     matchId?: string;
     matchMode?: string;
@@ -33,6 +36,10 @@ export default function RunDetailScreen() {
     origin?: string;
     runId?: string;
   }>();
+  // 결과 보드의 내 행 이름 = 기록 OWNER의 닉네임 (오너 2026-08-28: '나' 표기 폐지).
+  // 친구 기록(friendId)이면 친구 이름만 쓴다 — 뷰어 프로필로 폴백하면 친구 행에
+  // 내 이름이 붙는 오표기가 되므로, 이름이 안 넘어온 옛 링크는 '나' 폴백에 맡긴다.
+  const ownerName = friendId ? friendName ?? null : getCurrentUserProfile()?.name ?? null;
   const {
     backHref,
     backLabel,
@@ -144,6 +151,7 @@ export default function RunDetailScreen() {
                   myDurationSeconds={runDetail.run.durationSeconds}
                   matchId={matchId}
                   mode={matchMode === 'duel' || matchMode === 'group' ? matchMode : null}
+                  ownerName={ownerName}
                 />
               </View>
             </View>

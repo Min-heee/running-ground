@@ -42,6 +42,9 @@ type UseMatchResultControllerInput = {
   // C1: the active match id. Present => server-tracked duel/group whose verdict is authoritative,
   // so an unresolved result is held PENDING rather than locally invented.
   matchId?: string | null;
+  // 오너 2026-08-28: 결과 행의 내 이름도 무조건 닉네임 — '나'는 프로필 이름 부재 폴백.
+  // 세션 모듈을 여기서 import하면 RN 의존이 딸려와 노드 테스트가 죽으므로 호출부가 넣는다.
+  currentUserName?: string | null;
 };
 
 type FrozenDuelResultMetrics = {
@@ -115,6 +118,7 @@ export function useMatchResultController({
   currentUserFinishElapsedSeconds,
   groupVerdict,
   matchId,
+  currentUserName,
 }: UseMatchResultControllerInput) {
   const duelFrozenRef = useRef<FrozenDuelResultMetrics | null>(null);
   const isCurrentUserDuelFinished = currentUserDuelLiveStatus === 'finished';
@@ -182,6 +186,7 @@ export function useMatchResultController({
         currentElapsedSeconds: effectiveElapsedSeconds,
         currentPaceLabel: effectivePaceLabel,
         currentUserLiveStatus: currentUserDuelLiveStatus,
+        currentUserName,
         // F4: the LATCHED verdict — never reverts once resolved.
         duelVerdict: effectiveDuelVerdict,
         currentUserFinishElapsedSeconds,
@@ -193,6 +198,7 @@ export function useMatchResultController({
       currentUserArenaPace,
       currentUserDuelLiveStatus,
       currentUserFinishElapsedSeconds,
+      currentUserName,
       distanceKm,
       duelDistanceKm,
       effectiveDuelVerdict,

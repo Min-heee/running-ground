@@ -21,7 +21,11 @@ import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/t
 // 1대1 = WIN/LOSE 두 행(로컬 데이터만으로), 그룹 = /result 를 불러 톱3 행(+내가
 // 톱3 밖이면 내 행 추가). 전체 명단·상세는 카드 탭 → 전용 결과 화면 몫.
 
-type RunMatchResultCardProps = RunMatchResultCardModelInput;
+type RunMatchResultCardProps = RunMatchResultCardModelInput & {
+  // 기록 주인의 닉네임 — 듀얼 보드의 내 행 이름 (오너 2026-08-28: '나' 표기 폐지).
+  // 친구 기록 화면에서는 친구 이름, 내 기록에서는 내 프로필 이름이 들어온다.
+  ownerName?: string | null;
+};
 
 const RANK_LEAD_COLOR: Record<number, string> = {
   1: colors.podiumGold,
@@ -93,6 +97,7 @@ function RunMatchResultCardBase({
   myDurationSeconds,
   matchId,
   mode,
+  ownerName,
 }: RunMatchResultCardProps) {
   // All display derivation (link target, LP gating, labels) is pure and pinned by
   // runMatchResultCardModel.test.ts.
@@ -114,9 +119,9 @@ function RunMatchResultCardBase({
 
   const duelRows = useMemo(
     () => (showDuelComparison
-      ? buildDuelBoardRows({ matchResult, myDisplayPaceLabel, myDurationLabel, opponentDurationLabel })
+      ? buildDuelBoardRows({ matchResult, myDisplayPaceLabel, myDurationLabel, opponentDurationLabel, ownerName })
       : []),
-    [matchResult, myDisplayPaceLabel, myDurationLabel, opponentDurationLabel, showDuelComparison],
+    [matchResult, myDisplayPaceLabel, myDurationLabel, opponentDurationLabel, ownerName, showDuelComparison],
   );
 
   // 그룹 톱3 명단은 기록 blob 에 저장돼 있지 않아 결과 화면과 같은 /result 로 불러온다.

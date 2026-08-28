@@ -123,6 +123,7 @@ export function buildDuelArenaParticipants({
   currentUserPaceLabel,
   currentUserLiveStatus,
   currentUserFinishedAt = null,
+  currentUserName,
   currentDistanceKm,
   opponent,
   opponentPaceLabel,
@@ -132,6 +133,8 @@ export function buildDuelArenaParticipants({
   currentUserPaceLabel: string;
   currentUserLiveStatus?: MatchLiveStatus;
   currentUserFinishedAt?: string | null;
+  // 오너 2026-08-28: 내 행도 무조건 닉네임 — '나'는 프로필 이름이 없을 때의 최후 폴백.
+  currentUserName?: string | null;
   currentDistanceKm: number;
   opponent: DuelMatchOpponent | null;
   opponentPaceLabel: string;
@@ -146,7 +149,7 @@ export function buildDuelArenaParticipants({
   return decorateDuelResultLabels([
     {
       id: 'me',
-      name: '나',
+      name: currentUserName?.trim() || '나',
       paceLabel: currentUserPaceLabel,
       distanceKm: currentDistanceKm,
       finishedAt: currentUserFinishedAt,
@@ -208,7 +211,8 @@ export function buildRoomLinkedDuelPlaceholderParticipants({
 
     return {
       id: participant.userId,
-      name: isCurrentUser ? '나' : participant.name,
+      // 내 행도 방 로스터의 실제 닉네임으로 (오너 2026-08-28) — '나'는 이름 부재 폴백.
+      name: participant.name.trim() || (isCurrentUser ? '나' : '상대'),
       paceLabel: participantLiveStatus === 'forfeited' ? '기권' : participantPaceLabel,
       progressPaceLabel: participantPaceLabel,
       distanceKm: participantDistanceKm,
@@ -248,7 +252,8 @@ export function buildGroupArenaParticipants({
 
     return {
       id: participant.id,
-      name: participant.isCurrentUser ? '나' : participant.name,
+      // 내 행도 서버 standings의 실제 닉네임으로 (오너 2026-08-28) — '나'는 이름 부재 폴백.
+      name: participant.name.trim() || (participant.isCurrentUser ? '나' : '러너'),
       paceLabel: participantPaceLabel,
       distanceKm: participant.currentDistanceKm,
       rankLabel: String(participant.rank),
@@ -302,7 +307,8 @@ export function buildRoomLinkedGroupPlaceholderParticipants({
 
     return {
       id: participant.userId,
-      name: isCurrentUser ? '나' : participant.name,
+      // 내 행도 방 로스터의 실제 닉네임으로 (오너 2026-08-28) — '나'는 이름 부재 폴백.
+      name: participant.name.trim() || (isCurrentUser ? '나' : '러너'),
       paceLabel: participantLiveStatus === 'forfeited' ? '기권' : participantPaceLabel,
       progressPaceLabel: participantPaceLabel,
       distanceKm: participantDistanceKm,

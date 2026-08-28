@@ -33,6 +33,8 @@ export type LiveMatchRaceBoardViewModelInput = {
   groupLiveStandings: GroupLiveStanding[];
   currentUserArenaPace: string;
   groupArenaUsesLivePace: boolean;
+  // 오너 2026-08-28: 내 행도 무조건 닉네임 — '나'는 프로필 이름이 없을 때의 최후 폴백.
+  currentUserName?: string | null;
 };
 
 export function buildLiveMatchRaceBoardViewModel(

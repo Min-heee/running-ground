@@ -1,11 +1,14 @@
+import { useCallback } from 'react';
 import {
   buildDuelReservationRoomView,
   type DuelReservationRoomView,
 } from '@/features/runs/lifecycle/matchStateMachine';
 import {
   useReservationRoomCore,
+  type ReservationRoomBuildViewInput,
   type ReservationRoomCoreResult,
 } from '@/features/match/hooks/useReservationRoomCore';
+import { getCurrentUserProfile } from '@/lib/session/sessionState';
 
 // Thin duel wrapper over the shared reservation-room core (status polling,
 // server-clock feed, locked countdown overlay, cancel). Only the mode string,
@@ -32,14 +35,23 @@ export function useDuelReservationRoom(
 ): UseDuelReservationRoomResult {
   const { matchId, distanceKm, slotStartAt, isTestMatch } = params;
 
+  // 내 행 이름 = 내 프로필 닉네임 (오너 2026-08-28: '나' 표기 폐지). useCallback([])이라
+  // 참조 안정 — 코어의 view memo 요구 충족 (프로필은 세션 동안 안정된 값).
+  const buildView = useCallback(
+    (input: ReservationRoomBuildViewInput) => buildDuelReservationRoomView({
+      ...input,
+      currentUserName: getCurrentUserProfile()?.name ?? null,
+    }),
+    [],
+  );
+
   return useReservationRoomCore({
     mode: 'duel',
     matchId,
     distanceKm,
     slotStartAt,
     isTestMatch,
-    // Module-level function — referentially stable, as the core's view memo requires.
-    buildView: buildDuelReservationRoomView,
+    buildView,
     cancelErrorMessage: '1대1 예약을 취소하지 못했어요.',
   });
 }

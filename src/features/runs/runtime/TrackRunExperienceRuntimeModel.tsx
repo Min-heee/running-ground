@@ -874,6 +874,8 @@ export function TrackRunExperienceRuntime({
     // result model produces a PENDING result (no invented winner/rank) while the verdict is
     // unresolved.
     matchId: activeLiveMatchProgressMatchId,
+    // 결과 행의 내 이름도 무조건 닉네임 (오너 2026-08-28) — '나'는 이름 부재 폴백.
+    currentUserName: currentUser?.name ?? null,
   });
   const effectiveDuelOpponentArenaPace = useMemo(
     () => resolveDuelOpponentArenaPace({
@@ -897,6 +899,8 @@ export function TrackRunExperienceRuntime({
     () => buildDuelArenaParticipants({
       currentUserPaceLabel: currentUserArenaPace,
       currentUserLiveStatus: currentUserDuelLiveStatus ?? undefined,
+      // 내 행도 무조건 닉네임 (오너 2026-08-28) — '나'는 이름 부재 폴백.
+      currentUserName: currentUser?.name ?? null,
       // HEAD-TO-HEAD FAIRNESS: my duel dot sits on the SAME latest-common-checkpoint basis
       // as the opponent dot (syncedDuelOpponentDistanceKm) — both from the server-fed synced
       // comparison — so the two dots and the gap between them are computed at one identical
@@ -914,6 +918,7 @@ export function TrackRunExperienceRuntime({
     [
       currentUserArenaPace,
       currentUserDuelLiveStatus,
+      currentUser?.name,
       duelLiveGapKm,
       effectiveDuelOpponentForLive,
       effectiveDuelOpponentArenaPace,
@@ -2151,6 +2156,8 @@ export function TrackRunExperienceRuntime({
       onPageChange: setLiveArenaPage,
       activeMatchId: liveMatchRenderIdentity,
       matchMode,
+      // 라이브 보드/아레나 폴백 내 행도 무조건 닉네임 (오너 2026-08-28).
+      currentUserName: currentUser?.name ?? null,
       effectiveDuelOpponent: effectiveDuelOpponentForLive,
       duelDistanceKm,
       groupDistanceKm,

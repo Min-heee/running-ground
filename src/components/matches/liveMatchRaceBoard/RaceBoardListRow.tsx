@@ -101,7 +101,8 @@ export const RaceBoardListRow = memo(function RaceBoardListRow({ row }: { row: L
           numberOfLines={2}
           style={nameTextStyle}
         >
-          {row.isCurrentUser ? '나' : row.name}
+          {/* 내 행도 무조건 닉네임 (오너 2026-08-28) — 행 이름은 VM이 폴백까지 책임진다. */}
+          {row.name}
         </Text>
         {row.resultLabel ? (
           <View style={resultBadgeStyle}>

@@ -74,6 +74,7 @@ export function useLiveMatchViewModel({
   shouldKeepRunningMatchArena,
   currentUserDuelLiveStatus,
   currentUserGroupLiveStatus,
+  currentUserName,
   deferHeavyContent,
   onLiveMatchMounted,
   groupLiveStandings,
@@ -133,6 +134,7 @@ export function useLiveMatchViewModel({
     shouldKeepRunningMatchArena,
     currentUserDuelLiveStatus,
     currentUserGroupLiveStatus,
+    currentUserName,
     deferHeavyContent,
   }), [
     activeMatchId,
@@ -141,6 +143,7 @@ export function useLiveMatchViewModel({
     currentUserArenaPace,
     currentUserDuelLiveStatus,
     currentUserGroupLiveStatus,
+    currentUserName,
     deferHeavyContent,
     distanceKm,
     duelArenaParticipants,
@@ -205,12 +208,14 @@ export function useLiveMatchViewModel({
         groupLiveStandings,
         currentUserArenaPace,
         groupArenaUsesLivePace,
+        currentUserName,
       },
     })
   ), [
     currentUserArenaPace,
     currentUserDuelLiveStatus,
     currentUserGroupLiveStatus,
+    currentUserName,
     duelRaceBoardResultLabels.currentUserDuelResultLabel,
     duelRaceBoardResultLabels.opponentDuelResultLabel,
     distanceKm,

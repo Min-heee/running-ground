@@ -518,7 +518,9 @@ export function buildMockMatchResultResponse(matchId: string): MatchResultRespon
     const isDraw = Boolean(verdict?.resolved && verdict.outcome === 'draw');
     const myRow: MatchResultParticipant = {
       userId: null,
-      name: '나',
+      // 실서버는 /result 참가자 이름을 실제 계정 이름으로 채운다 — 목도 동일하게
+      // (오너 2026-08-28: '나' 표기 폐지).
+      name: profile.name?.trim() || '나',
       districtName: profile.districtName ?? null,
       provinceName: profile.provinceName ?? null,
       cityName: profile.cityName ?? null,
@@ -569,7 +571,8 @@ export function buildMockMatchResultResponse(matchId: string): MatchResultRespon
     const distanceKm = participant.officialDistanceKm ?? participant.liveDistanceKm ?? comparedDistanceKm;
     return {
       userId: participant.id,
-      name: isMe ? '나' : participant.name,
+      // 실서버 /result 는 내 행도 실제 계정 이름 — 목도 동일하게 (오너 2026-08-28).
+      name: isMe ? (profile.name?.trim() || participant.name) : participant.name,
       districtName: participant.districtName ?? null,
       provinceName: null,
       cityName: null,

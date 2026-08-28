@@ -15,13 +15,17 @@ import {
 const FriendActivityRunRow = memo(function FriendActivityRunRow({
   run,
   friendId,
+  friendName,
 }: {
   run: FriendActivityRun;
   friendId: string;
+  // 기록 상세의 결과 보드가 기록 OWNER(=이 친구)의 닉네임을 내 행에 쓰도록 전달
+  // (오너 2026-08-28: '나' 표기 폐지).
+  friendName: string;
 }) {
   return (
     <Link
-      href={{ pathname: '/run-detail', params: { runId: run.id, friendId } }}
+      href={{ pathname: '/run-detail', params: { runId: run.id, friendId, friendName } }}
       asChild
     >
       <Pressable style={styles.recordRow}>
@@ -92,7 +96,7 @@ export default function FriendDetailScreen() {
           <Card>
             <Text style={styles.sectionTitle}>최근 러닝 기록</Text>
             {activityRuns.map((run) => (
-              <FriendActivityRunRow key={run.id} run={run} friendId={activeFriendId} />
+              <FriendActivityRunRow key={run.id} run={run} friendId={activeFriendId} friendName={activity.friend.name} />
             ))}
           </Card>
 

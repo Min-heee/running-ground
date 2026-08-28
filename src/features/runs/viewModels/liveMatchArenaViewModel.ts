@@ -48,6 +48,8 @@ export type LiveMatchArenaViewModelInput = {
   shouldKeepRunningMatchArena: boolean;
   currentUserDuelLiveStatus: DuelMatchOpponent['liveStatus'] | null;
   currentUserGroupLiveStatus: DuelMatchOpponent['liveStatus'] | null;
+  // 오너 2026-08-28: 내 행도 무조건 닉네임 — '나'는 프로필 이름이 없을 때의 최후 폴백.
+  currentUserName?: string | null;
   deferHeavyContent?: boolean;
 };
 
@@ -86,6 +88,7 @@ export function buildLiveMatchArenaViewModel({
   shouldKeepRunningMatchArena,
   currentUserDuelLiveStatus,
   currentUserGroupLiveStatus,
+  currentUserName,
   deferHeavyContent = false,
 }: LiveMatchArenaViewModelInput): LiveMatchArenaViewModel | null {
   const hasRoomLinkedDuelForfeit = roomLinkedDuelPlaceholderParticipants.some((participant) => (
@@ -232,7 +235,7 @@ export function buildLiveMatchArenaViewModel({
         },
         {
           id: 'duel-fallback-current',
-          name: '나',
+          name: currentUserName?.trim() || '나',
           paceLabel: currentUserArenaPace,
           distanceKm,
           resultLabel: roomLinkedDuelCurrentParticipant?.resultLabel ?? null,
@@ -254,7 +257,7 @@ export function buildLiveMatchArenaViewModel({
       : [
           {
             id: 'group-fallback-current',
-            name: '나',
+            name: currentUserName?.trim() || '나',
             paceLabel: currentUserArenaPace,
             distanceKm,
             rankLabel: '1',

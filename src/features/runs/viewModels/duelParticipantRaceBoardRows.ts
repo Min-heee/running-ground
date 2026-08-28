@@ -48,7 +48,8 @@ function resolveDuelParticipantDisplayName({
   participant: RunningMatchRoomParticipant;
 }) {
   if (isCurrentUser) {
-    return '나';
+    // 내 행도 방 로스터의 실제 닉네임으로 (오너 2026-08-28) — '나'는 이름 부재 폴백.
+    return participant.name.trim() || '나';
   }
 
   return participant.name.trim()
