@@ -94,14 +94,16 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={screenOptions}
     >
-      <Tabs.Screen name="league" options={tabOptions.league} listeners={tabListeners.league} />
+      {/* 탭바 순서 = 자식 선언 순서 (오너 2026-09-01): 스페이스·랭킹·러닝·홈·친구·마이.
+          초기 진입 탭은 app/index.tsx의 /(tabs)/home 리다이렉트가 정하므로 영향 없음. */}
       <Tabs.Screen name="universe" options={universeOptions} listeners={tabListeners.universe} />
-      <Tabs.Screen name="friends" options={tabOptions.friends} listeners={tabListeners.friends} />
+      <Tabs.Screen name="league" options={tabOptions.league} listeners={tabListeners.league} />
       <Tabs.Screen name="running" options={tabOptions.running} listeners={tabListeners.running} />
       <Tabs.Screen name="home" options={tabOptions.home} listeners={tabListeners.home} />
+      <Tabs.Screen name="friends" options={tabOptions.friends} listeners={tabListeners.friends} />
+      <Tabs.Screen name="mypage" options={tabOptions.mypage} listeners={tabListeners.mypage} />
       <Tabs.Screen name="race" options={tabOptions.race} listeners={tabListeners.race} />
       <Tabs.Screen name="market" options={tabOptions.market} listeners={tabListeners.market} />
-      <Tabs.Screen name="mypage" options={tabOptions.mypage} listeners={tabListeners.mypage} />
     </Tabs>
     <TourOverlay />
     </View>
