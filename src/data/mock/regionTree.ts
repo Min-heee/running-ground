@@ -26,6 +26,9 @@ function createMockLeafRegionNode(input: {
     participationRate: Math.max(35, Math.round(input.participationRate)),
     participants,
     rank: input.rank,
+    // 실서버는 월간 우승 리프에만 stars를 싣는다 — 목도 1위 리프에 별 하나를 얹어
+    // 히어로/행의 ★ 표기를 개발에서 보이게.
+    ...(input.rank === 1 ? { stars: 1 } : {}),
   } satisfies RegionDrilldownNode;
 }
 

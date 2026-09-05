@@ -22,9 +22,15 @@ export function LeagueHeroCard({ node, isMyRegion }: LeagueHeroCardProps) {
         ) : null}
       </View>
       {/* 전남광주통합특별시(9자)도 한 줄에 들어가도록 긴 이름은 폰트를 줄여 맞춘다. */}
-      <Text style={styles.heroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-        {node.name}
-      </Text>
+      <View style={styles.heroTitleRow}>
+        <Text style={styles.heroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+          {node.name}
+        </Text>
+        {/* 월간 지역 우승 별 (오너 2026-09-05: "우리 지역도 별") — 랭킹 행과 같은 표기. */}
+        {typeof node.stars === 'number' && node.stars > 0 ? (
+          <Text style={styles.heroStars}>{node.stars <= 3 ? '★'.repeat(node.stars) : `★${node.stars}`}</Text>
+        ) : null}
+      </View>
       <View style={styles.heroMetrics}>
         <View style={styles.heroMetricColumn}>
           <Text style={styles.heroMetricLabel}>이번 달 총거리</Text>
@@ -69,9 +75,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xxl,
   },
+  heroTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s10,
+  },
   heroTitle: {
     color: colors.white,
     fontSize: fontSizes.hero,
+    fontWeight: fontWeights.extraBold,
+    flexShrink: 1,
+  },
+  // 어두운 히어로 배경 위 금색 별 — 지역/회원 랭킹 행의 ★ 표기와 동일 관례.
+  heroStars: {
+    color: colors.podiumGold,
+    fontSize: fontSizes.title,
     fontWeight: fontWeights.extraBold,
   },
   heroMetrics: {
