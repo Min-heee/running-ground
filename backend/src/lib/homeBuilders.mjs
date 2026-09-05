@@ -1,3 +1,4 @@
+import { WEEKLY_STREAK_MIN_WEEK_DISTANCE_KM } from './points.mjs';
 import { getFriendIds } from './socialStoreHelpers.mjs';
 import { findUserById, getUserMetrics } from './userStoreHelpers.mjs';
 import {
@@ -24,6 +25,12 @@ export function buildHomeSummaryWithMetrics(store, user, metrics) {
     goalAchievementRate: Math.min(100, Math.round((metrics.currentWeekDistanceKm / 50) * 100)),
     previousWeekDistanceKm: metrics.previousWeekDistanceKm,
     streakDays: metrics.currentStreakDays,
+    // 주 연속 러닝 뱃지 (오너 2026-09-01) — 서버 파생 표시값, 포인트 없음. 문턱은 서버가
+    // 내려보내 클라 안내 문구와 절대 어긋나지 않게 한다.
+    weeklyStreakWeeks: metrics.currentWeeklyStreakWeeks,
+    bestWeeklyStreakWeeks: metrics.bestWeeklyStreakWeeks,
+    weeklyStreakRanThisWeek: metrics.weeklyStreakRanThisWeek,
+    weeklyStreakMinWeekDistanceKm: WEEKLY_STREAK_MIN_WEEK_DISTANCE_KM,
     latestRun: latestRun
       ? {
         distanceKm: latestRun.distanceKm,

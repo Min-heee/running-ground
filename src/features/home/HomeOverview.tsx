@@ -3,6 +3,7 @@ import type { MyRunRecord, RankState } from '@/domain';
 import { HomeActivityStatusCard } from '@/features/home/components/overview/HomeActivityStatusCard';
 import { HomePointGaugeCard } from '@/features/home/components/overview/HomePointGaugeCard';
 import { HomeRankCard } from '@/features/home/components/overview/HomeRankCard';
+import { HomeWeeklyStreakBadge } from '@/features/home/components/overview/HomeWeeklyStreakBadge';
 import {
   buildHomeOverviewCalendarRows,
   buildHomeOverviewPointHeaderLabel,
@@ -14,11 +15,18 @@ import { buildDuelRecordSummary } from '@/features/runs/utils/duelRecordSummary'
 type HomeOverviewProps = {
   rankState?: RankState;
   runs: MyRunRecord[];
+  // 주 연속 러닝 뱃지 (오너 2026-09-01) — 서버 파생값(홈 summary). 구백엔드 응답이면 0.
+  weeklyStreakWeeks: number;
+  weeklyStreakRanThisWeek: boolean;
+  weeklyStreakMinWeekDistanceKm: number;
 };
 
 export function HomeOverview({
   rankState,
   runs,
+  weeklyStreakWeeks,
+  weeklyStreakRanThisWeek,
+  weeklyStreakMinWeekDistanceKm,
 }: HomeOverviewProps) {
   const [calendarMonthOffset, setCalendarMonthOffset] = useState(0);
   const [selectedTrackId, setSelectedTrackId] = useState<WeeklyPointTrackId>('distance');
@@ -57,6 +65,11 @@ export function HomeOverview({
   return (
     <>
       <HomeRankCard rankState={rankState} duelRecord={duelRecord} recordHref="/match-record" />
+      <HomeWeeklyStreakBadge
+        weeks={weeklyStreakWeeks}
+        ranThisWeek={weeklyStreakRanThisWeek}
+        minWeekDistanceKm={weeklyStreakMinWeekDistanceKm}
+      />
       <HomeActivityStatusCard runs={runs} />
       <HomePointGaugeCard
         tracks={pointOverview.tracks}

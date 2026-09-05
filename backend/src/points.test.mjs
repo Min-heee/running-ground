@@ -118,6 +118,85 @@ runTest('imported days extend the display streak but never earn streak points', 
   assert.equal(getRunPointBreakdown(trackedOnly, 'tracked-3').streakPoints, 3);
 });
 
+// ── 주 연속 러닝 뱃지 (오너 2026-09-01): 표시 전용, 임포트 포함, 포인트 없음 ──
+// NOW = 2026-07-10(금). 주는 월요일 시작: 이번 주 07-06~, 지난주 06-29~, 그전 06-22~.
+
+runTest('weekly streak counts consecutive weeks through the current week', () => {
+  const metrics = buildUserRunMetrics([
+    trackedRun('w1', '2026-06-24', 5),
+    trackedRun('w2', '2026-07-01', 5),
+    trackedRun('w3', '2026-07-08', 5),
+  ], NOW);
+
+  assert.equal(metrics.currentWeeklyStreakWeeks, 3);
+  assert.equal(metrics.bestWeeklyStreakWeeks, 3);
+});
+
+runTest('weekly streak survives a not-yet-run current week (last week alive rule)', () => {
+  // 지난주까지 2주 연속, 이번 주는 아직 안 뜀 — 월요일에 뱃지가 사라지면 안 된다.
+  const metrics = buildUserRunMetrics([
+    trackedRun('w1', '2026-06-24', 5),
+    trackedRun('w2', '2026-07-01', 5),
+  ], NOW);
+
+  assert.equal(metrics.currentWeeklyStreakWeeks, 2);
+});
+
+runTest('weekly streak resets after a fully skipped week', () => {
+  // 06-15 주 → 06-22 주 건너뜀 → 06-29·07-06 주: 현재는 2주, 과거 최고도 2주.
+  const metrics = buildUserRunMetrics([
+    trackedRun('w1', '2026-06-17', 5),
+    trackedRun('w2', '2026-07-01', 5),
+    trackedRun('w3', '2026-07-08', 5),
+  ], NOW);
+
+  assert.equal(metrics.currentWeeklyStreakWeeks, 2);
+  assert.equal(metrics.bestWeeklyStreakWeeks, 2);
+});
+
+runTest('weekly streak is dead once the latest run week is older than last week', () => {
+  const metrics = buildUserRunMetrics([
+    trackedRun('w1', '2026-06-17', 5),
+    trackedRun('w2', '2026-06-24', 5),
+  ], NOW);
+
+  assert.equal(metrics.currentWeeklyStreakWeeks, 0);
+  // 최고 기록은 남는다 (향후 표시 여지).
+  assert.equal(metrics.bestWeeklyStreakWeeks, 2);
+});
+
+runTest('weekly streak counts a week once and qualifies on WEEK TOTAL, imports included', () => {
+  const metrics = buildUserRunMetrics([
+    // 지난주: 임포트만으로 자격 (표시 전용 기준은 임포트 포함 — 일 스트릭과 동일).
+    importedRun('w1', '2026-07-01', 5),
+    // 이번 주: 두 번 뛰어도 1주로만 센다.
+    trackedRun('w2a', '2026-07-07', 5),
+    trackedRun('w2b', '2026-07-09', 5),
+  ], NOW);
+
+  assert.equal(metrics.currentWeeklyStreakWeeks, 2);
+  assert.equal(metrics.weeklyStreakRanThisWeek, true);
+
+  // 자격은 주 "합계" 기준 (적대검증 2026-09-04): 2km×2일=4km는 하루 문턱(3km) 미달
+  // 날들뿐이어도 주 합계로 자격 — "그 주에 뛰었다"는 오너 정의에 충실.
+  const splitDays = buildUserRunMetrics([
+    trackedRun('w1', '2026-07-01', 5),
+    trackedRun('w2a', '2026-07-07', 2),
+    trackedRun('w2b', '2026-07-09', 2),
+  ], NOW);
+  assert.equal(splitDays.currentWeeklyStreakWeeks, 2);
+
+  const subThreshold = buildUserRunMetrics([
+    trackedRun('w1', '2026-07-01', 5),
+    trackedRun('tiny', '2026-07-08', 1),
+  ], NOW);
+
+  // 이번 주 합계 1km < 3km → 아직 이어붙지 않음(지난주 생존 규칙으로 1주 유지),
+  // ranThisWeek도 false — 안내 문구가 "이번 주 3km 이상 달리면"으로 갈린다.
+  assert.equal(subThreshold.currentWeeklyStreakWeeks, 1);
+  assert.equal(subThreshold.weeklyStreakRanThisWeek, false);
+});
+
 runTest('growth points compare competitive weeks only', () => {
   // Last week: 5km tracked. This week: 2km tracked + 10km imported.
   // Full distance grew (12 > 5) but competitive distance shrank (2 < 5) —

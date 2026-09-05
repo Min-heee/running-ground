@@ -119,6 +119,10 @@ function getMinimumRunDistanceForStreak(distanceLevel) {
   return distanceLevel >= 20 ? 5 : 3;
 }
 
+// 주 연속 러닝 뱃지의 주 합계 자격 문턱 — 반드시 고정 상수여야 한다: 레벨 연동이면
+// 레벨업/임포트가 과거 주의 자격을 소급 박탈해 뱃지가 이유 없이 줄어든다 (2026-09-04).
+export const WEEKLY_STREAK_MIN_WEEK_DISTANCE_KM = 3;
+
 function getSortedRuns(runs) {
   return [...runs].sort((left, right) => {
     const dateCompare = left.date.localeCompare(right.date);
@@ -263,6 +267,33 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
     previousQualifiedDate = runDate;
   }
 
+  // 주 연속 러닝 (홈 뱃지, 오너 2026-09-01) — 표시 전용(임포트 포함, 포인트 없음).
+  // 자격 = 그 주 "합계" 거리 ≥ 고정 3km. 일 스트릭의 레벨 연동 하루 문턱을 쓰지 않는
+  // 이유 (적대검증 2026-09-04): ① 레벨 20 돌파/헬스 대량 임포트가 문턱을 3→5km로 소급
+  // 적용해 이미 딴 뱃지가 주 수를 잃거나 통째로 사라졌고("빠짐없이 뛰면 자란다" 규칙
+  // 위반), ② 2km×5일=10km 뛴 주가 '안 뛴 주'로 끊겼다. 고정 문턱 + 주 합계 기준이면
+  // 지나간 주의 자격은 불변이라 스트릭이 단조 증가한다.
+  const qualifiedWeekKeys = [...weekDistanceByKey.entries()]
+    .filter(([, weekTotalDistanceKm]) => weekTotalDistanceKm >= WEEKLY_STREAK_MIN_WEEK_DISTANCE_KM)
+    .map(([weekKey]) => weekKey)
+    .sort((left, right) => left.localeCompare(right));
+
+  let previousQualifiedWeekStart = null;
+  let weeklyStreakAtLatest = 0;
+  let bestWeeklyStreakWeeks = 0;
+
+  for (const weekKey of qualifiedWeekKeys) {
+    const weekStart = parseRunDate(weekKey);
+    weeklyStreakAtLatest = previousQualifiedWeekStart
+      && differenceInCalendarDays(weekStart, previousQualifiedWeekStart) === 7
+      ? weeklyStreakAtLatest + 1
+      : 1;
+    bestWeeklyStreakWeeks = Math.max(bestWeeklyStreakWeeks, weeklyStreakAtLatest);
+    previousQualifiedWeekStart = weekStart;
+  }
+
+  const latestQualifiedWeekKey = qualifiedWeekKeys.at(-1) ?? null;
+
   // Points streak — competitive runs only, on the competitive qualification
   // threshold, so imported runs can neither start, extend, nor qualify a
   // points-earning streak day.
@@ -348,6 +379,15 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
   const currentStreakDays = latestQualifiedDateKey && (latestQualifiedDateKey === todayKey || latestQualifiedDateKey === yesterdayKey)
     ? (streakByDate.get(latestQualifiedDateKey) ?? 0)
     : 0;
+  // 일 스트릭의 오늘/어제 생존 규칙과 대칭: 마지막으로 뛴 주가 이번 주 또는 지난주면
+  // 스트릭 유지(이번 주는 아직 안 뛰었어도 월요일에 뱃지가 사라지지 않는다). 지난주를
+  // 통째로 건너뛰면 0으로 끊긴다.
+  const currentWeeklyStreakWeeks = latestQualifiedWeekKey
+    && (latestQualifiedWeekKey === currentWeekKey || latestQualifiedWeekKey === previousWeekKey)
+    ? weeklyStreakAtLatest
+    : 0;
+  // 뱃지 문구 분기용: 이번 주에 이미 자격을 채웠는지 ("다음 주에도" vs "이번 주에 달려서").
+  const weeklyStreakRanThisWeek = latestQualifiedWeekKey === currentWeekKey;
 
   const currentWeekDistanceKm = weekDistanceByKey.get(currentWeekKey) ?? 0;
   const competitiveWeekDistanceKm = competitiveWeekDistanceByKey.get(currentWeekKey) ?? 0;
@@ -382,6 +422,10 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
     minimumRunDistanceKm,
     latestRun,
     currentStreakDays,
+    // 주 연속 러닝 (홈 뱃지) — 표시 전용, 포인트 없음.
+    currentWeeklyStreakWeeks,
+    bestWeeklyStreakWeeks,
+    weeklyStreakRanThisWeek,
     competitiveLifetimeDistanceKm,
     competitiveDistanceLevel,
     currentWeekDistanceKm: toFixed1(currentWeekDistanceKm),

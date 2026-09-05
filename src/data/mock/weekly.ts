@@ -5,6 +5,10 @@ export const weeklySummary: WeeklySummary = {
   totalRuns: 8,
   goalAchievementRate: 84,
   streakDays: 3,
+  weeklyStreakWeeks: 3,
+  bestWeeklyStreakWeeks: 5,
+  weeklyStreakRanThisWeek: true,
+  weeklyStreakMinWeekDistanceKm: 3,
   latestRun: {
     distanceKm: 8.2,
     source: 'Apple Health',

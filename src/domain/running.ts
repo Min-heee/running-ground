@@ -16,6 +16,13 @@ export type WeeklySummary = {
   goalAchievementRate: number;
   previousWeekDistanceKm?: number;
   streakDays: number;
+  // 주 연속 러닝 뱃지 (오너 2026-09-01) — 서버 파생 표시값. 옵셔널: 구백엔드/캐시
+  // 응답엔 없을 수 있고, 그때 뱃지는 그냥 숨는다.
+  weeklyStreakWeeks?: number;
+  bestWeeklyStreakWeeks?: number;
+  weeklyStreakRanThisWeek?: boolean;
+  // 주 합계 자격 문턱(km) — 서버가 내려보내 안내 문구와 판정이 어긋나지 않게.
+  weeklyStreakMinWeekDistanceKm?: number;
   latestRun: {
     distanceKm: number;
     source: string;

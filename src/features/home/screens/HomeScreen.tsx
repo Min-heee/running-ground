@@ -57,6 +57,9 @@ export default function HomeScreen() {
             <HomeOverview
               rankState={profile?.rankState}
               runs={activity?.runs ?? []}
+              weeklyStreakWeeks={summary.weeklyStreakWeeks ?? 0}
+              weeklyStreakRanThisWeek={summary.weeklyStreakRanThisWeek ?? false}
+              weeklyStreakMinWeekDistanceKm={summary.weeklyStreakMinWeekDistanceKm ?? 3}
             />
           ) : null}
         </View>
