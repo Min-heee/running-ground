@@ -78,6 +78,9 @@ function buildDistrictRank(store, user, rank, currentUserId, getUserMetrics, mem
     name: user.name,
     // 월간 랭킹 우승 별 (monthlyRankingStars 원장 파생) — 0이면 필드 생략.
     ...(stars > 0 ? { stars } : {}),
+    // 주 연속 러닝 (오너 2026-09-05: "별 있던 곳에" — 남들도 보게) — 홈 뱃지와 같은
+    // 2주 문턱, 미만이면 생략. points.mjs의 주 합계 3km 고정 자격에서 파생.
+    ...(metrics.currentWeeklyStreakWeeks >= 2 ? { weeklyStreakWeeks: metrics.currentWeeklyStreakWeeks } : {}),
     // 표시/정렬 거리 (오너 2026-07-31): 전체 러닝 — 가져온 기록 포함 (히어로 총거리와 동일 기준).
     distanceKm: metrics.currentWeekDistanceKm,
     points: metrics.currentWeekPoints,

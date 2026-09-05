@@ -16,11 +16,16 @@
 // "지난달이 끝났는가"만 KST 시계로 판정한다.
 //
 // 이관 주의: ① postgres 정규화 리그 리포는 이 스윕/별 장식이 없다 — LEAGUE_READS 플래그를
-// 켜기 전에 반드시 이식(켜면 봉인이 조용히 멈춘다). ② 행정구역 통합 마이그레이션은 유저
+// 켜기 전에 반드시 이식(켜면 봉인이 조용히 멈춘다). 멤버 행의 weeklyStreakWeeks(주 연속
+// 필, leagueRepository buildDistrictRank)도 같은 이관 목록이다 — 별 원장과 무관한 메트릭
+// 파생이라 이 파일만 보고 이식하면 빠뜨린다. ② 행정구역 통합 마이그레이션은 유저
 // 지역명만 바꾸므로, 원장(regionKey 동결 문자열)도 함께 재작성해야 별이 증발하지 않는다.
 
 import { roundDistanceKm } from './distancePrecision.mjs';
-export const RANKING_STARS_FIRST_MONTH_KEY = '2026-07'; // 서비스 출시 달 — 그 전엔 데이터 없음.
+// 별 기산 달 (오너 2026-09-05: "별은 8월달 기준으로 해서 주는걸로, 그전거는 삭제").
+// 출시 달(7월)은 테스트런이 섞여 있어 8월부터 정식 기산 — 이 값을 올리면 스윕이
+// 그 전 달의 봉인 원장을 삭제한다(아래 purge, 멱등).
+export const RANKING_STARS_FIRST_MONTH_KEY = '2026-08';
 
 // 봉인 유예 (적대 검증 2026-08-13): 자정 직후 봉인하면 대기열에 밤새 걸린 말일 러닝이 영구
 // 제외된다 — 달이 끝나고 48시간 지나야 봉인한다 (별이 이틀 늦게 붙는 대가).
@@ -243,7 +248,19 @@ function resolveSealableMonthKeys(now) {
   );
 }
 
+// 기산 달 이전의 봉인 원장 — FIRST_MONTH_KEY를 올린 뒤 남은 옛 별(삭제 대상).
+function hasStaleRankingStarAwards(store) {
+  return (store.monthlyRankingAwards ?? []).some(
+    (award) => typeof award?.monthKey === 'string' && award.monthKey < RANKING_STARS_FIRST_MONTH_KEY,
+  );
+}
+
 export function hasUnsealedRankingStarMonth(store, now = new Date()) {
+  // 옛 별 원장이 남아 있으면 스윕이 지워야 하므로 mutate 경로를 태운다.
+  if (hasStaleRankingStarAwards(store)) {
+    return true;
+  }
+
   const sealedKeys = new Set((store.monthlyRankingAwards ?? []).map((award) => award.monthKey));
   return resolveSealableMonthKeys(now).some((monthKey) => !sealedKeys.has(monthKey));
 }
@@ -252,6 +269,14 @@ export function hasUnsealedRankingStarMonth(store, now = new Date()) {
 export function sweepMonthlyRankingStars(store, now = new Date()) {
   if (!Array.isArray(store.monthlyRankingAwards)) {
     store.monthlyRankingAwards = [];
+  }
+
+  // 기산 달 이전 원장 삭제 (오너 2026-09-05) — 별 개수·우주 항성 파생이 전부 이 원장에서
+  // 나오므로 여기 한 곳만 지우면 표면 전체에서 사라진다. 한 번 지운 뒤엔 no-op.
+  if (hasStaleRankingStarAwards(store)) {
+    store.monthlyRankingAwards = store.monthlyRankingAwards.filter(
+      (award) => !(typeof award?.monthKey === 'string' && award.monthKey < RANKING_STARS_FIRST_MONTH_KEY),
+    );
   }
 
   const sealedKeys = new Set(store.monthlyRankingAwards.map((award) => award.monthKey));

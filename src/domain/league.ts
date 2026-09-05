@@ -24,6 +24,8 @@ export type DistrictPersonalRank = {
   monthlyDistanceKm: number;
   // 지역 회원 랭킹 월간 우승 별 (0이면 생략).
   stars?: number;
+  // 주 연속 러닝 (오너 2026-09-05: 별 옆에 남들도 보게) — 2주 미만이면 서버가 생략.
+  weeklyStreakWeeks?: number;
   isMe?: boolean;
   isFriend?: boolean;
 };

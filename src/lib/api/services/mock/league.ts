@@ -128,6 +128,7 @@ export function buildMockDistrictPersonalResponse(nodeId?: string): DistrictPers
         points: weeklySummary.districtPoints,
         rankScore: myRankScore,
         monthlyDistanceKm: Number((weeklySummary.totalDistanceKm * 3.4).toFixed(1)),
+        weeklyStreakWeeks: weeklySummary.weeklyStreakWeeks,
         isMe: true,
         isFriend: friendNameSet.has(profile.name),
       });
@@ -149,6 +150,9 @@ export function buildMockDistrictPersonalResponse(nodeId?: string): DistrictPers
       points,
       rankScore,
       monthlyDistanceKm,
+      // 실서버는 별/주 연속을 조건부로 싣는다 — 목에도 드문드문 뿌려 행 장식을 개발에서 보이게.
+      ...(index === 0 ? { stars: 1 } : {}),
+      ...(index % 4 === 1 ? { weeklyStreakWeeks: 2 + (index % 5) } : {}),
       isFriend: friendNameSet.has(baseName),
     });
   }

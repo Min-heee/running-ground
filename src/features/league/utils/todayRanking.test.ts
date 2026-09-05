@@ -13,7 +13,7 @@ describe('today ranking display helpers', () => {
   it('keeps the three today ranking categories user-facing and stable', () => {
     assert.equal(todayRankingCategoryLabels.pace, '페이스');
     assert.equal(todayRankingCategoryLabels.distance, '거리');
-    assert.equal(todayRankingCategoryLabels.streak, '연속');
+    assert.equal(todayRankingCategoryLabels.streak, '일 연속');
     assert.match(todayRankingCategoryDescriptions.streak, /40일/);
   });
 
