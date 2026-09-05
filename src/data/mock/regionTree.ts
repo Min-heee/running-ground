@@ -26,9 +26,9 @@ function createMockLeafRegionNode(input: {
     participationRate: Math.max(35, Math.round(input.participationRate)),
     participants,
     rank: input.rank,
-    // 실서버는 월간 우승 리프에만 stars를 싣는다 — 목도 1위 리프에 별 하나를 얹어
-    // 히어로/행의 ★ 표기를 개발에서 보이게.
-    ...(input.rank === 1 ? { stars: 1 } : {}),
+    // 실서버는 월간 우승 리프에만 stars/starMonths를 싣는다 — 목도 1위 리프에 별 하나를
+    // 얹어 히어로/행의 ★ 표기 + 말풍선을 개발에서 보이게.
+    ...(input.rank === 1 ? { stars: 1, starMonths: ['2026-08'] } : {}),
   } satisfies RegionDrilldownNode;
 }
 
@@ -53,7 +53,7 @@ function createMockAggregateRegionNode(input: {
     participants,
     rank: input.rank,
     // 규칙 v2-①: 그 달 1등 시·도 별 — 목도 1위 시·도에 별 하나 (개발 표시 확인용).
-    ...(input.level === 'province' && input.rank === 1 ? { stars: 1 } : {}),
+    ...(input.level === 'province' && input.rank === 1 ? { stars: 1, starMonths: ['2026-08'] } : {}),
     children: input.children,
   } satisfies RegionDrilldownNode;
 }

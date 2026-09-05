@@ -255,13 +255,16 @@ function buildRegionLeague(store, nodeId, createError, getUserMetrics) {
   // 트리에 저장된 시드 통계는 박제 값 — 유저 러닝(이번 주 경쟁 거리)에서 실시간 계산해
   // 덮어쓴다. 정렬/순위(rank)도 실시간 값 기준이 된다.
   const statsIndex = buildRegionLiveStatsIndex(store, getUserMetrics);
-  // 월간 우승 별 — 리프 노드(시/군 롤업·광역시 구)에만 붙는다.
-  const { regionStars } = buildRankingStarCounts(store);
+  // 월간 우승 별 — 시·도(v2-①)와 리프 노드(시/군 롤업·광역시 구, v2-②)에 붙는다.
+  // starMonths = 우승 달 목록(정렬) — 별 탭 말풍선의 "몇월 1등" 설명용.
+  const { regionStars, regionStarMonths } = buildRankingStarCounts(store);
   const withStars = (node, ancestors) => {
     const starKey = resolveRegionNodeStarKey(node, ancestors);
     const stars = starKey ? regionStars.get(starKey) ?? 0 : 0;
     const decorated = decorateRegionNodeWithLiveStats(node, ancestors, statsIndex);
-    return stars > 0 ? { ...decorated, stars } : decorated;
+    return stars > 0
+      ? { ...decorated, stars, starMonths: [...(regionStarMonths.get(starKey) ?? [])].sort() }
+      : decorated;
   };
   const path = capRegionPathDepth(rawPath);
   const rawCurrentNode = path[path.length - 1];

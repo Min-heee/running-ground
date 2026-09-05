@@ -420,17 +420,26 @@ export function buildLatestRegionChampions(store) {
 
 // 별 개수 파생 — 원장이 유일한 근원. regionStars 키는 시·도명 단독(시·도 별, 규칙 v2-①)
 // 또는 `시도|리프`(시·도 안 1등 지역, 규칙 v2-②) — resolveRegionNodeStarKey와 같은 규약.
+// regionStarMonths는 별마다의 우승 달 목록(오너 2026-09-05: 별 탭 말풍선 "몇월 1등" 설명용).
 export function buildRankingStarCounts(store) {
   const regionStars = new Map();
+  const regionStarMonths = new Map();
   const memberStars = new Map();
+
+  const addRegionStar = (regionKey, monthKey) => {
+    regionStars.set(regionKey, (regionStars.get(regionKey) ?? 0) + 1);
+    const months = regionStarMonths.get(regionKey) ?? [];
+    months.push(monthKey);
+    regionStarMonths.set(regionKey, months);
+  };
 
   for (const award of store.monthlyRankingAwards ?? []) {
     for (const provinceChampion of award.provinceChampions ?? []) {
-      regionStars.set(provinceChampion.regionKey, (regionStars.get(provinceChampion.regionKey) ?? 0) + 1);
+      addRegionStar(provinceChampion.regionKey, award.monthKey);
     }
 
     for (const regionChampion of award.regionChampions ?? []) {
-      regionStars.set(regionChampion.regionKey, (regionStars.get(regionChampion.regionKey) ?? 0) + 1);
+      addRegionStar(regionChampion.regionKey, award.monthKey);
     }
 
     for (const memberChampion of award.memberChampions ?? []) {
@@ -438,5 +447,5 @@ export function buildRankingStarCounts(store) {
     }
   }
 
-  return { regionStars, memberStars };
+  return { regionStars, regionStarMonths, memberStars };
 }

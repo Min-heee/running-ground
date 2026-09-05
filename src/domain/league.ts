@@ -7,8 +7,10 @@ export type RegionDrilldownNode = {
   participationRate: number;
   participants: number;
   rank: number;
-  // 월간 지역 랭킹 우승 별 (리프 지역만, 0이면 생략) — 축구 클럽 문양 별.
+  // 월간 지역 랭킹 우승 별 (시·도 + 시·도별 1등 리프, 0이면 생략) — 축구 클럽 문양 별.
   stars?: number;
+  // 별마다의 우승 달('YYYY-MM', 정렬) — 별 탭 말풍선 "몇월 1등" 설명용. 구백엔드엔 없음.
+  starMonths?: string[];
   children?: RegionDrilldownNode[];
 };
 

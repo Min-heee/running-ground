@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { RegionDrilldownNode } from '@/domain';
+import { RegionStarBadge } from '@/features/league/components/RegionStarBadge';
 import { formatLeagueDistanceValue } from '@/features/league/utils/leagueRanking';
 import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
@@ -26,9 +27,10 @@ export function LeagueHeroCard({ node, isMyRegion }: LeagueHeroCardProps) {
         <Text style={styles.heroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
           {node.name}
         </Text>
-        {/* 월간 지역 우승 별 (오너 2026-09-05: "우리 지역도 별") — 랭킹 행과 같은 표기. */}
+        {/* 월간 지역 우승 별 (오너 2026-09-05) — 탭하면 우승 달 말풍선. flexWrap이라
+            말풍선(width 100%)은 제목 아랫줄로 떨어져 카드 안에서 펼쳐진다. */}
         {typeof node.stars === 'number' && node.stars > 0 ? (
-          <Text style={styles.heroStars}>{node.stars <= 3 ? '★'.repeat(node.stars) : `★${node.stars}`}</Text>
+          <RegionStarBadge stars={node.stars} starMonths={node.starMonths} />
         ) : null}
       </View>
       <View style={styles.heroMetrics}>
@@ -78,6 +80,7 @@ const styles = StyleSheet.create({
   heroTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: spacing.s10,
   },
   heroTitle: {
@@ -85,12 +88,6 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.hero,
     fontWeight: fontWeights.extraBold,
     flexShrink: 1,
-  },
-  // 어두운 히어로 배경 위 금색 별 — 지역/회원 랭킹 행의 ★ 표기와 동일 관례.
-  heroStars: {
-    color: colors.podiumGold,
-    fontSize: fontSizes.title,
-    fontWeight: fontWeights.extraBold,
   },
   heroMetrics: {
     flexDirection: 'row',

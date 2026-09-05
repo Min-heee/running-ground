@@ -7,6 +7,7 @@ import { SectionTitle } from '@/components/SectionTitle';
 import type { RegionDrilldownNode } from '@/domain';
 import type { RegionBreadcrumbItem } from '@/lib/api/types';
 import { PodiumBadge } from '@/features/league/components/LeagueRankBadges';
+import { RegionStarBadge } from '@/features/league/components/RegionStarBadge';
 import { getPodiumTheme } from '@/features/league/utils/leagueRanking';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 import { formatDistanceKm, formatPeopleCount } from '@/utils/formatUnits';
@@ -225,10 +226,14 @@ const LeagueRegionCard = memo(function LeagueRegionCard({
           <Text style={styles.regionMyBadgeText}>내 지역</Text>
         </View>
       ) : null}
-      <Text style={styles.regionName}>{node.name}</Text>
-      {typeof node.stars === 'number' && node.stars > 0 ? (
-        <Text style={styles.regionStars}>{node.stars <= 3 ? '★'.repeat(node.stars) : `★${node.stars}`}</Text>
-      ) : null}
+      {/* 이름 옆 ★ (오너 2026-09-05: 이름 아래가 아니라 옆) — 탭하면 우승 달 말풍선.
+          flexWrap이라 말풍선(width 100%)은 다음 줄로 떨어져 카드 안에서 펼쳐진다. */}
+      <View style={styles.regionNameRow}>
+        <Text style={styles.regionName}>{node.name}</Text>
+        {typeof node.stars === 'number' && node.stars > 0 ? (
+          <RegionStarBadge stars={node.stars} starMonths={node.starMonths} />
+        ) : null}
+      </View>
       <Text style={styles.regionMeta}>총거리 {formatDistanceKm(node.totalDistanceKm)}</Text>
       <Text style={styles.regionMeta}>회원수 {formatPeopleCount(node.participants)}</Text>
     </Pressable>
@@ -420,15 +425,17 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xxs,
     fontWeight: fontWeights.extraBold,
   },
+  regionNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: 26,
+  },
   regionName: {
     color: colors.textPrimary,
     fontWeight: fontWeights.extraBold,
     fontSize: fontSizes.base,
-    marginTop: 26,
-  },
-  regionStars: {
-    color: colors.podiumGold,
-    fontWeight: fontWeights.extraBold,
   },
   regionMeta: {
     color: colors.textSecondary,
