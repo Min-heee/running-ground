@@ -4,12 +4,15 @@
 // 내구 원장(store.monthlyRankingAwards)에 봉인하고, 별 개수는 언제나 이 원장에서 파생한다
 // (지급 함수/카운터 없음 — chase·raceEvent와 같은 파생 회계 철학: 이중 지급·드리프트 불가).
 //
-// 오너 확정:
-//  - 별의 주인은 둘 다: 그 달 1위 '지역'(리프: 시/군 롤업 또는 광역시 구) + 각 지역의 개인 1위.
+// 오너 확정 (2026-09-05 규칙 v2로 개정):
+//  - 별의 주인 셋: ① 그 달 1등 '시·도'(최상위 16개 중), ② 각 시·도 안의 1등 리프 지역
+//    (시/군 롤업 또는 광역시 구 — 시·도마다 하나씩: 전남광주→동구, 경기→고양시 식),
+//    ③ 각 리프 지역의 개인 1위. (v1은 전국 단일 리프 우승이었다 — 스윕이 재봉인으로 승격.)
 //  - 판정 기준은 '이번달 거리' — 화면(멤버 보드 monthlyDistanceKm·지역 보드 인당 평균)과
-//    동일한 공식만 쓴다. 지역 = 인당 평균(전체 회원수로 나눔, regionLiveStats와 동일 주석
-//    이유), 개인 = 그 달 전체 거리(가져온 기록 포함 — points.mjs monthDistanceByKey와 동일).
-//  - 동률은 공동 우승(전원 별). 거리 0은 우승 없음(유령 지역/유저 별 파밍 방지의 최소선).
+//    동일한 공식만 쓴다. 지역/시·도 = 인당 평균(전체 회원수로 나눔; 시·도 회원수는 화면
+//    byProvince처럼 리프 미설정 유저도 포함), 개인 = 그 달 전체 거리(가져온 기록 포함).
+//  - 동률은 공동 우승(전원 별). 거리 0은 우승 없음 — 0km인데 회원수가 많아 튜플 1등이어도
+//    별을 주지 않는다(오너 명시).
 //
 // 봉인 트리거는 저장소 관례대로 on-request 스윕(별도 스케줄러 없음): 랭킹 읽기 경로가
 // 부른다. 달 경계는 KST — run.date가 이미 KST 달력 날짜라 집계는 문자열 prefix로 충분하고,
@@ -26,6 +29,11 @@ import { roundDistanceKm } from './distancePrecision.mjs';
 // 출시 달(7월)은 테스트런이 섞여 있어 8월부터 정식 기산 — 이 값을 올리면 스윕이
 // 그 전 달의 봉인 원장을 삭제한다(아래 purge, 멱등).
 export const RANKING_STARS_FIRST_MONTH_KEY = '2026-08';
+
+// 지역 별 규칙 버전 (오너 2026-09-05 개정 = 2): ① 최상위 시·도 중 그 달 1등 시·도 별
+// ② 각 시·도 안의 1등 리프 지역 별(시·도마다 하나씩) ③ 0km면 회원수로 1등이어도 별 없음.
+// v1(전국 단일 리프 우승)로 봉인된 달은 스윕이 같은 달을 새 규칙으로 재봉인한다.
+export const RANKING_STARS_RULE_VERSION = 2;
 
 // 봉인 유예 (적대 검증 2026-08-13): 자정 직후 봉인하면 대기열에 밤새 걸린 말일 러닝이 영구
 // 제외된다 — 달이 끝나고 48시간 지나야 봉인한다 (별이 이틀 늦게 붙는 대가).
@@ -97,7 +105,8 @@ export function resolveUserLeafRegion(user) {
   return null;
 }
 
-// 지역 랭킹 화면의 리프 노드 키 — 노드+조상으로 같은 키를 만든다 (별 표시용 매칭).
+// 지역 랭킹 화면의 노드 키 — 노드+조상으로 원장의 regionKey와 같은 키를 만든다 (별 표시용
+// 매칭). 시·도 별(규칙 v2)은 키가 시·도명 단독이라 리프 키(`시도|이름`)와 충돌하지 않는다.
 export function resolveRegionNodeStarKey(node, ancestors) {
   const provinceName = node.level === 'province'
     ? String(node.name ?? '').trim()
@@ -106,6 +115,10 @@ export function resolveRegionNodeStarKey(node, ancestors) {
 
   if (!provinceName || !nodeName) {
     return null;
+  }
+
+  if (node.level === 'province') {
+    return nodeName;
   }
 
   if (node.level === 'city') {
@@ -154,12 +167,25 @@ function buildMonthlyAward(store, monthKey, sealedAtIso) {
   }
 
   const regions = new Map();
+  // 시·도 집계 — 화면(regionLiveStats byProvince)과 동일: 리프(시/군·구) 미설정이어도
+  // provinceName만 있으면 회원수(분모)에 들어간다.
+  const provinces = new Map();
 
   for (const user of store.users ?? []) {
     const createdAtMs = Date.parse(user.createdAt ?? '');
 
     if (Number.isFinite(createdAtMs) && createdAtMs > monthEndMs) {
       continue;
+    }
+
+    const distanceKm = distanceByUserId.get(user.id) ?? 0;
+    const provinceName = typeof user.provinceName === 'string' ? user.provinceName.trim() : '';
+
+    if (provinceName) {
+      const provinceEntry = provinces.get(provinceName) ?? { memberCount: 0, totalKm: 0 };
+      provinceEntry.memberCount += 1;
+      provinceEntry.totalKm += distanceKm;
+      provinces.set(provinceName, provinceEntry);
     }
 
     const leafRegion = resolveUserLeafRegion(user);
@@ -169,15 +195,14 @@ function buildMonthlyAward(store, monthKey, sealedAtIso) {
     }
 
     const entry = regions.get(leafRegion.regionKey)
-      ?? { regionName: leafRegion.regionName, members: [], totalKm: 0 };
-    const distanceKm = distanceByUserId.get(user.id) ?? 0;
+      ?? { regionName: leafRegion.regionName, provinceName, members: [], totalKm: 0 };
     entry.members.push({ userId: user.id, userName: user.name, distanceKm });
     entry.totalKm += distanceKm;
     regions.set(leafRegion.regionKey, entry);
   }
 
   const memberChampions = [];
-  const regionRows = [];
+  const regionRowsByProvince = new Map();
 
   for (const [regionKey, entry] of regions) {
     const bestDistanceKm = Math.max(0, ...entry.members.map((member) => member.distanceKm));
@@ -198,17 +223,20 @@ function buildMonthlyAward(store, monthKey, sealedAtIso) {
 
     // 화면(regionLiveStats)과 같은 반올림 순서: 총거리를 먼저 1자리로 만든 뒤 나눈다.
     const totalDistanceKm = toFixed1(entry.totalKm);
-    regionRows.push({
+    const rows = regionRowsByProvince.get(entry.provinceName) ?? [];
+    rows.push({
       regionKey,
       regionName: entry.regionName,
+      provinceName: entry.provinceName,
       totalDistanceKm,
       memberCount: entry.members.length,
       averageDistanceKm: entry.members.length > 0 ? toFixed1(totalDistanceKm / entry.members.length) : 0,
     });
+    regionRowsByProvince.set(entry.provinceName, rows);
   }
 
   // 지역 랭킹 화면과 같은 비교 튜플(인당 평균 → 총거리 → 회원수 → 이름) — 화면 1위가 곧 우승.
-  regionRows.sort((left, right) => {
+  const compareRegionRows = (left, right) => {
     if (right.averageDistanceKm !== left.averageDistanceKm) {
       return right.averageDistanceKm - left.averageDistanceKm;
     }
@@ -222,19 +250,46 @@ function buildMonthlyAward(store, monthKey, sealedAtIso) {
     }
 
     return left.regionName.localeCompare(right.regionName, 'ko');
-  });
+  };
+  // 오너 규칙 ③: 0km면 회원수로 1등이어도 별 없음 — 동률(튜플 완전 일치)은 공동 우승.
+  const pickChampions = (rows) => {
+    const sorted = [...rows].sort(compareRegionRows);
+    const top = sorted[0];
 
-  const topRegion = regionRows[0];
-  const regionChampions = topRegion && topRegion.totalDistanceKm > 0
-    ? regionRows.filter((row) =>
-      row.averageDistanceKm === topRegion.averageDistanceKm
-      && row.totalDistanceKm === topRegion.totalDistanceKm
-      && row.memberCount === topRegion.memberCount)
-    : [];
+    return top && top.totalDistanceKm > 0
+      ? sorted.filter((row) =>
+        row.averageDistanceKm === top.averageDistanceKm
+        && row.totalDistanceKm === top.totalDistanceKm
+        && row.memberCount === top.memberCount)
+      : [];
+  };
+
+  // 규칙 v2-②: 각 시·도 안의 1등 리프 지역 — 시·도마다 하나씩(동률 공동).
+  const regionChampions = [];
+
+  for (const rows of regionRowsByProvince.values()) {
+    regionChampions.push(...pickChampions(rows));
+  }
+
+  // 규칙 v2-①: 최상위 시·도 중 그 달 1등 — regionKey는 시·도명 단독(리프 키와 무충돌).
+  const provinceRows = [...provinces.entries()].map(([provinceName, entry]) => {
+    const totalDistanceKm = toFixed1(entry.totalKm);
+
+    return {
+      regionKey: provinceName,
+      regionName: provinceName,
+      totalDistanceKm,
+      memberCount: entry.memberCount,
+      averageDistanceKm: entry.memberCount > 0 ? toFixed1(totalDistanceKm / entry.memberCount) : 0,
+    };
+  });
+  const provinceChampions = pickChampions(provinceRows);
 
   return {
     monthKey,
     sealedAt: sealedAtIso,
+    ruleVersion: RANKING_STARS_RULE_VERSION,
+    provinceChampions,
     regionChampions,
     memberChampions,
   };
@@ -255,9 +310,17 @@ function hasStaleRankingStarAwards(store) {
   );
 }
 
+// 옛 규칙(v1: 전국 단일 리프 우승)으로 봉인된 달 — 새 규칙으로 재봉인 대상.
+function needsRuleUpgrade(award) {
+  return typeof award?.monthKey === 'string'
+    && award.monthKey >= RANKING_STARS_FIRST_MONTH_KEY
+    && (award.ruleVersion ?? 1) < RANKING_STARS_RULE_VERSION;
+}
+
 export function hasUnsealedRankingStarMonth(store, now = new Date()) {
-  // 옛 별 원장이 남아 있으면 스윕이 지워야 하므로 mutate 경로를 태운다.
-  if (hasStaleRankingStarAwards(store)) {
+  // 옛 별 원장(기산 전 달)이나 옛 규칙 봉인이 남아 있으면 스윕이 처리해야 하므로
+  // mutate 경로를 태운다.
+  if (hasStaleRankingStarAwards(store) || (store.monthlyRankingAwards ?? []).some(needsRuleUpgrade)) {
     return true;
   }
 
@@ -271,13 +334,28 @@ export function sweepMonthlyRankingStars(store, now = new Date()) {
     store.monthlyRankingAwards = [];
   }
 
-  // 기산 달 이전 원장 삭제 (오너 2026-09-05) — 별 개수·우주 항성 파생이 전부 이 원장에서
-  // 나오므로 여기 한 곳만 지우면 표면 전체에서 사라진다. 한 번 지운 뒤엔 no-op.
+  // 기산 달 이전 원장 삭제 (오너 2026-09-05) — 별 개수 파생이 전부 이 원장에서 나오므로
+  // 여기 한 곳만 지우면 표면 전체에서 사라진다. 한 번 지운 뒤엔 no-op.
   if (hasStaleRankingStarAwards(store)) {
     store.monthlyRankingAwards = store.monthlyRankingAwards.filter(
       (award) => !(typeof award?.monthKey === 'string' && award.monthKey < RANKING_STARS_FIRST_MONTH_KEY),
     );
   }
+
+  // 옛 규칙 봉인 재작성 (규칙 v2, 오너 2026-09-05) — 같은 달의 지역/시·도 우승만 새 규칙
+  // 으로 다시 파생해 제자리 교체한다. 개인 별(memberChampions)은 v1/v2 의미가 같으므로
+  // 봉인본을 그대로 이식한다 — 재계산하면 봉인 후의 지역 이동·탈퇴가 이미 준 별을 옮기거나
+  // 지운다(적대검증 2026-09-05: 봉인 불변성 위반). sealedAt도 원래 봉인 시각 보존. 지역
+  // 우승 재파생의 현재-소속 드리프트는 봉인 시점과 같은 계열로 문서화 수용. 한 번 올린
+  // 뒤엔 ruleVersion이 채워져 no-op.
+  store.monthlyRankingAwards = store.monthlyRankingAwards.map((award) => (
+    needsRuleUpgrade(award)
+      ? {
+        ...buildMonthlyAward(store, award.monthKey, award.sealedAt ?? now.toISOString()),
+        memberChampions: award.memberChampions ?? [],
+      }
+      : award
+  ));
 
   const sealedKeys = new Set(store.monthlyRankingAwards.map((award) => award.monthKey));
   const created = [];
@@ -340,12 +418,17 @@ export function buildLatestRegionChampions(store) {
   return latestByRegion;
 }
 
-// 별 개수 파생 — 원장이 유일한 근원.
+// 별 개수 파생 — 원장이 유일한 근원. regionStars 키는 시·도명 단독(시·도 별, 규칙 v2-①)
+// 또는 `시도|리프`(시·도 안 1등 지역, 규칙 v2-②) — resolveRegionNodeStarKey와 같은 규약.
 export function buildRankingStarCounts(store) {
   const regionStars = new Map();
   const memberStars = new Map();
 
   for (const award of store.monthlyRankingAwards ?? []) {
+    for (const provinceChampion of award.provinceChampions ?? []) {
+      regionStars.set(provinceChampion.regionKey, (regionStars.get(provinceChampion.regionKey) ?? 0) + 1);
+    }
+
     for (const regionChampion of award.regionChampions ?? []) {
       regionStars.set(regionChampion.regionKey, (regionStars.get(regionChampion.regionKey) ?? 0) + 1);
     }

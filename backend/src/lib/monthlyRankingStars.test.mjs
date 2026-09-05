@@ -32,7 +32,7 @@ function buildStore() {
   };
 }
 
-test('지난달 봉인: 지역 우승(인당 평균 기준) + 지역별 개인 우승, 진행 중인 달은 제외', () => {
+test('지난달 봉인 (규칙 v2): 시·도 1등 + 시·도별 리프 1등 + 지역별 개인 우승', () => {
   const store = buildStore();
   // 2026-09-13 KST — 8월만 봉인 대상.
   const created = sweepMonthlyRankingStars(store, new Date('2026-09-13T03:00:00.000Z'));
@@ -40,9 +40,16 @@ test('지난달 봉인: 지역 우승(인당 평균 기준) + 지역별 개인 �
   assert.equal(created.length, 1);
   const august = created[0];
   assert.equal(august.monthKey, '2026-08');
+  assert.equal(august.ruleVersion, 2);
 
-  // 지역 우승: 강남구 인당 40 vs 고양시 인당 25 — 강남구.
-  assert.deepEqual(august.regionChampions.map((champion) => champion.regionKey), ['서울특별시|강남구']);
+  // 시·도 1등: 서울 인당 40(강남구 u-c 40, 1명) vs 경기 인당 25(50/2) — 서울특별시.
+  assert.deepEqual(august.provinceChampions.map((champion) => champion.regionKey), ['서울특별시']);
+
+  // 시·도별 리프 1등: 시·도마다 하나씩 — 경기도→고양시, 서울→강남구.
+  assert.deepEqual(
+    august.regionChampions.map((champion) => champion.regionKey).sort(),
+    ['경기도|고양시', '서울특별시|강남구'],
+  );
 
   // 개인 우승: 고양시 u-a(30), 강남구 u-c(40).
   assert.deepEqual(
@@ -50,9 +57,12 @@ test('지난달 봉인: 지역 우승(인당 평균 기준) + 지역별 개인 �
     [['경기도|고양시', 'u-a', 30], ['서울특별시|강남구', 'u-c', 40]],
   );
 
-  // 별 개수 파생.
+  // 별 개수 파생 — 시·도 키(단독)와 리프 키(시도|이름)가 나란히.
   const counts = buildRankingStarCounts(store);
+  assert.equal(counts.regionStars.get('서울특별시'), 1);
   assert.equal(counts.regionStars.get('서울특별시|강남구'), 1);
+  assert.equal(counts.regionStars.get('경기도|고양시'), 1);
+  assert.equal(counts.regionStars.get('경기도'), undefined);
   assert.equal(counts.memberStars.get('u-a'), 1);
   assert.equal(counts.memberStars.get('u-b'), undefined);
 });
@@ -79,7 +89,7 @@ test('KST 달 경계 + 48시간 봉인 유예: 9월 3일 0시 KST부터 8월이 
   assert.equal(sweepMonthlyRankingStars(after, new Date('2026-09-02T15:30:00.000Z')).length, 1);
 });
 
-test('동률은 공동 우승, 거리 0뿐인 달은 우승 없음', () => {
+test('동률은 공동 우승, 0km 지역·시·도는 회원수가 많아도 우승 없음 (오너 규칙 ③)', () => {
   const store = buildStore();
   store.runs = [
     { id: 'r1', userId: 'u-a', date: '2026-08-05', distanceKm: 20 },
@@ -89,17 +99,21 @@ test('동률은 공동 우승, 거리 0뿐인 달은 우승 없음', () => {
   // 고양시 공동 개인 우승 2명, 강남구는 0km라 개인 우승 없음.
   assert.deepEqual(august.memberChampions.map((champion) => champion.userId).sort(), ['u-a', 'u-b']);
   assert.equal(august.memberChampions.every((champion) => champion.regionKey === '경기도|고양시'), true);
-  // 지역 우승도 고양시 단독 (강남구 총거리 0).
+  // 시·도별 리프 1등: 경기도→고양시만 — 서울은 유일 리프(강남구)가 0km라 별 없음.
   assert.deepEqual(august.regionChampions.map((champion) => champion.regionKey), ['경기도|고양시']);
+  // 시·도 1등: 경기도(인당 20) — 서울은 0km라 후보 아님.
+  assert.deepEqual(august.provinceChampions.map((champion) => champion.regionKey), ['경기도']);
 
+  // 회원수가 아무리 많아도 전부 0km면 시·도/지역 별 없음.
   const empty = buildStore();
   empty.runs = [];
   const [emptyAugust] = sweepMonthlyRankingStars(empty, new Date('2026-09-05T03:00:00.000Z'));
+  assert.deepEqual(emptyAugust.provinceChampions, []);
   assert.deepEqual(emptyAugust.regionChampions, []);
   assert.deepEqual(emptyAugust.memberChampions, []);
 });
 
-test('resolveRegionNodeStarKey: 시/군 리프와 광역시 구 리프만 키를 갖는다', () => {
+test('resolveRegionNodeStarKey: 시·도(단독 키)·시/군 리프·광역시 구 리프가 키를 갖는다', () => {
   assert.equal(
     resolveRegionNodeStarKey({ level: 'city', name: '고양시' }, { provinceName: '경기도', cityName: '' }),
     '경기도|고양시',
@@ -108,28 +122,35 @@ test('resolveRegionNodeStarKey: 시/군 리프와 광역시 구 리프만 키를
     resolveRegionNodeStarKey({ level: 'district', name: '강남구' }, { provinceName: '서울특별시', cityName: '' }),
     '서울특별시|강남구',
   );
-  // 시 아래 구(도시 롤업에 흡수)와 상위 레벨은 별 대상 아님.
+  // 시·도 노드 (규칙 v2-①) — 키는 시·도명 단독.
+  assert.equal(
+    resolveRegionNodeStarKey({ level: 'province', name: '경기도' }, { provinceName: '', cityName: '' }),
+    '경기도',
+  );
+  // 시 아래 구(도시 롤업에 흡수)와 루트는 별 대상 아님.
   assert.equal(
     resolveRegionNodeStarKey({ level: 'district', name: '일산서구' }, { provinceName: '경기도', cityName: '고양시' }),
     null,
   );
-  assert.equal(resolveRegionNodeStarKey({ level: 'province', name: '경기도' }, { provinceName: '', cityName: '' }), null);
+  assert.equal(resolveRegionNodeStarKey({ level: 'country', name: '대한민국' }, { provinceName: '', cityName: '' }), null);
 });
 
 // 적대 검증 2026-08-13: 과거 달을 현재 상태로 재구성할 때의 시간 오염 3종 차단.
 test('그 달이 끝난 뒤 가입한 유저는 그 달 명부(분모)에서 제외된다', () => {
   const store = buildStore();
-  // 9월 가입자 셋이 고양시에 합류 — 8월 인당 평균을 희석해 우승을 뒤집던 구멍.
+  // 9월 가입자 셋이 서울(강남구)에 합류 — 희석이 있었다면 서울 시·도 인당 평균이
+  // 40 → 10으로 떨어져 시·도 1등이 경기도로 뒤집힌다.
   for (let index = 0; index < 3; index += 1) {
     store.users.push({
       id: `u-sep-${index}`, name: `구월${index}`,
-      provinceName: '경기도', cityName: '고양시', districtName: '일산서구',
+      provinceName: '서울특별시', cityName: '', districtName: '강남구',
       createdAt: '2026-09-05T00:00:00.000Z',
     });
   }
   const [august] = sweepMonthlyRankingStars(store, new Date('2026-09-13T03:00:00.000Z'));
-  // 고양시 8월 평균은 여전히 2명 기준(25km) — 강남구(40km)가 우승 유지, 희석 없음.
-  assert.deepEqual(august.regionChampions.map((champion) => champion.regionKey), ['서울특별시|강남구']);
+  // 서울 8월 인당 평균은 여전히 1명 기준(40km) — 시·도 1등 유지, 희석 없음.
+  assert.deepEqual(august.provinceChampions.map((champion) => champion.regionKey), ['서울특별시']);
+  assert.equal(august.provinceChampions[0].memberCount, 1);
   const goyang = august.memberChampions.filter((champion) => champion.regionKey === '경기도|고양시');
   assert.deepEqual(goyang.map((champion) => champion.userId), ['u-a']);
 });
@@ -171,4 +192,41 @@ test('기산 달 이전의 봉인 원장은 스윕이 삭제하고, 파생 별 �
   // 파생 별 개수에서도 7월 별은 사라진다 (u-c는 8월 우승 1개만).
   const counts = buildRankingStarCounts(store);
   assert.equal(counts.memberStars.get('u-c'), 1);
+});
+
+// 오너 2026-09-05 규칙 v2: 옛 규칙(v1)으로 봉인된 달은 스윕이 같은 달을 재봉인해 승격한다.
+test('v1 봉인 원장은 스윕이 새 규칙으로 재봉인한다 (sealedAt 보존, 중복 없음)', () => {
+  const store = buildStore();
+  const at = new Date('2026-09-13T03:00:00.000Z');
+  // 프로덕션에 남아 있는 v1 8월 봉인 재현 — ruleVersion 없음, 전국 단일 지역 우승 형태.
+  // 개인 별에 재계산이면 사라질 항목(u-gone: 이미 탈퇴한 유저)을 심어 이식 불변성을 핀.
+  store.monthlyRankingAwards = [{
+    monthKey: '2026-08',
+    sealedAt: '2026-09-03T00:10:00.000Z',
+    regionChampions: [{ regionKey: '서울특별시|강남구', regionName: '강남구' }],
+    memberChampions: [
+      { regionKey: '서울특별시|강남구', regionName: '강남구', userId: 'u-c', userName: '다', distanceKm: 40 },
+      { regionKey: '제주특별자치도|제주시', regionName: '제주시', userId: 'u-gone', userName: '탈퇴자', distanceKm: 12 },
+    ],
+  }];
+
+  assert.equal(hasUnsealedRankingStarMonth(store, at), true);
+  assert.equal(sweepMonthlyRankingStars(store, at).length, 0); // 새 달 봉인은 없음 — 재작성만.
+
+  assert.equal(store.monthlyRankingAwards.length, 1);
+  const upgraded = store.monthlyRankingAwards[0];
+  assert.equal(upgraded.monthKey, '2026-08');
+  assert.equal(upgraded.ruleVersion, 2);
+  assert.equal(upgraded.sealedAt, '2026-09-03T00:10:00.000Z');
+  assert.deepEqual(upgraded.provinceChampions.map((champion) => champion.regionKey), ['서울특별시']);
+  assert.deepEqual(
+    upgraded.regionChampions.map((champion) => champion.regionKey).sort(),
+    ['경기도|고양시', '서울특별시|강남구'],
+  );
+  // 개인 별은 봉인본 그대로 이식 — 봉인 후 탈퇴/지역 이동이 이미 준 별을 못 건드린다.
+  assert.deepEqual(
+    upgraded.memberChampions.map((champion) => champion.userId).sort(),
+    ['u-c', 'u-gone'],
+  );
+  assert.equal(hasUnsealedRankingStarMonth(store, at), false);
 });

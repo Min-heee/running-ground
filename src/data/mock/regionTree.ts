@@ -52,6 +52,8 @@ function createMockAggregateRegionNode(input: {
     participationRate,
     participants,
     rank: input.rank,
+    // 규칙 v2-①: 그 달 1등 시·도 별 — 목도 1위 시·도에 별 하나 (개발 표시 확인용).
+    ...(input.level === 'province' && input.rank === 1 ? { stars: 1 } : {}),
     children: input.children,
   } satisfies RegionDrilldownNode;
 }
