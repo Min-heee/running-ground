@@ -1,4 +1,5 @@
 import { memo, useCallback, useState } from 'react';
+import type { LayoutChangeEvent } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
@@ -39,12 +40,20 @@ export function formatStarCountText(stars: number): string {
 
 function RegionStarBadgeImpl({ stars, starMonths }: RegionStarBadgeProps) {
   const [bubbleOpen, setBubbleOpen] = useState(false);
+  // 말풍선 꼬리는 별을 가리켜야 한다 (오너 2026-09-05): 별의 x를 부모 행 기준으로 재서
+  // 꼬리를 별 중앙 밑에 놓는다. 말풍선(width 100%)은 flexWrap 줄바꿈으로 행의 x=0에서
+  // 시작하므로, 별의 layout.x가 곧 말풍선 좌표계의 x다.
+  const [arrowLeft, setArrowLeft] = useState<number | null>(null);
   const monthsLabel = formatStarMonthsLabel(starMonths ?? []);
   const handleToggle = useCallback(() => {
     setBubbleOpen((current) => !current);
   }, []);
   const handleClose = useCallback(() => {
     setBubbleOpen(false);
+  }, []);
+  const handleStarLayout = useCallback((event: LayoutChangeEvent) => {
+    const { x, width } = event.nativeEvent.layout;
+    setArrowLeft(Math.max(spacing.sm, x + width / 2 - ARROW_HALF_WIDTH));
   }, []);
 
   if (stars <= 0) {
@@ -57,13 +66,14 @@ function RegionStarBadgeImpl({ stars, starMonths }: RegionStarBadgeProps) {
         accessibilityRole="button"
         accessibilityLabel="우승 별 설명 보기"
         hitSlop={spacing.s10}
+        onLayout={handleStarLayout}
         onPress={monthsLabel ? handleToggle : undefined}
       >
         <Text style={styles.stars}>{formatStarCountText(stars)}</Text>
       </Pressable>
       {bubbleOpen && monthsLabel ? (
         <View style={styles.bubbleWrap}>
-          <View style={styles.arrow} />
+          <View style={[styles.arrow, arrowLeft !== null ? { marginLeft: arrowLeft } : null]} />
           <Pressable accessibilityRole="button" accessibilityLabel="우승 별 설명 닫기" onPress={handleClose} style={styles.bubble}>
             <Text style={styles.bubbleText}>{monthsLabel} 랭킹 1등으로 받은 별이에요</Text>
             <Text style={styles.bubbleSubText}>눌러서 닫기</Text>
