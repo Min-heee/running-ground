@@ -783,3 +783,32 @@ test('§3-⑦ terminal: buildUnresolvedTerminalMatchResult yields a NEUTRAL reco
   assert.equal(terminal.matchId, 'm1');
   assert.equal(terminal.mode, 'duel');
 });
+
+test('실격패 기록(부정 러닝)은 기권과 같은 종결 기록 — duel/group 모두 절대 되돌리지 않는다', () => {
+  const duelDisqualified: RunMatchResult = {
+    mode: 'duel',
+    title: '부정 러닝으로 실격패 처리됐어요',
+    summary: '',
+    badgeLabel: '실격패',
+    resultTone: 'lose',
+    disqualified: true,
+  };
+  assert.equal(isUnresolvedDuelMatchResult(duelDisqualified), false);
+  assert.equal(
+    reconcileDuelRunDetailMatchResult({ matchResult: duelDisqualified, status: duelStatus(resolvedWinVerdict) }),
+    null,
+  );
+
+  const groupDisqualified: RunMatchResult = {
+    mode: 'group',
+    title: '부정 러닝으로 그룹 대결에서 실격됐어요',
+    summary: '',
+    badgeLabel: '실격패',
+    disqualified: true,
+    rank: 4,
+    participantCount: 4,
+  };
+  assert.equal(isUnresolvedGroupMatchResult(groupDisqualified), false);
+  // 배지만 있고 플래그가 없는 구형 블롭도 종결로 본다.
+  assert.equal(isUnresolvedGroupMatchResult({ ...groupDisqualified, disqualified: undefined, rank: undefined }), false);
+});

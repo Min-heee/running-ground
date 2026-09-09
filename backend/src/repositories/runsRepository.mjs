@@ -1,7 +1,7 @@
 import { attachRouteToRunPayload, attachStoredRunRoute } from '../lib/runHelpers.mjs';
 import { resolveRaceEventCompletionStamp } from '../lib/raceEventCompletion.mjs';
 import { compareRunsLatestFirst } from '../lib/userStoreHelpers.mjs';
-import { applyRunIntegrityCheck } from '../lib/runIntegrity.mjs';
+import { applyRunIntegrityCheck, normalizeCadenceAudit } from '../lib/runIntegrity.mjs';
 import { findChaseArena } from '../lib/chase/chaseArenas.mjs';
 import { releaseChasePresenceForUser } from '../lib/chase/chasePresence.mjs';
 import { formatKstDisplayTimestamp } from '../lib/kstDate.mjs';
@@ -337,7 +337,8 @@ export function isDefiniteMatchResult(matchResult) {
     return false;
   }
 
-  if (/기권/.test(String(matchResult.badgeLabel ?? ''))) {
+  // 실격(케이던스 워치독 부정 러닝)도 기권과 같은 자기 완결 종료 기록이다 (2026-09-09).
+  if (/기권|실격/.test(String(matchResult.badgeLabel ?? ''))) {
     return true;
   }
 
@@ -581,6 +582,11 @@ export function createJsonRunsRepository({
           durationSeconds: input.durationSeconds,
           ...(typeof input.cadenceSpm === 'number' ? { cadenceSpm: input.cadenceSpm } : {}),
           ...(typeof input.elevationGainM === 'number' ? { elevationGainM: input.elevationGainM } : {}),
+          // 케이던스 워치독 감사 원장 — 모양이 온전할 때만 박제 (applyRunIntegrityCheck가 읽는다).
+          ...(() => {
+            const cadenceAudit = normalizeCadenceAudit(input.cadenceAudit);
+            return cadenceAudit ? { cadenceAudit } : {};
+          })(),
           route: clone(input.route),
           startedAt: input.startedAt,
           endedAt: input.endedAt,

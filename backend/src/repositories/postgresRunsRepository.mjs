@@ -6,6 +6,7 @@ import {
   shouldOverwriteMatchResult,
 } from './runsRepository.mjs';
 import { deriveDurationSecondsFromPace } from '../lib/paceDuration.mjs';
+import { normalizeCadenceAudit } from '../lib/runIntegrity.mjs';
 import {
   clone,
   createDisplayTimestamp,
@@ -187,6 +188,11 @@ export function createPostgresRunsRepository({
           durationSeconds: input.durationSeconds,
           ...(typeof input.cadenceSpm === 'number' ? { cadenceSpm: input.cadenceSpm } : {}),
           ...(typeof input.elevationGainM === 'number' ? { elevationGainM: input.elevationGainM } : {}),
+          // 케이던스 워치독 감사 원장 — json 리포와 같은 조건(모양이 온전할 때만)으로 박제.
+          ...(() => {
+            const cadenceAudit = normalizeCadenceAudit(input.cadenceAudit);
+            return cadenceAudit ? { cadenceAudit } : {};
+          })(),
           route: Array.isArray(input.route) ? clone(input.route) : [],
           startedAt: input.startedAt,
           endedAt: input.endedAt,

@@ -5,10 +5,23 @@ import { buildAveragePace } from '@/features/runs/tracking';
 import { type LastSyncedMatchProgress } from '@/features/runs/viewModels/matchProgress';
 import { type OfficialStartBaseline } from '@/features/runs/tracking/trackingSession';
 import { applyLiveRunSettings } from '@/features/runs/cheer/liveRunSettingsStore';
+import {
+  createCadenceWatchdogState,
+  type CadenceWatchdogState,
+} from '@/features/runs/integrity/cadenceWatchdogModel';
 import { setGlobalTrackerBusy } from '@/features/runs/tracking/globalTrackerActivity';
 import { fetchNotificationSettings } from '@/services';
 
 export type TrackerStatus = 'idle' | 'starting' | 'running' | 'paused' | 'saving';
+
+// 페도미터 센서 상태 (케이던스 워치독 재료, 2026-09-09).
+// - available: 기기에 센서가 있고 모션 권한이 허용됨 — 저장 시 cadenceAudit.sensorAvailable.
+// - active: watchStepCount 구독이 살아 있음 — 워치독 틱의 sensorReady. 안드로이드는 앱이
+//   백그라운드로 가면 expo-sensors가 구독을 끊으므로 포그라운드 창에서만 true다.
+export type PedometerSensorState = {
+  available: boolean;
+  active: boolean;
+};
 
 export type SaveTrackingOptions = {
   allowShortDistanceSave?: boolean;
@@ -39,6 +52,10 @@ export function useRunTracking() {
   const appStateRef = useRef(AppState.currentState);
   const trackerStatusRef = useRef<TrackerStatus>('idle');
   const officialStartBaselineRef = useRef<OfficialStartBaseline | null>(null);
+  // 케이던스 워치독 (오너 2026-09-09): 순수 판정 상태는 렌더와 무관한 ref로 든다 — 1초 틱이
+  // 트리를 다시 그리면 안 되고, 저장 커맨드가 같은 원장(cadenceAudit)을 읽어야 한다.
+  const cadenceWatchdogRef = useRef<CadenceWatchdogState>(createCadenceWatchdogState());
+  const pedometerSensorRef = useRef<PedometerSensorState>({ available: false, active: false });
 
   const [status, setStatus] = useState<TrackerStatus>('idle');
 
@@ -103,6 +120,8 @@ export function useRunTracking() {
     appStateRef,
     trackerStatusRef,
     officialStartBaselineRef,
+    cadenceWatchdogRef,
+    pedometerSensorRef,
     status,
     setStatus,
     soloStartCountdownSeconds,

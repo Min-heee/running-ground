@@ -26,6 +26,30 @@
 // Mappers mapRunRow silently drop unknown fields), so when that path goes live it must add
 // an `integrity` jsonb column end-to-end (db/schema.sql, insertRun, every runs SELECT,
 // mapRunRow, db/migrate-json-to-postgres.mjs) or vehicle flags will be lost on round-trip.
+// (run.cadenceAudit already has its `cadence_audit` jsonb column on that path.)
+//
+// ── 케이던스 워치독 (오너 규칙 2026-09-09) ────────────────────────────────────────────
+// 달리기 속도로 이동하는데 케이던스가 안 찍히면 1차 경고, 2차면 부정 러닝 — 매치는 실격패
+// (포인트 0), 솔로는 정지+기록 삭제. 판정 코어는 클라이언트(src/features/runs/integrity/
+// cadenceWatchdogModel.ts)에 있고, 저장 페이로드의 run.cadenceAudit 원장이 여기로 온다:
+//   { sensorAvailable, foregroundMovingSeconds, foregroundSteps, strikes, disqualified }
+// 서버는 두 갈래로 쓴다.
+//   1. cadenceAudit.disqualified === true → 'vehicle' (reason 'cadence-watchdog'). 자진 신고다:
+//      신고한 본인만 손해 보므로(포인트 0·보드 제외) 위조 유인이 없다.
+//   2. 백스톱 (reason 'cadence-audit'): 센서가 있고, 클라 워치독이 이미 최소 1차 경고를 했고
+//      (strikes ≥ 1), 포그라운드 달리기 속도 이동이 3분 이상 쌓였는데 그 동안의 걸음이 20 spm
+//      미만이면 'vehicle'. 보수적으로 잡는 이유는 두 가지다 (적대 리뷰 2026-09-09):
+//        - 오너 규칙이 벌하는 건 케이던스 '미등록'이다. 30-45 spm을 세는 폰은 케이던스를
+//          등록하고 있는 것이고(언더카운트든 느린 조깅이든), 그건 워치독이 경고하는 상태가
+//          아니다 — 차량 서명은 거치된 폰의 ~0-20 spm 대역뿐이다.
+//        - 서버가 클라이언트가 한 번도 경고하지 않은 러너를 조용히 실격시키면 안 된다.
+//          스트라이크 게이트가 "이 러너는 이미 경고 화면을 봤다"를 보장한다.
+//      절대 "케이던스가 없다"는 사실만으로 유죄를 주지 않는다 — 안드로이드 expo-sensors는
+//      백그라운드에서 걸음 센서를 해제하므로(SensorProxy.onHostPause → stopObserving) 화면 끈
+//      갤럭시 런은 케이던스가 통째로 비고, 그건 클라이언트가 포그라운드 창만 원장에 쌓는
+//      이유이기도 하다. 원장이 없거나 모양이 깨졌으면 백스톱은 침묵한다.
+// 기존 평균 속도 규칙은 그대로(reason 'speed'). run.integrity = { verdict, reason?, checkedAt,
+// lpRevoked? } — reason은 vehicle 판정에만 찍는다.
 
 import { applyLpDelta } from './rankSystem.mjs';
 
@@ -83,6 +107,92 @@ export const RUNNING_SPEED_FLOOR_MPS = 2.4;
 // floor can be re-armed here as stage 3.
 export const SUSPECT_CADENCE_CEILING_SPM = 90;
 
+// 케이던스 감사 백스톱 문턱: 포그라운드 달리기 속도 이동이 이만큼 쌓여야 판정한다. 워치독
+// 창(90초) 둘을 연달아 놓쳤을 분량이라, 클라 워치독이 깨어 있었다면 이미 실격했을 길이다.
+export const CADENCE_AUDIT_MIN_MOVING_SECONDS = 180;
+
+// 포그라운드 달리기 속도 이동 동안의 걸음/분이 이 아래면 차량 서명 — 거치된 폰의 near-zero
+// 대역(~0-20 spm). 저장 시 평균 규칙의 처벌 바닥(40)보다 일부러 낮다: 30-45 spm을 세는 폰은
+// 케이던스를 '등록'하고 있고, 오너 규칙이 벌하는 건 미등록이다 (적대 리뷰 2026-09-09).
+export const CADENCE_AUDIT_VEHICLE_SPM = 20;
+
+// 백스톱이 판정하려면 클라 워치독이 마지막 창에서 이미 이만큼 경고했어야 한다. 서버가 한 번도
+// 경고받지 않은 러너를 조용히 실격시키는 일이 없도록 — 백스톱은 워치독이 "경고까지 했는데
+// 2차 판정을 못 내린" 런(앱 종료·저장 직행)을 마무리하는 장치지, 독립 판정기가 아니다.
+export const CADENCE_AUDIT_MIN_STRIKES = 1;
+
+export const INTEGRITY_REASON_SPEED = 'speed';
+export const INTEGRITY_REASON_CADENCE_WATCHDOG = 'cadence-watchdog';
+export const INTEGRITY_REASON_CADENCE_AUDIT = 'cadence-audit';
+
+function isNonNegativeInteger(value) {
+  return Number.isInteger(value) && value >= 0;
+}
+
+// 원장 모양 검증 — 라우트 validator가 이미 거르지만, 리포지토리는 검증 없는 입력도 받으므로
+// 여기서도 한 번 더 본다. 깨진 원장은 null: 백스톱이 침묵하고 자진 신고도 무시된다.
+export function normalizeCadenceAudit(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  const { sensorAvailable, foregroundMovingSeconds, foregroundSteps, strikes, disqualified } = raw;
+
+  if (
+    typeof sensorAvailable !== 'boolean'
+    || typeof disqualified !== 'boolean'
+    || !isNonNegativeInteger(foregroundMovingSeconds)
+    || !isNonNegativeInteger(foregroundSteps)
+    || !isNonNegativeInteger(strikes)
+  ) {
+    return null;
+  }
+
+  return { sensorAvailable, foregroundMovingSeconds, foregroundSteps, strikes, disqualified };
+}
+
+// 백스톱 단독 판정: 센서가 있고, 워치독 경고(strikes)가 최소 1회 있고, 포그라운드 달리기 속도
+// 이동이 문턱 이상인데 그 동안의 spm이 near-zero 바닥 미만이면 'vehicle', 아니면 'clear'.
+// 자진 신고(disqualified)는 보지 않는다.
+export function classifyCadenceAudit(rawCadenceAudit) {
+  const audit = normalizeCadenceAudit(rawCadenceAudit);
+
+  if (
+    !audit
+    || !audit.sensorAvailable
+    || audit.strikes < CADENCE_AUDIT_MIN_STRIKES
+    || audit.foregroundMovingSeconds < CADENCE_AUDIT_MIN_MOVING_SECONDS
+  ) {
+    return 'clear';
+  }
+
+  const foregroundSpm = (audit.foregroundSteps / audit.foregroundMovingSeconds) * 60;
+  return foregroundSpm < CADENCE_AUDIT_VEHICLE_SPM ? 'vehicle' : 'clear';
+}
+
+// 저장 시점의 전체 판정 — { verdict, reason }. reason은 vehicle에만 붙는다.
+// 우선순위: 자진 신고(클라가 이미 실격 화면을 보여줬다) → 서버 자체 속도 규칙(가장 단단한
+// 증거) → 케이던스 백스톱 → 속도/케이던스 회색지대(suspect) → clear.
+export function resolveRunIntegrityVerdict({ distanceKm, durationSeconds, cadenceSpm, cadenceAudit } = {}) {
+  const audit = normalizeCadenceAudit(cadenceAudit);
+
+  if (audit?.disqualified === true) {
+    return { verdict: 'vehicle', reason: INTEGRITY_REASON_CADENCE_WATCHDOG };
+  }
+
+  const speedVerdict = classifyRunIntegrity({ distanceKm, durationSeconds, cadenceSpm });
+
+  if (speedVerdict === 'vehicle') {
+    return { verdict: 'vehicle', reason: INTEGRITY_REASON_SPEED };
+  }
+
+  if (classifyCadenceAudit(audit) === 'vehicle') {
+    return { verdict: 'vehicle', reason: INTEGRITY_REASON_CADENCE_AUDIT };
+  }
+
+  return { verdict: speedVerdict };
+}
+
 // Pure classifier over the three save-time signals. Returns 'vehicle' | 'suspect' | 'clear'
 // and never throws on garbage input (non-finite/zero guards resolve to 'clear').
 export function classifyRunIntegrity({ distanceKm, durationSeconds, cadenceSpm } = {}) {
@@ -125,7 +235,7 @@ export function classifyRunIntegrity({ distanceKm, durationSeconds, cadenceSpm }
   return 'clear';
 }
 
-function buildIntegrityLogLine(user, run, verdict) {
+function buildIntegrityLogLine(user, run, verdict, reason) {
   const distance = Number(run.distanceKm);
   const duration = Number(run.durationSeconds);
   const avgSpeedMps = Number.isFinite(distance) && Number.isFinite(duration) && duration > 0
@@ -134,9 +244,15 @@ function buildIntegrityLogLine(user, run, verdict) {
   const cadence = typeof run.cadenceSpm === 'number' && Number.isFinite(run.cadenceSpm)
     ? run.cadenceSpm
     : 'null';
+  const audit = normalizeCadenceAudit(run.cadenceAudit);
+  const auditSummary = audit
+    ? `fgMovingS=${audit.foregroundMovingSeconds} fgSteps=${audit.foregroundSteps} strikes=${audit.strikes}`
+      + ` sensor=${audit.sensorAvailable} dq=${audit.disqualified}`
+    : 'audit=none';
 
-  return `[run-integrity] userId=${user.id} runId=${run.id} verdict=${verdict} `
-    + `speedMps=${avgSpeedMps} cadenceSpm=${cadence} distanceKm=${run.distanceKm}`;
+  return `[run-integrity] userId=${user.id} runId=${run.id} verdict=${verdict}`
+    + `${reason ? ` reason=${reason}` : ''} `
+    + `speedMps=${avgSpeedMps} cadenceSpm=${cadence} distanceKm=${run.distanceKm} ${auditSummary}`;
 }
 
 // Sum THIS user's applied LP for the match. The durable per-user LP bookkeeping is the
@@ -166,9 +282,9 @@ function sumAppliedMatchLpDelta(store, userId, matchId) {
   return found ? total : null;
 }
 
-// Retroactive LP revocation for a vehicle-classified official-match run: reverse exactly
-// this user's applied delta via applyLpDelta with the negated value, so the reversal
-// inherits the exact clamp semantics every other LP mutation uses (demotion borrows
+// Retroactive LP revocation for a vehicle-classified official-match run: take back exactly
+// the LP this user GAINED from the match via applyLpDelta with the negated value, so the
+// reversal inherits the exact clamp semantics every other LP mutation uses (demotion borrows
 // LP_PER_TIER per tier crossed; hard floor at 입문 0 LP). Known accepted edge: if the
 // ORIGINAL apply was clamped at that floor, the negated reversal is not perfectly
 // symmetric — rare, small, and bounded by a single delta.
@@ -179,6 +295,15 @@ function sumAppliedMatchLpDelta(store, userId, matchId) {
 // time (the opponent is still running), nothing is revoked NOW — the duel/group reconcile
 // flow re-saves this run to upgrade its PENDING verdict once the opponent lands, and that
 // re-save retries the revocation against the by-then-appended rank_change marker.
+//
+// 양수 델타만 회수한다 — 모든 vehicle 사유에서 (적대 리뷰 2026-09-09). 예전에는 속도 규칙과
+// 케이던스 백스톱이 델타 부호와 무관하게 "그 매치의 LP 변동을 전부 되돌렸다" — 즉 차량 판정을
+// 받은 패자는 자기 패배 LP를 돌려받았다. 부정 러닝 판정이 그 러너에게 환급이 되면 안 된다:
+// 진 매치는 진 매치고(실격패·기권패와 같은 패배), 회수 대상은 이 러너가 그 매치에서 '얻은'
+// 것뿐이다. 그래서 사유('speed' / 'cadence-watchdog' / 'cadence-audit')를 가리지 않고 음수
+// 델타는 손대지 않는다. 자진 신고를 이긴 매치에 얹은 위조(양수 델타)는 여전히 회수된다 —
+// 자진 신고는 신고한 본인만 손해 봐야 하므로. 상대의 LP와 매치 판정은 여전히 여기서 건드리지
+// 않는다(stage-3).
 function revokeAppliedMatchLp(store, user, run) {
   if (Number.isFinite(run.integrity?.lpRevoked)) {
     return;
@@ -194,7 +319,8 @@ function revokeAppliedMatchLp(store, user, run) {
 
   const appliedDelta = sumAppliedMatchLpDelta(store, user.id, matchId);
 
-  if (appliedDelta === null || appliedDelta === 0) {
+  // null = 아직 적용 전(재저장에서 재시도), 0 이하 = 이 매치에서 얻은 게 없다(패배 LP는 남는다).
+  if (appliedDelta === null || appliedDelta <= 0) {
     return;
   }
 
@@ -220,10 +346,11 @@ export function applyRunIntegrityCheck({ store, user, run, nowIso = () => new Da
       return;
     }
 
-    const verdict = classifyRunIntegrity({
+    const { verdict, reason } = resolveRunIntegrityVerdict({
       distanceKm: run.distanceKm,
       durationSeconds: run.durationSeconds,
       cadenceSpm: run.cadenceSpm,
+      cadenceAudit: run.cadenceAudit,
     });
 
     if (verdict === 'clear') {
@@ -236,10 +363,11 @@ export function applyRunIntegrityCheck({ store, user, run, nowIso = () => new Da
     run.integrity = {
       ...(previousIntegrity ?? {}),
       verdict,
+      ...(reason ? { reason } : {}),
       checkedAt: previousIntegrity?.checkedAt ?? nowIso(),
     };
 
-    console.log(buildIntegrityLogLine(user, run, verdict));
+    console.log(buildIntegrityLogLine(user, run, verdict, reason));
 
     if (verdict === 'vehicle') {
       revokeAppliedMatchLp(store, user, run);

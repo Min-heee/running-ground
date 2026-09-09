@@ -185,6 +185,7 @@ async function handleCancelRunningMatch({
 }
 
 async function handleLeaveRunningMatch({
+  ApiError,
   leaveRunningMatch,
   mutateStore,
   parseJsonBody,
@@ -196,9 +197,17 @@ async function handleLeaveRunningMatch({
 }) {
   const body = await parseJsonBody(request);
   const matchId = validateRequiredString(body.matchId, '이탈할 매치 아이디가 필요해요.');
+  // 선택 필드 `reason` (오너 2026-09-09): 'disqualified'만 안다 — 케이던스 워치독 실격패.
+  // 모르는 값은 조용히 기권으로 바꾸지 않고 400 — 계약 오타가 실격을 기권으로 둔갑시키면 안 된다.
+  const reason = typeof body.reason === 'undefined' || body.reason === null ? undefined : body.reason;
+
+  if (typeof reason !== 'undefined' && reason !== 'disqualified') {
+    throw new ApiError(400, '매치 이탈 사유가 올바르지 않아요.');
+  }
+
   const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
-    return leaveRunningMatch(store, currentUser, { matchId });
+    return leaveRunningMatch(store, currentUser, { matchId, ...(reason ? { reason } : {}) });
   });
 
   sendJson(response, 200, payload);

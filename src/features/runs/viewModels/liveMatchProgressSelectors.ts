@@ -1,5 +1,6 @@
 import type { MatchStatusAlert } from '@/features/runs/components/liveMatchTracking/types';
 import type { RunMatchMode } from '@/features/runs/hooks/matchLifecycle/types';
+import { resolveOpponentForfeitTitle } from '@/features/runs/viewModels/matchForfeitLabels';
 import {
   buildGroupLiveStandingRows,
   buildGroupLiveStandings,
@@ -161,7 +162,7 @@ export function buildDuelStatusAlert(opponent: DuelMatchOpponent | null): MatchS
   if (opponent.liveStatus === 'forfeited') {
     return {
       tone: 'danger',
-      title: '상대가 매치를 포기했어요',
+      title: opponent.disqualified === true ? '상대가 부정 러닝으로 실격됐어요' : '상대가 매치를 포기했어요',
       summary: '대결종료를 눌러 지금까지 기록을 저장하고 결과를 확인하세요.',
     };
   }
@@ -199,13 +200,16 @@ export function buildDuelStatusAlert(opponent: DuelMatchOpponent | null): MatchS
 
 export function buildDuelLiveTitle({
   isDuelOpponentForfeited,
+  isDuelOpponentDisqualified = false,
   duelLiveGapKm,
 }: {
   isDuelOpponentForfeited: boolean;
+  // 상대의 기권이 부정 러닝 실격이면 '상대가 실격됐어요'.
+  isDuelOpponentDisqualified?: boolean;
   duelLiveGapKm: number | null;
 }) {
   if (isDuelOpponentForfeited) {
-    return '상대가 기권했어요';
+    return resolveOpponentForfeitTitle(isDuelOpponentDisqualified);
   }
 
   if (duelLiveGapKm === null) {

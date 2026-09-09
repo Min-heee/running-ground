@@ -106,6 +106,7 @@ export function buildDuelRaceBoardSection({
         progress: duelDistanceKm > 0 ? opponentBoardDistanceKm / duelDistanceKm : 0,
         isCurrentUser: false,
         liveStatus: effectiveDuelOpponent.liveStatus,
+        ...(effectiveDuelOpponent.disqualified === true ? { disqualified: true } : {}),
         resultLabel: opponentDuelResultLabel ?? null,
       },
     ], { hideRunningOthers: false });
@@ -134,6 +135,7 @@ export function buildDuelRaceBoardSection({
       progress: placeholderDistanceKm > 0 ? participant.distanceKm / placeholderDistanceKm : 0,
       isCurrentUser: participant.isCurrentUser,
       liveStatus: participant.liveStatus,
+      ...(participant.disqualified === true ? { disqualified: true } : {}),
       resultLabel: participant.isCurrentUser
         ? currentUserDuelResultLabel ?? null
         : opponentDuelResultLabel ?? null,

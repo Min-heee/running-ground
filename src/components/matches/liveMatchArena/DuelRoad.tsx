@@ -13,6 +13,7 @@ import {
   shouldShowRunnerBubble,
 } from '@/components/matches/liveMatchArena/helpers';
 import { liveMatchArenaStyles as styles } from '@/components/matches/liveMatchArena/styles';
+import { resolveForfeitStatusLabel } from '@/features/runs/viewModels/matchForfeitLabels';
 
 function areDuelTokenVisualPropsEqual(
   left: ArenaParticipant,
@@ -23,6 +24,7 @@ function areDuelTokenVisualPropsEqual(
     && left.bpmLabel === right.bpmLabel
     && left.isCurrentUser === right.isCurrentUser
     && left.liveStatus === right.liveStatus
+    && left.disqualified === right.disqualified
     && left.resultLabel === right.resultLabel
     && left.showPaceBubble === right.showPaceBubble;
 }
@@ -82,13 +84,15 @@ const DuelRunnerToken = memo(function DuelRunnerToken({
 const DuelRunnerDistanceMeta = memo(function DuelRunnerDistanceMeta({
   distanceKm,
   forfeited,
+  disqualified,
 }: {
   distanceKm: number;
   forfeited: boolean;
+  disqualified: boolean;
 }) {
   return (
     <Text style={[styles.runnerMeta, forfeited ? styles.runnerMetaForfeited : undefined]}>
-      {forfeited ? '기권' : `${distanceKm.toFixed(2)}km`}
+      {forfeited ? resolveForfeitStatusLabel(disqualified) : `${distanceKm.toFixed(2)}km`}
     </Text>
   );
 });
@@ -96,14 +100,17 @@ const DuelRunnerDistanceMeta = memo(function DuelRunnerDistanceMeta({
 const DuelRunnerTextStack = memo(function DuelRunnerTextStack({
   distanceKm,
   forfeited,
+  disqualified,
 }: {
   distanceKm: number;
   forfeited: boolean;
+  disqualified: boolean;
 }) {
   return (
     <DuelRunnerDistanceMeta
       distanceKm={distanceKm}
       forfeited={forfeited}
+      disqualified={disqualified}
     />
   );
 });
@@ -140,6 +147,7 @@ const DuelRunner = memo(function DuelRunner({
       <DuelRunnerTextStack
         distanceKm={participant.distanceKm}
         forfeited={participantForfeited}
+        disqualified={participant.disqualified === true}
       />
     </View>
   );

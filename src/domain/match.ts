@@ -23,6 +23,9 @@ export type RunMatchResult = {
   myDurationSeconds?: number;
   opponentPaceLabel?: string;
   opponentDurationSeconds?: number;
+  // 부정 러닝 실격패 (오너 규칙 2026-09-09): 케이던스 워치독이 두 번 연속 걸렸을 때의 기권.
+  // 실격은 패배(resultTone 'lose')이고 이 러닝의 매치 포인트는 0 — 서버 points.mjs 벨트.
+  disqualified?: boolean;
   // Fair-verdict display-only flags. Set ONLY on the run-detail reconcile OVERLAY (the
   // in-memory record rebuilt from the server's /status verdict or /result response) — the
   // client never persists them, so a provisional outcome can never be written into a saved

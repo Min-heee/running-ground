@@ -29,3 +29,18 @@ test('runner visual state keeps current runner and leader tones distinct', () =>
     isLeader: true,
   }, '선').markerTone, 'leader');
 });
+
+test('runner visual state paints a disqualified (부정 러닝) forfeiter with 실격 labels on the same forfeited tone', () => {
+  const state = buildLiveMatchRunnerVisualState({
+    name: '회원E',
+    paceLabel: '01:51/km',
+    liveStatus: 'forfeited',
+    disqualified: true,
+  }, '회');
+
+  assert.equal(state.isForfeited, true);
+  assert.equal(state.markerTone, 'forfeited');
+  assert.equal(state.markerLabel, '실격');
+  assert.equal(state.bubbleLabel, '실격 처리됨');
+  assert.equal(state.averagePaceLabel, '실격');
+});

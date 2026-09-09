@@ -174,6 +174,7 @@ class FakePostgresDatabase {
         imported_at: params[15],
         created_at: params[16],
         updated_at: params[17],
+        cadence_audit: typeof params[18] === 'string' ? JSON.parse(params[18]) : (params[18] ?? null),
       });
       return { rows: [] };
     }
@@ -649,4 +650,50 @@ await runTest('returns latest and specific run details', async () => {
 
   assert.equal((await repository.getRun({ token: 'token-1' })).run.id, 'run-new');
   assert.equal((await repository.getRun({ token: 'token-1', runId: 'run-old' })).run.id, 'run-old');
+});
+
+// --- 케이던스 워치독 감사 원장 (오너 2026-09-09): cadence_audit jsonb 왕복 ---
+
+await runTest('cadenceAudit lands in the cadence_audit column and reads back through mapRunRow', async () => {
+  const { repository, database } = createRepositoryHarness();
+  const cadenceAudit = { sensorAvailable: true, foregroundMovingSeconds: 900, foregroundSteps: 2400, strikes: 1, disqualified: false };
+
+  const result = await repository.createTrackedRun({
+    token: 'token-1',
+    input: {
+      date: '2026-09-09',
+      distanceKm: 5,
+      pace: '06:00/km',
+      durationSeconds: 1800,
+      cadenceSpm: 160,
+      cadenceAudit,
+      route: [
+        { latitude: 37.1, longitude: 127.1 },
+        { latitude: 37.2, longitude: 127.2 },
+      ],
+      startedAt: '2026-09-09T10:00:00.000Z',
+      endedAt: '2026-09-09T10:30:00.000Z',
+    },
+  });
+
+  assert.deepEqual(result.run.cadenceAudit, cadenceAudit);
+  assert.deepEqual(database.runs[0].cadence_audit, cadenceAudit);
+
+  // A run without a ledger stores NULL and maps to no key at all (older clients).
+  await repository.createTrackedRun({
+    token: 'token-1',
+    input: {
+      date: '2026-09-09',
+      distanceKm: 3,
+      pace: '06:00/km',
+      durationSeconds: 1080,
+      route: [
+        { latitude: 37.1, longitude: 127.1 },
+        { latitude: 37.2, longitude: 127.2 },
+      ],
+      startedAt: '2026-09-09T12:00:00.000Z',
+      endedAt: '2026-09-09T12:18:00.000Z',
+    },
+  });
+  assert.equal(database.runs[1].cadence_audit, null);
 });

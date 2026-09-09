@@ -111,8 +111,14 @@ create table if not exists runs (
   ended_at timestamptz,
   imported_at timestamptz,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  -- 케이던스 워치독 감사 원장 (2026-09-09): { sensorAvailable, foregroundMovingSeconds,
+  -- foregroundSteps, strikes, disqualified }. match_result처럼 선택 jsonb.
+  cadence_audit jsonb
 );
+
+-- 이미 만들어진 runs 테이블에 감사 원장 컬럼을 덧붙인다 (멱등).
+alter table runs add column if not exists cadence_audit jsonb;
 
 create index if not exists runs_user_date_idx on runs (user_id, run_date desc);
 create index if not exists runs_region_ranking_idx on runs (run_date desc, distance_km desc);

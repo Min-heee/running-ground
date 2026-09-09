@@ -30,8 +30,28 @@ test('live tracking metric store publishes partial frame updates', () => {
     currentPace: '--:--/km',
     averagePace: '04:04/km',
     cadenceSpm: null,
+    totalSteps: null,
     elevationGainM: 0,
   });
+
+  unsubscribe();
+});
+
+test('live tracking metric store publishes totalSteps alongside cadence for the cadence watchdog', () => {
+  resetLiveTrackingMetricStoreForTest();
+  let emitCount = 0;
+  const unsubscribe = subscribeLiveTrackingMetricFrame(() => {
+    emitCount += 1;
+  });
+
+  publishLiveTrackingMetricFrame({ cadenceSpm: 160, totalSteps: 800 });
+  assert.equal(getLiveTrackingMetricFrameSnapshot().totalSteps, 800);
+  assert.equal(emitCount, 1);
+
+  // 걸음만 달라져도 프레임은 새로 발행된다 (창 델타 재료).
+  publishLiveTrackingMetricFrame({ cadenceSpm: 160, totalSteps: 803 });
+  assert.equal(getLiveTrackingMetricFrameSnapshot().totalSteps, 803);
+  assert.equal(emitCount, 2);
 
   unsubscribe();
 });

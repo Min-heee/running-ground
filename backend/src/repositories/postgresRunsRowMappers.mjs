@@ -45,6 +45,7 @@ export function mapRunRow(row) {
     ...(row.match_result ? { matchResult: clone(row.match_result) } : {}),
     ...(hasValue(row.duration_seconds) ? { durationSeconds: asNumber(row.duration_seconds) } : {}),
     ...(hasValue(row.cadence_spm) ? { cadenceSpm: asNumber(row.cadence_spm) } : {}),
+    ...(row.cadence_audit && typeof row.cadence_audit === 'object' ? { cadenceAudit: clone(row.cadence_audit) } : {}),
     ...(hasValue(row.elevation_gain_m) ? { elevationGainM: asNumber(row.elevation_gain_m) } : {}),
     ...(normalizeOptionalString(row.started_at) ? { startedAt: toIsoString(row.started_at) } : {}),
     ...(normalizeOptionalString(row.ended_at) ? { endedAt: toIsoString(row.ended_at) } : {}),

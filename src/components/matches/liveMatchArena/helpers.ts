@@ -115,6 +115,7 @@ export function areParticipantsEqual(left: ArenaParticipant, right: ArenaPartici
     && left.isCurrentUser === right.isCurrentUser
     && left.isLeader === right.isLeader
     && left.liveStatus === right.liveStatus
+    && left.disqualified === right.disqualified
     && left.showPaceBubble === right.showPaceBubble
     && left.emphasis === right.emphasis
   );

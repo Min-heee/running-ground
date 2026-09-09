@@ -12,6 +12,8 @@ export type ArenaParticipant = {
   isCurrentUser?: boolean;
   isLeader?: boolean;
   liveStatus?: 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'forfeited' | 'finished';
+  // 부정 러닝 실격 기권 — forfeited 시각 상태에 '실격' 라벨.
+  disqualified?: boolean;
   showPaceBubble?: boolean;
   emphasis?: 'featured' | 'compact';
 };

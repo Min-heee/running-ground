@@ -40,7 +40,7 @@ export async function loadRunsForUser(database, userId) {
   const result = await database.query(
     `
       select id, user_id, run_date, distance_km, pace, source_label, source_type, external_id,
-             route, match_result, duration_seconds, cadence_spm, elevation_gain_m, started_at, ended_at,
+             route, match_result, duration_seconds, cadence_spm, cadence_audit, elevation_gain_m, started_at, ended_at,
              imported_at, created_at, updated_at
       from runs
       where user_id = $1
@@ -141,12 +141,12 @@ export async function insertRun(database, run) {
       insert into runs (
         id, user_id, run_date, distance_km, pace, source_label, source_type, external_id,
         route, match_result, duration_seconds, cadence_spm, elevation_gain_m, started_at, ended_at,
-        imported_at, created_at, updated_at
+        imported_at, created_at, updated_at, cadence_audit
       )
       values (
         $1, $2, $3, $4, $5, $6, $7, $8,
         $9, $10, $11, $12, $13, $14, $15,
-        $16, $17, $18
+        $16, $17, $18, $19
       )
     `,
     [
@@ -168,6 +168,9 @@ export async function insertRun(database, run) {
       run.importedAt ?? null,
       run.createdAt,
       run.updatedAt ?? run.createdAt,
+      // 케이던스 워치독 감사 원장 (2026-09-09) — match_result와 같은 선택 jsonb. 맨 뒤에 둬서
+      // 기존 파라미터 인덱스($1~$18)가 움직이지 않는다.
+      run.cadenceAudit ? JSON.stringify(run.cadenceAudit) : null,
     ],
   );
 }

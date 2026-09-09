@@ -14,6 +14,7 @@ export async function routeRunRequest({
   settleChaseRunUpload,
   getStoredRunRoute,
   validateRequiredString,
+  validateCadenceAudit,
   validateDistanceKm,
   validateDateOnly,
   validateNonNegativeInteger,
@@ -96,6 +97,7 @@ export async function routeRunRequest({
       response,
       sendJson,
       settleChaseRunUpload,
+      validateCadenceAudit,
       validateDateOnly,
       validateDistanceKm,
       validateNonNegativeInteger,
@@ -155,6 +157,7 @@ async function handleCreateTrackedRun({
   response,
   sendJson,
   settleChaseRunUpload,
+  validateCadenceAudit,
   validateDateOnly,
   validateDistanceKm,
   validateNonNegativeInteger,
@@ -222,6 +225,11 @@ async function handleCreateTrackedRun({
       ...(typeof body.elevationGainM !== 'undefined' && body.elevationGainM !== null
         ? { elevationGainM: validateNonNegativeInteger(body.elevationGainM, '고도 상승 값이 올바르지 않아요.') }
         : {}),
+      // 케이던스 워치독 감사 원장 (오너 2026-09-09) — runIntegrity가 자진 신고/백스톱 판정에 쓴다.
+      ...(() => {
+        const cadenceAudit = validateCadenceAudit(body.cadenceAudit);
+        return cadenceAudit ? { cadenceAudit } : {};
+      })(),
       route: validateTrackedRoute(body.route),
       startedAt,
       endedAt,

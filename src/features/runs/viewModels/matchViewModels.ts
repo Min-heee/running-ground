@@ -9,6 +9,7 @@ import {
   buildParticipantAveragePaceLabel,
   type GroupLiveStanding,
 } from '@/features/runs/viewModels/matchProgress';
+import { resolveForfeitStatusLabel } from '@/features/runs/viewModels/matchForfeitLabels';
 import {
   getCurrentUserResultLabel,
   getParticipantArenaLabel,
@@ -30,6 +31,8 @@ export type ArenaParticipantViewModel = {
   isCurrentUser?: boolean;
   isLeader?: boolean;
   liveStatus?: MatchLiveStatus;
+  // 부정 러닝 실격 기권 — liveStatus 'forfeited'에 얹히는 표시 플래그('기권'→'실격').
+  disqualified?: boolean;
   showPaceBubble?: boolean;
   emphasis?: 'featured' | 'compact';
 };
@@ -66,6 +69,8 @@ function mergeRoomParticipantProgress<T extends DuelMatchOpponent | GroupMatchPa
 
   return {
     ...roomParticipant,
+    // 실격 플래그는 매치 상태 쪽이 유일한 근원 — 방 로스터엔 없다.
+    disqualified: statusParticipant.disqualified ?? roomParticipant.disqualified,
     liveDistanceKm: statusParticipant.liveDistanceKm ?? roomParticipant.liveDistanceKm,
     liveElapsedSeconds: statusParticipant.liveElapsedSeconds ?? roomParticipant.liveElapsedSeconds,
     livePace: statusParticipant.livePace ?? roomParticipant.livePace,
@@ -161,11 +166,12 @@ export function buildDuelArenaParticipants({
     {
       id: opponent.id,
       name: opponent.name,
-      paceLabel: opponentForfeited ? '기권' : opponentPaceLabel,
+      paceLabel: opponentForfeited ? resolveForfeitStatusLabel(opponent.disqualified) : opponentPaceLabel,
       distanceKm: opponentDistanceKm,
       finishedAt: opponent.finishedAt ?? null,
       isLeader: liveGapKm !== null ? liveGapKm < 0 : true,
       liveStatus: opponent.liveStatus,
+      ...(opponent.disqualified === true ? { disqualified: true } : {}),
       showPaceBubble: opponentForfeited || Boolean(opponentPaceLabel),
     },
   ]);
@@ -213,7 +219,9 @@ export function buildRoomLinkedDuelPlaceholderParticipants({
       id: participant.userId,
       // 내 행도 방 로스터의 실제 닉네임으로 (오너 2026-08-28) — '나'는 이름 부재 폴백.
       name: participant.name.trim() || (isCurrentUser ? '나' : '상대'),
-      paceLabel: participantLiveStatus === 'forfeited' ? '기권' : participantPaceLabel,
+      paceLabel: participantLiveStatus === 'forfeited'
+        ? resolveForfeitStatusLabel(mergedParticipant.disqualified)
+        : participantPaceLabel,
       progressPaceLabel: participantPaceLabel,
       distanceKm: participantDistanceKm,
       elapsedSeconds: progressModel.displayProgress.elapsedSeconds,
@@ -221,6 +229,7 @@ export function buildRoomLinkedDuelPlaceholderParticipants({
       isCurrentUser,
       isLeader: false,
       liveStatus: participantLiveStatus,
+      ...(mergedParticipant.disqualified === true ? { disqualified: true } : {}),
       showPaceBubble: participantLiveStatus === 'forfeited' || Boolean(participantPaceLabel),
     };
   });
@@ -261,6 +270,7 @@ export function buildGroupArenaParticipants({
       isCurrentUser: participant.isCurrentUser,
       isLeader: participant.rank === 1,
       liveStatus: participant.liveStatus,
+      ...(participant.disqualified === true ? { disqualified: true } : {}),
       showPaceBubble: Boolean(participantPaceLabel),
       emphasis: featuredParticipantIds.has(participant.id) ? 'featured' : 'compact',
     };
@@ -309,7 +319,9 @@ export function buildRoomLinkedGroupPlaceholderParticipants({
       id: participant.userId,
       // 내 행도 방 로스터의 실제 닉네임으로 (오너 2026-08-28) — '나'는 이름 부재 폴백.
       name: participant.name.trim() || (isCurrentUser ? '나' : '러너'),
-      paceLabel: participantLiveStatus === 'forfeited' ? '기권' : participantPaceLabel,
+      paceLabel: participantLiveStatus === 'forfeited'
+        ? resolveForfeitStatusLabel(mergedParticipant.disqualified)
+        : participantPaceLabel,
       progressPaceLabel: participantPaceLabel,
       distanceKm: participantDistanceKm,
       elapsedSeconds: progressModel.displayProgress.elapsedSeconds,
@@ -317,6 +329,7 @@ export function buildRoomLinkedGroupPlaceholderParticipants({
       isCurrentUser,
       isLeader: index === 0,
       liveStatus: participantLiveStatus,
+      ...(mergedParticipant.disqualified === true ? { disqualified: true } : {}),
       showPaceBubble: participantLiveStatus === 'forfeited' || Boolean(participantPaceLabel),
       emphasis: 'featured' as const,
     };

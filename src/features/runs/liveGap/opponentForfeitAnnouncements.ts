@@ -5,6 +5,7 @@
 // the dedup / exclusion / message rules are unit-testable in isolation.
 
 import type { GroupLiveStanding } from '@/features/runs/types/matchProgress';
+import { buildForfeiterAnnouncement } from '@/features/runs/viewModels/matchForfeitLabels';
 
 export type ForfeitAnnouncementMatchMode = 'duel' | 'group';
 
@@ -16,6 +17,8 @@ export type ForfeitOpponentInput = {
   id?: string | null;
   name?: string | null;
   liveStatus?: string | null;
+  // 부정 러닝 실격 기권 — 음성은 "기권했어요" 대신 "실격됐어요".
+  disqualified?: boolean | null;
 } | null;
 
 export type ForfeitAnnouncement = {
@@ -44,9 +47,10 @@ function normalizeName(name: string | null | undefined): string | null {
 }
 
 // Single-forfeiter message (duel opponent or one group participant). Same wording for both
-// modes — a named forfeiter reads "{name}님이 기권했어요", an unknown one "상대가 기권했어요".
-function buildForfeitMessage(name: string | null): string {
-  return name ? `${name}님이 기권했어요` : '상대가 기권했어요';
+// modes — a named forfeiter reads "{name}님이 기권했어요", an unknown one "상대가 기권했어요";
+// a disqualified (부정 러닝) forfeiter reads "…실격됐어요" instead.
+function buildForfeitMessage(name: string | null, disqualified?: boolean | null): string {
+  return buildForfeiterAnnouncement(name, disqualified);
 }
 
 // Folds 1..N same-tick forfeit announcements into ONE utterance, because the TTS layer
@@ -87,7 +91,7 @@ export function selectNewlyForfeitedAnnouncements({
       const id = (opponent.id && opponent.id.trim()) || DUEL_OPPONENT_FALLBACK_ID;
       if (!alreadyAnnounced.has(id)) {
         const name = normalizeName(opponent.name);
-        announcements.push({ id, name, text: buildForfeitMessage(name) });
+        announcements.push({ id, name, text: buildForfeitMessage(name, opponent.disqualified) });
       }
     }
     return announcements;
@@ -105,7 +109,7 @@ export function selectNewlyForfeitedAnnouncements({
     }
 
     const name = normalizeName(standing.name);
-    announcements.push({ id, name, text: buildForfeitMessage(name) });
+    announcements.push({ id, name, text: buildForfeitMessage(name, standing.disqualified) });
   }
 
   return announcements;

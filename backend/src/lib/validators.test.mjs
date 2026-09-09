@@ -3,8 +3,10 @@ import test from 'node:test';
 import { ApiError } from '../response/httpResponse.mjs';
 import {
   resolveRegionSelection,
+  validateCadenceAudit,
   validateDateOnly,
   validateDuelMatchDistanceKm,
+  validateRunMatchResult,
   validateRunningMatchProgressDistanceKm,
 } from './validators.mjs';
 
@@ -128,4 +130,40 @@ test('validateDateOnly keeps rejecting tomorrow when UTC and KST agree', () => {
     (error) => error instanceof ApiError && error.statusCode === 400,
   );
   assert.equal(validateDateOnly('2026-07-13', '날짜를 입력해주세요.', kstAfternoon), '2026-07-13');
+});
+
+// ── 케이던스 워치독 감사 원장 + 실격 표식 (오너 2026-09-09) ─────────────────────────────
+
+test('validateCadenceAudit accepts the client ledger shape, passes undefined/null through, rejects garbage', () => {
+  const audit = { sensorAvailable: true, foregroundMovingSeconds: 600, foregroundSteps: 1500, strikes: 1, disqualified: false };
+
+  assert.deepEqual(validateCadenceAudit(audit), audit);
+  assert.equal(validateCadenceAudit(undefined), undefined);
+  assert.equal(validateCadenceAudit(null), undefined);
+
+  for (const bad of [
+    'audit',
+    [],
+    { ...audit, sensorAvailable: 'true' },
+    { ...audit, foregroundMovingSeconds: -1 },
+    { ...audit, foregroundSteps: 1.5 },
+    { ...audit, strikes: 'two' },
+    { ...audit, disqualified: 1 },
+    { sensorAvailable: true, disqualified: true },
+  ]) {
+    assert.throws(
+      () => validateCadenceAudit(bad),
+      (error) => error instanceof ApiError && error.statusCode === 400,
+      `must reject ${JSON.stringify(bad)}`,
+    );
+  }
+});
+
+test('validateRunMatchResult passes `disqualified: true` through and drops anything else', () => {
+  const base = { mode: 'duel', title: 't', summary: 's', badgeLabel: '실격패', resultTone: 'lose' };
+
+  assert.equal(validateRunMatchResult({ ...base, disqualified: true }).disqualified, true);
+  assert.equal('disqualified' in validateRunMatchResult({ ...base, disqualified: false }), false);
+  assert.equal('disqualified' in validateRunMatchResult({ ...base, disqualified: 'true' }), false);
+  assert.equal('disqualified' in validateRunMatchResult(base), false);
 });

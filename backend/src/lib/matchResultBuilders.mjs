@@ -1,6 +1,8 @@
 import { ApiError } from '../response/httpResponse.mjs';
 import { parsePaceToMinutes } from './points.mjs';
 import { applyRunIntegrityCheck, classifyRunIntegrity } from './runIntegrity.mjs';
+import { forfeitSessionParticipant } from './matchCompletionAwards.mjs';
+import { isParticipantDoneWithMatch } from './matchPureHelpers.mjs';
 import {
   findMatchRoster,
   isMatchRosterEpochMature,
@@ -29,18 +31,31 @@ function findRawMatchSessionById(store, matchId) {
   return ensureMatchSessions(store).find((session) => session.id === matchId) ?? null;
 }
 
+// 실격 배지 문구 (오너 2026-09-09) — 케이던스 워치독 부정 러닝. 클라이언트의 실격 기권 블롭
+// (badgeLabel '실격패')과 서버 재작성이 같은 글자를 쓰도록 여기 한 곳에 둔다.
+export const DISQUALIFIED_SELF_BADGE_LABEL = '실격패';
+export const DISQUALIFIED_OPPONENT_BADGE_LABEL = '상대 실격 승';
+
 // Server-authoritative duel win/lose copy. The verdict (buildDuelVerdict) is the ONE source
 // of truth, so the saved card's title/badge are rebuilt from the verdict outcome here rather
 // than trusting the client-supplied text.
-function buildAuthoritativeDuelCopy(outcome, opponentName) {
+//
+// 실격 (2026-09-09): 세션 참가자에 disqualified가 박혀 있으면 그 쪽의 문구만 '실격'으로 바뀐다
+// — 내가 실격이면 '실격패', 상대가 실격이면 '상대 실격 승'. 일반 기권은 지금까지처럼 verdict
+// 결과 문구('패배'/'승리')를 그대로 받는다 — reason 없는 기권 흐름은 손대지 않는다.
+function buildAuthoritativeDuelCopy(outcome, opponentName, { myDisqualified = false, opponentDisqualified = false } = {}) {
   const name = typeof opponentName === 'string' && opponentName.trim() ? opponentName.trim() : '상대';
 
   if (outcome === 'win') {
-    return { title: `${name}님을 이겼어요`, badgeLabel: '승리' };
+    return opponentDisqualified
+      ? { title: `${name}님 실격으로 승리했어요`, badgeLabel: DISQUALIFIED_OPPONENT_BADGE_LABEL }
+      : { title: `${name}님을 이겼어요`, badgeLabel: '승리' };
   }
 
   if (outcome === 'lose') {
-    return { title: `${name}님에게 졌어요`, badgeLabel: '패배' };
+    return myDisqualified
+      ? { title: '부정 러닝으로 실격패했어요', badgeLabel: DISQUALIFIED_SELF_BADGE_LABEL }
+      : { title: `${name}님에게 졌어요`, badgeLabel: '패배' };
   }
 
   return { title: `${name}님과 비슷한 흐름으로 마쳤어요`, badgeLabel: '무승부' };
@@ -96,9 +111,16 @@ export function resolveSavedDuelMatchResult(store, currentUser, matchResult, now
   // (getMatchBonusPoints는 저장된 블롭의 resultTone만 보고 지급한다). 남의 세션을 대신
   // 판정해 줄 수 없다는 것과, 그 사람의 주장을 그대로 믿어준다는 것은 전혀 다른 얘기다.
   // 검증할 수 없으면 PENDING — 세션 없는 분기가 검증 못 할 때 하는 처리와 정확히 같다.
-  if (!session.participants.some((participant) => participant.userId === currentUser.id)) {
+  const myParticipant = session.participants.find((participant) => participant.userId === currentUser.id) ?? null;
+
+  if (!myParticipant) {
     return toPendingDuelMatchResult(matchResult);
   }
+
+  // 내 '실격패'/'기권 패' 블롭은 leave 호출이 서버에 못 닿았을 때 그 호출을 대신한다 — 아래
+  // stampSelfForfeitFromSavedResult 참조. 스탬프 뒤에는 평소의 판정/문구 경로가 그대로 이어져,
+  // 상대의 이후 저장/상태가 '상대 실격 승'(또는 기권 승리)을 본다.
+  stampSelfForfeitFromSavedResult(store, session, myParticipant, matchResult, now);
 
   const standings = buildOfficialSessionStandings(store, session, now);
   const verdict = buildDuelVerdict(session, standings, currentUser.id, now);
@@ -111,6 +133,7 @@ export function resolveSavedDuelMatchResult(store, currentUser, matchResult, now
   }
 
   const outcome = verdict.outcome;
+  const myStanding = standings.find((standing) => standing.userId === currentUser.id) ?? null;
   const opponentStanding = standings.find((standing) => standing.userId !== currentUser.id) ?? null;
   const opponentParticipant = opponentStanding
     ? session.participants.find((participant) => participant.userId === opponentStanding.userId) ?? null
@@ -120,7 +143,13 @@ export function resolveSavedDuelMatchResult(store, currentUser, matchResult, now
     : null;
   const opponentName = (opponentProfile?.name ?? opponentStanding?.name ?? matchResult.opponentName ?? '상대');
   const opponentId = opponentStanding?.userId ?? undefined;
-  const copy = buildAuthoritativeDuelCopy(outcome, opponentName);
+  // 실격은 세션이 진실이다(leaveRunningMatch reason 'disqualified'가 박은 플래그) — 클라 블롭의
+  // 자진 신고(disqualified: true)는 스프레드로 그대로 살아남고, 서버 플래그가 있으면 덧찍는다.
+  const myDisqualified = myStanding?.disqualified === true;
+  const copy = buildAuthoritativeDuelCopy(outcome, opponentName, {
+    myDisqualified,
+    opponentDisqualified: opponentStanding?.disqualified === true,
+  });
 
   const myDurationSeconds = Number.isInteger(verdict.myFinishElapsedSeconds) && verdict.myFinishElapsedSeconds > 0
     ? verdict.myFinishElapsedSeconds
@@ -135,6 +164,7 @@ export function resolveSavedDuelMatchResult(store, currentUser, matchResult, now
     title: copy.title,
     badgeLabel: copy.badgeLabel,
     resultTone: outcome,
+    ...(myDisqualified ? { disqualified: true } : {}),
     opponentName,
     ...(opponentId ? { opponentId } : {}),
     ...(typeof myDurationSeconds === 'number' ? { myDurationSeconds } : {}),
@@ -190,8 +220,9 @@ function toPendingGroupMatchResult(matchResult) {
 // A forfeit group record carries its OWN authoritative terminal state (a 기권 badge), exactly like
 // the duel forfeit: the forfeiter's placement is deterministic and the validator already shaped it,
 // so it must resolve from the saved/forfeit record itself — never be forced PENDING forever.
+// '실격'(케이던스 워치독 부정 러닝, 2026-09-09)도 같은 자기 완결 기권 기록이다.
 function isForfeitGroupMatchResult(matchResult) {
-  return /기권/.test(String(matchResult?.badgeLabel ?? ''));
+  return /기권|실격/.test(String(matchResult?.badgeLabel ?? ''));
 }
 
 // C (group parity): at run save, the SERVER decides the group's final placement — never the client.
@@ -221,12 +252,23 @@ export function resolveSavedGroupMatchResult(store, currentUser, matchResult, no
     return matchResult;
   }
 
-  // A forfeit record is self-contained and already authoritative — keep it as saved.
+  const session = findRawMatchSessionById(store, matchId);
+
+  // A forfeit record is self-contained and already authoritative — keep it as saved. 단, 세션이
+  // 살아 있는데 저장자가 아직 달리는 참가자로 남아 있으면(leave 호출이 서버에 못 닿음) 듀얼과 같은
+  // 이유로 서버가 기권/실격 스탬프를 대신 박은 뒤 돌려준다 — 다른 참가자의 상태/순위 페이로드가
+  // 이 러너를 forfeited(+disqualified)로 보고, 그룹이 §B4 폴백까지 이 사람을 기다리지 않도록.
   if (isForfeitGroupMatchResult(matchResult)) {
+    const myParticipant = session?.mode === 'group'
+      ? session.participants.find((participant) => participant.userId === currentUser.id) ?? null
+      : null;
+
+    if (myParticipant) {
+      stampSelfForfeitFromSavedResult(store, session, myParticipant, matchResult, now);
+    }
+
     return matchResult;
   }
-
-  const session = findRawMatchSessionById(store, matchId);
 
   // No live session → the session was pruned (the normal all-done end-state). Reconstruct the
   // placement SERVER-side from the durable saved runs — never trust the client's claimed rank.
@@ -394,8 +436,48 @@ function resolveNoSessionMatchRoster(store, currentUser, matchId, now, rosterOve
 // deterministic terminal outcome the live arena already sealed (the forfeiter loses, the opponent
 // wins) and the validator already shaped it. It is NEVER a finish-time race we can reconstruct, so
 // it must resolve from the saved/forfeit record itself — never be forced PENDING forever.
+// '실격'(케이던스 워치독 부정 러닝, 2026-09-09) 블롭도 기권과 같은 자기 완결 기록이다.
 function isForfeitMatchResult(matchResult) {
-  return /기권/.test(String(matchResult?.badgeLabel ?? ''));
+  return /기권|실격/.test(String(matchResult?.badgeLabel ?? ''));
+}
+
+// 저장자 '본인'의 기권/실격 기록인가. isForfeitMatchResult는 상대 쪽 승리 블롭('상대 기권 승' /
+// '상대 실격 승')도 같은 글자로 잡으므로, 세션 스탬프에는 내 쪽 패배 기록만 골라야 한다 — 안 그러면
+// 이긴 쪽이 자기 승리 블롭을 저장하는 순간 스스로 기권 처리된다. 듀얼은 resultTone 'lose'
+// (buildResultFromSavedRuns의 forfeited 판별과 같은 식), 그룹 기권 블롭은 tone 없이 '기권'/'실격패'
+// 배지만 든다(클라 runSaveResultMapper.buildCurrentUserForfeitMatchResult).
+function isSelfForfeitMatchResult(matchResult) {
+  if (!isForfeitMatchResult(matchResult) || /상대/.test(String(matchResult.badgeLabel ?? ''))) {
+    return false;
+  }
+
+  return matchResult.mode === 'group' || matchResult.resultTone === 'lose';
+}
+
+// 저장된 자기 실격/기권 블롭은 세션에 대해 권위가 있다 (적대 리뷰 2026-09-09).
+//
+// 실증된 시나리오: 클라 워치독이 2차 스트라이크로 실격 → leaveRunningMatch({ reason: 'disqualified' })
+// 가 네트워크/400으로 실패(클라는 삼킨다) → 그래도 저장은 matchResult { badgeLabel '실격패',
+// resultTone 'lose', disqualified: true } + cadenceAudit.disqualified로 도착한다. 예전에는 라이브
+// 세션 분기가 저장자를 아직 달리는 참가자로 보고 블롭을 PENDING으로 뒤집었고, 나중에 평문 '패배'로
+// 치유됐으며, 상대는 평문 '승리'로 굳었다 — 실격 표식이 양쪽 폰에서 사라졌다.
+//
+// 그래서 leaveRunningMatch가 했을 스탬프를 서버가 대신 박는다(forfeitSessionParticipant — 같은
+// 헬퍼, 같은 필드, 같은 LP 훅). 신뢰 근거는 cadenceAudit.disqualified 경로와 같다: 자진 신고는
+// 신고한 본인만 손해 본다(기권패/실격패 = 패배, 매치 포인트 0). 이미 종료 상태(finished/forfeited)
+// 인 참가자는 건드리지 않는다 — 완주자의 기록이 기권으로 둔갑할 수 없고, 정상 leave 뒤의 저장은
+// no-op이다. 물리적 prune은 여기서 하지 않는다: resolver는 곧바로 이 세션의 standings를 읽어야
+// 하고, 정리는 다음 상태 폴/진행 푸시가 한다. 반환값은 실제로 스탬프했는지.
+function stampSelfForfeitFromSavedResult(store, session, participant, matchResult, now) {
+  if (!isSelfForfeitMatchResult(matchResult) || isParticipantDoneWithMatch(participant, now)) {
+    return false;
+  }
+
+  forfeitSessionParticipant(store, session, participant, {
+    ...(matchResult.disqualified === true ? { reason: 'disqualified' } : {}),
+    now,
+  });
+  return true;
 }
 
 // 상대의 저장된 판정을 뒤집어 내 판정으로 삼는다(win↔lose, draw는 그대로). 확정 tone이 없으면
@@ -548,7 +630,12 @@ function resolveDuelMatchResultFromSavedRuns(store, currentUser, matchId, matchR
       ? matchResult.opponentName.trim()
       : null)
     ?? '상대');
-  const copy = buildAuthoritativeDuelCopy(outcome, opponentName);
+  // 세션이 사라진 뒤에는 상대의 저장 블롭이 실격의 유일한 흔적이다 (자진 신고 disqualified: true —
+  // 본인만 손해 보는 표식이라 믿어도 된다). 판정(outcome)은 위에서 독립적으로 정해졌고, 여기서는
+  // 이긴 쪽의 문구만 '상대 실격 승'으로 바뀐다. 기권 블롭(disqualified 없음)은 기존 '승리' 그대로.
+  const copy = buildAuthoritativeDuelCopy(outcome, opponentName, {
+    opponentDisqualified: opponentMatchResult.disqualified === true,
+  });
 
   const resolved = {
     ...matchResult,
@@ -683,6 +770,8 @@ function buildResultFromSession(store, session, currentUserId, now) {
       rank: Number.isInteger(standing.officialRank) ? standing.officialRank : null,
       resultTone,
       forfeited,
+      // 실격패(2026-09-09) — forfeited와 나란히, 있을 때만 키가 생긴다. 화면은 '기권' 대신 '실격'.
+      ...(standing.disqualified === true ? { disqualified: true } : {}),
       isMe: standing.userId === currentUserId,
     };
   });
@@ -810,7 +899,9 @@ function buildResultFromSavedRuns(store, currentUser, matchId, savedRunsByUserId
       distanceKm: goalDistanceKm,
       rank: Number.isInteger(matchResult.rank) ? matchResult.rank : null,
       resultTone,
-      forfeited: resultTone === 'lose' && /기권/.test(String(matchResult.badgeLabel ?? '')),
+      forfeited: resultTone === 'lose' && /기권|실격/.test(String(matchResult.badgeLabel ?? '')),
+      // 실격패(2026-09-09): 저장된 블롭의 자진 신고/서버 스탬프에서 복원한다.
+      ...(matchResult.disqualified === true ? { disqualified: true } : {}),
       isMe: run.userId === currentUser.id,
     };
   });
@@ -863,6 +954,8 @@ function buildResultFromSavedRuns(store, currentUser, matchId, savedRunsByUserId
       rank: null,
       resultTone: opponentTone,
       forfeited: false,
+      // 내 블롭이 서버가 쓴 '상대 실격 승' 배지를 들고 있으면 재구성된 상대 행도 실격으로 표시.
+      ...(String(myMatchResult.badgeLabel ?? '') === DISQUALIFIED_OPPONENT_BADGE_LABEL ? { disqualified: true } : {}),
       isMe: false,
     });
   }
@@ -1143,8 +1236,8 @@ function backFillSavedRunsForMatchId(store, matchId, mode, now, participantIds) 
     }
 
     // Only heal an UNRESOLVED placeholder; a definite verdict (duel resultTone / group rank)
-    // or a forfeit record is authoritative and must never be downgraded.
-    const isForfeit = /기권/.test(String(matchResult.badgeLabel ?? ''));
+    // or a forfeit record (기권/실격) is authoritative and must never be downgraded.
+    const isForfeit = /기권|실격/.test(String(matchResult.badgeLabel ?? ''));
     const isUnresolved = mode === 'duel'
       ? !['win', 'lose', 'draw'].includes(matchResult.resultTone)
       : !Number.isInteger(matchResult.rank);

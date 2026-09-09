@@ -11,6 +11,7 @@ type UseForfeitControllerInput = {
   isSaving: boolean;
   isRunning: boolean;
   counterpartForfeited: boolean;
+  counterpartDisqualified?: boolean;
   selfForfeited: boolean;
   selfFinished: boolean;
   allOthersForfeited?: boolean;
@@ -28,6 +29,7 @@ export function useForfeitController({
   isSaving,
   isRunning,
   counterpartForfeited,
+  counterpartDisqualified = false,
   selfForfeited,
   selfFinished,
   allOthersForfeited = false,
@@ -44,6 +46,7 @@ export function useForfeitController({
     isSaving,
     isRunning,
     counterpartForfeited,
+    counterpartDisqualified,
     selfForfeited,
     selfFinished,
     allOthersForfeited,
@@ -51,6 +54,7 @@ export function useForfeitController({
   }), [
     allOthersForfeited,
     isPartyRun,
+    counterpartDisqualified,
     counterpartForfeited,
     isLeaving,
     isRunning,

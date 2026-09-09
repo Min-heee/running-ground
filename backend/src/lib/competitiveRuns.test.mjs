@@ -5,6 +5,7 @@ import {
   buildCompetitiveRunsByUserId,
   filterCompetitiveRuns,
   isCompetitiveRun,
+  isVehicleFlaggedRun,
 } from './competitiveRuns.mjs';
 
 function runTest(name, testFn) {
@@ -155,6 +156,16 @@ runTest('competitiveWeekDistanceKm counts tracked and match runs', () => {
   assert.equal(metrics.competitiveWeekDistanceKm, 9);
   // Personal weekly distance still includes the strava import (5 + 4 + 9 = 18).
   assert.equal(metrics.currentWeekDistanceKm, 18);
+});
+
+// 표시 보드 공용 게이트 (오너 2026-09-09): 차량 verdict만 본다 — suspect/clear/없음은 통과.
+runTest('isVehicleFlaggedRun: only the server vehicle verdict, never suspect/clear/missing', () => {
+  assert.equal(isVehicleFlaggedRun({ integrity: { verdict: 'vehicle' } }), true);
+  assert.equal(isVehicleFlaggedRun({ integrity: { verdict: 'vehicle', reason: 'cadence-watchdog' } }), true);
+  assert.equal(isVehicleFlaggedRun({ integrity: { verdict: 'suspect' } }), false);
+  assert.equal(isVehicleFlaggedRun({ sourceType: 'runningground' }), false);
+  assert.equal(isVehicleFlaggedRun(null), false);
+  assert.equal(isVehicleFlaggedRun(undefined), false);
 });
 
 console.log('[competitiveRuns] all tests passed');

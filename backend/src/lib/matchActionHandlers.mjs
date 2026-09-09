@@ -17,7 +17,7 @@ import {
   upsertMatchQueueEntry,
 } from './matchQueueStoreHelpers.mjs';
 import { normalizeRunningMatchProgress } from './matchProgressStoreHelpers.mjs';
-import { applyMatchLpIfComplete } from './matchCompletionAwards.mjs';
+import { applyMatchLpIfComplete, forfeitSessionParticipant } from './matchCompletionAwards.mjs';
 import { findUserById } from './userStoreHelpers.mjs';
 import {
   ensureMatchSessions,
@@ -46,7 +46,14 @@ import {
 // absorbs device clock skew). No weaker than the trust the in-window finish path extends.
 const MATCH_SEAL_REVISION_ELAPSED_SLACK_SECONDS = 120;
 
-export function leaveRunningMatch(store, currentUser, { matchId }) {
+// `reason: 'disqualified'` (오너 2026-09-09): 케이던스 워치독이 2차 스트라이크로 부정 러닝을
+// 판정한 클라이언트의 자진 이탈. 오늘의 기권과 똑같이 liveStatus 'forfeited'로 봉인되고
+// (판정·LP·정렬 전부 기권 경로 그대로 = 실격패는 패배), 참가자에 disqualified/forfeitReason이
+// 추가로 박힌다. 상태/결과 페이로드는 이 참가자에 `disqualified: true`를 노출해 상대 화면이
+// '기권' 대신 '실격'을 그리게 한다. reason이 없으면 바이트 단위로 기존 기권 흐름이다.
+// 스탬프 + LP 훅 자체는 forfeitSessionParticipant(matchCompletionAwards)에 있다 — 이 호출이
+// 서버에 못 닿은 채 '실격패'/'기권 패' 블롭만 저장될 때 resolver가 같은 헬퍼로 대신 박는다.
+export function leaveRunningMatch(store, currentUser, { matchId, reason }) {
   const session = findMatchSessionById(store, matchId);
 
   if (!session) {
@@ -65,12 +72,7 @@ export function leaveRunningMatch(store, currentUser, { matchId }) {
     throw new ApiError(400, '매칭이 잡힌 뒤에만 혼자 계속 달릴 수 있어요.');
   }
 
-  const forfeitedAt = new Date().toISOString();
-  currentParticipant.liveStatus = 'forfeited';
-  currentParticipant.liveUpdatedAt = forfeitedAt;
-  currentParticipant.forfeitedAt = forfeitedAt;
-
-  applyMatchLpIfComplete(store, session);
+  const forfeitedAt = forfeitSessionParticipant(store, session, currentParticipant, { reason });
   const resolvedAt = new Date(forfeitedAt);
   pruneMatchSessions(store, resolvedAt);
   pruneMatchRooms(store, resolvedAt);

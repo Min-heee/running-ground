@@ -427,3 +427,102 @@ test('no freeze: the mapper output is byte-identical to feeding the raw snapshot
 
   assert.deepEqual(viaClamp.createRunInput, direct.createRunInput);
 });
+
+test('cadenceAudit: 케이던스 감사 원장은 주어질 때만 payload에 그대로 실리고, 없으면 필드가 아예 없다', () => {
+  const audit = {
+    sensorAvailable: true,
+    foregroundMovingSeconds: 240,
+    foregroundSteps: 0,
+    strikes: 1,
+    disqualified: false,
+  };
+  const withAudit = buildRunSaveResultSnapshot({
+    displayedSnapshot: snapshot(),
+    totalSteps: 3_000,
+    cadenceAudit: audit,
+  });
+  assert.deepEqual(withAudit.createRunInput.cadenceAudit, audit);
+
+  const withoutAudit = buildRunSaveResultSnapshot({
+    displayedSnapshot: snapshot(),
+    totalSteps: 3_000,
+  });
+  assert.equal('cadenceAudit' in withoutAudit.createRunInput, false);
+
+  const nullAudit = buildRunSaveResultSnapshot({
+    displayedSnapshot: snapshot(),
+    totalSteps: 3_000,
+    cadenceAudit: null,
+  });
+  assert.equal('cadenceAudit' in nullAudit.createRunInput, false);
+});
+
+test('cadenceAudit: 기권(실격) 저장에도 같은 원장이 실린다', () => {
+  const audit = {
+    sensorAvailable: true,
+    foregroundMovingSeconds: 180,
+    foregroundSteps: 3,
+    strikes: 2,
+    disqualified: true,
+  };
+  const forfeit = buildCurrentUserForfeitMatchResult({
+    currentDistanceKm: 0,
+    mode: 'duel',
+    source: 'official',
+    disqualified: true,
+  });
+  const result = buildRunSaveResultSnapshot({
+    allowShortDistanceSave: true,
+    allowStationaryForfeitSave: true,
+    displayedSnapshot: snapshot({ distanceKm: 0, route: [] }),
+    totalSteps: 3,
+    cadenceAudit: audit,
+    trackedMatchResult: forfeit,
+  });
+
+  assert.deepEqual(result.createRunInput.cadenceAudit, audit);
+  assert.equal(result.createRunInput.matchResult?.badgeLabel, '실격패');
+  assert.equal(result.createRunInput.matchResult?.disqualified, true);
+});
+
+test('실격패 블롭 (오너 규칙 2026-09-09): duel은 lose 톤 + 실격패 배지 + 부정 러닝 카피, group도 실격패 배지 + 꼴찌 순위', () => {
+  const duel = buildCurrentUserForfeitMatchResult({
+    currentDistanceKm: 1.234,
+    mode: 'duel',
+    source: 'party',
+    disqualified: true,
+  });
+  assert.equal(duel.mode, 'duel');
+  assert.equal(duel.resultTone, 'lose');
+  assert.equal(duel.badgeLabel, '실격패');
+  assert.equal(duel.disqualified, true);
+  assert.equal(duel.source, 'party');
+  assert.match(duel.title, /부정 러닝/);
+  assert.match(duel.summary, /1\.23km/);
+  assert.match(duel.summary, /포인트는 지급되지 않아요/);
+
+  const group = buildCurrentUserForfeitMatchResult({
+    currentDistanceKm: 0.5,
+    mode: 'group',
+    source: 'official',
+    trackedMatchResult: {
+      mode: 'group',
+      title: '집계 중',
+      summary: '',
+      badgeLabel: '결과 집계 중',
+      participantCount: 4,
+    },
+    disqualified: true,
+  });
+  assert.equal(group.mode, 'group');
+  assert.equal(group.badgeLabel, '실격패');
+  assert.equal(group.disqualified, true);
+  assert.equal(group.rank, 4);
+  assert.equal(group.participantCount, 4);
+  assert.match(group.title, /부정 러닝/);
+
+  // 옵션이 없으면 오늘의 기권 블롭 그대로 — disqualified 키도 생기지 않는다.
+  const plain = buildCurrentUserForfeitMatchResult({ currentDistanceKm: 1, mode: 'duel' });
+  assert.equal(plain.badgeLabel, '기권 패');
+  assert.equal('disqualified' in plain, false);
+});

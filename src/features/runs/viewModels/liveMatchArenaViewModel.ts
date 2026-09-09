@@ -6,6 +6,7 @@ import {
   type GroupLiveStanding,
   resolveParticipantDisplayDistanceKm,
 } from '@/features/runs/viewModels/matchProgress';
+import { resolveOpponentForfeitTitle } from '@/features/runs/viewModels/matchForfeitLabels';
 import type { ArenaParticipantViewModel } from '@/features/runs/viewModels/matchViewModels';
 import { formatDuration } from '@/features/runs/tracking';
 import type { DuelMatchOpponent, RunningMatchRoom } from '@/lib/api/types';
@@ -111,7 +112,7 @@ export function buildLiveMatchArenaViewModel({
       deferHeavyContent,
       participants: roomLinkedDuelPlaceholderParticipants,
       footer: placeholderOpponent?.liveStatus === 'forfeited'
-        ? '상대가 기권했어요. 내 러닝 기록은 계속 저장돼요.'
+        ? `${resolveOpponentForfeitTitle(placeholderOpponent.disqualified)}. 내 러닝 기록은 계속 저장돼요.`
         : '기권 상태를 동기화하고 있어요.',
     };
   }
@@ -129,7 +130,9 @@ export function buildLiveMatchArenaViewModel({
       deferHeavyContent,
       participants: duelArenaParticipants,
       footer: isDuelOpponentForfeited
-        ? '상대가 기권했어요. 상대 동그라미는 기권 상태로 고정되고, 내 러닝 기록은 계속 저장돼요.'
+        ? (effectiveDuelOpponent.disqualified === true
+          ? '상대가 부정 러닝으로 실격됐어요. 상대 동그라미는 실격 상태로 고정되고, 내 러닝 기록은 계속 저장돼요.'
+          : '상대가 기권했어요. 상대 동그라미는 기권 상태로 고정되고, 내 러닝 기록은 계속 저장돼요.')
         : duelLiveGapKm === null
         ? '서버가 양쪽 기록을 받은 뒤 같은 기준 시간의 공식 거리로 비교해요.'
         : `${duelComparisonSnapshot ? (officialDuelReady ? '서버 공식' : '동기화') : '실시간 수신'} ${duelComparisonSnapshot ? `${formatDuration(duelComparisonSnapshot.checkpointSeconds)} 기준 · ` : ''}내 ${syncedDuelDistanceKm.toFixed(2)}km · 상대 ${syncedDuelOpponentDistanceKm.toFixed(2)}km`,

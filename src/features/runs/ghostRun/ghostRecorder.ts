@@ -51,6 +51,16 @@ export function appendGhostSample(elapsedSec: number, distanceM: number): void {
   samples.push({ elapsedSec, distanceM });
 }
 
+// 버린 러닝은 유령 후보가 되면 안 된다 (적대검증 2026-09-09: 부정 러닝 판정으로 폐기된 런이
+// idle 화면에서 '나와의 대결' 저장 후보로 튀어나왔다 — "기록은 저장되지 않아요"와 모순).
+// finishGhostRecording은 setStatus('idle') 커밋 뒤 효과 정리에서 돌기 때문에 폐기 시점에
+// 녹음을 끊어 두면 그 뒤의 finish는 !recording으로 조용히 빠진다.
+export function abortGhostRecording(): void {
+  recording = false;
+  samples = [];
+  startedAtIso = null;
+}
+
 // Finish recording. When the run was long enough, compress it into a
 // GhostRecord candidate and surface the save prompt.
 export function finishGhostRecording(): void {

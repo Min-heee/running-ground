@@ -6,7 +6,7 @@ import {
 } from '@/features/runs/tracking';
 import { isMeasuredPaceLabel } from '@/features/runs/viewModels/matchProgress';
 import { downsampleRoute } from '@/features/runs/utils/downsampleRoute';
-import type { CreateTrackedRunInput } from '@/lib/api/types/runs';
+import type { CreateTrackedRunInput, RunCadenceAudit } from '@/lib/api/types/runs';
 import type { DisplayedTrackingSnapshot } from './types';
 
 // C4: the duel result card 나 column pace and the run-detail bottom metric pace must come
@@ -103,20 +103,40 @@ function buildStationaryForfeitRoute({
   ];
 }
 
+// 실격패 블롭 라벨 (오너 규칙 2026-09-09) — 서버 결과 빌더의 자기 쪽 '실격패'와 같은 문자열.
+// runDetailMatchReconcile은 이 배지를 기권과 같은 종결 기록으로 보고 덮어쓰지 않는다.
+export const DISQUALIFIED_FORFEIT_BADGE_LABEL = '실격패';
+
 export function buildCurrentUserForfeitMatchResult({
   currentDistanceKm,
   mode,
   source,
   trackedMatchResult,
+  disqualified = false,
 }: {
   currentDistanceKm: number;
   mode: 'duel' | 'group';
   source?: RunMatchSource;
   trackedMatchResult?: RunMatchResult | null;
+  // 케이던스 워치독 실격 기권: 배지 '실격패' + disqualified:true + 부정 러닝 카피. 일반 기권은 그대로.
+  disqualified?: boolean;
 }): RunMatchResult {
   const base = trackedMatchResult?.mode === mode ? trackedMatchResult : null;
 
   if (mode === 'duel') {
+    if (disqualified) {
+      return {
+        ...(base ?? {}),
+        mode,
+        title: '부정 러닝으로 실격패 처리됐어요',
+        summary: `달리기 속도로 이동했지만 케이던스가 감지되지 않아 부정 러닝으로 판정됐어요. 내 기록은 ${currentDistanceKm.toFixed(2)}km로 남지만 대결 전적은 실격패이고 매치 포인트는 지급되지 않아요.`,
+        badgeLabel: DISQUALIFIED_FORFEIT_BADGE_LABEL,
+        resultTone: 'lose',
+        disqualified: true,
+        ...(source ? { source } : {}),
+      };
+    }
+
     return {
       ...(base ?? {}),
       mode,
@@ -130,6 +150,20 @@ export function buildCurrentUserForfeitMatchResult({
 
   const participantCount = base?.participantCount ?? 1;
   const rank = base?.rank ?? participantCount;
+
+  if (disqualified) {
+    return {
+      ...(base ?? {}),
+      mode,
+      title: '부정 러닝으로 그룹 대결에서 실격됐어요',
+      summary: `달리기 속도로 이동했지만 케이던스가 감지되지 않아 부정 러닝으로 판정됐어요. ${participantCount}명 중 ${rank}위로 정리되고 매치 포인트는 지급되지 않아요.`,
+      badgeLabel: DISQUALIFIED_FORFEIT_BADGE_LABEL,
+      rank,
+      participantCount,
+      disqualified: true,
+      ...(source ? { source } : {}),
+    };
+  }
 
   return {
     ...(base ?? {}),
@@ -146,6 +180,7 @@ export function buildCurrentUserForfeitMatchResult({
 export function buildRunSaveResultSnapshot({
   allowShortDistanceSave = false,
   allowStationaryForfeitSave = false,
+  cadenceAudit,
   displayedSnapshot,
   fallbackMatchMode,
   matchId,
@@ -155,6 +190,9 @@ export function buildRunSaveResultSnapshot({
 }: {
   allowShortDistanceSave?: boolean;
   allowStationaryForfeitSave?: boolean;
+  // 케이던스 감사 원장 (buildCadenceAudit) — 일반 저장·기권 저장 모두 같은 입력으로 실린다.
+  // 없으면(구 호출자·테스트) 필드를 아예 싣지 않아 서버는 속도 규칙만 본다.
+  cadenceAudit?: RunCadenceAudit | null;
   displayedSnapshot: DisplayedTrackingSnapshot;
   // FIX-A — the mode used to synthesize a pending matchResult blob when a matchId exists but
   // no live/pending result does (see buildPendingMatchSaveResultBlob). Absent/null keeps
@@ -228,6 +266,7 @@ export function buildRunSaveResultSnapshot({
       route: downsampleRoute(savableRoute),
       startedAt,
       endedAt,
+      ...(cadenceAudit ? { cadenceAudit } : {}),
       ...(trackedMatchResult
         ? {
             matchResult: {

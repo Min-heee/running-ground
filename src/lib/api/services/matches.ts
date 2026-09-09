@@ -305,6 +305,8 @@ export async function leaveRunningMatch(input: LeaveRunningMatchInput): Promise<
     const groupSession = mockApiState.runningMatchSessions.group;
     const forfeitedAt = new Date().toISOString();
 
+    const disqualified = input.reason === 'disqualified';
+
     if (duelSession?.matchId === input.matchId) {
       mockApiState.runningMatchSessions.duel = {
         ...duelSession,
@@ -322,6 +324,7 @@ export async function leaveRunningMatch(input: LeaveRunningMatchInput): Promise<
               ...participant,
               liveStatus: 'forfeited',
               liveUpdatedAt: forfeitedAt,
+              ...(disqualified ? { disqualified: true } : {}),
             }
             : participant
         )),

@@ -4,7 +4,10 @@ import { buildUserRunMetrics, getRunPointValue } from './points.mjs';
 import { createJsonRunsRepository } from '../repositories/runsRepository.mjs';
 import {
   applyRunIntegrityCheck,
+  classifyCadenceAudit,
   classifyRunIntegrity,
+  normalizeCadenceAudit,
+  resolveRunIntegrityVerdict,
 } from './runIntegrity.mjs';
 
 async function runTest(name, testFn) {
@@ -209,7 +212,8 @@ await runTest('vehicle without a matchResult: stamped, no LP touched', () => {
 
   applyRunIntegrityCheck({ store, user, run, nowIso: FIXED_NOW_ISO });
 
-  assert.deepEqual(run.integrity, { verdict: 'vehicle', checkedAt: FIXED_NOW_ISO() });
+  // The speed rule stamps its reason (2026-09-09: 'speed' | 'cadence-watchdog' | 'cadence-audit').
+  assert.deepEqual(run.integrity, { verdict: 'vehicle', reason: 'speed', checkedAt: FIXED_NOW_ISO() });
   assert.deepEqual(user.rankState, { tier: '러너', lp: 10 });
 });
 
@@ -235,7 +239,7 @@ await runTest('vehicle with applied LP: reverses exactly this user\'s delta with
   assert.deepEqual(opponent.rankState, { tier: '러너', lp: 50 });
 });
 
-await runTest('vehicle loser: the negative delta is annulled too (loss LP restored, verdict untouched)', () => {
+await runTest('vehicle loser: the loss LP STAYS — a cheat verdict never refunds a loss (verdict stamped, nothing revoked)', () => {
   const user = buildUser({ tier: '러너', lp: 10 });
   const store = buildStore({
     user,
@@ -245,9 +249,12 @@ await runTest('vehicle loser: the negative delta is annulled too (loss LP restor
 
   applyRunIntegrityCheck({ store, user, run, nowIso: FIXED_NOW_ISO });
 
-  // The run does not count, so the LP change it caused is undone — whatever its sign.
-  assert.deepEqual(user.rankState, { tier: '러너', lp: 30 });
-  assert.equal(run.integrity.lpRevoked, -20);
+  // 적대 리뷰 2026-09-09: this used to annul the -20 too, i.e. the cheater got their lost LP
+  // BACK. Only a GAIN is ever revoked; a lost match stays lost, whatever the vehicle reason.
+  assert.equal(run.integrity.verdict, 'vehicle');
+  assert.equal(run.integrity.reason, 'speed');
+  assert.deepEqual(user.rankState, { tier: '러너', lp: 10 });
+  assert.equal('lpRevoked' in run.integrity, false);
 });
 
 await runTest('idempotence: applying twice revokes once', () => {
@@ -410,8 +417,10 @@ await runTest('save path: a flagged vehicle run is excluded from competitive sur
   // Points and the competitive weekly distance both route through isCompetitiveRun.
   assert.equal(metrics.competitiveWeekDistanceKm, 0);
   assert.equal(metrics.totalEarnedPoints, 0);
-  // Personal surfaces keep the run.
-  assert.equal(metrics.currentWeekDistanceKm, 5);
+  // 표시 집계에서도 빠진다 (오너 2026-09-09) — 차량 속도 기록이 판정을 받고도 오늘의
+  // 랭킹 1위였던 구멍. 기록 자체는 store.runs에 남는다.
+  assert.equal(metrics.currentWeekDistanceKm, 0);
+  assert.equal(store.runs.length, 1);
 });
 
 await runTest('save path: a clean run saves without any integrity stamp', async () => {
@@ -441,6 +450,226 @@ await runTest('save path: classifier-hostile values never block the save (guarde
   assert.equal(store.runs.length, 1);
   assert.equal('integrity' in store.runs[0], false);
   assert.ok(payload.run.id);
+});
+
+// ── 케이던스 워치독 (오너 2026-09-09): 자진 신고 + 감사 백스톱 ─────────────────────────────
+
+function buildCadenceAudit(extra = {}) {
+  return {
+    sensorAvailable: true,
+    foregroundMovingSeconds: 600,
+    foregroundSteps: 1600,
+    strikes: 0,
+    disqualified: false,
+    ...extra,
+  };
+}
+
+// 속도 규칙만으로는 clear인 정직한 러닝 (5km/25분, 케이던스 150).
+const CLEAN_RUN_SIGNALS = { distanceKm: 5, durationSeconds: 1500, cadenceSpm: 150 };
+// 속도 규칙이 vehicle인 러닝 (5km/12.5분 = 6.67 m/s).
+const IMPOSSIBLE_RUN_SIGNALS = { distanceKm: 5, durationSeconds: 750, cadenceSpm: 170 };
+
+const CADENCE_VERDICT_CASES = [
+  {
+    name: 'watchdog self-report → vehicle / cadence-watchdog',
+    input: { ...CLEAN_RUN_SIGNALS, cadenceAudit: buildCadenceAudit({ strikes: 2, disqualified: true }) },
+    expected: { verdict: 'vehicle', reason: 'cadence-watchdog' },
+  },
+  {
+    // The client already showed the 실격 screen — its reason leads even when speed would convict too.
+    name: 'self-report outranks the speed rule for the reason',
+    input: { ...IMPOSSIBLE_RUN_SIGNALS, cadenceAudit: buildCadenceAudit({ strikes: 2, disqualified: true }) },
+    expected: { verdict: 'vehicle', reason: 'cadence-watchdog' },
+  },
+  {
+    name: 'speed rule keeps convicting under a clean audit → reason speed',
+    input: { ...IMPOSSIBLE_RUN_SIGNALS, cadenceAudit: buildCadenceAudit() },
+    expected: { verdict: 'vehicle', reason: 'speed' },
+  },
+  {
+    // 180s of foreground running-speed movement with 30 steps = 10 spm (mounted-phone band) AND
+    // the client watchdog already warned this runner once: the backstop finishes the job.
+    name: 'backstop: strikes 1 + 180s foreground at 10 spm → vehicle / cadence-audit',
+    input: { ...CLEAN_RUN_SIGNALS, cadenceAudit: buildCadenceAudit({ foregroundMovingSeconds: 180, foregroundSteps: 30, strikes: 1 }) },
+    expected: { verdict: 'vehicle', reason: 'cadence-audit' },
+  },
+  {
+    // 적대 리뷰 2026-09-09: the server must NEVER silently flag a runner the client never
+    // warned. Zero strikes → clear even at a flat 0 spm over a full 20 minutes.
+    name: 'backstop: strikes 0 → clear even at 0 spm over 20 minutes',
+    input: { ...CLEAN_RUN_SIGNALS, cadenceAudit: buildCadenceAudit({ foregroundMovingSeconds: 1200, foregroundSteps: 0, strikes: 0 }) },
+    expected: { verdict: 'clear' },
+  },
+  {
+    // 33 spm IS a phone registering cadence (undercount or a slow jog) — the owner rule punishes
+    // NON-registration, so this no longer convicts even with a strike on record.
+    name: 'backstop: 33 spm is registered cadence → clear even with a strike',
+    input: { ...CLEAN_RUN_SIGNALS, cadenceAudit: buildCadenceAudit({ foregroundMovingSeconds: 180, foregroundSteps: 100, strikes: 1 }) },
+    expected: { verdict: 'clear' },
+  },
+  {
+    name: 'backstop boundary: 179s of evidence never judges (strike present, 0 spm)',
+    input: { ...CLEAN_RUN_SIGNALS, cadenceAudit: buildCadenceAudit({ foregroundMovingSeconds: 179, foregroundSteps: 0, strikes: 1 }) },
+    expected: { verdict: 'clear' },
+  },
+  {
+    name: 'backstop boundary: exactly 20 spm is not below the floor',
+    input: { ...CLEAN_RUN_SIGNALS, cadenceAudit: buildCadenceAudit({ foregroundMovingSeconds: 180, foregroundSteps: 60, strikes: 1 }) },
+    expected: { verdict: 'clear' },
+  },
+  {
+    name: 'backstop boundary: one step under 20 spm at exactly 180s → vehicle',
+    input: { ...CLEAN_RUN_SIGNALS, cadenceAudit: buildCadenceAudit({ foregroundMovingSeconds: 180, foregroundSteps: 59, strikes: 1 }) },
+    expected: { verdict: 'vehicle', reason: 'cadence-audit' },
+  },
+  {
+    // PRODUCTION FACT: Android expo-sensors unregisters the pedometer in the background, so a
+    // ledger without a sensor proves nothing — missing cadence alone never convicts, strikes or not.
+    name: 'no sensor: zero steps over 20 minutes stay clear even with strikes',
+    input: { ...CLEAN_RUN_SIGNALS, cadenceAudit: buildCadenceAudit({ sensorAvailable: false, foregroundMovingSeconds: 1200, foregroundSteps: 0, strikes: 1 }) },
+    expected: { verdict: 'clear' },
+  },
+  {
+    name: 'null saved cadence + no sensor stays suspect, never vehicle',
+    input: { distanceKm: 5, durationSeconds: 1500, cadenceSpm: null, cadenceAudit: buildCadenceAudit({ sensorAvailable: false, foregroundMovingSeconds: 1200, foregroundSteps: 0 }) },
+    expected: { verdict: 'suspect' },
+  },
+  {
+    name: 'malformed audit is ignored — garbage never convicts (even a string "true" disqualified)',
+    input: { ...CLEAN_RUN_SIGNALS, cadenceAudit: { sensorAvailable: 'yes', foregroundMovingSeconds: 180, foregroundSteps: 0, strikes: 0, disqualified: 'true' } },
+    expected: { verdict: 'clear' },
+  },
+  {
+    name: 'no audit at all → the speed classifier alone',
+    input: CLEAN_RUN_SIGNALS,
+    expected: { verdict: 'clear' },
+  },
+];
+
+for (const testCase of CADENCE_VERDICT_CASES) {
+  await runTest(`cadence verdict: ${testCase.name}`, () => {
+    assert.deepEqual(resolveRunIntegrityVerdict(testCase.input), testCase.expected);
+  });
+}
+
+await runTest('normalizeCadenceAudit / classifyCadenceAudit guard the ledger shape', () => {
+  assert.equal(normalizeCadenceAudit(null), null);
+  assert.equal(normalizeCadenceAudit({ sensorAvailable: true }), null);
+  assert.equal(normalizeCadenceAudit(buildCadenceAudit({ foregroundSteps: -1 })), null);
+  assert.equal(normalizeCadenceAudit(buildCadenceAudit({ strikes: 1.5 })), null);
+  assert.deepEqual(normalizeCadenceAudit({ ...buildCadenceAudit(), extra: 'dropped' }), buildCadenceAudit());
+  assert.equal(classifyCadenceAudit(undefined), 'clear');
+  assert.equal(classifyCadenceAudit(buildCadenceAudit({ foregroundMovingSeconds: 300, foregroundSteps: 50, strikes: 1 })), 'vehicle');
+  // Same ledger without a client warning on record: the backstop stays silent.
+  assert.equal(classifyCadenceAudit(buildCadenceAudit({ foregroundMovingSeconds: 300, foregroundSteps: 50, strikes: 0 })), 'clear');
+  // The backstop never reads the self-report flag — that is resolveRunIntegrityVerdict's job.
+  assert.equal(classifyCadenceAudit(buildCadenceAudit({ disqualified: true })), 'clear');
+});
+
+await runTest('cadence-watchdog: stamps the reason and KEEPS the forfeit-loss LP (실격패 is a loss)', () => {
+  const user = buildUser({ tier: '러너', lp: 30 });
+  const store = buildStore({ user, notifications: [buildRankChangeNotification({ lpDelta: -20 })] });
+  const run = buildTrackedRun({
+    durationSeconds: 1500,
+    cadenceSpm: 150,
+    cadenceAudit: buildCadenceAudit({ strikes: 2, disqualified: true }),
+    matchResult: { matchId: 'match-1', mode: 'duel', resultTone: 'lose', badgeLabel: '실격패', disqualified: true },
+  });
+
+  applyRunIntegrityCheck({ store, user, run, nowIso: FIXED_NOW_ISO });
+
+  assert.deepEqual(run.integrity, { verdict: 'vehicle', reason: 'cadence-watchdog', checkedAt: FIXED_NOW_ISO() });
+  // The forfeit path already applied the loss; the disqualified runner does NOT get it back.
+  assert.deepEqual(user.rankState, { tier: '러너', lp: 30 });
+  assert.equal('lpRevoked' in run.integrity, false);
+});
+
+await runTest('cadence-watchdog: a self-report stapled onto a WON match still forfeits the win LP', () => {
+  const user = buildUser({ tier: '페이서', lp: 100 });
+  const store = buildStore({ user, notifications: [buildRankChangeNotification({ lpDelta: 28 })] });
+  const run = buildTrackedRun({
+    durationSeconds: 1500,
+    cadenceSpm: 150,
+    cadenceAudit: buildCadenceAudit({ strikes: 2, disqualified: true }),
+    matchResult: { matchId: 'match-1', mode: 'duel', resultTone: 'win' },
+  });
+
+  applyRunIntegrityCheck({ store, user, run, nowIso: FIXED_NOW_ISO });
+
+  // Self-report only ever hurts the reporter: a positive delta is revoked like any vehicle run.
+  assert.deepEqual(user.rankState, { tier: '페이서', lp: 72 });
+  assert.equal(run.integrity.lpRevoked, 28);
+});
+
+await runTest('cadence-audit backstop: KEEPS the loss LP like every vehicle verdict (no refund for a lost match)', () => {
+  const user = buildUser({ tier: '러너', lp: 10 });
+  const store = buildStore({ user, notifications: [buildRankChangeNotification({ lpDelta: -20 })] });
+  const run = buildTrackedRun({
+    durationSeconds: 1500,
+    cadenceSpm: 150,
+    cadenceAudit: buildCadenceAudit({ foregroundMovingSeconds: 300, foregroundSteps: 50, strikes: 1 }),
+    matchResult: { matchId: 'match-1', mode: 'duel', resultTone: 'lose' },
+  });
+
+  applyRunIntegrityCheck({ store, user, run, nowIso: FIXED_NOW_ISO });
+
+  assert.deepEqual(run.integrity, { verdict: 'vehicle', reason: 'cadence-audit', checkedAt: FIXED_NOW_ISO() });
+  // 적대 리뷰 2026-09-09: this used to hand the -20 back. The loss stays, exactly like the
+  // cadence-watchdog self-report above and the speed rule.
+  assert.deepEqual(user.rankState, { tier: '러너', lp: 10 });
+  assert.equal('lpRevoked' in run.integrity, false);
+});
+
+await runTest('cadence-audit backstop: a GAIN is still revoked (the cheater keeps nothing they won)', () => {
+  const user = buildUser({ tier: '페이서', lp: 100 });
+  const store = buildStore({ user, notifications: [buildRankChangeNotification({ lpDelta: 28 })] });
+  const run = buildTrackedRun({
+    durationSeconds: 1500,
+    cadenceSpm: 150,
+    cadenceAudit: buildCadenceAudit({ foregroundMovingSeconds: 300, foregroundSteps: 50, strikes: 1 }),
+    matchResult: { matchId: 'match-1', mode: 'duel', resultTone: 'win' },
+  });
+
+  applyRunIntegrityCheck({ store, user, run, nowIso: FIXED_NOW_ISO });
+
+  assert.equal(run.integrity.reason, 'cadence-audit');
+  assert.deepEqual(user.rankState, { tier: '페이서', lp: 72 });
+  assert.equal(run.integrity.lpRevoked, 28);
+});
+
+await runTest('save path: the cadence audit ledger is persisted and a self-reported disqualification flags the run', async () => {
+  const harness = createRepositoryHarness();
+  const cadenceAudit = buildCadenceAudit({ strikes: 2, disqualified: true });
+
+  const payload = await harness.repository.createTrackedRun({
+    token: 'token-1',
+    input: buildTrackedRunInput({ durationSeconds: 1500, cadenceSpm: 150, cadenceAudit }),
+  });
+
+  const store = harness.getStore();
+  const savedRun = store.runs[0];
+  assert.deepEqual(savedRun.cadenceAudit, cadenceAudit);
+  assert.equal(savedRun.integrity.verdict, 'vehicle');
+  assert.equal(savedRun.integrity.reason, 'cadence-watchdog');
+  assert.equal(payload.earnedPoint, 0);
+
+  const metrics = buildUserRunMetrics(store.runs, new Date('2026-07-12T13:00:00'));
+  assert.equal(metrics.currentWeekDistanceKm, 0);
+  assert.equal(metrics.totalEarnedPoints, 0);
+});
+
+await runTest('save path: a malformed cadence audit is dropped from the record and never convicts', async () => {
+  const harness = createRepositoryHarness();
+
+  await harness.repository.createTrackedRun({
+    token: 'token-1',
+    input: buildTrackedRunInput({ durationSeconds: 1500, cadenceSpm: 150, cadenceAudit: { disqualified: true } }),
+  });
+
+  const store = harness.getStore();
+  assert.equal('cadenceAudit' in store.runs[0], false);
+  assert.equal('integrity' in store.runs[0], false);
 });
 
 console.log('[runIntegrity] all tests passed');

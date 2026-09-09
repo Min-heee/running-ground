@@ -1750,6 +1750,227 @@ await runTest('duel forfeit flow persists both match results and exposes them in
   });
 });
 
+// 실격패 (오너 2026-09-09): 케이던스 워치독이 2차 스트라이크로 부정 러닝을 판정한 러너의 이탈.
+// 기권 흐름 위에 reason 하나만 얹힌다 — 상태/결과 페이로드는 그 참가자에 disqualified를 노출하고,
+// 저장은 감사 원장(cadenceAudit)을 싣고 실격 문구로 재작성되며, 그 매치의 포인트는 0이다.
+await runTest('disqualified forfeit flow: flags ride status/result, the save carries the audit + 실격 copy, and mints 0P', async () => {
+  const { store, slotStartAt } = createActiveDuelStore();
+
+  await withBackend(store, async ({ request, requestRaw, readStore }) => {
+    for (const [token, distanceKm, currentPace] of [['host-token', 0.42, '05:57/km'], ['guest-token', 0.35, '07:08/km']]) {
+      await request(token, 'POST', '/api/running/matches/progress', {
+        matchId: 'duel-contract-match',
+        distanceKm,
+        elapsedSeconds: 150,
+        currentPace,
+        status: 'running',
+      });
+    }
+
+    // 모르는 사유는 400 — 실격이 조용히 기권으로 둔갑하지 않는다.
+    const badReason = await requestRaw('guest-token', 'POST', '/api/running/matches/leave', {
+      matchId: 'duel-contract-match',
+      reason: 'tired',
+    });
+    assert.equal(badReason.response.status, 400);
+
+    const forfeitResult = await request('guest-token', 'POST', '/api/running/matches/leave', {
+      matchId: 'duel-contract-match',
+      reason: 'disqualified',
+    });
+    assert.equal(forfeitResult.success, true);
+
+    const statusBody = { mode: 'duel', distanceKm: 5, slotStartAt, matchId: 'duel-contract-match' };
+    const hostStatus = await request('host-token', 'POST', '/api/running/matches/status', statusBody);
+    assert.equal(hostStatus.opponent.liveStatus, 'forfeited');
+    assert.equal(hostStatus.opponent.disqualified, true);
+    assert.equal('currentUserDisqualified' in hostStatus, false);
+
+    const guestStatus = await request('guest-token', 'POST', '/api/running/matches/status', statusBody);
+    assert.equal(guestStatus.currentUserLiveStatus, 'forfeited');
+    assert.equal(guestStatus.currentUserDisqualified, true);
+
+    const result = await request('host-token', 'GET', '/api/running/matches/duel-contract-match/result');
+    const guestRow = result.participants.find((row) => row.userId === 'guest-user');
+    const hostRow = result.participants.find((row) => row.userId === 'host-user');
+    assert.equal(guestRow.forfeited, true);
+    assert.equal(guestRow.disqualified, true);
+    assert.equal('disqualified' in hostRow, false);
+
+    const guestStartedAt = iso(-9 * 60 * 1000);
+    const guestEndedAt = iso(-7 * 60 * 1000);
+    const cadenceAudit = { sensorAvailable: true, foregroundMovingSeconds: 180, foregroundSteps: 12, strikes: 2, disqualified: true };
+    const guestSaved = await request('guest-token', 'POST', '/api/runs/tracked', {
+      date: guestStartedAt.slice(0, 10),
+      distanceKm: 0.35,
+      pace: '07:08/km',
+      durationSeconds: 150,
+      startedAt: guestStartedAt,
+      endedAt: guestEndedAt,
+      cadenceAudit,
+      route: [
+        { latitude: 37.658, longitude: 126.77, timestamp: guestStartedAt },
+        { latitude: 37.661, longitude: 126.773, timestamp: guestEndedAt },
+      ],
+      matchResult: {
+        mode: 'duel',
+        matchId: 'duel-contract-match',
+        source: 'official',
+        title: '부정 러닝으로 실격패했어요',
+        summary: '달리기 속도인데 케이던스가 잡히지 않아 실격 처리됐어요.',
+        badgeLabel: '실격패',
+        opponentName: '방장 러너',
+        resultTone: 'lose',
+        disqualified: true,
+        comparedDistanceKm: 0.35,
+      },
+    });
+    assert.equal(guestSaved.run.matchResult.badgeLabel, '실격패');
+    assert.equal(guestSaved.run.matchResult.resultTone, 'lose');
+    assert.equal(guestSaved.run.matchResult.disqualified, true);
+    assert.equal(guestSaved.pointBreakdown.matchBonusPoints, 0);
+    assert.equal(guestSaved.pointBreakdown.totalPoints, 0);
+
+    const persisted = readStore();
+    const guestRun = persisted.runs.find((run) => run.id === guestSaved.run.id);
+    assert.deepEqual(guestRun.cadenceAudit, cadenceAudit);
+    assert.equal(guestRun.integrity.verdict, 'vehicle');
+    assert.equal(guestRun.integrity.reason, 'cadence-watchdog');
+
+    const hostStartedAt = iso(-9 * 60 * 1000);
+    const hostEndedAt = iso(-7 * 60 * 1000);
+    const hostSaved = await request('host-token', 'POST', '/api/runs/tracked', {
+      date: hostStartedAt.slice(0, 10),
+      distanceKm: 0.42,
+      pace: '05:57/km',
+      durationSeconds: 150,
+      startedAt: hostStartedAt,
+      endedAt: hostEndedAt,
+      route: [
+        { latitude: 37.668, longitude: 126.78, timestamp: hostStartedAt },
+        { latitude: 37.672, longitude: 126.784, timestamp: hostEndedAt },
+      ],
+      matchResult: {
+        mode: 'duel',
+        matchId: 'duel-contract-match',
+        source: 'official',
+        title: '대결 결과를 집계하고 있어요',
+        summary: '상대가 완주하면 결과가 자동으로 업데이트돼요.',
+        badgeLabel: '결과 집계 중',
+        opponentName: '참가 러너',
+        comparedDistanceKm: 0.42,
+      },
+    });
+    assert.equal(hostSaved.run.matchResult.badgeLabel, '상대 실격 승');
+    assert.equal(hostSaved.run.matchResult.resultTone, 'win');
+    assert.equal('disqualified' in hostSaved.run.matchResult, false);
+    assert.equal(hostSaved.pointBreakdown.matchBonusPoints, 20);
+  });
+});
+
+// 적대 리뷰 2026-09-09: 워치독 실격 → leave가 서버에 못 닿음(네트워크/400, 클라가 삼킴) → 그래도
+// '실격패' 블롭은 저장된다. 예전에는 세션 참가자가 아직 달리는 중이라 블롭이 PENDING으로 뒤집히고
+// 상대는 평문 '승리'로 굳어 실격 표식이 양쪽 폰에서 사라졌다. 이제 저장이 leave를 대신한다.
+await runTest('disqualified save WITHOUT a leave call: the save stamps the forfeit, host status/result/save read 상대 실격 승', async () => {
+  const { store, slotStartAt } = createActiveDuelStore();
+
+  await withBackend(store, async ({ request, readStore }) => {
+    for (const [token, distanceKm, currentPace] of [['host-token', 0.42, '05:57/km'], ['guest-token', 0.35, '07:08/km']]) {
+      await request(token, 'POST', '/api/running/matches/progress', {
+        matchId: 'duel-contract-match',
+        distanceKm,
+        elapsedSeconds: 150,
+        currentPace,
+        status: 'running',
+      });
+    }
+
+    // NO /leave call — the watchdog's 실격패 blob goes straight to the save.
+    const guestStartedAt = iso(-9 * 60 * 1000);
+    const guestEndedAt = iso(-7 * 60 * 1000);
+    const cadenceAudit = { sensorAvailable: true, foregroundMovingSeconds: 180, foregroundSteps: 12, strikes: 2, disqualified: true };
+    const guestSaved = await request('guest-token', 'POST', '/api/runs/tracked', {
+      date: guestStartedAt.slice(0, 10),
+      distanceKm: 0.35,
+      pace: '07:08/km',
+      durationSeconds: 150,
+      startedAt: guestStartedAt,
+      endedAt: guestEndedAt,
+      cadenceAudit,
+      route: [
+        { latitude: 37.658, longitude: 126.77, timestamp: guestStartedAt },
+        { latitude: 37.661, longitude: 126.773, timestamp: guestEndedAt },
+      ],
+      matchResult: {
+        mode: 'duel',
+        matchId: 'duel-contract-match',
+        source: 'official',
+        title: '부정 러닝으로 실격패 처리됐어요',
+        summary: '달리기 속도로 이동했지만 케이던스가 감지되지 않아 부정 러닝으로 판정됐어요.',
+        badgeLabel: '실격패',
+        opponentName: '방장 러너',
+        resultTone: 'lose',
+        disqualified: true,
+        comparedDistanceKm: 0.35,
+      },
+    });
+    // The saver's blob is NOT turned PENDING: it is the 실격패 loss it claims, 0P.
+    assert.equal(guestSaved.run.matchResult.badgeLabel, '실격패');
+    assert.equal(guestSaved.run.matchResult.resultTone, 'lose');
+    assert.equal(guestSaved.run.matchResult.disqualified, true);
+    assert.equal(guestSaved.pointBreakdown.matchBonusPoints, 0);
+
+    // The save stamped the session participant exactly like leave({ reason: 'disqualified' }).
+    const persisted = readStore();
+    const session = persisted.matchSessions.find((entry) => entry.id === 'duel-contract-match');
+    const guestParticipant = session.participants.find((participant) => participant.userId === 'guest-user');
+    assert.equal(guestParticipant.liveStatus, 'forfeited');
+    assert.equal(typeof guestParticipant.forfeitedAt, 'string');
+    assert.equal(guestParticipant.disqualified, true);
+    assert.equal(guestParticipant.forfeitReason, 'disqualified');
+    assert.equal(persisted.runs.find((run) => run.id === guestSaved.run.id).integrity.reason, 'cadence-watchdog');
+
+    const statusBody = { mode: 'duel', distanceKm: 5, slotStartAt, matchId: 'duel-contract-match' };
+    const hostStatus = await request('host-token', 'POST', '/api/running/matches/status', statusBody);
+    assert.equal(hostStatus.opponent.liveStatus, 'forfeited');
+    assert.equal(hostStatus.opponent.disqualified, true);
+
+    const result = await request('host-token', 'GET', '/api/running/matches/duel-contract-match/result');
+    const guestRow = result.participants.find((row) => row.userId === 'guest-user');
+    assert.equal(guestRow.forfeited, true);
+    assert.equal(guestRow.disqualified, true);
+
+    const hostStartedAt = iso(-9 * 60 * 1000);
+    const hostEndedAt = iso(-7 * 60 * 1000);
+    const hostSaved = await request('host-token', 'POST', '/api/runs/tracked', {
+      date: hostStartedAt.slice(0, 10),
+      distanceKm: 0.42,
+      pace: '05:57/km',
+      durationSeconds: 150,
+      startedAt: hostStartedAt,
+      endedAt: hostEndedAt,
+      route: [
+        { latitude: 37.668, longitude: 126.78, timestamp: hostStartedAt },
+        { latitude: 37.672, longitude: 126.784, timestamp: hostEndedAt },
+      ],
+      matchResult: {
+        mode: 'duel',
+        matchId: 'duel-contract-match',
+        source: 'official',
+        title: '대결 결과를 집계하고 있어요',
+        summary: '상대가 완주하면 결과가 자동으로 업데이트돼요.',
+        badgeLabel: '결과 집계 중',
+        opponentName: '참가 러너',
+        comparedDistanceKm: 0.42,
+      },
+    });
+    assert.equal(hostSaved.run.matchResult.badgeLabel, '상대 실격 승');
+    assert.equal(hostSaved.run.matchResult.resultTone, 'win');
+    assert.equal('disqualified' in hostSaved.run.matchResult, false);
+    assert.equal(hostSaved.pointBreakdown.matchBonusPoints, 20);
+  });
+});
+
 await runTest('tracked run API persists match result records and match bonus points', async () => {
   await withBackend(createBaseStore(), async ({ request }) => {
     const startedAt = iso(-10 * 60 * 1000);

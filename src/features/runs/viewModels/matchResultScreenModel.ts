@@ -2,6 +2,7 @@ import {
   formatDuration,
   formatPaceFromSecondsPerKm,
 } from '@/features/runs/tracking';
+import { resolveForfeitStatusLabel } from '@/features/runs/viewModels/matchForfeitLabels';
 import type {
   MatchResultParticipant,
   MatchResultParticipantTone,
@@ -52,10 +53,11 @@ export type MatchResultScreenModel =
     revised?: boolean;
   };
 
-// '-' for a missing pace, '기권' for a forfeit, otherwise the frozen official pace.
+// '-' for a missing pace, '기권' for a forfeit ('실격' for a disqualified one), otherwise the
+// frozen official pace.
 function buildRowPaceLabel(participant: MatchResultParticipant): string {
-  if (participant.forfeited) {
-    return '기권';
+  if (participant.forfeited || participant.disqualified === true) {
+    return resolveForfeitStatusLabel(participant.disqualified);
   }
 
   if (

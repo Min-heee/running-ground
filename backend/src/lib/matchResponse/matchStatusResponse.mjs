@@ -120,6 +120,7 @@ export function buildRunningMatchStatusResponse(store, currentUser, { mode, dist
         userAccepted: true,
         readyToStart,
         ...(currentUserLiveSnapshot?.liveStatus ? { currentUserLiveStatus: currentUserLiveSnapshot.liveStatus } : {}),
+        ...(currentUserLiveSnapshot?.disqualified === true ? { currentUserDisqualified: true } : {}),
         ...(myFinishElapsedSeconds !== null ? { currentUserFinishElapsedSeconds: myFinishElapsedSeconds } : {}),
         canCancel: state === 'matched' ? canCancelReservation : false,
         cancelableUntilAt,
@@ -169,6 +170,7 @@ export function buildRunningMatchStatusResponse(store, currentUser, { mode, dist
         userAccepted: true,
         readyToStart,
         ...(currentUserLiveSnapshot?.liveStatus ? { currentUserLiveStatus: currentUserLiveSnapshot.liveStatus } : {}),
+        ...(currentUserLiveSnapshot?.disqualified === true ? { currentUserDisqualified: true } : {}),
         canCancel: state === 'matched' ? canCancelReservation : false,
         cancelableUntilAt,
         ...(countdownRemainingSeconds !== undefined ? {

@@ -174,6 +174,7 @@ export function buildGroupVerdict(session, standings, currentUserId, now = new D
       finishElapsedSeconds,
       finished: finishElapsedSeconds !== null,
       forfeited: standing.liveStatus === 'forfeited',
+      disqualified: standing.disqualified === true,
       finishedAt: typeof standing.finishedAt === 'string' ? standing.finishedAt : null,
       paceLabel: resolveDuelVerdictPaceLabel(standing, goalDistanceKm),
     };
@@ -217,6 +218,7 @@ export function buildGroupVerdict(session, standings, currentUserId, now = new D
         finishElapsedSeconds: isDnf ? null : entry?.finishElapsedSeconds ?? null,
         paceLabel: isDnf ? null : entry?.paceLabel ?? null,
         forfeited: Boolean(entry?.forfeited),
+        ...(entry?.disqualified ? { disqualified: true } : {}),
         finished: !isDnf,
       };
     });
@@ -245,6 +247,7 @@ export function buildGroupVerdict(session, standings, currentUserId, now = new D
     finishElapsedSeconds: entry.finishElapsedSeconds,
     paceLabel: entry.paceLabel,
     forfeited: entry.forfeited,
+    ...(entry.disqualified ? { disqualified: true } : {}),
     finished: entry.finished,
   }));
 

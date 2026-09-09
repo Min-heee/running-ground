@@ -139,6 +139,8 @@ export async function createTrackedRun(input: CreateTrackedRunInput): Promise<Cr
       endedAt: input.endedAt,
       matchResult: input.matchResult ?? null,
       ...(input.chaseArenaId ? { chaseArenaId: input.chaseArenaId } : {}),
+      // 케이던스 감사 원장 — 필드를 명시 나열하는 바디라 여기 안 실으면 조용히 사라진다.
+      ...(input.cadenceAudit ? { cadenceAudit: input.cadenceAudit } : {}),
     },
     {
       accessToken: await requireAccessToken(),

@@ -139,6 +139,7 @@ import { ensureOfflineRaceStore } from './services/offlineRaceHub.mjs';
 import {
   resolveRegionSelection,
   validateBoolean,
+  validateCadenceAudit,
   validateDateOnly,
   validateDistanceKm,
   validateDuelMatchDistanceKm,
@@ -362,6 +363,7 @@ const routeRequest = createApiRouteHandler({
   phoneVerificationService,
   resolveRegionSelection,
   validateBoolean,
+  validateCadenceAudit,
   validateDateOnly,
   validateDuelMatchDistanceKm,
   validateMatchMode,

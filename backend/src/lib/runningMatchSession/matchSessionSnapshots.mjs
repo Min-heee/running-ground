@@ -185,6 +185,9 @@ export function buildParticipantLiveSnapshot(session, participant, now = new Dat
     ...(typeof participant.forfeitedAt === 'string' && participant.forfeitedAt
       ? { forfeitedAt: participant.forfeitedAt }
       : {}),
+    // 실격패 (오너 2026-09-09): 케이던스 워치독 부정 러닝으로 이탈한 참가자. liveStatus는
+    // 'forfeited' 그대로이고, 이 플래그만 추가로 노출된다 — 없으면 키 자체가 없다(옛 클라 무해).
+    ...(participant.disqualified === true ? { disqualified: true } : {}),
   };
 }
 
@@ -240,6 +243,7 @@ export function buildOfficialSessionStandings(store, session, now = new Date()) 
         : typeof participant.forfeitedAt === 'string' && participant.forfeitedAt
           ? participant.forfeitedAt
           : null,
+      disqualified: participant.disqualified === true,
       hasProgress,
       contributesToLiveCheckpoint,
       checkpoints: Array.isArray(participant.checkpoints) ? participant.checkpoints : undefined,

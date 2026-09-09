@@ -1,4 +1,5 @@
 import { getEstimatedMatchLpDelta } from '@/features/runs/utils/matchScheduling';
+import { resolveForfeitStatusLabel } from '@/features/runs/viewModels/matchForfeitLabels';
 import type { RunDetailResponse } from '@/lib/api/types';
 
 type RunRecord = RunDetailResponse['run'];
@@ -136,7 +137,7 @@ function joinMetric(paceLabel: string | null, durationLabel: string | null): str
 
 // 1대1 행: 로컬 matchResult 만으로 만든다 (승자 먼저 — 타워 문법).
 export function buildDuelBoardRows(input: {
-  matchResult: Pick<MatchResult, 'resultTone' | 'opponentName' | 'opponentPaceLabel' | 'opponentId'>;
+  matchResult: Pick<MatchResult, 'resultTone' | 'opponentName' | 'opponentPaceLabel' | 'opponentId' | 'disqualified'>;
   myDisplayPaceLabel: string | null;
   myDurationLabel: string | null;
   opponentDurationLabel: string | null;
@@ -148,9 +149,13 @@ export function buildDuelBoardRows(input: {
   const tone = input.matchResult.resultTone;
   // 판정 전(집계 중)의 tone 부재를 '무'로 보여주면 무승부로 오해한다 — '—' 대기 표기.
   const pendingLabel = '—';
+  // 부정 러닝 실격패 블롭(disqualified:true, tone 'lose'): 내 행 배지는 LOSE 대신 '실격'.
+  const myDisqualified = input.matchResult.disqualified === true && tone === 'lose';
   const myRow: MatchBoardRow = {
     key: 'me',
-    leadLabel: tone === 'win' ? 'WIN' : tone === 'lose' ? 'LOSE' : tone === 'draw' ? '무' : pendingLabel,
+    leadLabel: myDisqualified
+      ? '실격'
+      : tone === 'win' ? 'WIN' : tone === 'lose' ? 'LOSE' : tone === 'draw' ? '무' : pendingLabel,
     leadTone: tone === 'win' ? 'win' : tone === 'lose' ? 'lose' : 'draw',
     rankNumber: null,
     name: input.ownerName?.trim() || '나',
@@ -191,6 +196,8 @@ type GroupBoardParticipant = {
   finishElapsedSeconds: number | null;
   rank: number | null;
   forfeited: boolean;
+  // 부정 러닝 실격 기권 — '기권' 대신 '실격'.
+  disqualified?: boolean;
   isMe: boolean;
 };
 
@@ -222,8 +229,8 @@ function toGroupRow(participant: GroupBoardParticipant): MatchBoardRow {
     // /result 참가자 이름은 서버가 각 러너의 실제 계정 이름으로 채운다 — 내 행도
     // 그대로 닉네임 노출 (오너 2026-08-28), '나'는 이름 부재 폴백.
     name: participant.name.trim() || (participant.isMe ? '나' : '러너'),
-    metricLabel: participant.forfeited
-      ? '기권'
+    metricLabel: participant.forfeited || participant.disqualified === true
+      ? resolveForfeitStatusLabel(participant.disqualified)
       : joinMetric(formatPaceLabelFromSeconds(participant.paceSecondsPerKm), durationLabel),
     isMe: participant.isMe,
     userId: participant.isMe ? null : participant.userId ?? null,

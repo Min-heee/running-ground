@@ -15,6 +15,18 @@ export type CreateManualRunInput = {
 
 export type CreateManualRunResponse = RunDetailResponse;
 
+// 케이던스 감사 원장 (오너 규칙 2026-09-09) — 클라 워치독이 **포그라운드·센서 생존 창**에서만
+// 누적한 달리기 속도 이동 시간과 그때의 걸음. 서버 runIntegrity는 disqualified 자기신고를
+// 'vehicle'(cadence-watchdog)로, 그 외엔 이 원장만으로 백스톱(cadence-audit)을 판정한다 —
+// 케이던스 부재 자체(안드로이드 화면 꺼짐)로는 절대 유죄가 아니다.
+export type RunCadenceAudit = {
+  sensorAvailable: boolean;
+  foregroundMovingSeconds: number;
+  foregroundSteps: number;
+  strikes: number;
+  disqualified: boolean;
+};
+
 export type CreateTrackedRunInput = {
   date: string;
   distanceKm: number;
@@ -27,6 +39,8 @@ export type CreateTrackedRunInput = {
   endedAt: string;
   matchResult?: RunMatchResult;
   chaseArenaId?: string;
+  // 선택 필드: 구버전 클라/대기열 재전송엔 없을 수 있고, 서버는 없으면 속도 규칙만 본다.
+  cadenceAudit?: RunCadenceAudit;
 };
 
 export type CreateTrackedRunResponse = RunDetailResponse & {

@@ -10,15 +10,28 @@
 //
 // Anti-cheat V1 stage 2 (lib/runIntegrity.mjs): a run the server classified as
 // vehicle-assisted at save time (run.integrity.verdict === 'vehicle') is barred
-// from every competitive surface — even when it carries a matchResult — while
-// staying visible on personal surfaces. 'suspect' verdicts are telemetry-only
-// and remain competitive.
+// from every competitive surface — even when it carries a matchResult. 'suspect'
+// verdicts are telemetry-only and remain competitive.
 //
-// IMPORTANT: this gate is ONLY for competitive aggregations. Personal surfaces
-// (home 기록 카드 주/월/년 stats, 내 활동 기록 list, profile lifetime distance)
-// MUST keep showing imported runs and therefore MUST NOT use this filter.
+// 표시면 제외 (오너 2026-09-09): 차량 판정 러닝은 표시 보드에서도 빠진다 — 차량 속도
+// 기록이 integrity.verdict='vehicle'을 받고도 오늘의 랭킹 1위에 올랐다.
+// 판정은 points.mjs 집계(주/월/오늘 거리, 스트릭, 최근 러닝), todayRankingBuilder,
+// monthlyRankingStars가 전부 isVehicleFlaggedRun 한 곳을 본다. 기록 자체(내 활동 목록,
+// 기록 상세)는 남는다 — 사라지는 건 집계·순위뿐이다.
+//
+// IMPORTANT: isCompetitiveRun is ONLY for competitive aggregations. Personal
+// surfaces (home 기록 카드 주/월/년 stats, 내 활동 기록 list, profile lifetime
+// distance) MUST keep showing imported runs and therefore MUST NOT use that
+// filter — they use isVehicleFlaggedRun alone.
 
 const COMPETITIVE_SOURCE_TYPES = new Set(['runningground']);
+
+// 서버가 차량 판정(runIntegrity 'vehicle')을 박은 기록 — 케이던스 워치독 자진 신고
+// (reason 'cadence-watchdog'), 케이던스 감사 백스톱('cadence-audit'), 평균 속도 규칙
+// ('speed') 전부 같은 verdict로 모인다. 표시 보드와 경쟁 집계가 공유하는 단일 게이트.
+export function isVehicleFlaggedRun(run) {
+  return Boolean(run) && typeof run === 'object' && run.integrity?.verdict === 'vehicle';
+}
 
 export function isCompetitiveRun(run) {
   if (!run || typeof run !== 'object') {
@@ -27,7 +40,7 @@ export function isCompetitiveRun(run) {
 
   // Checked FIRST so the matchResult fast-path below cannot resurrect a
   // vehicle-flagged match run (Anti-cheat V1 stage 2).
-  if (run.integrity?.verdict === 'vehicle') {
+  if (isVehicleFlaggedRun(run)) {
     return false;
   }
 

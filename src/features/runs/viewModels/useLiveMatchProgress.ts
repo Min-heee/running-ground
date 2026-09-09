@@ -153,9 +153,10 @@ export function useLiveMatchProgress({
     });
   }, [hasAnyRemoteDisplayProgress, matchMode]);
 
+  const isDuelOpponentDisqualified = effectiveDuelOpponent?.disqualified === true;
   const duelLiveTitle = useMemo(
-    () => buildDuelLiveTitle({ isDuelOpponentForfeited, duelLiveGapKm }),
-    [duelLiveGapKm, isDuelOpponentForfeited],
+    () => buildDuelLiveTitle({ isDuelOpponentForfeited, isDuelOpponentDisqualified, duelLiveGapKm }),
+    [duelLiveGapKm, isDuelOpponentDisqualified, isDuelOpponentForfeited],
   );
   const duelStatusAlert = useMemo(
     () => buildDuelStatusAlert(effectiveDuelOpponent),

@@ -17,6 +17,8 @@ export type RunningMatchRoomParticipant = {
   liveUpdatedAt?: string;
   liveStatus?: RunningMatchLiveStatus;
   finishedAt?: string;
+  // 부정 러닝 실격 — 매치 참가자 계약과 동일 (방 로스터에 병합될 때 따라온다).
+  disqualified?: boolean;
   officialDistanceKm?: number;
   officialElapsedSeconds?: number;
   officialAveragePace?: string;

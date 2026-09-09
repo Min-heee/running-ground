@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { liveMatchRaceBoardStyles as styles } from '@/components/matches/liveMatchRaceBoard/styles';
 import type { LiveMatchRaceBoardRow } from '@/components/matches/liveMatchRaceBoard/types';
+import { resolveForfeitStatusLabel } from '@/features/runs/viewModels/matchForfeitLabels';
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -18,11 +19,13 @@ function areRaceBoardRowsEqual(left: LiveMatchRaceBoardRow, right: LiveMatchRace
     && left.isCurrentUser === right.isCurrentUser
     && left.isProgressivePlaceholder === right.isProgressivePlaceholder
     && left.liveStatus === right.liveStatus
+    && left.disqualified === right.disqualified
     && left.resultLabel === right.resultLabel;
 }
 
 export const RaceBoardListRow = memo(function RaceBoardListRow({ row }: { row: LiveMatchRaceBoardRow }) {
   const isForfeited = row.liveStatus === 'forfeited';
+  const forfeitLabel = resolveForfeitStatusLabel(row.disqualified);
   const isFinished = row.liveStatus === 'finished';
   const isProgressivePlaceholder = Boolean(row.isProgressivePlaceholder);
   const rawProgress = clamp(row.progress, 0, 1);
@@ -86,7 +89,7 @@ export const RaceBoardListRow = memo(function RaceBoardListRow({ row }: { row: L
           : undefined,
   ], [row.resultLabel]);
   const remainingLabel = isForfeited
-    ? '기권'
+    ? forfeitLabel
     : isFinished
       ? '완주'
       : isProgressivePlaceholder
@@ -115,7 +118,7 @@ export const RaceBoardListRow = memo(function RaceBoardListRow({ row }: { row: L
           <View style={styles.trackLine}>
             <View style={trackProgressStyle} />
             <View style={trackDotStyle}>
-              {isForfeited ? <Text style={styles.trackDotForfeitedText}>기권</Text> : null}
+              {isForfeited ? <Text style={styles.trackDotForfeitedText}>{forfeitLabel}</Text> : null}
             </View>
           </View>
           <Text style={distanceTextStyle}>

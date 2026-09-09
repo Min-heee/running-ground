@@ -14,6 +14,7 @@ import { isUnsavableShortRunError } from '@/features/runs/utils/matchScheduling'
 import type { MatchExitSource } from '@/features/runs/lifecycle/matchExitFlow';
 import { buildRunDetailRedirect } from '@/features/runs/lifecycle/runSaveNavigation';
 import { resolveActiveMatchId } from '@/features/runs/lifecycle/matchStateMachine';
+import { buildCadenceAudit } from '@/features/runs/integrity/cadenceWatchdogModel';
 import {
   buildPendingFinishIntentFromFreeze,
   getLocalGoalFreeze,
@@ -63,6 +64,7 @@ export function isSaveCommandInFlight() {
 export function useRunSaveCommand({
   autoStartedMatchIdRef,
   buildDisplayedMatchProgress,
+  cadenceWatchdogRef,
   discardCurrentTracking,
   duelMatchStatus,
   getDisplayedTrackingSnapshot,
@@ -70,6 +72,7 @@ export function useRunSaveCommand({
   isTabMode,
   matchMode,
   officialStartBaselineRef,
+  pedometerSensorRef,
   preStartWarmupMatchIdRef,
   pushRunningMatchProgress,
   resetMatchRuntimeAfterTrackingCleared,
@@ -91,12 +94,14 @@ export function useRunSaveCommand({
   UseRunSaveFlowInput,
   | 'autoStartedMatchIdRef'
   | 'buildDisplayedMatchProgress'
+  | 'cadenceWatchdogRef'
   | 'duelMatchStatus'
   | 'getDisplayedTrackingSnapshot'
   | 'groupMatchStatus'
   | 'isTabMode'
   | 'matchMode'
   | 'officialStartBaselineRef'
+  | 'pedometerSensorRef'
   | 'preStartWarmupMatchIdRef'
   | 'pushRunningMatchProgress'
   | 'resetMatchRuntimeAfterTrackingCleared'
@@ -279,6 +284,10 @@ export function useRunSaveCommand({
 
       const saveSnapshot = buildRunSaveResultSnapshot({
         allowShortDistanceSave: Boolean(options.allowShortDistanceSave),
+        // 케이던스 감사 원장 (오너 규칙 2026-09-09): 워치독이 포그라운드·센서 생존 창에서만
+        // 누적한 달리기 속도 이동/걸음 + 스트라이크/실격 자기신고. 일반 저장과 기권 저장이
+        // 모두 이 커맨드를 지나므로 여기 한 번이면 두 경로 다 실린다.
+        cadenceAudit: buildCadenceAudit(cadenceWatchdogRef.current, pedometerSensorRef.current.available),
         // A run that carries a match result is a decided competition — it must save even
         // at 0.00km with no GPS fixes (e.g. friends start a party run, then immediately
         // forfeit to redo it). Without this, the manual save button on the fallback

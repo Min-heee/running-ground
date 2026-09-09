@@ -1,3 +1,4 @@
+import { isVehicleFlaggedRun } from '../lib/competitiveRuns.mjs';
 import { roundDistanceKm } from '../lib/distancePrecision.mjs';
 import { formatKstDateKey } from '../lib/kstDate.mjs';
 
@@ -190,6 +191,17 @@ export function buildTodayRanking({
   // 기록도 포함한다. 친구 보드·지역 보드·홈 기록 카드와 같은 숫자여야 한다 (예전엔 이
   // 보드만 경쟁 러닝으로 집계해 같은 날 거리가 3km/14km로 갈렸다).
   // 포인트/LP/매치메이킹은 여전히 경쟁 러닝 전용 — 이 보드는 순수 표시면이다.
+  //
+  // 단 하나의 예외 (오너 2026-09-09): 서버가 차량 판정한 기록(integrity 'vehicle')은
+  // 빠진다 — 차량 속도 기록이 판정을 받고도 이 보드 1위였다. 임포트는 그대로
+  // 포함이고, 걸러내는 건 오직 차량 판정뿐이다. points.mjs가 같은 게이트를 쓰므로
+  // 스트릭 열(getMetricsForUser)도 자동으로 일치한다.
+  const boardRunsByUserId = new Map();
+
+  for (const [userId, runs] of runsByUserId.entries()) {
+    boardRunsByUserId.set(userId, (runs ?? []).filter((run) => !isVehicleFlaggedRun(run)));
+  }
+
   const metricsByUserId = new Map();
   const getMetricsForUser = (userId) => {
     if (!metricsByUserId.has(userId)) {
@@ -197,7 +209,7 @@ export function buildTodayRanking({
         userId,
         // Pass the ranking's reference time so the streak (and week windows) are
         // computed against rankedAt, not whenever this runs — deterministic + correct.
-        buildUserMetrics(runsByUserId.get(userId) ?? [], safeRankedAt),
+        buildUserMetrics(boardRunsByUserId.get(userId) ?? [], safeRankedAt),
       );
     }
 
@@ -205,9 +217,9 @@ export function buildTodayRanking({
   };
 
   const rankedEntries = category === 'pace'
-    ? buildPaceEntries({ users, runsByUserId, todayKey, currentUserId })
+    ? buildPaceEntries({ users, runsByUserId: boardRunsByUserId, todayKey, currentUserId })
     : category === 'distance'
-      ? buildDistanceEntries({ users, runsByUserId, todayKey, currentUserId })
+      ? buildDistanceEntries({ users, runsByUserId: boardRunsByUserId, todayKey, currentUserId })
       : buildStreakEntries({ users, currentUserId, getMetricsForUser });
 
   return {

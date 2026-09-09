@@ -1,4 +1,4 @@
-import { isCompetitiveRun } from './competitiveRuns.mjs';
+import { isCompetitiveRun, isVehicleFlaggedRun } from './competitiveRuns.mjs';
 import { formatKstDateKey } from './kstDate.mjs';
 
 // 거리 반올림은 distancePrecision이 단일 근원 — 이름을 유지해 호출부 20곳을 건드리지 않는다.
@@ -58,6 +58,13 @@ export function getMatchBonusPoints(run) {
   const matchResult = run?.matchResult;
 
   if (!matchResult || typeof matchResult !== 'object') {
+    return 0;
+  }
+
+  // 실격패 (오너 2026-09-09): 케이던스 워치독 부정 러닝은 그 매치에서 0P — 기권패의 10P도
+  // 없다. 벨트 겸 멜빵: 같은 기록은 integrity 'vehicle'로 isCompetitiveRun에서 이미 걸러져
+  // 여기까지 오지 않지만, 블롭만 남은 옛 경로(재계산·복구 스크립트)에서도 지급되지 않게.
+  if (matchResult.disqualified === true) {
     return 0;
   }
 
@@ -152,7 +159,8 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
   // 포함해 오른다 — 타앱과 병행 측정하는 유저의 게이지가 반토막 나는 혼란이 커서.
   // 나머지 격자(매치 보너스, 스트릭, 주간 성장, chase)는 여전히 경쟁 러닝 전용:
   // 손으로 입력 가능한 헬스 임포트가 대결·연속성 보너스를 파밍하는 건 계속 차단.
-  // 차량 판정(integrity.verdict === 'vehicle') 러닝은 어떤 사다리에도 안 오른다.
+  // 차량 판정(integrity.verdict === 'vehicle') 러닝은 어떤 사다리에도 안 오르고, 표시
+  // 집계(주/월/오늘 거리·횟수·스트릭·최근 러닝)에서도 빠진다 — 아래 루프 첫 줄의 게이트.
   const competitiveWeekRunsByKey = new Map();
   const competitiveMonthDistanceByKey = new Map();
   const competitiveDistanceByDate = new Map();
@@ -165,21 +173,26 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
   let latestRun = null;
 
   for (const run of sortedRuns) {
+    // 차량 판정 러닝은 모든 집계에서 제외 (오너 2026-09-09): 차량 속도 기록이
+    // 'vehicle' 판정을 받고도 오늘의 랭킹·지역 보드·홈 지표에 그대로 올랐던 구멍. 포인트
+    // (runPointsById)는 예전부터 안 붙었고(레벨 게이트 + isCompetitiveRun), 이제 표시용
+    // 주/월/오늘 거리, 횟수, 일/주 스트릭, 최근 러닝, 생애 거리도 이 기록을 보지 않는다.
+    // 기록 자체는 내 활동 목록에 남는다 — 사라지는 건 집계뿐이다.
+    if (isVehicleFlaggedRun(run)) {
+      continue;
+    }
+
     cumulativeDistanceKm = toFixed1(cumulativeDistanceKm + run.distanceKm);
 
     const runDate = parseRunDate(run.date);
     const weekKey = getWeekKey(runDate);
     const monthKey = getMonthKey(runDate);
 
-    // 거리 레벨 사다리 (오너 2026-07-30): 임포트 러닝도 오른다. 차량 판정만 제외.
-    let levelPoints = 0;
-
-    if (run.integrity?.verdict !== 'vehicle') {
-      const beforeLevel = Math.floor(ladderDistanceKm / 10);
-      ladderDistanceKm = toFixed1(ladderDistanceKm + run.distanceKm);
-      const afterLevel = Math.floor(ladderDistanceKm / 10);
-      levelPoints = Math.max(0, afterLevel - beforeLevel) * 10;
-    }
+    // 거리 레벨 사다리 (오너 2026-07-30): 임포트 러닝도 오른다. 차량 판정은 위에서 이미 빠졌다.
+    const beforeLevel = Math.floor(ladderDistanceKm / 10);
+    ladderDistanceKm = toFixed1(ladderDistanceKm + run.distanceKm);
+    const afterLevel = Math.floor(ladderDistanceKm / 10);
+    const levelPoints = Math.max(0, afterLevel - beforeLevel) * 10;
 
     if (isCompetitiveRun(run)) {
       competitiveCumulativeDistanceKm = toFixed1(competitiveCumulativeDistanceKm + run.distanceKm);

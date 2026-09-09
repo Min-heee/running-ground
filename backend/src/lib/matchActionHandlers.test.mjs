@@ -12,10 +12,18 @@ import test from 'node:test';
 //      (finish freeze, LP) are untouched.
 import {
   PROGRESS_PRUNE_MIN_INTERVAL_MS,
+  leaveRunningMatch,
   resetProgressPruneThrottle,
   runProgressPollPrunesIfDue,
   updateRunningMatchProgress,
 } from './matchActionHandlers.mjs';
+import { buildRunningMatchStatusResponse } from './matchResponseBuilders.mjs';
+import {
+  buildMatchResultByMatchId,
+  resolveSavedDuelMatchResult,
+  resolveSavedGroupMatchResult,
+} from './matchResultBuilders.mjs';
+import { getMatchBonusPoints } from './points.mjs';
 
 function iso(offsetMs = 0) {
   return new Date(Date.now() + offsetMs).toISOString();
@@ -412,4 +420,414 @@ test('a goal-reaching RAW finish declaration is accepted even when the speed-cla
   assert.equal(mine.liveStatus, 'finished');
   assert.equal(mine.finishElapsedSeconds, 2100);
   assert.equal(mine.liveDistanceKm, 6, 'the accepted finish stores min(goal, raw) — the ledger says the goal, not GPS overshoot');
+});
+
+// ── 실격패 이탈 (오너 2026-09-09): 케이던스 워치독 부정 러닝 ────────────────────────────
+// leave에 reason 'disqualified'를 실으면 기권과 똑같이 forfeited로 봉인되고(LP·정렬 그대로 =
+// 패배), 참가자에 disqualified/forfeitReason이 박힌다. 상태/결과 페이로드는 그 참가자에
+// `disqualified: true`를, 본인 뷰는 `currentUserDisqualified: true`를 노출한다. 저장 시 서버
+// 재작성 문구는 본인 '실격패', 상대 '상대 실격 승'. reason이 없는 기권은 바이트 단위로 그대로.
+
+function statusInput(session) {
+  return { mode: session.mode, distanceKm: session.distanceKm, slotStartAt: session.slotStartAt, matchId: session.id };
+}
+
+test('leave with reason disqualified: participant is forfeited AND flagged; a plain leave carries no flag', () => {
+  const { store, session } = createRunningDuelFixture('dq-flag-duel');
+  const guest = session.participants[1];
+
+  leaveRunningMatch(store, { id: guest.userId }, { matchId: 'dq-flag-duel', reason: 'disqualified' });
+
+  assert.equal(guest.liveStatus, 'forfeited');
+  assert.equal(typeof guest.forfeitedAt, 'string');
+  assert.equal(guest.disqualified, true);
+  assert.equal(guest.forfeitReason, 'disqualified');
+
+  const plain = createRunningDuelFixture('plain-forfeit-duel');
+  const plainGuest = plain.session.participants[1];
+  leaveRunningMatch(plain.store, { id: plainGuest.userId }, { matchId: 'plain-forfeit-duel' });
+
+  assert.equal(plainGuest.liveStatus, 'forfeited');
+  assert.equal('disqualified' in plainGuest, false);
+  assert.equal('forfeitReason' in plainGuest, false);
+});
+
+test('status payloads: opponent.disqualified for the other side, currentUserDisqualified for the self view', () => {
+  const { store, session, pusher } = createRunningDuelFixture('dq-status-duel');
+  const guest = session.participants[1];
+  const guestUser = store.users.find((user) => user.id === guest.userId);
+
+  leaveRunningMatch(store, guestUser, { matchId: 'dq-status-duel', reason: 'disqualified' });
+
+  const hostView = buildRunningMatchStatusResponse(store, pusher, statusInput(session));
+  assert.equal(hostView.opponent.liveStatus, 'forfeited');
+  assert.equal(hostView.opponent.disqualified, true);
+  assert.equal('currentUserDisqualified' in hostView, false);
+
+  const guestView = buildRunningMatchStatusResponse(store, guestUser, statusInput(session));
+  assert.equal(guestView.currentUserLiveStatus, 'forfeited');
+  assert.equal(guestView.currentUserDisqualified, true);
+  assert.equal('disqualified' in guestView.opponent, false);
+});
+
+test('/result rows + save-time copy: the disqualified side reads 실격패, the winner 상대 실격 승, 0P vs 20P', () => {
+  const { store, session, pusher } = createRunningDuelFixture('dq-result-duel');
+  const guest = session.participants[1];
+  const guestUser = store.users.find((user) => user.id === guest.userId);
+
+  leaveRunningMatch(store, guestUser, { matchId: 'dq-result-duel', reason: 'disqualified' });
+
+  const result = buildMatchResultByMatchId(store, pusher, 'dq-result-duel');
+  const guestRow = result.participants.find((row) => row.userId === guest.userId);
+  const hostRow = result.participants.find((row) => row.userId === pusher.id);
+  assert.equal(guestRow.forfeited, true);
+  assert.equal(guestRow.disqualified, true);
+  assert.equal(guestRow.resultTone, 'lose');
+  assert.equal('disqualified' in hostRow, false);
+  assert.equal(hostRow.resultTone, 'win');
+
+  const guestBlob = resolveSavedDuelMatchResult(store, guestUser, {
+    mode: 'duel',
+    matchId: 'dq-result-duel',
+    source: 'official',
+    title: '부정 러닝으로 실격패했어요',
+    summary: '요약',
+    badgeLabel: '실격패',
+    resultTone: 'lose',
+    disqualified: true,
+  });
+  assert.equal(guestBlob.badgeLabel, '실격패');
+  assert.equal(guestBlob.title, '부정 러닝으로 실격패했어요');
+  assert.equal(guestBlob.resultTone, 'lose');
+  assert.equal(guestBlob.disqualified, true);
+
+  const hostBlob = resolveSavedDuelMatchResult(store, pusher, {
+    mode: 'duel',
+    matchId: 'dq-result-duel',
+    source: 'official',
+    title: '결과 집계 중',
+    summary: '요약',
+    badgeLabel: '결과 집계 중',
+  });
+  assert.equal(hostBlob.badgeLabel, '상대 실격 승');
+  assert.equal(hostBlob.resultTone, 'win');
+  assert.equal('disqualified' in hostBlob, false);
+
+  assert.equal(getMatchBonusPoints({ distanceKm: 6, matchResult: guestBlob }), 0);
+  assert.equal(getMatchBonusPoints({ distanceKm: 6, matchResult: hostBlob }), 20);
+});
+
+test('a plain forfeit keeps today\'s verdict copy (패배/승리) — no 실격 wording without the reason', () => {
+  const { store, session, pusher } = createRunningDuelFixture('plain-copy-duel');
+  const guest = session.participants[1];
+  const guestUser = store.users.find((user) => user.id === guest.userId);
+
+  leaveRunningMatch(store, guestUser, { matchId: 'plain-copy-duel' });
+
+  const guestBlob = resolveSavedDuelMatchResult(store, guestUser, {
+    mode: 'duel', matchId: 'plain-copy-duel', source: 'official', title: 't', summary: 's', badgeLabel: '기권 패', resultTone: 'lose',
+  });
+  assert.equal(guestBlob.badgeLabel, '패배');
+  assert.equal('disqualified' in guestBlob, false);
+  assert.equal(getMatchBonusPoints({ distanceKm: 6, matchResult: guestBlob }), 10);
+
+  const hostBlob = resolveSavedDuelMatchResult(store, pusher, {
+    mode: 'duel', matchId: 'plain-copy-duel', source: 'official', title: 't', summary: 's', badgeLabel: '결과 집계 중',
+  });
+  assert.equal(hostBlob.badgeLabel, '승리');
+
+  const result = buildMatchResultByMatchId(store, pusher, 'plain-copy-duel');
+  const guestRow = result.participants.find((row) => row.userId === guest.userId);
+  assert.equal(guestRow.forfeited, true);
+  assert.equal('disqualified' in guestRow, false);
+});
+
+function createRunningGroupFixture(matchId) {
+  const users = ['a', 'b', 'c'].map((suffix) => createUser(`group-${suffix}-${matchId}`));
+  const session = {
+    id: matchId,
+    mode: 'group',
+    isTestMatch: false,
+    isPartyRun: false,
+    distanceKm: 5,
+    slotStartAt: iso(-30 * 60 * 1000),
+    startedAt: iso(-30 * 60 * 1000),
+    createdAt: iso(-31 * 60 * 1000),
+    matchedAt: iso(-31 * 60 * 1000),
+    participants: users.map((user, index) => ({
+      userId: user.id,
+      seedRank: index + 1,
+      acceptedAt: null,
+      liveStatus: 'running',
+      liveDistanceKm: 2,
+      liveElapsedSeconds: 800,
+      livePace: '06:40/km',
+      liveUpdatedAt: iso(-5 * 1000),
+      finishedAt: null,
+      finishElapsedSeconds: null,
+    })),
+  };
+
+  return {
+    store: {
+      users,
+      runs: users.map((user) => createProfileRun(user.id)),
+      matchSessions: [session],
+      matchQueues: { duel: [], group: [] },
+      matchRooms: [],
+      notifications: [],
+    },
+    session,
+    users,
+  };
+}
+
+test('group status: participants[] and groupVerdict.participants[] carry disqualified for the flagged runner only', () => {
+  const { store, session, users } = createRunningGroupFixture('dq-group');
+  const [host, , flagged] = users;
+
+  leaveRunningMatch(store, flagged, { matchId: 'dq-group', reason: 'disqualified' });
+
+  const hostView = buildRunningMatchStatusResponse(store, host, statusInput(session));
+  const flaggedRow = hostView.participants.find((participant) => participant.id === flagged.id);
+  assert.equal(flaggedRow.liveStatus, 'forfeited');
+  assert.equal(flaggedRow.disqualified, true);
+  assert.equal(hostView.participants.filter((participant) => 'disqualified' in participant).length, 1);
+
+  const verdictRow = hostView.groupVerdict.participants.find((participant) => participant.userId === flagged.id);
+  assert.equal(verdictRow.forfeited, true);
+  assert.equal(verdictRow.disqualified, true);
+  assert.equal(hostView.groupVerdict.participants.filter((participant) => 'disqualified' in participant).length, 1);
+
+  const flaggedView = buildRunningMatchStatusResponse(store, flagged, statusInput(session));
+  assert.equal(flaggedView.currentUserDisqualified, true);
+});
+
+test('pruned session: the winner\'s save still reads 상대 실격 승 off the opponent\'s saved disqualified blob', () => {
+  const { store, session, pusher } = createRunningDuelFixture('dq-pruned-duel');
+  const guest = session.participants[1];
+
+  // The disqualified runner saved first (their blob is the self-contained 실격 record), then the
+  // session was pruned before the winner's save landed — the no-session resolver branch.
+  store.runs.push({
+    id: 'guest-dq-run',
+    userId: guest.userId,
+    date: iso().slice(0, 10),
+    distanceKm: 2.1,
+    pace: '07:00/km',
+    durationSeconds: 900,
+    source: 'RunningGround',
+    sourceType: 'runningground',
+    createdAt: iso(),
+    matchResult: {
+      mode: 'duel',
+      matchId: 'dq-pruned-duel',
+      source: 'official',
+      title: '부정 러닝으로 실격패했어요',
+      summary: '요약',
+      badgeLabel: '실격패',
+      resultTone: 'lose',
+      disqualified: true,
+      myDurationSeconds: 2000,
+    },
+  });
+  store.matchSessions = [];
+
+  const hostBlob = resolveSavedDuelMatchResult(store, pusher, {
+    mode: 'duel',
+    matchId: 'dq-pruned-duel',
+    source: 'official',
+    title: '결과 집계 중',
+    summary: '요약',
+    badgeLabel: '결과 집계 중',
+    myDurationSeconds: 1500,
+  });
+
+  assert.equal(hostBlob.resultTone, 'win');
+  assert.equal(hostBlob.badgeLabel, '상대 실격 승');
+  assert.equal(hostBlob.opponentId, guest.userId);
+  assert.equal('disqualified' in hostBlob, false);
+
+  // The pruned-session /result reconstruction (participant-only: the requester must own a saved
+  // run) flags the disqualified row from the saved blob too.
+  store.runs.push({
+    id: 'host-win-run',
+    userId: pusher.id,
+    date: iso().slice(0, 10),
+    distanceKm: 6,
+    pace: '04:10/km',
+    durationSeconds: 1500,
+    source: 'RunningGround',
+    sourceType: 'runningground',
+    createdAt: iso(),
+    matchResult: hostBlob,
+  });
+  const result = buildMatchResultByMatchId(store, pusher, 'dq-pruned-duel');
+  const guestRow = result.participants.find((row) => row.userId === guest.userId);
+  const hostRow = result.participants.find((row) => row.userId === pusher.id);
+  assert.equal(guestRow.forfeited, true);
+  assert.equal(guestRow.disqualified, true);
+  assert.equal(hostRow.resultTone, 'win');
+  assert.equal('disqualified' in hostRow, false);
+});
+
+// ── 저장된 실격/기권 블롭이 leave를 대신한다 (적대 리뷰 2026-09-09) ──────────────────────────
+// 클라 워치독 실격 → leave({ reason: 'disqualified' })가 네트워크/400으로 실패(클라가 삼킴) →
+// 그래도 저장은 '실격패' 블롭으로 도착한다. 예전에는 저장자가 아직 달리는 참가자라 블롭이 PENDING
+// 으로 뒤집히고(나중에 평문 '패배'로 치유) 상대는 평문 '승리'로 굳어 실격 표식이 양쪽 폰에서
+// 사라졌다. 이제 저장 시 resolver가 leaveRunningMatch가 했을 스탬프를 같은 헬퍼로 대신 박는다.
+
+function buildSelfForfeitDuelBlob(matchId, { disqualified = false } = {}) {
+  return disqualified
+    ? {
+        mode: 'duel',
+        matchId,
+        source: 'official',
+        title: '부정 러닝으로 실격패 처리됐어요',
+        summary: '요약',
+        badgeLabel: '실격패',
+        resultTone: 'lose',
+        disqualified: true,
+      }
+    : {
+        mode: 'duel',
+        matchId,
+        source: 'official',
+        title: '기권으로 대결을 마쳤어요',
+        summary: '요약',
+        badgeLabel: '기권 패',
+        resultTone: 'lose',
+      };
+}
+
+function buildPendingDuelBlob(matchId) {
+  return { mode: 'duel', matchId, source: 'official', title: '결과 집계 중', summary: '요약', badgeLabel: '결과 집계 중' };
+}
+
+test('save-only 실격패 (leave never reached the server): the resolver forfeits + flags the participant; host reads 상대 실격 승', () => {
+  const { store, session, pusher } = createRunningDuelFixture('dq-save-only-duel');
+  const guest = session.participants[1];
+  const guestUser = store.users.find((user) => user.id === guest.userId);
+
+  // The guest saves the watchdog's 실격패 blob WITHOUT any leave call.
+  const guestBlob = resolveSavedDuelMatchResult(store, guestUser, buildSelfForfeitDuelBlob('dq-save-only-duel', { disqualified: true }));
+
+  // The session participant carries exactly what leaveRunningMatch({ reason: 'disqualified' }) stamps.
+  assert.equal(guest.liveStatus, 'forfeited');
+  assert.equal(typeof guest.forfeitedAt, 'string');
+  assert.equal(guest.liveUpdatedAt, guest.forfeitedAt);
+  assert.equal(guest.disqualified, true);
+  assert.equal(guest.forfeitReason, 'disqualified');
+
+  // The saver's own blob is NOT turned PENDING — it resolves as the 실격패 loss it claims, 0P.
+  assert.equal(guestBlob.badgeLabel, '실격패');
+  assert.equal(guestBlob.resultTone, 'lose');
+  assert.equal(guestBlob.disqualified, true);
+  assert.equal(getMatchBonusPoints({ distanceKm: 6, matchResult: guestBlob }), 0);
+
+  // Host status: opponent forfeited AND disqualified.
+  const hostView = buildRunningMatchStatusResponse(store, pusher, statusInput(session));
+  assert.equal(hostView.opponent.liveStatus, 'forfeited');
+  assert.equal(hostView.opponent.disqualified, true);
+
+  // Host save → 상대 실격 승 (no disqualified key on the winner's blob), 20P.
+  const hostBlob = resolveSavedDuelMatchResult(store, pusher, buildPendingDuelBlob('dq-save-only-duel'));
+  assert.equal(hostBlob.badgeLabel, '상대 실격 승');
+  assert.equal(hostBlob.resultTone, 'win');
+  assert.equal('disqualified' in hostBlob, false);
+  assert.equal(getMatchBonusPoints({ distanceKm: 6, matchResult: hostBlob }), 20);
+
+  // /result rows agree.
+  const result = buildMatchResultByMatchId(store, pusher, 'dq-save-only-duel');
+  const guestRow = result.participants.find((row) => row.userId === guest.userId);
+  assert.equal(guestRow.forfeited, true);
+  assert.equal(guestRow.disqualified, true);
+
+  // A retried save (dedupe re-runs the resolver) is a no-op on the already-terminal participant.
+  const forfeitedAt = guest.forfeitedAt;
+  resolveSavedDuelMatchResult(store, guestUser, buildSelfForfeitDuelBlob('dq-save-only-duel', { disqualified: true }));
+  assert.equal(guest.forfeitedAt, forfeitedAt);
+});
+
+test('save-only plain 기권 패: forfeited with NO disqualified key; the winner keeps today\'s plain 승리 copy', () => {
+  const { store, session, pusher } = createRunningDuelFixture('plain-save-only-duel');
+  const guest = session.participants[1];
+  const guestUser = store.users.find((user) => user.id === guest.userId);
+
+  const guestBlob = resolveSavedDuelMatchResult(store, guestUser, buildSelfForfeitDuelBlob('plain-save-only-duel'));
+
+  assert.equal(guest.liveStatus, 'forfeited');
+  assert.equal(typeof guest.forfeitedAt, 'string');
+  assert.equal('disqualified' in guest, false);
+  assert.equal('forfeitReason' in guest, false);
+  // Plain forfeit → today's verdict copy, exactly as after a real leave call.
+  assert.equal(guestBlob.resultTone, 'lose');
+  assert.equal(guestBlob.badgeLabel, '패배');
+  assert.equal('disqualified' in guestBlob, false);
+
+  const hostView = buildRunningMatchStatusResponse(store, pusher, statusInput(session));
+  assert.equal(hostView.opponent.liveStatus, 'forfeited');
+  assert.equal('disqualified' in hostView.opponent, false);
+
+  const hostBlob = resolveSavedDuelMatchResult(store, pusher, buildPendingDuelBlob('plain-save-only-duel'));
+  assert.equal(hostBlob.resultTone, 'win');
+  assert.equal(hostBlob.badgeLabel, '승리');
+  assert.equal('disqualified' in hostBlob, false);
+});
+
+test('the stamp is SELF-only: a winner saving their own 상대 실격 승 / 상대 기권 승 blob is never forfeited', () => {
+  const { store, session, pusher } = createRunningDuelFixture('winner-blob-duel');
+  const host = session.participants[0];
+
+  for (const badgeLabel of ['상대 실격 승', '상대 기권 승']) {
+    resolveSavedDuelMatchResult(store, pusher, {
+      mode: 'duel', matchId: 'winner-blob-duel', source: 'official', title: 't', summary: 's', badgeLabel, resultTone: 'win',
+    });
+    assert.equal(host.liveStatus, 'running', badgeLabel);
+    assert.equal('forfeitedAt' in host, false, badgeLabel);
+  }
+});
+
+test('the stamp never touches a terminal participant: a finished runner\'s 기권 blob leaves the finish intact', () => {
+  const { store, session, finished } = createFinishingDuelFixture('finished-forfeit-blob-duel');
+  const mine = session.participants[0];
+
+  resolveSavedDuelMatchResult(store, finished, buildSelfForfeitDuelBlob('finished-forfeit-blob-duel'));
+
+  assert.equal(mine.liveStatus, 'finished');
+  assert.equal(mine.finishElapsedSeconds, 1622);
+  assert.equal('forfeitedAt' in mine, false);
+});
+
+test('group: a save-only 실격패 blob forfeits + flags the participant for the other runners (blob returned as saved)', () => {
+  const { store, session, users } = createRunningGroupFixture('dq-group-save-only');
+  const [host, , flagged] = users;
+  const blob = {
+    mode: 'group',
+    matchId: 'dq-group-save-only',
+    source: 'official',
+    title: '부정 러닝으로 그룹 대결에서 실격됐어요',
+    summary: '요약',
+    badgeLabel: '실격패',
+    rank: 3,
+    participantCount: 3,
+    disqualified: true,
+  };
+
+  const resolved = resolveSavedGroupMatchResult(store, flagged, blob);
+
+  // The forfeit record stays self-contained and authoritative — returned as saved.
+  assert.equal(resolved, blob);
+
+  const participant = session.participants.find((entry) => entry.userId === flagged.id);
+  assert.equal(participant.liveStatus, 'forfeited');
+  assert.equal(typeof participant.forfeitedAt, 'string');
+  assert.equal(participant.disqualified, true);
+  assert.equal(participant.forfeitReason, 'disqualified');
+
+  const hostView = buildRunningMatchStatusResponse(store, host, statusInput(session));
+  const flaggedRow = hostView.participants.find((entry) => entry.id === flagged.id);
+  assert.equal(flaggedRow.liveStatus, 'forfeited');
+  assert.equal(flaggedRow.disqualified, true);
+  assert.equal(hostView.participants.filter((entry) => 'disqualified' in entry).length, 1);
 });

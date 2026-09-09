@@ -648,3 +648,32 @@ await runTest('preserveMatchGoalStamp: 재전송 블롭에 스탬프가 없으�
   // 기존에도 없으면 그대로.
   assert.equal(preserveMatchGoalStamp({ mode: 'duel' }, retry).matchGoalDistanceKm, undefined);
 });
+
+// --- 케이던스 워치독 감사 원장 (오너 2026-09-09) ---
+
+await runTest('cadenceAudit rides the tracked-run record; a malformed ledger is dropped, not saved', async () => {
+  const { repository, storeHarness } = createRepositoryHarness();
+  const cadenceAudit = { sensorAvailable: true, foregroundMovingSeconds: 900, foregroundSteps: 2400, strikes: 0, disqualified: false };
+  const baseInput = {
+    date: '2026-09-09',
+    distanceKm: 5,
+    pace: '06:00/km',
+    durationSeconds: 1800,
+    cadenceSpm: 160,
+    route: [{ latitude: 37.5, longitude: 127.0 }, { latitude: 37.51, longitude: 127.01 }],
+    endedAt: '2026-09-09T10:30:00.000Z',
+  };
+
+  const saved = await repository.createTrackedRun({
+    token: 'token-1',
+    input: { ...baseInput, startedAt: '2026-09-09T10:00:00.000Z', cadenceAudit },
+  });
+  assert.deepEqual(saved.run.cadenceAudit, cadenceAudit);
+  assert.deepEqual(storeHarness.getStore().runs.find((run) => run.id === saved.run.id).cadenceAudit, cadenceAudit);
+
+  const withoutAudit = await repository.createTrackedRun({
+    token: 'token-1',
+    input: { ...baseInput, startedAt: '2026-09-09T11:00:00.000Z', cadenceAudit: { sensorAvailable: 'yes' } },
+  });
+  assert.equal('cadenceAudit' in storeHarness.getStore().runs.find((run) => run.id === withoutAudit.run.id), false);
+});

@@ -122,6 +122,33 @@ export function applyMatchLpIfComplete(store, session) {
   applyMatchLpFromStandings(store, session, standings, participants);
 }
 
+// 기권/실격 스탬프 + 완료 훅의 단일 지점 (적대 리뷰 2026-09-09). 두 호출자가 같은 필드를 같은
+// 순서로 박아야 해서 여기 한 곳에 둔다:
+//   1. leaveRunningMatch — 클라이언트의 이탈 호출(기권; reason 'disqualified'면 실격패).
+//   2. 저장 시 resolver(matchResultBuilders) — 이탈 호출이 서버에 못 닿았는데(네트워크/400,
+//      클라가 삼킴) '실격패'/'기권 패' 블롭은 도착한 경우. 세션 참가자가 아직 달리는 중으로
+//      남아 있으면 그 블롭이 PENDING으로 뒤집히고 상대는 평문 '승리'로 굳어 실격 표식이 양쪽
+//      화면에서 사라졌다 — 그래서 저장이 leave가 했을 스탬프를 대신 박는다.
+// reason 'disqualified'는 disqualified/forfeitReason을 추가로 박는다(판정·LP·정렬은 기권 그대로 =
+// 실격패는 패배). 이 스탬프로 세션이 완료되면 LP·결과 알림(applyMatchLpIfComplete)까지 여기서
+// 돈다. 물리적 prune(pruneMatchSessions/Rooms)은 호출자 몫이다 — leave는 즉시 정리하고, resolver는
+// 곧바로 그 세션의 standings를 읽어야 하므로 정리하지 않는다(다음 상태 폴/진행 푸시가 한다).
+// 반환값은 박힌 forfeitedAt ISO 문자열.
+export function forfeitSessionParticipant(store, session, participant, { reason, now = new Date() } = {}) {
+  const forfeitedAt = now.toISOString();
+  participant.liveStatus = 'forfeited';
+  participant.liveUpdatedAt = forfeitedAt;
+  participant.forfeitedAt = forfeitedAt;
+
+  if (reason === 'disqualified') {
+    participant.disqualified = true;
+    participant.forfeitReason = 'disqualified';
+  }
+
+  applyMatchLpIfComplete(store, session);
+  return forfeitedAt;
+}
+
 // Register the LP/notification core into the sweep's seal-FINALIZATION phase at module init —
 // the same injection pattern registerFinisherSavedRunBackfill uses (the session-store modules
 // must not import this handler module, or the load order would cycle). The finalizer applies

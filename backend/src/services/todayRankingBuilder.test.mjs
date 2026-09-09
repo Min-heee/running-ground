@@ -131,4 +131,71 @@ runTest('match-result runs rank on the board like any other run', () => {
   assert.equal(ranking.entries[0]?.userId, 'user-importer');
 });
 
+// ── 차량 판정 러닝 제외 (오너 2026-09-09): 차량 속도 기록이 판정을 받고도 1위였다 ──
+
+function vehicleRun(overrides) {
+  return trackedRun({
+    integrity: { verdict: 'vehicle', reason: 'speed', checkedAt: '2026-06-25T08:30:00.000Z' },
+    ...overrides,
+  });
+}
+
+runTest('a vehicle-flagged run is dropped from the distance board (the same user\'s honest runs still count)', () => {
+  const runsByUserId = new Map([
+    ['user-me', [trackedRun({ id: 'run-me-1', distanceKm: 5, pace: '5:00/km' })]],
+    ['user-importer', [
+      vehicleRun({ id: 'run-car', distanceKm: 29.7, pace: '1:51/km' }),
+      trackedRun({ id: 'run-imp-honest', distanceKm: 3, pace: '6:00/km' }),
+    ]],
+  ]);
+
+  const ranking = buildRanking('distance', runsByUserId);
+
+  assert.equal(ranking.entries[0]?.userId, 'user-me');
+  assert.equal(ranking.entries.find((entry) => entry.userId === 'user-importer')?.value, '3km');
+});
+
+runTest('a vehicle-flagged run is dropped from the pace board; a runner with only that run is absent', () => {
+  const runsByUserId = new Map([
+    ['user-me', [trackedRun({ id: 'run-me-1', distanceKm: 5, pace: '5:00/km' })]],
+    ['user-importer', [vehicleRun({ id: 'run-car', distanceKm: 29.7, pace: '1:51/km' })]],
+  ]);
+
+  const ranking = buildRanking('pace', runsByUserId);
+
+  assert.equal(ranking.entries.length, 1);
+  assert.equal(ranking.entries[0]?.userId, 'user-me');
+  assert.equal(ranking.totalCount, 1);
+});
+
+runTest('a vehicle-flagged run does not extend the streak board either', () => {
+  const runsByUserId = new Map([
+    ['user-me', [
+      trackedRun({ id: 'run-me-1', distanceKm: 4, pace: '5:00/km', date: YESTERDAY }),
+      vehicleRun({ id: 'run-car', distanceKm: 20, pace: '2:00/km', date: TODAY }),
+    ]],
+    ['user-importer', [importedRun({ id: 'run-imp-1', distanceKm: 9, pace: '4:00/km' })]],
+  ]);
+
+  const ranking = buildRanking('streak', runsByUserId);
+
+  // 어제 4km만 자격 — 오늘의 차량 기록은 스트릭을 2일로 늘리지 못한다.
+  assert.equal(ranking.entries.find((entry) => entry.userId === 'user-me')?.value, '1일');
+});
+
+runTest('suspect verdicts (telemetry only) stay on the board', () => {
+  const runsByUserId = new Map([
+    ['user-me', [trackedRun({
+      id: 'run-me-1',
+      distanceKm: 5,
+      pace: '5:00/km',
+      integrity: { verdict: 'suspect', checkedAt: '2026-06-25T08:30:00.000Z' },
+    })]],
+  ]);
+
+  const ranking = buildRanking('distance', runsByUserId);
+
+  assert.equal(ranking.entries[0]?.value, '5km');
+});
+
 console.log('[todayRankingBuilder] all tests passed');

@@ -33,6 +33,9 @@ export type DuelMatchOpponent = {
   liveStatus?: RunningMatchLiveStatus;
   finishedAt?: string;
   forfeitedAt?: string;
+  // 부정 러닝 실격 (오너 규칙 2026-09-09): liveStatus 'forfeited'에 얹히는 부가 플래그.
+  // 서버가 reason:'disqualified' 이탈에만 true로 준다 — 표시는 '기권' 대신 '실격'.
+  disqualified?: boolean;
   officialDistanceKm?: number;
   officialElapsedSeconds?: number;
   officialAveragePace?: string;
@@ -86,6 +89,8 @@ export type GroupMatchParticipant = {
   liveStatus?: RunningMatchLiveStatus;
   finishedAt?: string;
   forfeitedAt?: string;
+  // 부정 러닝 실격 — DuelMatchOpponent.disqualified와 같은 계약.
+  disqualified?: boolean;
   officialDistanceKm?: number;
   officialElapsedSeconds?: number;
   officialAveragePace?: string;
@@ -176,6 +181,9 @@ export type CancelRunningMatchInput = {
 
 export type LeaveRunningMatchInput = {
   matchId: string;
+  // 부정 러닝 실격 기권 (케이던스 워치독): 서버는 forfeited + disqualified:true 로 기록하고
+  // 이 러너의 매치 포인트를 0으로 만든다. 없으면 오늘의 일반 기권 그대로.
+  reason?: 'disqualified';
 };
 
 export type UpdateRunningMatchProgressInput = {
@@ -330,6 +338,8 @@ export type MatchResultParticipant = {
   // duel only; null for group rows.
   resultTone: MatchResultParticipantTone | null;
   forfeited: boolean;
+  // 부정 러닝 실격으로 기권 처리된 참가자 — forfeited와 함께 true. 표시는 '실격'.
+  disqualified?: boolean;
   isMe: boolean;
 };
 

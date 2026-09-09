@@ -12,5 +12,7 @@ export type LiveMatchRaceBoardRow = {
   isProgressivePlaceholder?: boolean;
   liveStatus?: 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'forfeited' | 'finished';
   forfeitedAt?: string;
+  // 부정 러닝 실격 기권 — '기권' 라벨 대신 '실격'.
+  disqualified?: boolean;
   resultLabel?: DuelResultLabel | null;
 };

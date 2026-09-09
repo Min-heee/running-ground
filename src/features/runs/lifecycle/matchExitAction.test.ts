@@ -337,3 +337,24 @@ test('party runs surface the no-points warning on forfeit-win and sole-survivor 
   assert.equal(partySoleSurvivor.kind, 'sole-survivor');
   assert.ok(partySoleSurvivor.body.includes('포인트가 지급되지 않아요'));
 });
+
+test('exit action titles the counterpart card 실격 when the opponent forfeit is a disqualification', () => {
+  const base = {
+    source: 'duel' as const,
+    isTestMatch: false,
+    isLeaving: false,
+    isSaving: false,
+    isRunning: true,
+    counterpartForfeited: true,
+    selfForfeited: false,
+    selfFinished: false,
+  };
+
+  const disqualified = buildMatchExitActionState({ ...base, counterpartDisqualified: true });
+  assert.equal(disqualified.kind, 'counterpart-forfeited');
+  assert.equal(disqualified.kind === 'counterpart-forfeited' ? disqualified.title : null, '상대가 실격됐어요');
+
+  const plain = buildMatchExitActionState(base);
+  assert.equal(plain.kind, 'counterpart-forfeited');
+  assert.equal(plain.kind === 'counterpart-forfeited' ? plain.title : null, '상대가 기권했어요');
+});

@@ -5,7 +5,8 @@ import type { RunningMatchLiveStatus } from '@/lib/api/types';
 
 export type MatchResultTone = NonNullable<RunMatchResult['resultTone']>;
 
-export type DuelMatchResultRowLabel = 'WIN' | 'LOSER' | 'DRAW' | 'ING' | 'FORFEIT';
+// 'DISQUALIFIED' = 부정 러닝 실격 기권 (오너 규칙 2026-09-09) — 렌더는 FORFEIT와 같은 패배 톤, 라벨만 '실격'.
+export type DuelMatchResultRowLabel = 'WIN' | 'LOSER' | 'DRAW' | 'ING' | 'FORFEIT' | 'DISQUALIFIED';
 
 export type DuelMatchResultRowModel = {
   id: string;

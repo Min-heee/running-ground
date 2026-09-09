@@ -2,6 +2,7 @@ import type { ArenaParticipant } from '@/components/matches/liveMatchArena/types
 // helpers.ts가 아니라 여기서 직접 가져온다: helpers는 react-native(Platform)를 물고
 // 있어 node 테스트 러너가 이 순수 모듈을 못 읽게 된다.
 import { isRunnerForfeited } from '@/components/matches/liveMatchArenaVisualState';
+import { resolveForfeitStatusLabel } from '@/features/runs/viewModels/matchForfeitLabels';
 
 // 그룹로드 F1 타이밍 타워 모델 (오너 2026-08-05, F1 순위표 레퍼런스).
 // 화면은 순위 · 색 띠 · 이름 · 앞줄과의 간격 한 줄씩이고, 순위가 바뀐 러너에게
@@ -84,7 +85,7 @@ export function buildGroupGapLabel(
   aheadParticipant: ArenaParticipant | null,
 ): string {
   if (isRunnerForfeited(participant)) {
-    return '기권';
+    return resolveForfeitStatusLabel(participant.disqualified);
   }
   if (participant.liveStatus === 'finished') {
     return '완주';

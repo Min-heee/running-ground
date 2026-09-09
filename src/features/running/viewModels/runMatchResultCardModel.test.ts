@@ -227,3 +227,42 @@ test('duel board rows: missing tone (집계 중) shows — not 무', () => {
   });
   assert.deepEqual(rows.map((row) => row.leadLabel), ['—', '—']);
 });
+
+test('실격 표기 (오너 규칙 2026-09-09): 그룹 보드 행은 실격자에게 기권 대신 실격, 듀얼 보드 내 행은 실격패 블롭이면 LOSE 대신 실격', () => {
+  const participant = (rank: number, overrides: Partial<{ isMe: boolean; forfeited: boolean; disqualified: boolean }> = {}) => ({
+    name: `러너${rank}`,
+    paceSecondsPerKm: 360 + rank,
+    finishElapsedSeconds: 1200 + rank,
+    rank,
+    forfeited: false,
+    isMe: false,
+    ...overrides,
+  });
+  const rows = buildGroupBoardRows([
+    participant(1),
+    participant(2, { forfeited: true, disqualified: true }),
+    participant(3, { isMe: true, forfeited: true }),
+  ]);
+  assert.equal(rows[1].metricLabel, '실격');
+  assert.equal(rows[2].metricLabel, '기권');
+
+  const disqualifiedRows = buildDuelBoardRows({
+    matchResult: matchResult({ resultTone: 'lose', disqualified: true, opponentName: '준호', opponentPaceLabel: '05:00/km' }),
+    myDisplayPaceLabel: '09:00/km',
+    myDurationLabel: '10:00',
+    opponentDurationLabel: '25:00',
+  });
+  // 승자(상대) 먼저, 내 행은 실격 배지에 패배 톤.
+  assert.deepEqual(disqualifiedRows.map((row) => [row.leadLabel, row.leadTone, row.isMe]), [
+    ['WIN', 'win', false],
+    ['실격', 'lose', true],
+  ]);
+
+  const plainLoseRows = buildDuelBoardRows({
+    matchResult: matchResult({ resultTone: 'lose', opponentName: '준호' }),
+    myDisplayPaceLabel: null,
+    myDurationLabel: null,
+    opponentDurationLabel: null,
+  });
+  assert.equal(plainLoseRows[1].leadLabel, 'LOSE');
+});

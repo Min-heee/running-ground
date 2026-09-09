@@ -5,6 +5,7 @@ import {
   getBackgroundRunTrackingSnapshot,
   resetBackgroundRunTracking,
 } from '@/features/runs/tracking/background';
+import { abortGhostRecording } from '@/features/runs/ghostRun/ghostRecorder';
 import { clearPendingRunSaveForStartedAt } from '@/features/runs/save/pendingRunSaveQueue';
 import {
   resolveMatchExitId,
@@ -79,6 +80,8 @@ export function useRunFinishCommand({
   const continueSoloInFlightRef = useRef<Set<MatchExitSource>>(new Set());
 
   const discardCurrentTracking = async () => {
+    // 버린 러닝은 '나와의 대결' 유령 후보로도 살아남지 않는다 (부정 러닝 폐기·수동 폐기 공통).
+    abortGhostRecording();
     // C-2 — discarding the tracking discards the failed-save context with it (mirrors the
     // freeze, which the resetBackgroundRunTracking below releases).
     clearPendingMatchSaveContext();

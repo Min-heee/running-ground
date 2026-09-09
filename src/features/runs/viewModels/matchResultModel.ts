@@ -5,6 +5,7 @@ import {
   resolveParticipantDisplayDistanceKm,
   type GroupLiveStanding,
 } from '@/features/runs/viewModels/matchProgress';
+import { resolveForfeitStatusLabel } from '@/features/runs/viewModels/matchForfeitLabels';
 import {
   resolveDuelBadgeLabel,
   resolveDuelCurrentRowLabel,
@@ -92,6 +93,8 @@ export function buildDuelMatchFinishModel({
   const currentForfeited = currentUserLiveStatus === 'forfeited';
   const currentFinished = currentUserLiveStatus === 'finished';
   const opponentForfeited = opponent.liveStatus === 'forfeited';
+  // 부정 러닝 실격 기권 (서버 disqualified:true) — 승패 규칙은 기권과 같고 라벨만 '실격'.
+  const opponentDisqualified = opponentForfeited && opponent.disqualified === true;
   const opponentFinished = opponent.liveStatus === 'finished';
   const opponentInProgress = currentFinished && !opponentForfeited && !opponentFinished;
   const opponentHasProgress = hasRemoteRunnerProgress(opponent);
@@ -185,6 +188,7 @@ export function buildDuelMatchFinishModel({
       opponentName: opponent.name,
       currentForfeited,
       opponentForfeited,
+      opponentDisqualified,
       opponentInProgress,
       isDraw,
       resultTone,
@@ -194,6 +198,7 @@ export function buildDuelMatchFinishModel({
     : resolveDuelSummary({
       currentForfeited,
       opponentForfeited,
+      opponentDisqualified,
       opponentInProgress,
       isDraw,
       resultTone,
@@ -205,6 +210,7 @@ export function buildDuelMatchFinishModel({
     : resolveDuelBadgeLabel({
       currentForfeited,
       opponentForfeited,
+      opponentDisqualified,
       isDraw,
       resultTone,
     });
@@ -224,7 +230,7 @@ export function buildDuelMatchFinishModel({
     ? serverOpponentPaceLabel
     : buildParticipantAveragePaceLabel(opponent, true);
   const opponentPace = opponentForfeited && !isMeasuredPaceLabel(resolvedOpponentPace)
-    ? '기권'
+    ? resolveForfeitStatusLabel(opponentDisqualified)
     : resolvedOpponentPace;
   const currentRow: DuelMatchResultRowModel = {
     id: 'me',
@@ -248,6 +254,7 @@ export function buildDuelMatchFinishModel({
     isDraw,
     resultTone,
     opponentForfeited,
+    opponentDisqualified,
     opponentPaceLabel: opponentPace,
     opponentDurationLabel: formatDuration(opponentElapsedSeconds),
     opponentHasLiveProgress: opponentHasLiveElapsed,
@@ -422,7 +429,7 @@ export function buildGroupMatchFinishModel({
       isCurrentUser: participant.isCurrentUser,
       currentPaceLabel,
       participantPaceLabel: participant.liveStatus === 'forfeited' && !isMeasuredPaceLabel(participantPaceLabel)
-        ? '기권'
+        ? resolveForfeitStatusLabel(participant.disqualified)
         : participantPaceLabel,
       durationLabel: formatDuration(
         participant.liveStatus === 'forfeited'

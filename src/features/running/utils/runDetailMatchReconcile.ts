@@ -72,7 +72,14 @@ export function isUnresolvedDuelMatchResult(matchResult: RunMatchResult | null |
     return false;
   }
   // A forfeit record is terminal and authoritative locally — never reconcile it away.
-  if (matchResult.badgeLabel === '기권 패' || matchResult.badgeLabel === '상대 기권 승') {
+  // 실격패(부정 러닝) 기록도 같은 종결 기록이다 — 서버 판정이 뒤늦게 와도 덮어쓰지 않는다.
+  if (
+    matchResult.disqualified === true
+    || matchResult.badgeLabel === '기권 패'
+    || matchResult.badgeLabel === '상대 기권 승'
+    || matchResult.badgeLabel === '실격패'
+    || matchResult.badgeLabel === '상대 실격 승'
+  ) {
     return false;
   }
   const hasDefiniteTone = matchResult.resultTone === 'win'
@@ -185,7 +192,8 @@ export function isUnresolvedGroupMatchResult(matchResult: RunMatchResult | null 
     return false;
   }
   // A forfeit record is terminal and authoritative locally — never reconcile it away.
-  if (matchResult.badgeLabel === '기권') {
+  // 실격패(부정 러닝) 기록도 마찬가지.
+  if (matchResult.disqualified === true || matchResult.badgeLabel === '기권' || matchResult.badgeLabel === '실격패') {
     return false;
   }
   // Unresolved if it is missing a definite rank — the saved card could not show a final placement.

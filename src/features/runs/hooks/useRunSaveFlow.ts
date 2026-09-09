@@ -78,7 +78,7 @@ export function useRunSaveFlow(input: UseRunSaveFlowInput) {
     handleSaveTracking: (options) => actionsRef.current.handleSaveTracking(options),
     leaveMatchAndContinueSolo: (source, options) => actionsRef.current.leaveMatchAndContinueSolo(source, options),
     handleContinueSoloFromMatch: (source) => actionsRef.current.handleContinueSoloFromMatch(source),
-    forfeitMatchAndEndRun: (source) => actionsRef.current.forfeitMatchAndEndRun(source),
+    forfeitMatchAndEndRun: (source, options) => actionsRef.current.forfeitMatchAndEndRun(source, options),
     handleForfeitMatch: (source) => actionsRef.current.handleForfeitMatch(source),
     handleShowResultAfterCounterpartForfeit: (source) => actionsRef.current.handleShowResultAfterCounterpartForfeit(source),
     handleShowResultAfterSelfForfeit: (source) => actionsRef.current.handleShowResultAfterSelfForfeit(source),

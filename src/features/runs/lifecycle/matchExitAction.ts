@@ -1,3 +1,5 @@
+import { resolveOpponentForfeitTitle } from '@/features/runs/viewModels/matchForfeitLabels';
+
 export type MatchExitActionSource = 'duel' | 'group';
 
 export type MatchExitActionState =
@@ -52,6 +54,7 @@ export function buildMatchExitActionState({
   isSaving,
   isRunning,
   counterpartForfeited,
+  counterpartDisqualified = false,
   selfForfeited,
   selfFinished,
   allOthersForfeited = false,
@@ -63,6 +66,8 @@ export function buildMatchExitActionState({
   isSaving: boolean;
   isRunning: boolean;
   counterpartForfeited: boolean;
+  // 상대의 기권이 부정 러닝 실격(disqualified:true)이면 카드 제목이 '상대가 실격됐어요'.
+  counterpartDisqualified?: boolean;
   selfForfeited: boolean;
   selfFinished: boolean;
   allOthersForfeited?: boolean;
@@ -123,7 +128,7 @@ export function buildMatchExitActionState({
 
     return {
       kind: 'counterpart-forfeited',
-      title: '상대가 기권했어요',
+      title: resolveOpponentForfeitTitle(counterpartDisqualified),
       body: isPartyRun
         ? '내가 승리한 상태예요. 다만 파티런은 목표 거리를 채우지 않고 종료하면 대결 포인트가 지급되지 않아요.'
         : '내가 승리한 상태예요. 러닝을 종료하면 결과 화면에서 대결 결과를 확인할 수 있어요.',

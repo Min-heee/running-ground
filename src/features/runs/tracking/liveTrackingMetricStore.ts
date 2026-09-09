@@ -11,6 +11,9 @@ export type LiveTrackingMetricFrame = {
   currentPace: string;
   averagePace: string;
   cadenceSpm: number | null;
+  // JS가 관측한 누적 걸음(페도미터 오프셋 포함). 케이던스 워치독이 창 단위 걸음 델타를
+  // 재는 재료 — 센서 미가동/미관측이면 null. 안드로이드 복귀 시 기준점 리셋으로 줄 수 있다.
+  totalSteps: number | null;
   elevationGainM: number;
 };
 
@@ -21,6 +24,7 @@ const INITIAL_LIVE_TRACKING_METRIC_FRAME: LiveTrackingMetricFrame = {
   currentPace: '--:--/km',
   averagePace: '--:--/km',
   cadenceSpm: null,
+  totalSteps: null,
   elevationGainM: 0,
 };
 
@@ -34,6 +38,7 @@ function areLiveTrackingMetricFramesEqual(left: LiveTrackingMetricFrame, right: 
     && left.currentPace === right.currentPace
     && left.averagePace === right.averagePace
     && left.cadenceSpm === right.cadenceSpm
+    && left.totalSteps === right.totalSteps
     && left.elevationGainM === right.elevationGainM;
 }
 

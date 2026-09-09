@@ -25,6 +25,7 @@ import { useLiveMatchProgress } from '@/features/runs/viewModels/useLiveMatchPro
 import { useLiveGapNotificationScheduler } from '@/features/runs/liveGap/useLiveGapNotificationScheduler';
 import { useOpponentForfeitVoice } from '@/features/runs/liveGap/useOpponentForfeitVoice';
 import { useFinishApproachReminder } from '@/features/runs/finishReminder/useFinishApproachReminder';
+import { useCadenceWatchdog } from '@/features/runs/integrity/useCadenceWatchdog';
 import { parseMeasuredPaceSecondsPerKm } from '@/features/runs/liveGap/liveGapMessage';
 import {
   applyDuelOpponentForfeitLatch,
@@ -219,6 +220,8 @@ export function TrackRunExperienceRuntime({
     appStateRef,
     trackerStatusRef,
     officialStartBaselineRef,
+    cadenceWatchdogRef,
+    pedometerSensorRef,
     status,
     setStatus,
     soloStartCountdownSeconds,
@@ -1953,6 +1956,7 @@ export function TrackRunExperienceRuntime({
     elapsedSecondsRef,
     totalStepsRef,
     pedometerStepOffsetRef,
+    pedometerSensorRef,
     liveShareEnabledRef,
     liveShareLabelRef,
     liveShareHeartbeatRef,
@@ -2010,6 +2014,8 @@ export function TrackRunExperienceRuntime({
   });
 
   const {
+    discardCurrentTracking,
+    forfeitMatchAndEndRun,
     handleContinueSoloFromMatch,
     handleForfeitMatch,
     handleSaveTracking,
@@ -2041,6 +2047,8 @@ export function TrackRunExperienceRuntime({
     wasPartyRunRef,
     trackedMatchResult,
     totalStepsRef,
+    cadenceWatchdogRef,
+    pedometerSensorRef,
     pendingForfeitMatchRef,
     pendingCounterpartForfeitResultRef,
     saveNavEpochRef,
@@ -2114,6 +2122,23 @@ export function TrackRunExperienceRuntime({
     isRunning,
     matchMode,
   });
+  // 케이던스 워치독 (오너 규칙 2026-09-09): 달리기 속도로 이동하는데 케이던스가 안 찍히면
+  // 1차 경고, 2차면 부정 러닝 — 매치(공식·파티런)는 reason:'disqualified' 기권(실격패,
+  // 포인트 0), 솔로는 정지 + 기록 폐기. 포그라운드·센서 생존 창만 판정하므로 화면 꺼진
+  // 갤럭시 런은 억울하게 걸리지 않는다. 판정 원장은 저장 payload의 cadenceAudit에도 실린다.
+  useCadenceWatchdog({
+    status,
+    matchMode,
+    cadenceWatchdogRef,
+    pedometerSensorRef,
+    onDisqualifyMatch: (source) => forfeitMatchAndEndRun(source, { reason: 'disqualified' }),
+    // 솔로: 폐기 뒤 idle 화면에 판정 안내를 남긴다 — Alert 한 번으로 끝나면 왜 기록이 사라졌는지
+    // 알 길이 없다(적대검증). discardCurrentTracking이 setError(null)을 하므로 그 뒤에 세운다.
+    onDisqualifySolo: async () => {
+      await discardCurrentTracking();
+      setError('부정 러닝 판정으로 이 기록은 저장되지 않았어요. 달릴 때는 폰을 몸에 지녀 주세요.');
+    },
+  });
   // 나와의 대결: every solo run records its time→distance curve (save prompt on
   // finish), and an armed ghost race speaks gap feedback against the past self.
   useSoloGhostRecorder({
@@ -2134,6 +2159,9 @@ export function TrackRunExperienceRuntime({
       isSaving,
       isRunning,
       counterpartForfeited: activeMatchExitCounterpartForfeited,
+      // 상대 기권이 부정 러닝 실격이면 카드 제목이 '상대가 실격됐어요' (기권 래치가 유지하는 상대 객체).
+      counterpartDisqualified: activeMatchExitCounterpartForfeited
+        && effectiveDuelOpponentForLive?.disqualified === true,
       selfForfeited: activeMatchExitSelfForfeited,
       selfFinished: activeMatchExitSelfFinished,
       allOthersForfeited: activeMatchExitAllOthersForfeited,

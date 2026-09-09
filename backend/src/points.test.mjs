@@ -436,3 +436,84 @@ runTest('그룹 파티런도 미완주면 0, 완주면 순위 보너스', () => 
   assert.equal(getMatchBonusPoints({ distanceKm: 0.1, matchResult: groupResult }), 0);
   assert.ok(getMatchBonusPoints({ distanceKm: 2.0, matchResult: groupResult }) > 0);
 });
+
+// ── 차량 판정 러닝은 표시 집계에서도 빠진다 (오너 2026-09-09) ──────────────────────────
+// 차량 속도 기록이 integrity 'vehicle'을 받고도 오늘의 랭킹·홈 지표에 그대로 올랐다.
+
+runTest('a vehicle-flagged run vanishes from every display aggregate, not just points', () => {
+  const vehicle = trackedRun('t-vehicle', '2026-07-10', 29.7, {
+    pace: '01:51/km',
+    integrity: { verdict: 'vehicle', reason: 'speed', checkedAt: '2026-07-10T03:00:00.000Z' },
+  });
+  const honest = trackedRun('t-honest', '2026-07-09', 5);
+
+  const metrics = buildUserRunMetrics([honest, vehicle], NOW);
+
+  assert.equal(metrics.todayDistanceKm, 0);
+  assert.equal(metrics.currentWeekDistanceKm, 5);
+  assert.equal(metrics.currentMonthDistanceKm, 5);
+  assert.equal(metrics.currentWeekRunCount, 1);
+  assert.equal(metrics.lifetimeDistanceKm, 5);
+  assert.equal(metrics.latestRun.id, 't-honest');
+  // 7/9 5km(자격) → 오늘은 차량 기록뿐이라 자격 없음 → 어제 자격으로 1일 유지 (예전엔 2일).
+  assert.equal(metrics.currentStreakDays, 1);
+  assert.equal(getRunPointValue(metrics, 't-vehicle'), 0);
+  assert.equal(metrics.runPointsById.has('t-vehicle'), false);
+  // 경쟁 집계도 당연히 0.
+  assert.equal(metrics.competitiveTodayDistanceKm, 0);
+});
+
+runTest('a vehicle-flagged run neither starts nor extends the day/week streaks', () => {
+  const metrics = buildUserRunMetrics([
+    trackedRun('t-d1', '2026-07-08', 5),
+    trackedRun('t-d2', '2026-07-09', 5),
+    trackedRun('t-d3', '2026-07-10', 5, {
+      integrity: { verdict: 'vehicle', reason: 'cadence-watchdog', checkedAt: '2026-07-10T03:00:00.000Z' },
+    }),
+  ], NOW);
+
+  assert.equal(metrics.currentStreakDays, 2);
+
+  // 주 연속: 이번 주(7/6~)에 차량 기록 20km뿐이면 이번 주 자격 없음 → 지난주 스트릭만 살아남는다.
+  const weekly = buildUserRunMetrics([
+    trackedRun('t-w1', '2026-07-01', 5),
+    trackedRun('t-w2', '2026-07-08', 20, {
+      integrity: { verdict: 'vehicle', reason: 'speed', checkedAt: '2026-07-08T03:00:00.000Z' },
+    }),
+  ], NOW);
+  assert.equal(weekly.currentWeeklyStreakWeeks, 1);
+  assert.equal(weekly.weeklyStreakRanThisWeek, false);
+});
+
+runTest('a vehicle-flagged IMPORT is excluded too (the gate is the verdict, not the source)', () => {
+  const metrics = buildUserRunMetrics([
+    importedRun('i-car', '2026-07-10', 40, {
+      integrity: { verdict: 'vehicle', reason: 'speed', checkedAt: '2026-07-10T03:00:00.000Z' },
+    }),
+  ], NOW);
+
+  assert.equal(metrics.todayDistanceKm, 0);
+  assert.equal(metrics.distanceLevel, 0);
+  assert.equal(metrics.totalEarnedPoints, 0);
+});
+
+// ── 실격패 매치 보너스 0 (오너 2026-09-09) ────────────────────────────────────────────
+runTest('실격패(matchResult.disqualified) 매치 보너스 0 — 기권패의 10P도 없다', () => {
+  assert.equal(getMatchBonusPoints({
+    distanceKm: 1.2,
+    matchResult: { mode: 'duel', source: 'official', resultTone: 'lose', badgeLabel: '실격패', disqualified: true },
+  }), 0);
+  assert.equal(getMatchBonusPoints({
+    distanceKm: 5,
+    matchResult: { mode: 'group', source: 'party', rank: 3, participantCount: 3, matchGoalDistanceKm: 5, disqualified: true },
+  }), 0);
+  // 표식이 없거나 false면 기존 기권패 지급 그대로.
+  assert.equal(getMatchBonusPoints({
+    distanceKm: 1.2,
+    matchResult: { mode: 'duel', source: 'official', resultTone: 'lose', badgeLabel: '기권 패' },
+  }), 10);
+  assert.equal(getMatchBonusPoints({
+    distanceKm: 1.2,
+    matchResult: { mode: 'duel', source: 'official', resultTone: 'lose', disqualified: false },
+  }), 10);
+});

@@ -182,3 +182,22 @@ test('speech: with any unknown name, several forfeiters read 여러 명이 기�
 test('speech: empty list reads nothing', () => {
   assert.equal(buildForfeitAnnouncementSpeech([]), '');
 });
+
+test('disqualified (부정 러닝) forfeiters are announced as 실격 instead of 기권, in both modes', () => {
+  const duel = selectNewlyForfeitedAnnouncements({
+    matchMode: 'duel',
+    opponent: opponent({ id: 'opp-1', name: '회원E', liveStatus: 'forfeited', disqualified: true }),
+    alreadyAnnounced: new Set(),
+  });
+  assert.deepEqual(duel, [{ id: 'opp-1', name: '회원E', text: '회원E님이 실격됐어요' }]);
+
+  const group = selectNewlyForfeitedAnnouncements({
+    matchMode: 'group',
+    standings: [
+      standing({ id: 'dq', name: '회원E', isForfeited: true, liveStatus: 'forfeited', disqualified: true }),
+      standing({ id: 'ff', name: '철수', isForfeited: true, liveStatus: 'forfeited' }),
+    ],
+    alreadyAnnounced: new Set(),
+  });
+  assert.deepEqual(group.map((announcement) => announcement.text), ['회원E님이 실격됐어요', '철수님이 기권했어요']);
+});

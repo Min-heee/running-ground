@@ -1,3 +1,8 @@
+import {
+  resolveForfeitProcessedLabel,
+  resolveForfeitStatusLabel,
+} from '@/features/runs/viewModels/matchForfeitLabels';
+
 export type LiveMatchRunnerVisualParticipant = {
   name: string;
   paceLabel: string;
@@ -5,6 +10,8 @@ export type LiveMatchRunnerVisualParticipant = {
   isCurrentUser?: boolean;
   isLeader?: boolean;
   liveStatus?: 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'forfeited' | 'finished';
+  // 부정 러닝 실격 기권 — 같은 기권 시각 상태, 라벨만 '실격'.
+  disqualified?: boolean;
 };
 
 export type LiveMatchRunnerVisualState = {
@@ -38,12 +45,13 @@ export function buildLiveMatchRunnerVisualState(
         : 'opponent';
 
   if (isForfeited) {
+    const forfeitLabel = resolveForfeitStatusLabel(participant.disqualified);
     return {
       isForfeited,
-      markerLabel: '기권',
+      markerLabel: forfeitLabel,
       markerTone,
-      bubbleLabel: '기권 처리됨',
-      averagePaceLabel: '기권',
+      bubbleLabel: resolveForfeitProcessedLabel(participant.disqualified),
+      averagePaceLabel: forfeitLabel,
     };
   }
 

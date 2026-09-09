@@ -230,3 +230,33 @@ test('v1 봉인 원장은 스윕이 새 규칙으로 재봉인한다 (sealedAt �
   );
   assert.equal(hasUnsealedRankingStarMonth(store, at), false);
 });
+
+test('차량 판정 기록은 봉인 원장에서 빠진다 — 화면 monthDistanceByKey와 동일 (오너 2026-09-09)', () => {
+  const store = buildStore();
+  // u-b(고양시)에 8월 차량 판정 100km: 세면 u-b가 고양시 개인 1위, 경기도(인당 75)가 시·도 1위로 뒤집힌다.
+  store.runs.push({
+    id: 'r-car',
+    userId: 'u-b',
+    date: '2026-08-12',
+    distanceKm: 100,
+    integrity: { verdict: 'vehicle', reason: 'cadence-audit', checkedAt: '2026-08-12T10:00:00.000Z' },
+  });
+  // suspect(텔레메트리 전용)는 여전히 센다 — 고양시 합계 50 → 55.
+  store.runs.push({
+    id: 'r-suspect',
+    userId: 'u-b',
+    date: '2026-08-13',
+    distanceKm: 5,
+    integrity: { verdict: 'suspect', checkedAt: '2026-08-13T10:00:00.000Z' },
+  });
+
+  const [august] = sweepMonthlyRankingStars(store, new Date('2026-09-13T03:00:00.000Z'));
+
+  assert.deepEqual(august.provinceChampions.map((champion) => champion.regionKey), ['서울특별시']);
+  assert.deepEqual(
+    august.memberChampions.map((champion) => [champion.regionKey, champion.userId, champion.distanceKm]).sort(),
+    [['경기도|고양시', 'u-a', 30], ['서울특별시|강남구', 'u-c', 40]],
+  );
+  const goyang = august.regionChampions.find((champion) => champion.regionKey === '경기도|고양시');
+  assert.equal(goyang.totalDistanceKm, 55);
+});

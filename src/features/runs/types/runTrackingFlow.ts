@@ -6,7 +6,7 @@ import type { LastSyncedMatchProgress } from '@/features/runs/viewModels/matchPr
 import type { MatchLifecycleController } from '@/features/runs/lifecycle/matchLifecycleController';
 import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
-import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
+import type { PedometerSensorState, TrackerStatus } from '@/features/runs/hooks/useRunTracking';
 import type { OfficialStartBaseline } from '@/features/runs/tracking/trackingSession';
 import type {
   RunningMatchState,
@@ -45,6 +45,8 @@ export type UseRunTrackingFlowInput = {
   elapsedSecondsRef: MutableRefObject<number>;
   totalStepsRef: MutableRefObject<number>;
   pedometerStepOffsetRef: MutableRefObject<number>;
+  // 케이던스 워치독 재료 — 페도미터 가용/구독 생존 여부 (usePedometerTracking이 쓴다).
+  pedometerSensorRef: MutableRefObject<PedometerSensorState>;
   liveShareEnabledRef: MutableRefObject<boolean>;
   liveShareLabelRef: MutableRefObject<string | null>;
   liveShareHeartbeatRef: MutableRefObject<number>;

@@ -10,8 +10,18 @@ import type {
   UpdateRunningMatchProgressInput,
 } from '@/lib/api/types';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
-import type { SaveTrackingOptions, TrackerStatus } from '@/features/runs/hooks/useRunTracking';
+import type {
+  PedometerSensorState,
+  SaveTrackingOptions,
+  TrackerStatus,
+} from '@/features/runs/hooks/useRunTracking';
+import type { CadenceWatchdogState } from '@/features/runs/integrity/cadenceWatchdogModel';
 import type { ForfeitedMatchSnapshot } from '@/features/runs/types/matchForfeit';
+
+// 기권 커맨드 옵션 — 케이던스 워치독의 실격 기권만 reason을 싣는다 (일반 기권은 옵션 없음).
+export type ForfeitMatchOptions = {
+  reason?: 'disqualified';
+};
 
 export type DisplayedTrackingSnapshot = {
   route: RunRoutePoint[];
@@ -75,6 +85,10 @@ export type UseRunSaveFlowInput = {
   wasPartyRunRef: MutableRefObject<boolean>;
   trackedMatchResult?: RunMatchResult | null;
   totalStepsRef: MutableRefObject<number>;
+  // 케이던스 워치독 원장 + 페도미터 가용 여부 — 저장 payload의 cadenceAudit 재료 (일반 저장·
+  // 기권 저장 모두 같은 저장 커맨드를 지나므로 한 곳에서 싣는다).
+  cadenceWatchdogRef: MutableRefObject<CadenceWatchdogState>;
+  pedometerSensorRef: MutableRefObject<PedometerSensorState>;
   pendingForfeitMatchRef: MutableRefObject<string | null>;
   pendingCounterpartForfeitResultRef: MutableRefObject<boolean>;
   // C-1 — save-navigation epoch: captured at saveForfeitResultAndNavigate entry, bumped by the
@@ -114,7 +128,7 @@ export type RunSaveFlowActions = {
   handleSaveTracking: (options?: SaveTrackingOptions) => Promise<boolean>;
   leaveMatchAndContinueSolo: (source: MatchExitSource, options?: ContinueSoloOptions) => Promise<void>;
   handleContinueSoloFromMatch: (source: MatchExitSource) => void;
-  forfeitMatchAndEndRun: (source: MatchExitSource) => Promise<void>;
+  forfeitMatchAndEndRun: (source: MatchExitSource, options?: ForfeitMatchOptions) => Promise<void>;
   handleForfeitMatch: (source: MatchExitSource) => void;
   handleShowResultAfterCounterpartForfeit: (source: MatchExitSource) => Promise<void>;
   handleShowResultAfterSelfForfeit: (source: MatchExitSource) => Promise<void>;

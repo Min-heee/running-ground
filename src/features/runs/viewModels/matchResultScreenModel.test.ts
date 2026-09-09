@@ -359,3 +359,21 @@ test('duel where both sides say lose (impossible pair) stays unresolved rather t
 
   assert.equal(model.unresolved, true);
 });
+
+test('실격된 참가자의 페이스 칸은 실격, 일반 기권자는 기권', () => {
+  const model = buildMatchResultScreenModel({
+    matchId: 'match-dq',
+    mode: 'group',
+    source: 'official',
+    comparedDistanceKm: 5,
+    participants: [
+      participant({ userId: 'winner', name: '승자', rank: 1, isMe: true }),
+      participant({ userId: 'dq', name: '회원E', rank: 2, forfeited: true, disqualified: true, paceSecondsPerKm: null, finishElapsedSeconds: null }),
+      participant({ userId: 'ff', name: '기권자', rank: 3, forfeited: true, paceSecondsPerKm: null, finishElapsedSeconds: null }),
+    ],
+  });
+  assertGroup(model);
+
+  assert.equal(model.rows[1].paceLabel, '실격');
+  assert.equal(model.rows[2].paceLabel, '기권');
+});

@@ -39,6 +39,7 @@ export function resolveDuelTitle({
   opponentName,
   currentForfeited,
   opponentForfeited,
+  opponentDisqualified = false,
   opponentInProgress,
   isDraw,
   resultTone,
@@ -46,6 +47,8 @@ export function resolveDuelTitle({
   opponentName: string;
   currentForfeited: boolean;
   opponentForfeited: boolean;
+  // 상대의 기권이 부정 러닝 실격(disqualified:true)이면 '기권' 대신 '실격' 카피.
+  opponentDisqualified?: boolean;
   opponentInProgress: boolean;
   isDraw: boolean;
   resultTone: MatchResultTone;
@@ -55,7 +58,9 @@ export function resolveDuelTitle({
   }
 
   if (opponentForfeited) {
-    return `${opponentName}님이 기권해서 승리했어요`;
+    return opponentDisqualified
+      ? `${opponentName}님이 실격돼서 승리했어요`
+      : `${opponentName}님이 기권해서 승리했어요`;
   }
 
   if (opponentInProgress) {
@@ -74,6 +79,7 @@ export function resolveDuelTitle({
 export function resolveDuelSummary({
   currentForfeited,
   opponentForfeited,
+  opponentDisqualified = false,
   opponentInProgress,
   isDraw,
   resultTone,
@@ -82,6 +88,7 @@ export function resolveDuelSummary({
 }: {
   currentForfeited: boolean;
   opponentForfeited: boolean;
+  opponentDisqualified?: boolean;
   opponentInProgress: boolean;
   isDraw: boolean;
   resultTone: MatchResultTone;
@@ -93,7 +100,9 @@ export function resolveDuelSummary({
   }
 
   if (opponentForfeited) {
-    return `상대가 기권했고 내 기록은 ${currentDistanceKm.toFixed(2)}km로 저장돼요.`;
+    return opponentDisqualified
+      ? `상대가 부정 러닝으로 실격됐고 내 기록은 ${currentDistanceKm.toFixed(2)}km로 저장돼요.`
+      : `상대가 기권했고 내 기록은 ${currentDistanceKm.toFixed(2)}km로 저장돼요.`;
   }
 
   if (opponentInProgress) {
@@ -112,11 +121,13 @@ export function resolveDuelSummary({
 export function resolveDuelBadgeLabel({
   currentForfeited,
   opponentForfeited,
+  opponentDisqualified = false,
   isDraw,
   resultTone,
 }: {
   currentForfeited: boolean;
   opponentForfeited: boolean;
+  opponentDisqualified?: boolean;
   isDraw: boolean;
   resultTone: MatchResultTone;
 }): string {
@@ -125,7 +136,7 @@ export function resolveDuelBadgeLabel({
   }
 
   if (opponentForfeited) {
-    return '상대 기권 승';
+    return opponentDisqualified ? '상대 실격 승' : '상대 기권 승';
   }
 
   if (isDraw) {
@@ -160,6 +171,7 @@ export function resolveDuelOpponentRowLabels({
   isDraw,
   resultTone,
   opponentForfeited,
+  opponentDisqualified = false,
   opponentPaceLabel,
   opponentDurationLabel,
   opponentHasLiveProgress,
@@ -168,6 +180,7 @@ export function resolveDuelOpponentRowLabels({
   isDraw: boolean;
   resultTone: MatchResultTone;
   opponentForfeited: boolean;
+  opponentDisqualified?: boolean;
   opponentPaceLabel: string;
   opponentDurationLabel: string;
   opponentHasLiveProgress: boolean;
@@ -186,7 +199,7 @@ export function resolveDuelOpponentRowLabels({
 
   if (opponentForfeited) {
     return {
-      resultLabel: 'FORFEIT',
+      resultLabel: opponentDisqualified ? 'DISQUALIFIED' : 'FORFEIT',
       paceLabel: opponentPaceLabel,
       durationLabel: opponentDurationLabel,
     };

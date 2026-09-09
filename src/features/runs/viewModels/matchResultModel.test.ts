@@ -910,3 +910,64 @@ test('§3-⑨ group: a resolved PROVISIONAL group verdict carries the 가확정 
   });
   assert.equal(withoutVerdict?.provisionalNoticeLabel, null);
 });
+
+test('duel result: 상대가 부정 러닝으로 실격(disqualified:true)되면 기권 대신 실격 라벨로 승리한다', () => {
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({
+      name: '회원E',
+      liveDistanceKm: 0,
+      liveElapsedSeconds: 0,
+      liveStatus: 'forfeited',
+      disqualified: true,
+    }),
+    currentDistanceKm: 0.7,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 420,
+    currentPaceLabel: '10:00/km',
+    currentUserLiveStatus: 'running',
+  });
+
+  assert.equal(result?.matchResult.resultTone, 'win');
+  assert.equal(result?.matchResult.badgeLabel, '상대 실격 승');
+  assert.equal(result?.title, '회원E님이 실격돼서 승리했어요');
+  assert.match(result?.summary ?? '', /부정 러닝으로 실격/);
+  assert.equal(result?.rows[0].resultLabel, 'WIN');
+  assert.equal(result?.rows[1].resultLabel, 'DISQUALIFIED');
+  assert.equal(result?.rows[1].paceLabel, '실격');
+});
+
+test('duel result: 일반 기권(disqualified 없음)은 오늘의 기권 라벨 그대로', () => {
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({
+      liveDistanceKm: 0,
+      liveElapsedSeconds: 0,
+      liveStatus: 'forfeited',
+    }),
+    currentDistanceKm: 0.7,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 420,
+    currentPaceLabel: '10:00/km',
+    currentUserLiveStatus: 'running',
+  });
+
+  assert.equal(result?.matchResult.badgeLabel, '상대 기권 승');
+  assert.equal(result?.rows[1].resultLabel, 'FORFEIT');
+  assert.equal(result?.rows[1].paceLabel, '기권');
+});
+
+test('group result: 실격된 참가자 행의 페이스는 실격, 일반 기권자는 기권', () => {
+  const me = standing({ id: 'me', name: '나', seedRank: 1, rank: 1, currentDistanceKm: 5, isCurrentUser: true, liveStatus: 'finished', liveDistanceKm: 5, liveElapsedSeconds: 1500 });
+  const disqualified = standing({ id: 'dq', name: '회원E', seedRank: 2, rank: 2, currentDistanceKm: 0, isForfeited: true, liveStatus: 'forfeited', disqualified: true, liveDistanceKm: 0, liveElapsedSeconds: 0 });
+  const forfeited = standing({ id: 'ff', name: '기권자', seedRank: 3, rank: 3, currentDistanceKm: 0, isForfeited: true, liveStatus: 'forfeited', liveDistanceKm: 0, liveElapsedSeconds: 0 });
+  const result = buildGroupMatchFinishModel({
+    currentStanding: me,
+    participantCount: 3,
+    standings: [me, disqualified, forfeited],
+    currentPaceLabel: '05:00/km',
+    currentElapsedSeconds: 1500,
+    targetDistanceKm: 5,
+  });
+
+  assert.equal(result?.rows[1].paceLabel, '실격');
+  assert.equal(result?.rows[2].paceLabel, '기권');
+});

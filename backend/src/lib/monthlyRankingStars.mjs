@@ -24,6 +24,7 @@
 // 파생이라 이 파일만 보고 이식하면 빠뜨린다. ② 행정구역 통합 마이그레이션은 유저
 // 지역명만 바꾸므로, 원장(regionKey 동결 문자열)도 함께 재작성해야 별이 증발하지 않는다.
 
+import { isVehicleFlaggedRun } from './competitiveRuns.mjs';
 import { roundDistanceKm } from './distancePrecision.mjs';
 // 별 기산 달 (오너 2026-09-05: "별은 8월달 기준으로 해서 주는걸로, 그전거는 삭제").
 // 출시 달(7월)은 테스트런이 섞여 있어 8월부터 정식 기산 — 이 값을 올리면 스윕이
@@ -151,6 +152,12 @@ function buildMonthlyAward(store, monthKey, sealedAtIso) {
 
   for (const run of store.runs ?? []) {
     if (typeof run.date !== 'string' || !run.date.startsWith(monthPrefix)) {
+      continue;
+    }
+
+    // 차량 판정 기록은 화면(points.mjs monthDistanceByKey)에서 빠지므로 봉인 원장도 같이
+    // 뺀다 (오너 2026-09-09) — 안 그러면 화면에 없는 거리로 별이 붙는다.
+    if (isVehicleFlaggedRun(run)) {
       continue;
     }
 

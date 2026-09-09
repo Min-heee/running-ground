@@ -13,12 +13,14 @@ export const DuelResultRow = memo(function DuelResultRow({ row }: { row: DuelMat
     ? '진행 중'
     : row.resultLabel === 'FORFEIT'
       ? '기권'
-      : row.resultLabel;
+      : row.resultLabel === 'DISQUALIFIED'
+        ? '실격'
+        : row.resultLabel;
   const rowStyle = useMemo(() => [
     styles.duelRow,
     row.resultLabel === 'WIN'
       ? styles.duelRowWin
-      : row.resultLabel === 'LOSER' || row.resultLabel === 'FORFEIT'
+      : row.resultLabel === 'LOSER' || row.resultLabel === 'FORFEIT' || row.resultLabel === 'DISQUALIFIED'
         ? styles.duelRowLose
         : styles.duelRowDraw,
     row.isInProgress ? styles.duelRowInProgress : undefined,

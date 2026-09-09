@@ -3,7 +3,7 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { Platform } from 'react-native';
 import { Pedometer } from 'expo-sensors';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
-import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
+import type { PedometerSensorState, TrackerStatus } from '@/features/runs/hooks/useRunTracking';
 import { calculateCadenceSpm } from '@/features/runs/tracking';
 import { publishLiveTrackingMetricFrame } from '@/features/runs/tracking/liveTrackingMetricStore';
 
@@ -17,6 +17,8 @@ type UsePedometerTrackingInput = {
   matchModeRef: MutableRefObject<RunMatchMode>;
   pedometerSubscriptionRef: MutableRefObject<PedometerSubscription | null>;
   pedometerStepOffsetRef: MutableRefObject<number>;
+  // 케이던스 워치독 재료 — 센서 가용 여부와 구독 생존 여부를 여기서만 쓴다.
+  pedometerSensorRef: MutableRefObject<PedometerSensorState>;
   elapsedSecondsRef: MutableRefObject<number>;
   totalStepsRef: MutableRefObject<number>;
   setMotionPermissionGranted: Dispatch<SetStateAction<boolean | null>>;
@@ -29,6 +31,7 @@ export function usePedometerTracking({
   matchModeRef,
   pedometerSubscriptionRef,
   pedometerStepOffsetRef,
+  pedometerSensorRef,
   elapsedSecondsRef,
   totalStepsRef,
   setMotionPermissionGranted,
@@ -37,7 +40,8 @@ export function usePedometerTracking({
   const stopPedometerSubscription = useCallback(() => {
     pedometerSubscriptionRef.current?.remove();
     pedometerSubscriptionRef.current = null;
-  }, [pedometerSubscriptionRef]);
+    pedometerSensorRef.current = { ...pedometerSensorRef.current, active: false };
+  }, [pedometerSensorRef, pedometerSubscriptionRef]);
 
   const startPedometerUpdates = useCallback(async () => {
     if (pedometerSubscriptionRef.current) {
@@ -49,6 +53,7 @@ export function usePedometerTracking({
 
       if (!isAvailable) {
         setMotionPermissionGranted(false);
+        pedometerSensorRef.current = { available: false, active: false };
         return;
       }
 
@@ -57,6 +62,7 @@ export function usePedometerTracking({
       setMotionPermissionGranted(granted);
 
       if (!granted) {
+        pedometerSensorRef.current = { available: false, active: false };
         return;
       }
 
@@ -75,17 +81,22 @@ export function usePedometerTracking({
         const totalSteps = pedometerStepOffsetRef.current + result.steps;
         totalStepsRef.current = totalSteps;
         const cadenceSpm = calculateCadenceSpm(totalSteps, elapsedSecondsRef.current);
-        publishLiveTrackingMetricFrame({ cadenceSpm });
+        // totalSteps도 같이 발행한다 — 케이던스 워치독은 평균 spm이 아니라 창 단위 걸음
+        // 델타로 판정하므로 누적 걸음 원본이 필요하다.
+        publishLiveTrackingMetricFrame({ cadenceSpm, totalSteps });
         if (!(Platform.OS === 'android' && matchModeRef.current !== 'solo')) {
           setCadenceSpm(cadenceSpm);
         }
       });
+      pedometerSensorRef.current = { available: true, active: true };
     } catch {
       setMotionPermissionGranted(false);
+      pedometerSensorRef.current = { available: false, active: false };
     }
   }, [
     elapsedSecondsRef,
     matchModeRef,
+    pedometerSensorRef,
     pedometerStepOffsetRef,
     pedometerSubscriptionRef,
     setCadenceSpm,

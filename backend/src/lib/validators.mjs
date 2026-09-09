@@ -274,6 +274,31 @@ export function validateNonNegativeInteger(value, message) {
   return numberValue;
 }
 
+// 케이던스 워치독 감사 원장 (오너 2026-09-09) — 트래킹 저장 페이로드의 선택 필드. 클라이언트
+// buildCadenceAudit(cadenceWatchdogModel.ts)와 같은 다섯 필드: 불리언 둘 + 음이 아닌 정수 셋.
+// 없으면 undefined(옛 클라이언트), 있는데 모양이 깨졌으면 400 — 조용히 버리면 백스톱이
+// 침묵하는지 클라가 알 길이 없다.
+export function validateCadenceAudit(rawCadenceAudit) {
+  if (rawCadenceAudit === null || typeof rawCadenceAudit === 'undefined') {
+    return undefined;
+  }
+
+  if (!rawCadenceAudit || typeof rawCadenceAudit !== 'object' || Array.isArray(rawCadenceAudit)) {
+    throw new ApiError(400, '케이던스 감사 정보 형식이 올바르지 않아요.');
+  }
+
+  return {
+    sensorAvailable: validateBoolean(rawCadenceAudit.sensorAvailable, '케이던스 센서 정보가 올바르지 않아요.'),
+    foregroundMovingSeconds: validateNonNegativeInteger(
+      rawCadenceAudit.foregroundMovingSeconds,
+      '케이던스 감사 이동 시간 값이 올바르지 않아요.',
+    ),
+    foregroundSteps: validateNonNegativeInteger(rawCadenceAudit.foregroundSteps, '케이던스 감사 걸음 값이 올바르지 않아요.'),
+    strikes: validateNonNegativeInteger(rawCadenceAudit.strikes, '케이던스 경고 횟수 값이 올바르지 않아요.'),
+    disqualified: validateBoolean(rawCadenceAudit.disqualified, '케이던스 실격 정보가 올바르지 않아요.'),
+  };
+}
+
 export function validateOptionalMetricNumber(value, {
   message,
   minimum = 0,
@@ -405,12 +430,16 @@ export function validateRunMatchResult(rawMatchResult) {
   };
   const myDurationSeconds = validateOptionalDurationSeconds(rawMatchResult.myDurationSeconds, '내 기록 시간 값이 올바르지 않아요.');
   const opponentDurationSeconds = validateOptionalDurationSeconds(rawMatchResult.opponentDurationSeconds, '상대 기록 시간 값이 올바르지 않아요.');
+  // 실격패 표식 (오너 2026-09-09): 케이던스 워치독 부정 러닝의 기권 블롭. 자진 신고라 true만
+  // 통과시킨다 — 이 표식은 본인의 매치 보너스를 0으로 만들 뿐 남에게 아무 영향이 없다.
+  const disqualified = rawMatchResult.disqualified === true;
 
   return {
     mode,
     title,
     summary,
     badgeLabel,
+    ...(disqualified ? { disqualified: true } : {}),
     ...(matchId ? { matchId } : {}),
     ...(normalizedSource ? { source: normalizedSource } : {}),
     ...(opponentName ? { opponentName } : {}),

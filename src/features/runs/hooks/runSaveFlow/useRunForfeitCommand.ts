@@ -14,7 +14,7 @@ import type { SaveTrackingOptions } from '@/features/runs/hooks/useRunTracking';
 import { beginRgInputTrace, waitForRgInputFeedbackFrame } from '@/utils/rgInputTrace';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 import { buildCurrentUserForfeitMatchResult } from './runSaveResultMapper';
-import type { UseRunSaveFlowInput } from './types';
+import type { ForfeitMatchOptions, UseRunSaveFlowInput } from './types';
 
 type UseRunForfeitCommandInput = Pick<
   UseRunSaveFlowInput,
@@ -104,7 +104,7 @@ export function useRunForfeitCommand({
     });
   };
 
-  const buildLocalForfeitSnapshot = (matchId: string) => {
+  const buildLocalForfeitSnapshot = (matchId: string, disqualified: boolean) => {
     const snapshot = getDisplayedTrackingSnapshot();
     return {
       matchId,
@@ -112,13 +112,14 @@ export function useRunForfeitCommand({
       elapsedSeconds: snapshot.elapsedSeconds,
       distanceKm: snapshot.distanceKm,
       paceLabel: snapshot.currentPace,
+      ...(disqualified ? { disqualified: true } : {}),
     };
   };
 
   const saveForfeitResultAndNavigate = async (
     source: MatchExitSource,
     matchId: string | null,
-    options: { currentUserForfeited?: boolean } = {},
+    options: { currentUserForfeited?: boolean; disqualified?: boolean } = {},
   ) => {
     // C-1 — capture the save-navigation epoch at entry. The overlay watchdog's abandon bumps
     // it; if it moved by the time this save settles, the user already left the wait and a
@@ -143,6 +144,7 @@ export function useRunForfeitCommand({
             mode: source,
             source: isPartyRun ? 'party' : 'official',
             trackedMatchResult,
+            disqualified: options.disqualified,
           })
         : undefined,
       onSavedRun: (runId) => {
@@ -193,14 +195,21 @@ export function useRunForfeitCommand({
     }
   };
 
-  const saveSelfForfeitResultAndNavigate = async (source: MatchExitSource, matchId: string | null) => {
+  const saveSelfForfeitResultAndNavigate = async (
+    source: MatchExitSource,
+    matchId: string | null,
+    options: { disqualified?: boolean } = {},
+  ) => {
     if (pendingCounterpartForfeitResultRef.current) {
       return;
     }
 
     pendingCounterpartForfeitResultRef.current = true;
     try {
-      await saveForfeitResultAndNavigate(source, matchId, { currentUserForfeited: true });
+      await saveForfeitResultAndNavigate(source, matchId, {
+        currentUserForfeited: true,
+        disqualified: options.disqualified,
+      });
     } catch (saveError) {
       setError(getApiErrorMessage(saveError, '기권 결과 저장에 실패했어요. 잠시 후 결과보기를 다시 눌러주세요.'));
     } finally {
@@ -222,8 +231,12 @@ export function useRunForfeitCommand({
     }).catch(() => {});
   };
 
-  const forfeitMatchAndEndRun = async (source: MatchExitSource) => {
+  const forfeitMatchAndEndRun = async (source: MatchExitSource, options: ForfeitMatchOptions = {}) => {
     setError(null);
+    // 케이던스 워치독 실격 기권 (오너 규칙 2026-09-09): 서버 leave에 reason을 실어 forfeited +
+    // disqualified 로 기록되게 하고, 로컬 기권 스냅샷/저장 블롭은 '실격패'로 만든다. 옵션이
+    // 없으면 오늘의 기권 흐름 그대로.
+    const disqualified = options.reason === 'disqualified';
     const previousDuelStatus = duelMatchStatus;
     const previousGroupStatus = groupMatchStatus;
     const previousDuelNotice = duelMatchNotice;
@@ -268,25 +281,31 @@ export function useRunForfeitCommand({
     let didLeaveMatch = false;
 
     try {
+      const forfeitNotice = disqualified
+        ? '부정 러닝으로 실격 처리됐어요. 기록 상세로 이동할게요.'
+        : '기권 처리됐어요. 기록 상세로 이동할게요.';
       if (source === 'duel') {
         setDuelMatchStatus((currentStatus) => markDuelStatusForfeited(currentStatus, matchId));
-        setDuelMatchNotice('기권 처리됐어요. 기록 상세로 이동할게요.');
+        setDuelMatchNotice(forfeitNotice);
       } else {
         setGroupMatchStatus((currentStatus) => markGroupStatusForfeited(currentStatus, matchId));
-        setGroupMatchNotice('기권 처리됐어요. 기록 상세로 이동할게요.');
+        setGroupMatchNotice(forfeitNotice);
       }
 
       // Arm the local-forfeit guard BEFORE the best-effort network leave. forfeitedMatchIdsRef
       // gates the background progress applier, so an in-flight background response that resolves
       // during the leave await can no longer resurrect the match into 'running'.
-      markMatchLocallyForfeited(buildLocalForfeitSnapshot(matchId));
+      markMatchLocallyForfeited(buildLocalForfeitSnapshot(matchId, disqualified));
 
       // Forfeit is local-first: the user committed to quitting, so the server "leave"
       // call is best-effort. On a flaky mobile network the response can time out even
       // though the server already recorded the forfeit — that must NOT roll back the
       // forfeit or block navigation to the record screen.
       try {
-        await leaveRunningMatch({ matchId });
+        await leaveRunningMatch({
+          matchId,
+          ...(disqualified ? { reason: 'disqualified' as const } : {}),
+        });
       } catch {
         // Swallow: the forfeit still stands locally and we proceed to save + navigate.
       }
@@ -297,7 +316,7 @@ export function useRunForfeitCommand({
 
       await stopForfeitedTracking();
       void loadUpcomingMatches().catch(() => {});
-      await saveSelfForfeitResultAndNavigate(source, matchId);
+      await saveSelfForfeitResultAndNavigate(source, matchId, { disqualified });
     } catch (matchError) {
       if (!didLeaveMatch) {
         if (source === 'duel') {
@@ -311,7 +330,7 @@ export function useRunForfeitCommand({
       if (!forfeitApiTraceCompleted) {
         endForfeitApiTrace({ success: false });
       }
-      setError(getApiErrorMessage(matchError, '기권 처리에 실패했어요.'));
+      setError(getApiErrorMessage(matchError, disqualified ? '실격 처리에 실패했어요.' : '기권 처리에 실패했어요.'));
     } finally {
       if (pendingForfeitMatchRef.current === matchId) {
         pendingForfeitMatchRef.current = null;
