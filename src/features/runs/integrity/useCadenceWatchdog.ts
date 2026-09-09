@@ -8,6 +8,7 @@ import {
   getBackgroundRunTrackingSnapshot,
   subscribeBackgroundRunTracking,
 } from '@/features/runs/tracking/background';
+import { getRawFixSpeedSample } from '@/features/runs/tracking/background/rawFixSpeedStore';
 import { getLiveTrackingMetricFrameSnapshot } from '@/features/runs/tracking/liveTrackingMetricStore';
 import { speakLiveGapMessage } from '@/lib/liveMatchGapVoice';
 import {
@@ -31,6 +32,10 @@ const EVALUATE_TICK_MS = 1000;
 // 쌓인다. 마지막 픽스가 이보다 오래됐으면 속도를 모르는 것으로 친다(누적 없음). 값은
 // locationDistance의 CURRENT_PACE_STALE_AFTER_MS와 같은 14초.
 const PACE_FRESH_MS = 14_000;
+
+// 원시 픽스 속도 신선도 — GPS는 1Hz라 6초 안의 샘플만 "지금 속도"로 믿는다. 트래커가
+// 시속 30km 초과 픽스를 거부해 페이스가 비어도(오너 실기기 영상), 원시 속도는 살아 있다.
+const RAW_FIX_FRESH_MS = 6_000;
 
 export type CadenceWatchdogInput = {
   status: TrackerStatus;
@@ -86,12 +91,15 @@ export function useCadenceWatchdog(input: CadenceWatchdogInput) {
       const snapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
       const frame = getLiveTrackingMetricFrameSnapshot();
       const paceFresh = lastFixAtMsRef.current !== null && nowMs - lastFixAtMsRef.current <= PACE_FRESH_MS;
+      const rawFix = getRawFixSpeedSample();
+      const rawFixFresh = rawFix !== null && nowMs - rawFix.atMs <= RAW_FIX_FRESH_MS;
       const tick = buildCadenceWatchdogTick({
         nowMs,
         appState: AppState.currentState,
         sensor: current.pedometerSensorRef.current,
         trackingStatus: snapshot.status,
         currentPace: paceFresh ? snapshot.currentPace : null,
+        rawFixSpeedMps: rawFixFresh ? rawFix.speedMps : null,
         totalSteps: frame.totalSteps,
       });
 

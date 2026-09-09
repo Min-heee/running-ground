@@ -40,6 +40,7 @@ import {
   buildWarmupLocationSnapshot,
 } from '@/features/runs/tracking/background/warmupSnapshotPolicy';
 import { rgDiagLog } from '@/utils/rgPerfTrace';
+import { recordRawFixSpeed, resetRawFixSpeed } from './rawFixSpeedStore';
 
 let accumulatedDistanceMeters = 0;
 // 화면꺼짐 갭 크레딧 — GPS 경로가 아니라 **네이티브 누적기에서 이관받은** 거리. 따로 든다:
@@ -59,6 +60,8 @@ let coldStartFixBuffer: RunRoutePoint[] = [];
 let lastCountedPoint: RunRoutePoint | null = null;
 
 export function resetRouteAccumulator() {
+  // 새 런은 이전 런의 원시 속도 샘플을 물려받지 않는다.
+  resetRawFixSpeed();
   rgDiagLog('[RG dist] ===== RESET (run start) =====');
   accumulatedDistanceMeters = 0;
   externalCreditMeters = 0;
@@ -255,6 +258,10 @@ export function appendTrackedLocation(location: Location.LocationObject) {
   if (snapshotState.status !== 'running') {
     return;
   }
+
+  // 케이던스 워치독용 원시 속도 — 아래 어떤 필터(정산 바닥·워밍업·정확도·순간이동)에
+  // 걸려 거리/페이스가 멈춰도 "이동 중"이라는 사실은 남긴다. 채택 판단과 무관.
+  recordRawFixSpeed(location);
 
   const locationTimestampMs = resolveLocationTimestampMs(location);
 

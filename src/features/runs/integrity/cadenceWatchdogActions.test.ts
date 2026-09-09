@@ -110,3 +110,29 @@ test('실격 문구: 솔로는 기록 미저장 카피, 매치는 실격패 카�
   });
   assert.match(match.body, /실격패/);
 });
+
+test('tick builder: 신선한 원시 GPS 속도가 있으면 페이스 라벨보다 우선한다 (트래커가 픽스를 거부해도 차량은 보인다)', () => {
+  // 오너 실기기 영상: 시속 30km 초과 → 트래커 거부 → 페이스 '--:--/km' — 원시 속도로 이동 중 판정.
+  const rejectedByTracker = buildCadenceWatchdogTick({
+    nowMs: 3_000,
+    appState: 'active',
+    sensor: { active: true },
+    trackingStatus: 'running',
+    currentPace: '--:--/km',
+    rawFixSpeedMps: 12.5,
+    totalSteps: 0,
+  });
+  assert.equal(rejectedByTracker.speedMps, 12.5);
+
+  // 원시 속도가 낡아 null이면 페이스 라벨로 폴백.
+  const paceFallback = buildCadenceWatchdogTick({
+    nowMs: 4_000,
+    appState: 'active',
+    sensor: { active: true },
+    trackingStatus: 'running',
+    currentPace: '5:00/km',
+    rawFixSpeedMps: null,
+    totalSteps: 10,
+  });
+  assert.equal(paceFallback.speedMps, 1000 / 300);
+});

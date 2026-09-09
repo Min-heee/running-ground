@@ -21,17 +21,24 @@ export type CadenceWatchdogTickSource = {
   // 백그라운드 스냅샷 상태 + 스무딩된 현재 페이스 라벨('5:30/km', 스테일이면 '--:--/km').
   trackingStatus: BackgroundTrackingStatus;
   currentPace: string | null | undefined;
+  // 신선한 원시 GPS 픽스 속도(m/s) — 트래커가 픽스를 거부해 페이스가 비어도 차량 이동은
+  // 이 값으로 보인다. 신선하지 않으면 null(그때만 페이스에서 읽는다).
+  rawFixSpeedMps?: number | null;
   // 라이브 지표 프레임의 누적 걸음(센서 미관측이면 null).
   totalSteps: number | null | undefined;
 };
 
 export function buildCadenceWatchdogTick(source: CadenceWatchdogTickSource): CadenceWatchdogTick {
+  const rawSpeed = typeof source.rawFixSpeedMps === 'number' && Number.isFinite(source.rawFixSpeedMps)
+    ? source.rawFixSpeedMps
+    : null;
+
   return {
     nowMs: source.nowMs,
     appActive: source.appState === 'active',
     sensorReady: source.sensor.active,
     trackingRunning: source.trackingStatus === 'running',
-    speedMps: paceLabelToSpeedMps(source.currentPace),
+    speedMps: rawSpeed ?? paceLabelToSpeedMps(source.currentPace),
     totalSteps: typeof source.totalSteps === 'number' && Number.isFinite(source.totalSteps)
       ? source.totalSteps
       : null,
