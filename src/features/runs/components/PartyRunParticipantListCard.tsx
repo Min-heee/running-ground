@@ -21,6 +21,7 @@ function getParticipantStatusStyle(status: MatchRoomParticipantUxStatus) {
     case 'host':
       return styles.hostStatusText;
     case 'ready':
+    case 'reserved':
     case 'countdown-ready':
       return styles.readyText;
     case 'countdown-loading':
@@ -86,9 +87,13 @@ export function PartyRunParticipantListCard({
           onPress={onStart}
           disabled={saving || !startAction.canStart}
         />
-      ) : (
+      ) : readyAction.helperText ? (
+        // 준비/수락 버튼이 숨겨져도 그 이유(예: '예약한 시간이 지났어요')는 말해야 한다 —
+        // 방장 전용 안내('방장만 시작할 수 있어요')로 덮이면 게스트가 상황을 알 수 없다.
+        <Text style={styles.helperText}>{readyAction.helperText}</Text>
+      ) : startAction.helperText ? (
         <Text style={styles.helperText}>{startAction.helperText}</Text>
-      )}
+      ) : null}
       {readyAction.visible && readyAction.helperText ? <Text style={styles.helperText}>{readyAction.helperText}</Text> : null}
       {room.isHost && startAction.visible && startAction.helperText ? (
         <Text style={styles.helperText}>{startAction.helperText}</Text>

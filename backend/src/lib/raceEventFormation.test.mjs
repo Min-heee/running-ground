@@ -178,3 +178,95 @@ test('레이스 세션은 skipRankLp — 완주해도 랭크 LP가 움직이지 
     assert.deepEqual(user.rankState, { tier: '러너', lp: 100 }, `${user.id}의 LP는 불변이어야 한다`);
   }
 });
+
+// 레이스 편성이 신청자의 '예약 파티런'을 만나면 조용히 먹지 않는다 — createMatchSession이 같은
+// 모드 세션을 지우기 때문에, 편성 전에 정식 취소 경로로 걷어 친구들에게 알림이 가고 대기방도
+// 함께 정리된다 (적대 검증 2026-09-10).
+test('레이스 편성은 신청자의 예약 파티런을 정식 취소한다 — 알림 없이 사라지지 않는다', () => {
+  const store = buildStore();
+  store.notifications = [];
+  store.matchRooms = [{
+    id: 'party-room',
+    inviteToken: 'PARTY1',
+    hostUserId: 'user-c',
+    mode: 'group',
+    startMode: 'scheduled',
+    distanceKm: 5,
+    slotStartAt: START_AT,
+    maxParticipants: 10,
+    minParticipants: 3,
+    invitedFriendIds: [],
+    participants: ['user-c', 'user-b', 'user-a'].map((userId, index) => ({
+      userId, isHost: index === 0, isReady: true, isCountdownReady: false, invited: index > 0, joinedAt: CLOSE_AT,
+    })),
+    createdAt: CLOSE_AT,
+    linkedMatchId: 'party-session',
+  }];
+  store.matchSessions = [{
+    id: 'party-session',
+    mode: 'group',
+    isTestMatch: false,
+    isPartyRun: true,
+    isScheduledPartyRun: true,
+    distanceKm: 5,
+    slotStartAt: START_AT,
+    createdAt: CLOSE_AT,
+    matchedAt: CLOSE_AT,
+    participants: ['user-c', 'user-b', 'user-a'].map((userId, index) => ({
+      userId,
+      seedRank: index + 1,
+      acceptedAt: null,
+      liveStatus: 'ready',
+      liveDistanceKm: 0,
+      liveElapsedSeconds: 0,
+      livePace: '--:--/km',
+      liveUpdatedAt: null,
+      finishedAt: null,
+    })),
+  }];
+
+  const formed = formDueLiveGroupRaceSessions(store, at('2026-08-15T11:01:00.000Z'));
+
+  assert.equal(formed.length, 1, '행사는 그대로 편성된다');
+  assert.equal(store.matchSessions.some((session) => session.id === 'party-session'), false, '예약 세션은 걷힌다');
+  assert.equal(store.matchRooms.length, 0, '대기방도 함께 정리된다');
+  // 예약에 있던 전원이 이유를 통보받는다 — 취소를 '고른' 사람이 없으므로 아무도 빠지지 않는다.
+  const closed = store.notifications.filter((item) => item.type === 'match_room_closed');
+  assert.deepEqual(closed.map((item) => item.userId).sort(), ['user-a', 'user-b', 'user-c']);
+  assert.equal(closed.every((item) => /^레이스 참가 신청이 확정돼 .+ 파티런 예약이 취소됐어요$/.test(item.body)), true);
+});
+
+// 편성될 세션과 다른 모드의 예약은 애초에 충돌하지 않는다(clearUsersFromMatchSessions가 모드로
+// 거른다) — 그런 예약까지 걷으면 멀쩡한 1대1 약속을 없애는 것이다 (적대 검증 2026-09-10).
+test('레이스 편성은 다른 모드(1대1) 예약 파티런은 건드리지 않는다', () => {
+  const store = buildStore();
+  store.notifications = [];
+  store.matchRooms = [];
+  store.matchSessions = [{
+    id: 'duel-party',
+    mode: 'duel',
+    isTestMatch: false,
+    isPartyRun: true,
+    isScheduledPartyRun: true,
+    distanceKm: 5,
+    slotStartAt: START_AT,
+    createdAt: CLOSE_AT,
+    matchedAt: CLOSE_AT,
+    participants: ['user-a', 'user-b'].map((userId, index) => ({
+      userId,
+      seedRank: index + 1,
+      acceptedAt: null,
+      liveStatus: 'ready',
+      liveDistanceKm: 0,
+      liveElapsedSeconds: 0,
+      livePace: '--:--/km',
+      liveUpdatedAt: null,
+      finishedAt: null,
+    })),
+  }];
+
+  formDueLiveGroupRaceSessions(store, at('2026-08-15T11:01:00.000Z'));
+
+  assert.equal(store.matchSessions.some((session) => session.id === 'duel-party'), true, '1대1 예약은 그대로');
+  assert.equal(store.notifications.length, 0);
+});

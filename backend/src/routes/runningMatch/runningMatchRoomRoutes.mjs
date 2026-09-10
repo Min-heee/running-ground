@@ -176,6 +176,8 @@ async function handleJoinRunningMatchRoom({
     const currentUser = requireUser(store, request);
     return joinRunningMatchRoom(store, currentUser, {
       inviteToken: validateRequiredString(body.inviteToken, '방 초대 코드를 입력해주세요.'),
+      // 예약 방 참가 = 예약 시간 수락. 새 앱만 보낸다(옛 앱 차단 게이트, 2026-09-10).
+      acceptSlot: body.acceptSlot === true,
     });
   });
 
@@ -248,6 +250,7 @@ async function handleUpdateRunningMatchRoomReady({
     return updateRunningMatchRoomReady(store, currentUser, {
       roomId: validateRequiredString(body.roomId, '준비 상태를 바꿀 방 아이디가 필요해요.'),
       ready: body.ready === true,
+      acceptSlot: body.acceptSlot === true,
     });
   });
 

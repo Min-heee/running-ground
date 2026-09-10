@@ -63,12 +63,18 @@ const UpcomingMatchRow = memo(function UpcomingMatchRow({
   onCancelMatch: (match: UpcomingRunningMatchItem) => void;
 }) {
   const remainingSeconds = getMatchStartRemainingSeconds(match.slotStartAt, nowMs);
-  const { canOpenArena, opensReservationRoom, reservationRoomMode, isTappable } = resolveUpcomingMatchInteraction(
+  const { canOpenArena, opensReservationRoom, reservationRoomMode, opensPartyRoom, isTappable } = resolveUpcomingMatchInteraction(
     match,
     remainingSeconds,
   );
 
   const handleOpenMatch = useCallback(() => {
+    // 파티런 예약(roomId 동봉)은 출발 전엔 파티런 대기방으로 (오너 2026-09-09).
+    if (opensPartyRoom) {
+      router.push('/match-room');
+      return;
+    }
+
     if (opensReservationRoom) {
       if (reservationRoomMode === 'group') {
         openGroupReservationRoom(match);
@@ -83,7 +89,7 @@ const UpcomingMatchRow = memo(function UpcomingMatchRow({
     }
 
     onOpenMatch(match);
-  }, [canOpenArena, match, onOpenMatch, opensReservationRoom, reservationRoomMode]);
+  }, [canOpenArena, match, onOpenMatch, opensPartyRoom, opensReservationRoom, reservationRoomMode]);
 
   const handleCancelMatch = useCallback(() => {
     onCancelMatch(match);
@@ -121,6 +127,8 @@ const UpcomingMatchRow = memo(function UpcomingMatchRow({
         ) : null}
         {canOpenArena ? (
           <Text style={styles.helperText}>누르면 바로 대결 보기로 이동해요.</Text>
+        ) : opensPartyRoom ? (
+          <Text style={styles.helperText}>누르면 파티런 대기방으로 이동해요.</Text>
         ) : opensReservationRoom ? (
           <Text style={styles.helperText}>누르면 예약 대기실로 이동해요.</Text>
         ) : null}

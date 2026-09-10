@@ -5,7 +5,12 @@ import {
   countUnreadUserNotifications,
   listUserNotifications,
   markUserNotificationsRead,
+  USER_NOTIFICATION_TYPES,
 } from './userNotifications.mjs';
+import {
+  NOTIFICATION_PUSH_INBOX_ONLY_TYPES,
+  NOTIFICATION_PUSH_SETTING_KEY_BY_TYPE,
+} from './notificationPushPump.mjs';
 
 function createNowIso() {
   let tick = 0;
@@ -148,4 +153,32 @@ runTest('countUnread: readAt 없는 내 알림만 센다 (아이콘 배지 진�
 
   markUserNotificationsRead(store, 'user-1', null, { nowIso });
   assert.equal(countUnreadUserNotifications(store, 'user-1'), 0);
+});
+
+// 예약 파티런 성립 알림 (2026-09-09): 유형이 등록돼 있고, 원격 푸시는 매치 리마인더 설정을 따른다.
+runTest('match_reserved is an accepted type and rides the matchReminders push setting', () => {
+  const store = {};
+  const nowIso = createNowIso();
+
+  const reserved = appendUserNotification(store, {
+    userId: 'host-user',
+    type: 'match_reserved',
+    title: '파티런 예약 완료',
+    body: '참가 러너님이 수락했어요 · 6. 24. (수) 11:00 시작',
+    data: { roomId: 'room-1', matchId: 'duel-match-1', mode: 'duel', slotStartAt: '2026-06-24T02:00:00.000Z' },
+    nowIso,
+  });
+
+  assert.equal(reserved?.type, 'match_reserved');
+  assert.deepEqual(reserved.data, { roomId: 'room-1', matchId: 'duel-match-1', mode: 'duel', slotStartAt: '2026-06-24T02:00:00.000Z' });
+  assert.equal(NOTIFICATION_PUSH_SETTING_KEY_BY_TYPE.match_reserved, 'matchReminders');
+});
+
+// 새 유형을 한쪽에만 추가하면 펌프가 설정 게이트 없이(undefined) 발송하거나 인박스에만 남는다 —
+// 두 목록은 항상 같이 움직여야 한다.
+runTest('every inbox type has a push-setting entry (or is explicitly inbox-only)', () => {
+  for (const type of USER_NOTIFICATION_TYPES) {
+    const hasSettingEntry = Object.prototype.hasOwnProperty.call(NOTIFICATION_PUSH_SETTING_KEY_BY_TYPE, type);
+    assert.equal(hasSettingEntry || NOTIFICATION_PUSH_INBOX_ONLY_TYPES.has(type), true, `${type}: push setting entry missing`);
+  }
 });

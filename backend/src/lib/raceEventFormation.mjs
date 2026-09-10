@@ -13,6 +13,30 @@
 
 import { createMatchSession } from './runningMatchSession/matchSessionLifecycle.mjs';
 import { findMatchRoster } from './matchRosters.mjs';
+import {
+  cancelReservedPartySession,
+  isPendingScheduledPartySession,
+} from './matchRoom/matchRoomReservation.mjs';
+
+// 신청자들이 안고 있는 출발 전 예약 파티런을 정식 취소한다(참가자 전원 알림 + 대기방 정리).
+// 지우는 것은 편성될 세션과 같은 모드뿐이다 — clearUsersFromMatchSessions가 모드로 거르므로
+// 다른 모드(예: 1대1) 예약은 애초에 충돌하지 않는다. 통보는 예약에 있던 전원에게 간다:
+// 취소를 '고른' 사람이 없으므로(레이스 신청이 원인) 아무도 빼지 않는다.
+function cancelRegistrantPartyReservations(store, registrants, now, mode) {
+  const registrantIds = new Set(registrants.map((registrant) => registrant.id));
+
+  for (const session of [...(store.matchSessions ?? [])]) {
+    if (session?.mode !== mode || !isPendingScheduledPartySession(session, now)) {
+      continue;
+    }
+
+    if (!session.participants.some((participant) => registrantIds.has(participant.userId))) {
+      continue;
+    }
+
+    cancelReservedPartySession(store, session, { actorUser: null, reason: 'raceEvent' });
+  }
+}
 
 // 마감~출발 사이가 정상 편성 창. 출발 후에도 이 유예까지는 편성한다 — 첫 허브 요청이 늦게
 // 도착해도(전원이 출발 직전에야 앱을 여는 경우) 행사가 통째로 무산되지 않게. 세션은 슬롯이
@@ -73,6 +97,13 @@ export function formDueLiveGroupRaceSessions(store, now = new Date()) {
     if (registrants.length < RACE_FORMATION_MIN_PARTICIPANTS) {
       continue;
     }
+
+    // 행사 편성이 먼저다 — 하지만 조용히 먹지는 않는다. createMatchSession은 같은 모드의 기존
+    // 세션을 통째로 지우므로(clearUsersFromMatchSessions), 신청자가 안고 있는 '예약 파티런'은
+    // 여기서 정식 취소 경로로 걷어 친구들에게 취소 알림이 가고 대기방도 함께 정리된다.
+    // 이 절차가 없으면 예약이 흔적 없이 사라지고 남은 대기방만 다음 prune에서 조용히 죽는다
+    // (적대 검증 2026-09-10 — 예약이 며칠을 살면서 생긴 새 충돌창).
+    cancelRegistrantPartyReservations(store, registrants, now, 'group');
 
     const session = createMatchSession(store, 'group', event.distanceKm, event.startsAt, registrants, {
       isTestMatch: false,

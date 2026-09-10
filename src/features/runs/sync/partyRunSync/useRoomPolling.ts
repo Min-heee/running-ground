@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import { isMatchRoomReservedForFuture } from '@/features/runs/lifecycle/matchRoomFlow';
+import { getSharedServerClockOffsetMs } from '@/features/runs/sync/serverClockSync';
 import { armBlockingMatchStatusPollRetry } from '@/features/runs/sync/matchPolling/useBlockingMatchStatusPolling';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { rgDiagLog, rgPerfMark } from '@/utils/rgPerfTrace';
@@ -17,12 +19,16 @@ export function resolvePartyRoomPollingPolicy({
   fastRoomPollMs,
   idleRoomPollMs,
   linkedMatchId,
+  linkedMatchReservedForFuture = false,
   roomId,
   state,
 }: {
   fastRoomPollMs: number;
   idleRoomPollMs: number;
   linkedMatchId?: string | null;
+  // 예약 파티런: 링크됐지만 슬롯이 카운트다운 창 밖 — 상대의 이탈·취소·늦은 합류를 보려면
+  // 느린 주기로라도 계속 조회한다. 창 안에 들어오면 예전처럼 매치 상태 폴러가 넘겨받는다.
+  linkedMatchReservedForFuture?: boolean;
   roomId?: string | null;
   state?: RunningMatchRoom['state'] | null;
 }) {
@@ -31,6 +37,14 @@ export function resolvePartyRoomPollingPolicy({
       enabled: false,
       intervalMs: idleRoomPollMs,
       reason: 'no-room',
+    };
+  }
+
+  if (linkedMatchId && linkedMatchReservedForFuture) {
+    return {
+      enabled: true,
+      intervalMs: idleRoomPollMs,
+      reason: 'reserved-party-room-sync',
     };
   }
 
@@ -141,6 +155,7 @@ export function useRoomPolling({
   const roomId = matchRoom?.roomId ?? null;
   const linkedMatchId = matchRoom?.linkedMatchId ?? null;
   const roomState = matchRoom?.state ?? null;
+  const linkedMatchReservedForFuture = isMatchRoomReservedForFuture(matchRoom, Date.now() + getSharedServerClockOffsetMs());
   const lastRoomPollingSkipKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -148,6 +163,7 @@ export function useRoomPolling({
       fastRoomPollMs,
       idleRoomPollMs,
       linkedMatchId,
+      linkedMatchReservedForFuture,
       roomId,
       state: roomState,
     });
@@ -221,5 +237,5 @@ export function useRoomPolling({
     return () => {
       polling.stop();
     };
-  }, [callbacksRef, enabled, fastRoomPollMs, idleRoomPollMs, linkedMatchId, roomId, roomState]);
+  }, [callbacksRef, enabled, fastRoomPollMs, idleRoomPollMs, linkedMatchId, linkedMatchReservedForFuture, roomId, roomState]);
 }

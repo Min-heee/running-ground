@@ -3,6 +3,7 @@ import type {
   PartyRunFlowSnapshot,
   PartyRunLinkedMatchContext,
 } from '@/features/runs/lifecycle/matchStateMachine';
+import { isMatchRoomReservedForFuture } from '@/features/runs/lifecycle/matchRoomFlow';
 
 const LINKED_ROOM_STATE_PRIORITY: Record<RunningMatchRoom['state'], number> = {
   waiting: 1,
@@ -17,11 +18,19 @@ export type PartyRunRuntimeSource = {
   room: RunningMatchRoom | null;
 };
 
-export function isLinkedRoomRuntimeState(room: RunningMatchRoom | null | undefined) {
+// 러닝 탭 런타임이 '지금 곧 시작하는 매치가 붙어 있다'로 읽는 방. 예약 파티런(2026-09-09)은
+// 수락 순간 링크되고 서버가 그 방을 며칠 동안 'arming'으로 보고하는데, 그걸 그대로 믿으면
+// 러닝 탭이 며칠 내내 준비 화면(혼자 달리기)을 안 그리고 예정 매치 카드에서 그 예약을 지운다
+// (적대 검증 2026-09-10). 카운트다운 창(30초)에 들어오면 예전 판정으로 돌아간다.
+export function isLinkedRoomRuntimeState(
+  room: RunningMatchRoom | null | undefined,
+  syncedNowMs: number = Date.now(),
+) {
   return Boolean(
     room?.linkedMatchId
     && room.joined !== false
-    && (room.state === 'arming' || room.state === 'countdown' || room.state === 'active'),
+    && (room.state === 'arming' || room.state === 'countdown' || room.state === 'active')
+    && !isMatchRoomReservedForFuture(room, syncedNowMs),
   );
 }
 
@@ -105,8 +114,9 @@ export function selectPartyRunRuntimeSource({
 export function filterUpcomingMatchesForRuntime(
   matches: UpcomingRunningMatchItem[],
   runtimeRoom: RunningMatchRoom | null | undefined,
+  syncedNowMs: number = Date.now(),
 ) {
-  if (!isLinkedRoomRuntimeState(runtimeRoom) || !runtimeRoom?.linkedMatchId) {
+  if (!isLinkedRoomRuntimeState(runtimeRoom, syncedNowMs) || !runtimeRoom?.linkedMatchId) {
     return matches;
   }
 

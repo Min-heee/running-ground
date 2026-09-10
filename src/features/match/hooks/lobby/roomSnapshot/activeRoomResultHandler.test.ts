@@ -190,3 +190,73 @@ test('host transfer followed by no active room tombstones the transferred room',
   assert.deepEqual(commits.map((commit) => commit?.roomId ?? null), ['room-transfer', null]);
   assert.deepEqual(errors, [null, null]);
 });
+
+// 예약 파티런(2026-09-09): 수락 순간 링크돼 며칠을 산다 — 그동안 핸드오프(폴링 정지)를 걸면 상대의
+// 이탈·취소가 열린 대기실에 영영 안 보인다. 카운트다운 창 밖의 예약 방은 핸드오프하지 않는다.
+test('a linked scheduled room days before its slot is committed without a live-match handoff; a linked host-start room still hands off', async () => {
+  resetMatchRoomDeletionTombstonesForTest();
+  const farSlot = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+  const reservedRoom = {
+    ...createRoom('room-reserved'),
+    startMode: 'scheduled' as const,
+    slotStartAt: farSlot,
+    linkedMatchId: 'party-match-1',
+    linkedMatchStatus: 'matched' as const,
+    linkedMatchSlotStartAt: farSlot,
+    participants: [participant('user-a', { isHost: true }), participant('user-b', { isReady: true })],
+  } satisfies RunningMatchRoom;
+  const handoffs: string[] = [];
+  const roomRef = ref<RunningMatchRoom | null>(null);
+
+  const baseInput = {
+    buildRouteKey: () => 'match-room:room-reserved',
+    commitRoom: (nextRoom: RunningMatchRoom | null) => {
+      roomRef.current = nextRoom;
+    },
+    currentUserTag: 'user-a',
+    handleRecipientInviteInbox: () => undefined,
+    lastHandledActiveRoomSnapshotKeyRef: ref<string | null>(null),
+    latestRoomServerNowMsRef: ref(0),
+    liveMatchHandoffRef: ref(null),
+    markLiveMatchHandoff: (nextRoom: RunningMatchRoom) => {
+      handoffs.push(nextRoom.roomId);
+    },
+    mountedRef: ref(true),
+    pollingPausedRef: ref(false),
+    roomRef,
+    setError: () => undefined,
+    syncServerClock: () => undefined,
+  } satisfies Omit<HandlerInput, 'activeRoomCheckResult'>;
+
+  const snapshot = (room: RunningMatchRoom, requestId: string) => ({
+    completedAtMs: 1_200,
+    generation: 1,
+    payload: { room, serverNow: new Date().toISOString(), success: true },
+    requestId,
+    routeKey: 'match-room:room-reserved',
+    reused: false,
+    skipped: false,
+    stale: false,
+    startedAtMs: 1_000,
+    timedOut: false,
+  });
+
+  await handleMatchRoomActiveRoomResult({ ...baseInput, activeRoomCheckResult: snapshot(reservedRoom, 'snapshot-reserved') });
+  assert.equal(roomRef.current?.linkedMatchId, 'party-match-1');
+  assert.deepEqual(handoffs, [], '예약 방은 핸드오프하지 않는다');
+
+  const hostStartLinked = {
+    ...reservedRoom,
+    roomId: 'room-host-linked',
+    startMode: 'host' as const,
+    state: 'arming' as const,
+    linkedMatchId: 'host-match-1',
+    linkedMatchSlotStartAt: new Date(Date.now() + 24_000).toISOString(),
+  } satisfies RunningMatchRoom;
+  await handleMatchRoomActiveRoomResult({
+    ...baseInput,
+    buildRouteKey: () => 'match-room:room-host-linked',
+    activeRoomCheckResult: { ...snapshot(hostStartLinked, 'snapshot-host'), routeKey: 'match-room:room-host-linked' },
+  });
+  assert.deepEqual(handoffs, ['room-host-linked'], '방장 시작 방은 예전처럼 핸드오프');
+});

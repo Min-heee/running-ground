@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { MatchOptionItem } from '@/features/runs/components/MatchOptionSelector';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { FocusRunningMatchInput } from '@/features/runs/lifecycle/hooks/runningMatchFocus/types';
+import { confirmUpcomingMatchCancel } from '@/features/runs/components/confirmUpcomingMatchCancel';
 import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { ensureCompetitivePreflight } from '@/features/runs/permissions/ensureCompetitivePreflight';
 import { useStableCallback } from '@/features/runs/runtime/useStableCallback';
@@ -67,7 +68,10 @@ export function useTrackRunIdlePressHandlers({
   });
 
   const handleCancelUpcomingMatchPress = useStableCallback((match: UpcomingRunningMatchItem) => {
-    void handleCancelUpcomingMatch(match);
+    // 파티런 예약은 확인을 거친 뒤 취소 (공식 예약은 바로) — 홈 카드와 같은 진입점.
+    confirmUpcomingMatchCancel(match, (confirmedMatch) => {
+      void handleCancelUpcomingMatch(confirmedMatch);
+    });
   });
 
   const handleSelectMatchOption = useStableCallback((option: MatchOptionItem) => {

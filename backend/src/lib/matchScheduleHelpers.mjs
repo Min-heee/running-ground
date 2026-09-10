@@ -25,9 +25,11 @@ export function isTestMatchSession(session) {
   return session?.isTestMatch === true || session?.participants?.some((participant) => participant.profileSnapshot);
 }
 
-export function buildMatchCancellationDeadline(slotStartAt, { isTestMatch = false } = {}) {
+// 파티런 예약(isPartyRun)은 출발 직전까지 취소할 수 있다 — 1시간 컷오프는 모르는 사람끼리
+// 짝지어진 공식 예약을 위한 것이고(상대를 재큐잉해야 한다), 친구끼리의 약속에는 맞지 않는다.
+export function buildMatchCancellationDeadline(slotStartAt, { isTestMatch = false, isPartyRun = false } = {}) {
   return new Date(
-    isTestMatch
+    isTestMatch || isPartyRun
       ? slotStartAt
       : new Date(slotStartAt).getTime() - MATCH_CANCELLATION_CUTOFF_MS,
   );

@@ -6,6 +6,8 @@ import { runActiveRoomCheck } from '@/features/runs/sync/activeRoomCheck';
 import { getLastActiveRoomCheck } from '@/features/runs/sync/activeRoomCheckRequestRegistry';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 import { isRgInputInteractionRecent } from '@/utils/rgInputTrace';
+import { isMatchRoomReservedForFuture } from '@/features/runs/lifecycle/matchRoomFlow';
+import { getSharedServerClockOffsetMs } from '@/features/runs/sync/serverClockSync';
 import { getInviteInboxDebounceMs } from './roomSnapshotPollingPolicy';
 
 type ActiveRoomCheckResult = Awaited<ReturnType<typeof runActiveRoomCheck>>;
@@ -50,7 +52,9 @@ export function useRoomSnapshotFetcher({
 
     const routeKey = buildRouteKey();
     const currentRoom = roomRef.current;
-    if (currentRoom?.linkedMatchId) {
+    // 예약 파티런(슬롯이 카운트다운 창 밖)은 링크돼 있어도 계속 조회한다 — 상대의 이탈·취소·
+    // 늦은 합류를 보여줘야 한다. 방장 시작 방과 카운트다운 창 안의 예약은 예전처럼 멈춘다.
+    if (currentRoom?.linkedMatchId && !isMatchRoomReservedForFuture(currentRoom, Date.now() + getSharedServerClockOffsetMs())) {
       rgPerfMark('active room check skipped live match mounted', {
         linkedMatchId: currentRoom.linkedMatchId,
         reason: 'linked-match',

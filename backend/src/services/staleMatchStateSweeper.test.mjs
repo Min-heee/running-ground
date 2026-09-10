@@ -215,3 +215,81 @@ await runTest('a failing sweep does not throw out of the timer', async () => {
   assert.ok(errors.length >= 1);
   assert.equal(errors[0].message, 'store locked');
 });
+
+// 예약 파티런 (2026-09-09): 링크(세션 생성)는 요청이 아니라 서버 시계가 결정한다 — 최소 인원이
+// 모여 있는데 아직 링크되지 않은 예약 방(배포 전 레코드, 실패한 sync)은 청소기가 스스로 잇는다.
+await runTest('the sweep links a scheduled room that already has its runners, without any traffic', async () => {
+  const slotStartAt = new Date(NOW.getTime() + 2 * 60 * 60 * 1000).toISOString();
+  const store = buildStore([buildWaitingRoom({
+    startMode: 'scheduled',
+    slotStartAt,
+    participants: [
+      { userId: 'u1', isHost: true, joinedAt: isoAgo(10 * 60_000) },
+      { userId: 'u2', isHost: false, isReady: true, joinedAt: isoAgo(60_000) },
+    ],
+  })]);
+  store.users = [{ id: 'u1', name: '방장' }, { id: 'u2', name: '친구' }];
+
+  const swept = await sweepStaleMatchState({
+    mutateStore: (mutator) => Promise.resolve(mutator(store)),
+    now: NOW,
+  });
+
+  assert.equal(swept.linkedRooms, 1);
+  assert.equal(swept.removedRooms, 0);
+  const [room] = store.matchRooms;
+  assert.equal(typeof room.linkedMatchId, 'string');
+  const [session] = store.matchSessions;
+  assert.equal(session.id, room.linkedMatchId);
+  assert.equal(session.isPartyRun, true);
+  assert.equal(session.slotStartAt, slotStartAt);
+  assert.deepEqual(session.participants.map((participant) => participant.userId), ['u1', 'u2']);
+  const reserved = store.notifications.find((item) => item.userId === 'u1' && item.type === 'match_reserved');
+  assert.match(reserved.body, /^친구님이 수락했어요 · .+ 시작$/);
+
+  // 두 번째 청소는 아무것도 바꾸지 않는다 — 링크는 한 번뿐이다.
+  const again = await sweepStaleMatchState({
+    mutateStore: (mutator) => Promise.resolve(mutator(store)),
+    now: NOW,
+  });
+  assert.equal(again.linkedRooms, 0);
+  assert.equal(store.matchSessions.length, 1);
+});
+
+// 수락(isReady)이 빠진 게스트가 있으면 인원이 차 있어도 링크하지 않는다 — 시간이 정해지기 전에
+// 들어와 있던 게스트는 대기실에서 그 시간을 수락해야 한다.
+await runTest('the sweep never links a scheduled room whose guest has not accepted the time', async () => {
+  const store = buildStore([buildWaitingRoom({
+    startMode: 'scheduled',
+    slotStartAt: new Date(NOW.getTime() + 2 * 60 * 60 * 1000).toISOString(),
+    participants: [
+      { userId: 'u1', isHost: true, joinedAt: isoAgo(10 * 60_000) },
+      { userId: 'u2', isHost: false, isReady: false, joinedAt: isoAgo(60_000) },
+    ],
+  })]);
+
+  const swept = await sweepStaleMatchState({
+    mutateStore: (mutator) => Promise.resolve(mutator(store)),
+    now: NOW,
+  });
+
+  assert.equal(swept.linkedRooms, 0);
+  assert.equal(store.matchRooms[0].linkedMatchId, null);
+  assert.equal(store.matchSessions.length, 0);
+});
+
+await runTest('the sweep never links a scheduled room below its minimum', async () => {
+  const store = buildStore([buildWaitingRoom({
+    startMode: 'scheduled',
+    slotStartAt: new Date(NOW.getTime() + 2 * 60 * 60 * 1000).toISOString(),
+  })]);
+
+  const swept = await sweepStaleMatchState({
+    mutateStore: (mutator) => Promise.resolve(mutator(store)),
+    now: NOW,
+  });
+
+  assert.equal(swept.linkedRooms, 0);
+  assert.equal(store.matchRooms[0].linkedMatchId, null);
+  assert.equal(store.matchSessions.length, 0);
+});

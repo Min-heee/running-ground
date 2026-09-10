@@ -27,3 +27,10 @@ export {
   cleanupStaleRunningMatchRoomState,
   forceResetRunningMatchStateForUser,
 } from './matchRoom/matchRoomCleanup.mjs';
+//   matchRoom/matchRoomReservation.mjs — 예약 파티런의 되돌리기(취소·방 삭제·게스트 이탈) (2026-09-09)
+export {
+  cancelReservedPartySession,
+  findPendingReservedPartySession,
+  isPendingScheduledPartySession,
+  withdrawFromReservedPartySession,
+} from './matchRoom/matchRoomReservation.mjs';

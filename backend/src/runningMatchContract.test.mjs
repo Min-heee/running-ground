@@ -3619,3 +3619,189 @@ await runTest('HAPPY PATH unaffected: a one-finisher match still INSIDE the §B4
     assert.equal(stillPending.matchResult.badgeLabel, '결과 집계 중');
   });
 });
+
+// ---------------------------------------------------------------------------
+// 예약 파티런 (오너 2026-09-09): 친구 탭 '파티런 신청'으로 만든 방장 시작 방에서 방장이 시간을
+// 고르고(rooms/update), 친구가 수락(rooms/join)하면 그 순간 예약 매칭이 된다 — 예정 매치
+// 카드에 잡히고, 확정 뒤엔 시간을 못 바꾸며, 카드의 취소(matches/cancel)가 세션·방을 걷는다.
+// ---------------------------------------------------------------------------
+
+await runTest('reserved party run: host schedules → friend accepts links → upcoming card → locked update → card cancel', async () => {
+  const store = createBaseStore();
+  store.friendships.push({
+    id: 'friendship-host-guest',
+    userIds: ['host-user', 'guest-user'],
+    createdAt: iso(-60 * 1000),
+  });
+
+  await withBackend(store, async ({ request, requestRaw, readStore }) => {
+    const slotStartAt = createSelectableMatchSlotStartAt();
+    const created = await request('host-token', 'POST', '/api/running/rooms', {
+      mode: 'duel',
+      distanceKm: 5,
+      startMode: 'host',
+      invitedFriendIds: ['guest-user'],
+    });
+    const { roomId, inviteToken } = created.room;
+
+    const scheduled = await request('host-token', 'POST', '/api/running/rooms/update', {
+      roomId,
+      distanceKm: 5,
+      startMode: 'scheduled',
+      slotStartAt,
+      invitedFriendIds: ['guest-user'],
+    });
+    assert.equal(scheduled.room.startMode, 'scheduled');
+    assert.equal(scheduled.room.slotStartAt, slotStartAt);
+    assert.equal(scheduled.room.linkedMatchId, undefined, '혼자서는 예약이 아니다');
+    assert.equal(scheduled.room.state, 'waiting');
+
+    const oldClientJoin = await requestRaw('guest-token', 'POST', '/api/running/rooms/join', { inviteToken });
+    assert.equal(oldClientJoin.response.status, 400, '옛 앱(acceptSlot 없음)은 예약을 수락하지 못한다');
+    const joined = await request('guest-token', 'POST', '/api/running/rooms/join', { inviteToken, acceptSlot: true });
+    assert.equal(typeof joined.room.linkedMatchId, 'string');
+    assert.equal(joined.room.state, 'arming');
+    assert.equal(joined.room.linkedMatchStatus, 'matched');
+    assert.equal(joined.room.linkedMatchSlotStartAt, slotStartAt);
+    assert.equal(joined.room.canStart, false);
+
+    const hostRoom = await request('host-token', 'GET', '/api/running/rooms/my');
+    assert.equal(hostRoom.room.linkedMatchId, joined.room.linkedMatchId);
+    assert.equal(hostRoom.room.state, 'arming');
+
+    const locked = await requestRaw('host-token', 'POST', '/api/running/rooms/update', {
+      roomId,
+      distanceKm: 5,
+      startMode: 'scheduled',
+      slotStartAt: new Date(Date.parse(slotStartAt) + 60 * 60 * 1000).toISOString(),
+      invitedFriendIds: ['guest-user'],
+    });
+    assert.equal(locked.response.status, 400);
+    assert.equal(JSON.stringify(locked.payload).includes('예약이 확정된 방은 시간을 바꿀 수 없어요.'), true);
+
+    const upcoming = await request('host-token', 'GET', '/api/running/matches/upcoming');
+    const item = upcoming.items.find((entry) => entry.matchId === joined.room.linkedMatchId);
+    assert.equal(Boolean(item), true, '예약은 예정 매치 카드에 잡힌다');
+    assert.equal(item.roomId, roomId);
+    assert.equal(item.isPartyRun, true);
+    assert.equal(item.status, 'matched');
+    assert.equal(item.slotStartAt, slotStartAt);
+    assert.equal(item.counterpartLabel, '참가 러너');
+    assert.equal(item.canCancel, true);
+    assert.equal(item.cancelableUntilAt, slotStartAt);
+
+    const reserved = readStore().notifications.find((entry) => entry.userId === 'host-user' && entry.type === 'match_reserved');
+    assert.equal(Boolean(reserved), true);
+    assert.equal(reserved.data.roomId, roomId);
+    assert.equal(reserved.data.matchId, joined.room.linkedMatchId);
+    assert.equal(reserved.data.slotStartAt, slotStartAt);
+
+    const cancelled = await request('guest-token', 'POST', '/api/running/matches/cancel', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt,
+      matchId: joined.room.linkedMatchId,
+    });
+    assert.equal(cancelled.success, true);
+
+    // 게스트의 카드 취소 = 대기실 '나가기'와 같은 규칙(2026-09-10): 세션은 걷히고 툼스톤이 남지만
+    // 방은 방장 몫으로 남아(예약 전 상태) 다른 친구를 다시 초대할 수 있다.
+    const persisted = readStore();
+    assert.equal(persisted.matchSessions.some((entry) => entry.id === joined.room.linkedMatchId), false);
+    const survivingRoom = persisted.matchRooms.find((entry) => entry.id === roomId);
+    assert.equal(Boolean(survivingRoom), true, '게스트 취소는 방장의 방을 지우지 않는다');
+    assert.equal(survivingRoom.linkedMatchId, null);
+    assert.deepEqual(survivingRoom.participants.map((entry) => entry.userId), ['host-user']);
+    assert.deepEqual(persisted.matchQueues.duel, [], '파티런 취소는 아무도 재큐잉하지 않는다');
+    const closed = persisted.notifications.find((entry) => entry.userId === 'host-user' && entry.type === 'match_room_closed');
+    assert.equal(Boolean(closed), true);
+    assert.match(closed.body, /^참가 러너님이 .+ 파티런 예약을 취소했어요$/);
+    assert.equal(closed.data.roomId, roomId, '방이 남으므로 알림이 방으로 이어진다');
+
+    const hostAfter = await request('host-token', 'GET', '/api/running/rooms/my');
+    assert.equal(hostAfter.room.roomId, roomId);
+    assert.equal(hostAfter.room.linkedMatchId, undefined);
+    assert.equal(hostAfter.room.startMode, 'scheduled');
+    const upcomingAfter = await request('host-token', 'GET', '/api/running/matches/upcoming');
+    assert.equal(upcomingAfter.items.length, 0);
+
+    // 방장의 '방 삭제'로 방까지 정리한 뒤에는 곧바로 새 방을 만들 수 있다.
+    const deleted = await request('host-token', 'POST', '/api/running/rooms/leave', { roomId, deleteRoom: true });
+    assert.equal(deleted.room, null);
+    assert.equal(readStore().matchRooms.some((entry) => entry.id === roomId), false);
+    const recreated = await request('host-token', 'POST', '/api/running/rooms', { mode: 'duel', distanceKm: 5, startMode: 'host' });
+    assert.equal(recreated.success, true);
+  });
+});
+
+// 카드의 취소는 출발 직전까지 열려 있다(C3). matchId가 실린 취소는 슬롯을 느슨하게 읽어야
+// 한다 — 엄격 검증은 '출발 30분 전이 지난 시간대'를 거부해 취소 자체를 막아 버린다.
+await runTest('party reservation cancel inside the final 30 minutes goes through (lenient slot with matchId)', async () => {
+  const store = createBaseStore();
+  const slotStartAt = iso(20 * 60 * 1000);
+  const participant = (userId, seedRank) => ({
+    userId,
+    seedRank,
+    acceptedAt: null,
+    liveStatus: 'ready',
+    liveDistanceKm: 0,
+    liveElapsedSeconds: 0,
+    livePace: '--:--/km',
+    liveUpdatedAt: null,
+    finishedAt: null,
+  });
+  store.matchSessions.push({
+    id: 'party-late-cancel',
+    mode: 'duel',
+    isTestMatch: false,
+    isPartyRun: true,
+    isScheduledPartyRun: true,
+    distanceKm: 5,
+    slotStartAt,
+    createdAt: iso(-60 * 1000),
+    matchedAt: iso(-60 * 1000),
+    participants: [participant('host-user', 1), participant('guest-user', 2)],
+  });
+  store.matchRooms.push({
+    id: 'party-late-room',
+    inviteToken: 'LATE01',
+    hostUserId: 'host-user',
+    mode: 'duel',
+    startMode: 'scheduled',
+    distanceKm: 5,
+    slotStartAt,
+    maxParticipants: 2,
+    minParticipants: 2,
+    invitedFriendIds: [],
+    participants: [
+      { userId: 'host-user', isHost: true, isReady: false, isCountdownReady: false, invited: false, joinedAt: iso(-120 * 1000) },
+      { userId: 'guest-user', isHost: false, isReady: false, isCountdownReady: false, invited: true, joinedAt: iso(-60 * 1000) },
+    ],
+    createdAt: iso(-120 * 1000),
+    linkedMatchId: 'party-late-cancel',
+  });
+
+  await withBackend(store, async ({ request, requestRaw, readStore }) => {
+    const upcoming = await request('guest-token', 'GET', '/api/running/matches/upcoming');
+    assert.equal(upcoming.items[0].canCancel, true);
+
+    // matchId 없는 취소는 예전 그대로 엄격 검증(정시 정렬)을 탄다.
+    const strict = await requestRaw('guest-token', 'POST', '/api/running/matches/cancel', { mode: 'duel', distanceKm: 5, slotStartAt });
+    assert.equal(strict.response.status, 400);
+
+    const cancelled = await request('guest-token', 'POST', '/api/running/matches/cancel', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt,
+      matchId: 'party-late-cancel',
+    });
+    assert.equal(cancelled.success, true);
+
+    const persisted = readStore();
+    assert.equal(persisted.matchSessions.length, 0);
+    // 게스트 취소는 방장의 방을 남긴다(예약 전 상태) — 2026-09-10 역할별 되돌리기.
+    assert.equal(persisted.matchRooms.length, 1);
+    assert.equal(persisted.matchRooms[0].linkedMatchId, null);
+    assert.equal(persisted.notifications.some((entry) => entry.userId === 'host-user' && entry.type === 'match_room_closed'), true);
+  });
+});

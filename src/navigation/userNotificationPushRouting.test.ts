@@ -41,3 +41,8 @@ test('그라운드 푸시는 알림함 대신 그라운드 목록으로 딥링�
   assert.equal(resolveUserNotificationPushHref({ type: 'runmadang_joined', challengeId: 'c1' }), '/runmadang');
   assert.equal(resolveUserNotificationPushHref({ type: 'runmadang_settled' }), '/runmadang');
 });
+
+test('파티런 예약 확정 푸시는 예약이 걸린 대기방으로 딥링크', () => {
+  assert.equal(resolveUserNotificationPushHref({ type: 'match_reserved', roomId: 'room-1' }), '/match-room');
+  assert.equal(resolveUserNotificationPushHref({ type: 'match_reserved' }), '/match-room');
+});

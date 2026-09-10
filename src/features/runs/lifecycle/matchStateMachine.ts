@@ -20,6 +20,7 @@ import type {
   RunTrackingState,
 } from '@/features/runs/types/matchStateMachine';
 import {
+  MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
   getMatchStartRemainingSeconds,
   shouldAutoOpenMatchArena,
   shouldShowMatchStartOverlay,
@@ -112,6 +113,28 @@ const INFERRED_MATCHED_WINDOW_SECONDS = 60;
 // /active) wraps the 3-value SlotPhase: 'active' maps straight through; 'countdown'
 // splits into arenaHandoff (≤20s) / countdown (≤30s); 'pre' resolves the
 // arming/readyAcked/waiting host-start + ready machinery as before.
+// 예약 파티런 (오너 2026-09-09): 예약 방(startMode 'scheduled')은 초대받은 친구가 수락하는
+// 순간 세션이 묶인다 — 예전엔 슬롯 10초 전에야 묶여서 '링크됐지만 슬롯이 멀다'는 상태가 존재하지
+// 않았다. 그 상태를 'arming'으로 두면 로딩 오버레이·카운트다운 ACK 워치독·1초 폴링이 며칠간 돈다.
+// 카운트다운 창(30초, 예약/공식 매칭과 같은 디지트 창) 밖의 링크된 예약 방은 예약 완료 = 'waiting'.
+// 방장 시작 방(startMode 'host')은 이 규칙을 절대 타지 않는다.
+export function isReservedPartyRoomBeforeCountdown({
+  startMode,
+  linkedMatchId,
+  remainingSeconds,
+}: {
+  startMode?: 'host' | 'scheduled' | null;
+  linkedMatchId?: string | null;
+  remainingSeconds?: number | null;
+}) {
+  return Boolean(
+    startMode === 'scheduled'
+    && linkedMatchId
+    && typeof remainingSeconds === 'number'
+    && remainingSeconds > MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
+  );
+}
+
 export function derivePartyRunStartPhase({
   roomState,
   linkedMatchStatus,
@@ -120,6 +143,7 @@ export function derivePartyRunStartPhase({
   linkedMatchId = null,
   linkedMatchSlotStartAt = null,
   syncedNowMs = null,
+  startMode = null,
 }: PartyRunStartPhaseInput): PartyRunStartPhase {
   const serverActive = roomState === 'active' || linkedMatchStatus === 'active';
 
@@ -148,6 +172,11 @@ export function derivePartyRunStartPhase({
   // only signal we have (a re-join into an already-running match), so it still promotes.
   if (slotReached || (serverActive && !hasParseableSlot)) {
     return 'active';
+  }
+
+  // 예약 확정 방이 슬롯에서 멀면 대기 — 위의 slotReached 판정을 지나온 뒤라 '활성'을 가릴 수 없다.
+  if (isReservedPartyRoomBeforeCountdown({ startMode, linkedMatchId, remainingSeconds })) {
+    return 'waiting';
   }
 
   // Host/guest divergence: the guest's polling delivers linkedMatchStatus='matched'
@@ -354,6 +383,7 @@ export function buildPartyRunFlowSnapshot({
     linkedMatchId: room?.linkedMatchId,
     linkedMatchSlotStartAt,
     syncedNowMs,
+    startMode: room?.startMode,
   });
   const hasLinkedMatch = Boolean(room?.linkedMatchId);
   const shouldOpenArena = hasLinkedMatch && shouldOpenPartyRunArena(phase);
@@ -383,10 +413,13 @@ export function buildPartyRunFlowSnapshot({
   return {
     phase,
     hasLinkedMatch,
+    // 예약 확정 방(phase 'waiting')은 서버가 'arming'을 주더라도 ACK하지 않는다 — 슬롯 며칠 전에
+    // '로딩 완료'를 찍을 이유가 없고, 카운트다운 창에 들어오면 phase가 바뀌며 그때 ACK한다.
     canAcknowledgeCountdownReady: Boolean(
       room?.linkedMatchId
       && room.state === 'arming'
-      && !isCountdownReady,
+      && !isCountdownReady
+      && phase !== 'waiting',
     ),
     canOpenLinkedMatch: Boolean(
       hasLinkedMatch

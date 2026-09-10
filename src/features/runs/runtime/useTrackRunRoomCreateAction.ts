@@ -172,8 +172,9 @@ export function useTrackRunRoomCreateAction({
           const payload = await createRunningMatchRoom({
             mode: nextRoomMode,
             distanceKm: nextDistanceKm,
-            // Party runs are always host-start; the scheduled chooser was removed
-            // from the client, but the server still accepts both modes for old rooms.
+            // 새 방은 방장 시작으로 태어난다. 예약 시작(날짜·정시)은 대기실의 '시작 시간' 카드에서
+            // 방장이 고르고 설정 저장(startMode/slotStartAt)으로 바뀐다 — 여기서는 만들 때의 기본값일 뿐,
+            // 이후 저장이 이 값을 다시 덮어쓰지 않는다(useRoomSettings/buildRoomSettingsPayload).
             startMode: 'host',
             ...(groupMaxParticipants !== undefined ? { maxParticipants: groupMaxParticipants } : {}),
           });
@@ -217,6 +218,14 @@ export function useTrackRunRoomCreateAction({
             source: 'track-run ready action',
           });
           payload = await createRoom('track-run ready action deleted blocker retry');
+        } else if (blocker.isPartyRun) {
+          // 파티런 예약(며칠 뒤 친구와의 약속)은 자동 복구로 걷지 않는다 — 서버 메시지가 홈 카드/
+          // 대기방에서 정리하라고 안내한다(적대 검증 2026-09-10).
+          rgPerfMark('blocker is a party reservation; not force-leaving', {
+            blockerMatchId: blocker.matchId ?? null,
+            source: 'track-run ready action',
+          });
+          throw createError;
         } else {
           rgPerfMark('blocker explicit force-leave attempt', {
             blocker: blocker.blocker ?? null,

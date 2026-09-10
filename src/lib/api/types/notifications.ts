@@ -3,6 +3,9 @@ export type InboxNotificationType =
   // 방장이 파티방을 삭제해 참가자/초대자가 퇴장당했을 때. 이미 사라진 방이라 갈 곳이
   // 없으므로 data에 roomId를 싣지 않는다(= 눌러도 이동하지 않는 알림).
   | 'match_room_closed'
+  // 파티런 예약 확정 (오너 2026-09-09): 초대받은 친구가 수락해 예약 매칭이 잡혔을 때 방장(그룹은
+  // 전원)에게. data.roomId로 대기방에 간다.
+  | 'match_reserved'
   | 'match_result'
   | 'friend_request'
   | 'friend_accepted'
@@ -25,6 +28,7 @@ export type InboxNotificationData = {
   runId?: string;
   inquiryId?: string;
   challengeId?: string;
+  slotStartAt?: string;
   [key: string]: unknown;
 };
 

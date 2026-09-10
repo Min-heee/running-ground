@@ -68,6 +68,10 @@ export const MATCH_PARTICIPANT_BACKGROUND_STALE_MS = 20 * 60 * 1000;
 export const MATCH_TEST_COUNTDOWN_SECONDS = 30;
 export const MATCH_TEST_MAX_WAIT_MS = 30 * 60 * 1000;
 export const MATCH_TEST_GROUP_MIN_PARTICIPANTS = 2;
+// 예약 파티런: 출발이 이만큼 안 남았으면 더 이상 수락·합류로 예약을 성립시키지 않는다 — 그
+// 안에서 링크되면 로딩도 카운트다운도 없이 곧장 출발해 버린다 (적대 검증 2026-09-10).
+export const MATCH_ROOM_RESERVATION_CLOSE_SECONDS = 60;
+
 export const MATCH_ROOM_HOST_START_DELAY_SECONDS = 10;
 // All participants ready -> shared countdown poll-in buffer before the visible 10s countdown starts.
 // 5s (not 2) so even the arm-rebuild worst case leaves enough buffer for the guest's clock-sync +

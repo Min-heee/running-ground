@@ -10,7 +10,10 @@ import {
 import { getApiErrorMessage } from '@/services/apiError';
 import { verifyDeletedRoomServerMembership } from '@/features/match/hooks/lobby/roomDeleteVerification';
 import type { RunningMatchRoom } from '@/lib/api/types';
-import type { MatchRoomUxModel } from '@/features/runs/lifecycle/matchRoomFlow';
+import {
+  resolveReservedMatchRoomLeavePrompt,
+  type MatchRoomUxModel,
+} from '@/features/runs/lifecycle/matchRoomFlow';
 import {
   clearMatchRoomExitGuard,
   markMatchRoomExiting,
@@ -233,6 +236,21 @@ export function useRoomStartActions({
     }
 
     if (roomExitInFlightRef.current) {
+      return;
+    }
+
+    // 예약 확정 방(2026-09-09)의 나가기/삭제는 예약 취소(또는 예약 이탈)다 — 상대에게 알림이
+    // 가고 되돌릴 수 없으니 방장·게스트 모두 그 결과를 읽고 누른다.
+    const reservedPrompt = resolveReservedMatchRoomLeavePrompt(room, roomUxModel.reservation.isReserved);
+    if (reservedPrompt) {
+      Alert.alert(
+        reservedPrompt.title,
+        reservedPrompt.message,
+        [
+          { text: '돌아가기', style: 'cancel' },
+          { text: reservedPrompt.confirmLabel, style: 'destructive', onPress: () => runRoomExit(room) },
+        ],
+      );
       return;
     }
 

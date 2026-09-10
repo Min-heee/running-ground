@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import type { RunningMatchRoom } from '@/lib/api/types';
+import type { MatchRoomReservationState } from '@/features/runs/lifecycle/matchRoomFlow';
 import { formatMatchCountdown } from '@/lib/matchCountdown';
 import { formatRoomDateLabel } from '@/features/runs/utils/matchRoomScheduling';
 import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
@@ -9,6 +10,7 @@ import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/t
 type MatchRoomSummaryCardProps = {
   room: RunningMatchRoom;
   isInvitedOnly: boolean;
+  reservation: MatchRoomReservationState;
   showLoadingBanner: boolean;
   showCountdownBanner: boolean;
   linkedMatchRemainingSeconds: number | null;
@@ -19,6 +21,7 @@ type MatchRoomSummaryCardProps = {
 export function MatchRoomSummaryCard({
   room,
   isInvitedOnly,
+  reservation,
   showLoadingBanner,
   showCountdownBanner,
   linkedMatchRemainingSeconds,
@@ -40,6 +43,16 @@ export function MatchRoomSummaryCard({
           <Text style={styles.codePillText}>{room.inviteToken}</Text>
         </View>
       </View>
+      {/* 예약 확정 (오너 2026-09-09): 친구가 수락한 순간부터 슬롯 카운트다운 창까지. 설정·초대는
+          잠기고 나가기만 남는다 — 방 코드/친구 초대 버튼도 여기서 함께 숨긴다. */}
+      {reservation.isReserved && reservation.title ? (
+        <View style={styles.countdownBanner}>
+          <Text style={styles.countdownBannerTitle}>{reservation.title}</Text>
+          {reservation.helperText ? (
+            <Text style={styles.countdownBannerText}>{reservation.helperText}</Text>
+          ) : null}
+        </View>
+      ) : null}
       {showLoadingBanner ? (
         <View style={styles.countdownBanner}>
           <Text style={styles.countdownBannerTitle}>로딩중...</Text>
@@ -54,7 +67,7 @@ export function MatchRoomSummaryCard({
           <Text style={styles.countdownBannerText}>20초 전이 되면 자동으로 대결 화면으로 이동해요.</Text>
         </View>
       ) : null}
-      {!isInvitedOnly ? (
+      {!isInvitedOnly && !reservation.isReserved ? (
         <View style={styles.actionGrid}>
           <SecondaryButton label="친구 초대" onPress={onInviteFriends} />
           <SecondaryButton label="방 코드 복사" onPress={onCopyCode} />

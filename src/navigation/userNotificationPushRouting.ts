@@ -33,6 +33,11 @@ export function resolveUserNotificationPushHref(data: unknown): Href | null {
     return '/friend-requests';
   }
 
+  // 파티런 예약 확정 푸시 → 예약이 걸린 대기방으로 바로 (인앱 알림함 라우팅과 같은 목적지).
+  if (type === 'match_reserved') {
+    return '/match-room';
+  }
+
   // 그라운드 푸시(초대/참가/정산)도 알림함 대신 바로 그라운드 목록으로.
   if (type === 'runmadang_invite' || type === 'runmadang_joined' || type === 'runmadang_settled') {
     return '/runmadang';

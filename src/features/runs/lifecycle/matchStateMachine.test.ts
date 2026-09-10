@@ -699,3 +699,90 @@ test('group reservation room view locks cancel when the server says canCancel:fa
   assert.equal(view.canCancel, false);
   assert.equal(view.cancelLocked, true);
 });
+
+// 예약 파티런 (오너 2026-09-09): 수락 순간 링크된 예약 방은 카운트다운 창(30초) 밖에서는 'waiting'.
+// 로딩 오버레이·ACK 워치독·arming 폴링이 며칠간 돌면 안 된다. 방장 시작 방은 그대로 'arming'.
+test('linked scheduled room far from its slot derives waiting (reserved), host-start still arms', () => {
+  const slotStartAt = '2026-06-08T12:00:00.000Z';
+  const reservedRoom = {
+    roomId: 'room-1',
+    inviteToken: 'ABC123',
+    inviteLink: 'https://example.com/ABC123',
+    mode: 'duel' as const,
+    state: 'arming' as const,
+    startMode: 'scheduled' as const,
+    distanceKm: 5,
+    slotStartAt,
+    slotLabel: '12:00',
+    maxParticipants: 2,
+    minParticipants: 2,
+    canStart: false,
+    isHost: true,
+    hostUserId: 'host',
+    hostName: 'Host',
+    participants: [],
+    invitedFriendIds: [],
+    linkedMatchId: 'match-1',
+    linkedMatchStatus: 'matched' as const,
+    linkedMatchSlotStartAt: slotStartAt,
+    linkedMatchDistanceKm: 5,
+  };
+
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'arming',
+    linkedMatchStatus: 'matched',
+    linkedMatchId: 'match-1',
+    linkedMatchSlotStartAt: slotStartAt,
+    remainingSeconds: 3 * 3600,
+    startMode: 'scheduled',
+  }), 'waiting');
+  // 같은 입력이 방장 시작 방이면 예전 그대로 arming.
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'arming',
+    linkedMatchStatus: 'matched',
+    linkedMatchId: 'match-1',
+    linkedMatchSlotStartAt: slotStartAt,
+    remainingSeconds: 3 * 3600,
+    startMode: 'host',
+  }), 'arming');
+  // 카운트다운 창에 들어오면 예약 방도 countdown → arenaHandoff.
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'arming',
+    linkedMatchStatus: 'matched',
+    linkedMatchId: 'match-1',
+    linkedMatchSlotStartAt: slotStartAt,
+    remainingSeconds: 28,
+    startMode: 'scheduled',
+  }), 'countdown');
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'countdown',
+    linkedMatchStatus: 'matched',
+    linkedMatchId: 'match-1',
+    linkedMatchSlotStartAt: slotStartAt,
+    remainingSeconds: 15,
+    startMode: 'scheduled',
+  }), 'arenaHandoff');
+
+  const farFlow = buildPartyRunFlowSnapshot({
+    room: reservedRoom,
+    isCountdownReady: false,
+    remainingSeconds: 3 * 3600,
+    syncedNowMs: Date.parse(slotStartAt) - 3 * 3600 * 1000,
+  });
+  assert.equal(farFlow.phase, 'waiting');
+  assert.equal(farFlow.shouldShowLoading, false);
+  assert.equal(farFlow.canAcknowledgeCountdownReady, false);
+  assert.equal(farFlow.canOpenLinkedMatch, false);
+  assert.equal(farFlow.shouldOpenArena, false);
+  assert.equal(farFlow.linkedMatchContext, null);
+
+  const nearFlow = buildPartyRunFlowSnapshot({
+    room: reservedRoom,
+    isCountdownReady: false,
+    remainingSeconds: 25,
+    syncedNowMs: Date.parse(slotStartAt) - 25 * 1000,
+  });
+  assert.equal(nearFlow.phase, 'countdown');
+  assert.equal(nearFlow.canOpenLinkedMatch, true);
+  assert.equal(nearFlow.shouldShowCountdown, true);
+});

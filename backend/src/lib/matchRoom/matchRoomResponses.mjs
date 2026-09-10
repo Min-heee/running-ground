@@ -24,7 +24,11 @@ import {
   getMatchRoomLinkedSession,
   getRunningMatchRoomState,
 } from './matchRoomCore.mjs';
-import { findRunningMatchRoomForUser } from './matchRoomSync.mjs';
+import { findRunningMatchRoomJoinedByUser } from './matchRoomSync.mjs';
+import {
+  buildMatchRoomSlotLabel,
+  isPendingScheduledPartySession,
+} from './matchRoomReservation.mjs';
 
 function buildRunningMatchRoomParticipantPayload(store, participant, linkedParticipantFieldsByUserId = null) {
   const user = findUserById(store, participant.userId);
@@ -124,9 +128,13 @@ export function buildRunningMatchRoomResponse(store, currentUser, room, now = ne
       startMode: room.startMode,
       distanceKm: room.distanceKm,
       slotStartAt: room.slotStartAt,
+      // 예약 방은 날짜까지 — 며칠 뒤 예약을 시각만 보고 수락하면 안 된다(옛 앱의 초대 카드가
+      // 이 라벨을 그대로 그린다). 방장 시작 방의 링크 뒤 라벨은 예전 그대로 시각만.
       slotLabel: room.startMode === 'host' && !linkedSession
         ? '방장 시작'
-        : formatDuelSlotLabelFromDateTime(room.slotStartAt),
+        : room.startMode === 'scheduled'
+          ? buildMatchRoomSlotLabel(room.slotStartAt)
+          : formatDuelSlotLabelFromDateTime(room.slotStartAt),
       maxParticipants: room.maxParticipants,
       minParticipants: room.minParticipants,
       canStart: room.startMode === 'host'
@@ -201,16 +209,24 @@ export function buildRunningMatchRequestBlocker(store, currentUser, now = new Da
   const existingSession = findAnyReservedMatchSessionForUser(store, currentUser.id, now);
 
   if (existingSession) {
+    // 출발 전 예약만 '자동 복구 금지' 대상이다 — 이미 출발했거나 방장 시작 파티런이면 예전처럼
+    // 클라의 강제 이탈로 풀 수 있어야 한다(안 그러면 막힌 세션에서 빠져나갈 길이 없다).
+    const isPartyRun = isPendingScheduledPartySession(existingSession.session, now);
     return {
       legacyBlocker: 'matchSession',
       source: 'matchSessions.activeParticipant',
-      message: buildSingleMatchLockMessage(existingSession.session.mode, existingSession.session.slotStartAt, existingSession.state),
+      // 파티런 예약은 카드/대기실에서 취소하라고 안내한다 — 클라의 blocker 자동 복구는
+      // isPartyRun을 보고 강제 이탈을 건너뛴다(예약을 조용히 걷지 않는다).
+      message: isPartyRun
+        ? `이미 예약된 파티런이 있어요 (${buildMatchRoomSlotLabel(existingSession.session.slotStartAt)} 시작). 홈의 예정 매치 카드나 파티런 대기방에서 먼저 정리해야 다른 매칭을 신청할 수 있어요.`
+        : buildSingleMatchLockMessage(existingSession.session.mode, existingSession.session.slotStartAt, existingSession.state),
       details: {
         source: 'matchSessions.activeParticipant',
         sessionId: existingSession.session.id,
         mode: existingSession.session.mode,
         state: existingSession.state,
         slotStartAt: existingSession.session.slotStartAt,
+        ...(isPartyRun ? { isPartyRun: true } : {}),
       },
     };
   }
@@ -232,7 +248,9 @@ export function buildRunningMatchRequestBlocker(store, currentUser, now = new Da
     };
   }
 
-  const existingRoom = findRunningMatchRoomForUser(store, currentUser.id, now);
+  // 참가자로 들어가 있는 방만 막는다 — 초대만 받은 방(답하지 않은 초대)은 며칠을 살 수 있는
+  // 예약 방이라도 다른 매칭을 막지 않는다 (2026-09-10).
+  const existingRoom = findRunningMatchRoomJoinedByUser(store, currentUser.id, now);
 
   if (existingRoom) {
     const participant = existingRoom.participants.find((entry) => entry.userId === currentUser.id) ?? null;
@@ -251,6 +269,9 @@ export function buildRunningMatchRequestBlocker(store, currentUser, now = new Da
         mode: existingRoom.mode,
         state: roomState,
         startMode: existingRoom.startMode,
+        // 예약(시간이 정해진) 방은 클라의 자동 회수가 조용히 나가면 안 된다 — 방장이 혼자 있는
+        // 방이면 그 이탈이 곧 방 삭제라 예약 준비가 통째로 사라진다 (적대 검증 2026-09-10).
+        ...(existingRoom.startMode === 'scheduled' ? { isPartyRun: true } : {}),
         slotStartAt: existingRoom.slotStartAt,
         linkedMatchId: existingRoom.linkedMatchId ?? null,
         isHost: existingRoom.hostUserId === currentUser.id,

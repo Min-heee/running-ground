@@ -252,3 +252,31 @@ test('party room poll retry cleanup before re-acquire clears the timer and acqui
   assert.equal(loadMatchRoomCount, 0);
   assert.equal(getActiveRgPollingSlotCount(), 0);
 });
+
+// 예약 파티런(2026-09-09): 링크됐지만 슬롯이 며칠 뒤 — 상대의 이탈·취소·늦은 합류를 보려면
+// 느린 주기로 계속 조회한다. 카운트다운 창에 들어오면(플래그 false) 예전처럼 매치 상태 폴러 몫.
+test('party room polling keeps a slow cadence for a reserved party room outside the countdown window', () => {
+  const nextRoom = room({ linkedMatchId: 'party-match-1', linkedMatchStatus: 'matched', startMode: 'scheduled', state: 'arming' });
+  const reserved = resolvePartyRoomPollingPolicy({
+    fastRoomPollMs: 2500,
+    idleRoomPollMs: 5000,
+    linkedMatchId: nextRoom.linkedMatchId,
+    linkedMatchReservedForFuture: true,
+    roomId: nextRoom.roomId,
+    state: nextRoom.state,
+  });
+  assert.equal(reserved.enabled, true);
+  assert.equal(reserved.intervalMs, 5000);
+  assert.equal(reserved.reason, 'reserved-party-room-sync');
+
+  const insideWindow = resolvePartyRoomPollingPolicy({
+    fastRoomPollMs: 2500,
+    idleRoomPollMs: 5000,
+    linkedMatchId: nextRoom.linkedMatchId,
+    linkedMatchReservedForFuture: false,
+    roomId: nextRoom.roomId,
+    state: nextRoom.state,
+  });
+  assert.equal(insideWindow.enabled, false);
+  assert.equal(insideWindow.reason, 'linked-match-status-owner');
+});

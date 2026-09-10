@@ -58,7 +58,7 @@ export async function ensureMatchReminderPermissions() {
 }
 
 function buildReminderTitle(match: UpcomingRunningMatchItem, minutesBefore: number) {
-  const matchLabel = match.mode === 'duel' ? '1대1 대결' : '그룹 대결';
+  const matchLabel = match.isPartyRun ? '파티런' : match.mode === 'duel' ? '1대1 대결' : '그룹 대결';
 
   if (minutesBefore <= 1) {
     return `${matchLabel} 곧 시작해요`;
@@ -70,12 +70,19 @@ function buildReminderTitle(match: UpcomingRunningMatchItem, minutesBefore: numb
 function buildReminderBody(match: UpcomingRunningMatchItem, minutesBefore: number) {
   // 오너 2026-08-13: 폰이 꺼진 채 슬롯을 맞으면 카운트다운이 무리다 — 5분 전엔 폰을 켜고
   // 앱을 열라고, 1분 전엔 앱을 켠 채 기다리라고 명시한다.
+  const matchNoun = match.isPartyRun ? '파티런' : '대결';
+
   if (minutesBefore <= 1) {
-    return `잠시 후 ${match.counterpartLabel}과 대결이 시작돼요. 앱을 켠 채로 기다려 주세요!`;
+    return `잠시 후 ${match.counterpartLabel}과 ${matchNoun}이 시작돼요. 앱을 켠 채로 기다려 주세요!`;
   }
 
   if (minutesBefore <= 5) {
-    return `${minutesBefore}분 뒤 ${match.counterpartLabel}과 대결이 시작돼요. 핸드폰을 켜고 러닝스페이스 앱을 열어 주세요.`;
+    return `${minutesBefore}분 뒤 ${match.counterpartLabel}과 ${matchNoun}이 시작돼요. 핸드폰을 켜고 러닝스페이스 앱을 열어 주세요.`;
+  }
+
+  if (match.isPartyRun) {
+    // summary는 이미 '파티런 · 9. 10. (목) 11:00 · 5.0km' 꼴 — 상대와 이어 붙이면 '파티런'이 두 번 찍힌다.
+    return `${minutesBefore}분 뒤 ${match.counterpartLabel}과 파티런이 시작돼요 · ${match.slotLabel} · ${match.distanceKm.toFixed(1)}km`;
   }
 
   return `${minutesBefore}분 뒤 ${match.counterpartLabel}과 ${match.summary}가 시작돼요.`;

@@ -4,6 +4,7 @@ import { getApiErrorMessage } from '@/services/apiError';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import type { UpdateRoomSettingsInput } from '@/features/runs/types/matchRoom';
+import { buildRoomSettingsPayload } from './roomSettingsPayload';
 
 function areSameIdSet(left: string[], right: string[]) {
   if (left.length !== right.length) {
@@ -58,17 +59,13 @@ export function useRoomSettings({
     setError(null);
 
     try {
-      const payload = await updateRunningMatchRoom({
-        roomId: room.roomId,
-        distanceKm: overrides.distanceKm ?? room.distanceKm,
-        // Party runs are always host-start now; the scheduled chooser is gone,
-        // so every settings save normalizes the room onto host mode.
-        startMode: 'host',
-        maxParticipants: room.mode === 'group'
-          ? overrides.maxParticipants ?? room.maxParticipants
-          : 2,
-        invitedFriendIds: overrides.invitedFriendIds ?? selectedFriendIds,
-      });
+      // 시작 방식은 방의 현재 값을 그대로 실어 보낸다 (계약 C1) — 거리/초대만 바꾸는 저장이
+      // 예약 방을 방장 시작으로 되돌리면 안 된다. 예약 전환은 overrides.startMode/slotStartAt.
+      const payload = await updateRunningMatchRoom(buildRoomSettingsPayload({
+        room,
+        overrides,
+        selectedFriendIds,
+      }));
       if (!shouldAcceptServerSnapshot(latestRoomServerNowMsRef, payload.serverNow)) {
         return null;
       }

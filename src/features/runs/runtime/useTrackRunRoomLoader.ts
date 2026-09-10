@@ -14,7 +14,8 @@ import {
   buildActiveRoomResultLogDetail,
   buildActiveRoomSnapshotKey,
 } from '@/features/runs/sync/activeRoomResult';
-import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
+import { getSharedServerClockOffsetMs, shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
+import { isMatchRoomReservedForFuture } from '@/features/runs/lifecycle/matchRoomFlow';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { isRgInputInteractionRecent } from '@/utils/rgInputTrace';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
@@ -81,6 +82,7 @@ export function useTrackRunRoomLoader({
     const localActiveRoomId = options?.localActiveRoomId ?? null;
     const liveSkipReason = getTrackRunActiveRoomCheckLiveSkipReason({
       linkedMatchId: matchRoom?.linkedMatchId ?? null,
+      linkedMatchReservedForFuture: isMatchRoomReservedForFuture(matchRoom, Date.now() + getSharedServerClockOffsetMs()),
       liveMatchKey: liveMatchShellPreservation.key,
       liveMatchMounted: Boolean(liveMatchMountedRef.current),
     });

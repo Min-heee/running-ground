@@ -14,20 +14,30 @@ export type UpcomingMatchInteraction = {
   opensReservationRoom: boolean;
   // Which reservation room the row opens (null when it opens none).
   reservationRoomMode: 'duel' | 'group' | null;
+  // 파티런 예약 (오너 2026-09-09): roomId가 붙은 매치는 공식 예약 대기실이 아니라 파티런
+  // 대기방(/match-room)으로 간다 — 그 방이 카운트다운·핸드오프를 이미 맡고 있다.
+  opensPartyRoom: boolean;
   // Whether the row responds to a press at all.
   isTappable: boolean;
 };
 
+export function isPartyRunUpcomingMatch(match: Pick<UpcomingRunningMatchItem, 'roomId'>) {
+  return typeof match.roomId === 'string' && match.roomId.trim().length > 0;
+}
+
 export function resolveUpcomingMatchInteraction(
-  match: Pick<UpcomingRunningMatchItem, 'mode' | 'status'>,
+  match: Pick<UpcomingRunningMatchItem, 'mode' | 'status'> & Partial<Pick<UpcomingRunningMatchItem, 'roomId'>>,
   remainingSeconds: number | null,
 ): UpcomingMatchInteraction {
   const canOpenArena = match.status === 'active'
     || (match.status === 'matched' && shouldAutoOpenMatchArena(remainingSeconds));
-  // A matched duel or a matched (matchmade) group both open their reservation room
-  // before the arena window. Party-run group items aren't surfaced through this list,
-  // so any matched group here is a matchmade reservation.
-  const opensReservationRoom = (match.mode === 'duel' || match.mode === 'group')
+  const isPartyRun = isPartyRunUpcomingMatch(match);
+  // A party-run session (linked to a 대기방) opens that room before the arena window; the
+  // room owns the reservation view. Everything else matched opens the official reservation
+  // room for its mode.
+  const opensPartyRoom = isPartyRun && match.status === 'matched' && !canOpenArena;
+  const opensReservationRoom = !isPartyRun
+    && (match.mode === 'duel' || match.mode === 'group')
     && match.status === 'matched'
     && !canOpenArena;
 
@@ -35,6 +45,7 @@ export function resolveUpcomingMatchInteraction(
     canOpenArena,
     opensReservationRoom,
     reservationRoomMode: opensReservationRoom ? match.mode : null,
-    isTappable: canOpenArena || opensReservationRoom,
+    opensPartyRoom,
+    isTappable: canOpenArena || opensReservationRoom || opensPartyRoom,
   };
 }

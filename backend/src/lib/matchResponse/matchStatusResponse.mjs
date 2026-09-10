@@ -69,6 +69,7 @@ export function buildRunningMatchStatusResponse(store, currentUser, { mode, dist
     const state = hydratedState === 'active' && !readyToStart ? 'matched' : hydratedState;
     const cancelableUntilAt = buildMatchCancellationDeadline(session.slotStartAt, {
       isTestMatch,
+      isPartyRun: session.isScheduledPartyRun === true,
     }).toISOString();
     const canCancelReservation = now.getTime() < new Date(cancelableUntilAt).getTime();
     const countdownRemainingSeconds = state === 'matched' && !readyToStart

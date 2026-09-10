@@ -2,10 +2,13 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import type { UserProfile, WeeklySummary } from '@/domain';
 import { shouldHidePastUpcomingMatch } from '@/features/home/utils/homeUpcomingMatches';
+import { confirmUpcomingMatchCancel } from '@/features/runs/components/confirmUpcomingMatchCancel';
+import { resolveUpcomingMatchInteraction } from '@/features/runs/components/upcomingMatchInteraction';
 import { useReservationArenaHandoff } from '@/features/match/hooks/useReservationArenaHandoff';
 import { isGlobalTrackerBusy } from '@/features/runs/tracking/globalTrackerActivity';
 import {
   findNextStartingMatchedMatch,
+  getMatchStartRemainingSeconds,
 } from '@/lib/matchCountdown';
 import { syncScheduledMatchNotifications } from '@/lib/matchNotifications';
 import { getCurrentUserProfile } from '@/lib/session';
@@ -172,7 +175,7 @@ export function useHomeScreenModel() {
       && !isGlobalTrackerBusy(),
   });
 
-  const handleCancelUpcomingMatch = useCallback(async (match: UpcomingRunningMatchItem) => {
+  const runCancelUpcomingMatch = useCallback(async (match: UpcomingRunningMatchItem) => {
     try {
       setError(null);
       setCancelingMatchId(match.matchId);
@@ -191,7 +194,25 @@ export function useHomeScreenModel() {
     }
   }, []);
 
+  // 파티런 예약은 상대 방까지 같이 사라지므로 확인을 거친다; 공식 예약은 지금처럼 바로 취소.
+  const handleCancelUpcomingMatch = useCallback(async (match: UpcomingRunningMatchItem) => {
+    confirmUpcomingMatchCancel(match, (confirmedMatch) => {
+      void runCancelUpcomingMatch(confirmedMatch);
+    });
+  }, [runCancelUpcomingMatch]);
+
   const handleOpenRunningMatch = useCallback((match: UpcomingRunningMatchItem) => {
+    // 파티런 예약 카드(roomId 동봉)는 출발 전엔 파티런 대기방으로 (오너 2026-09-09) — 그 방이
+    // 예약 완료 화면과 카운트다운 핸드오프를 맡는다. 아레나 창(≤20s)/진행 중은 아래 러닝 탭 경로.
+    const interaction = resolveUpcomingMatchInteraction(
+      match,
+      getMatchStartRemainingSeconds(match.slotStartAt),
+    );
+    if (interaction.opensPartyRoom) {
+      router.push('/match-room');
+      return;
+    }
+
     // 레이스 편성 세션의 예약 카드는 '출발 전'에만 레이스 대기실로 (오너 2026-08-13) —
     // 출발 25초 전 아레나 자동 진입은 대기실이 그대로 이어받는다. 출발 후(active)에는 기존
     // 러닝 탭 복원 경로 유지 (적대 검증: 앱이 죽었다 살아난 참가자의 아레나 재진입이 이 길이다).

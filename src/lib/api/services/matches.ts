@@ -41,6 +41,8 @@ import {
   buildMockWaitingMatchStatus,
   buildMockDuelMatchStatus,
   buildMockGroupMatchStatus,
+  buildMockPartyRunUpcomingMatchItem,
+  cancelMockPartyRunReservation,
   requireAccessToken,
 } from './_shared';
 
@@ -176,6 +178,7 @@ export async function fetchRunningMatchStatus(input: FetchRunningMatchStatusInpu
 
 export async function fetchUpcomingRunningMatches(): Promise<UpcomingRunningMatchesResponse> {
   if (USE_MOCK_API) {
+    const partyRunItem = buildMockPartyRunUpcomingMatchItem();
     const items = (['duel', 'group'] as const)
       .map((mode) => syncMockRunningMatchSession(mode))
       .filter((session): session is RunningMatchStatusResponse => {
@@ -208,6 +211,8 @@ export async function fetchUpcomingRunningMatches(): Promise<UpcomingRunningMatc
           ? session.slotStartAt
           : getMockMatchCancelableUntilAt(session.slotStartAt) ?? new Date(session.slotStartAt).toISOString(),
       }))
+      // 파티런 예약 세션(roomId 동봉)도 같은 목록에 올린다 (계약 C3).
+      .concat(partyRunItem ? [partyRunItem] : [])
       .sort((left, right) => new Date(left.slotStartAt).getTime() - new Date(right.slotStartAt).getTime());
 
     // Sample duel-slot waiting counts so mock mode + tests exercise the slot-count UI:
@@ -281,7 +286,10 @@ export async function acceptRunningMatch(input: AcceptRunningMatchInput): Promis
 
 export async function cancelRunningMatch(input: CancelRunningMatchInput): Promise<CancelRunningMatchResponse> {
   if (USE_MOCK_API) {
-    mockApiState.runningMatchSessions[input.mode] = null;
+    // 파티런 예약 취소는 대기방까지 함께 지운다 (계약 C4); 공식 예약은 세션만.
+    if (!cancelMockPartyRunReservation(input.matchId)) {
+      mockApiState.runningMatchSessions[input.mode] = null;
+    }
     return { success: true };
   }
 

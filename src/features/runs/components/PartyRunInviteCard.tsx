@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { RunningMatchRoom } from '@/lib/api/types';
+import { formatRoomDateLabel } from '@/features/runs/utils/matchRoomScheduling';
 import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type PartyRunInviteCardProps = {
@@ -31,7 +32,7 @@ export function PartyRunInviteCard({
         <Text style={styles.code}>{room.inviteToken}</Text>
       </View>
       <Text style={styles.meta}>
-        {room.distanceKm.toFixed(1)}km · {room.startMode === 'host' ? '방장 시작' : room.slotLabel}
+        {room.distanceKm.toFixed(1)}km · {room.startMode === 'host' ? '방장 시작' : `예약 시작 ${formatRoomDateLabel(room.slotStartAt)}`}
       </Text>
       <View style={styles.actionRow}>
         <Pressable

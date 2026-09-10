@@ -27,6 +27,7 @@ export function getRunningMatchBlockerFromError(error: unknown) {
   const blockerSource = typeof details.blockerSource === 'string' ? details.blockerSource : null;
   const blockerDetails = details.blockerDetails && typeof details.blockerDetails === 'object'
     ? details.blockerDetails as {
+      isPartyRun?: unknown;
       linkedMatchId?: unknown;
       matchId?: unknown;
       roomId?: unknown;
@@ -56,6 +57,8 @@ export function getRunningMatchBlockerFromError(error: unknown) {
     blocker,
     blockerSource,
     code: typeof details.code === 'string' ? details.code : null,
+    // 파티런 예약(친구와의 약속)이 막고 있다 — 자동 복구가 조용히 걷어내면 안 되는 종류.
+    isPartyRun: blockerDetails?.isPartyRun === true,
     matchId,
     message: typeof details.message === 'string' ? details.message : error.userMessage,
     roomId,

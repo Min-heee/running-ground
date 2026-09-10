@@ -368,3 +368,28 @@ test('live match route hydration does not preserve stale room for a different ma
   assert.equal(getLiveMatchRouteHydration()?.matchId, 'duel-match-next');
   clearLiveMatchRouteHydration();
 });
+
+// 예약 파티런(2026-09-09): 며칠 뒤 슬롯의 확정 예약은 '지금 시작하는 매치'가 아니다 — 러닝 탭이
+// 준비 화면을 그대로 그리고, 예정 매치 카드에서도 그 예약이 사라지면 안 된다 (적대 검증 2026-09-10).
+test('a reserved party room is not a live linked runtime room until its countdown window', () => {
+  const slotStartAt = new Date('2026-09-12T02:00:00.000Z').toISOString();
+  const reserved = {
+    ...room(),
+    startMode: 'scheduled' as const,
+    state: 'arming' as const,
+    linkedMatchId: 'party-match-1',
+    linkedMatchStatus: 'matched' as const,
+    slotStartAt,
+    linkedMatchSlotStartAt: slotStartAt,
+  };
+  const twoDaysBefore = Date.parse(slotStartAt) - 2 * 24 * 3600 * 1000;
+  const insideWindow = Date.parse(slotStartAt) - 20 * 1000;
+
+  assert.equal(isLinkedRoomRuntimeState(reserved, twoDaysBefore), false);
+  assert.equal(isLinkedRoomRuntimeState(reserved, insideWindow), true);
+  assert.equal(isLinkedRoomRuntimeState({ ...reserved, startMode: 'host' }, twoDaysBefore), true, '방장 시작 방은 예전 그대로');
+
+  const matches = [upcoming({ matchId: 'party-match-1', slotStartAt, roomId: 'room-1', isPartyRun: true })];
+  assert.equal(filterUpcomingMatchesForRuntime(matches, reserved, twoDaysBefore).length, 1, '예약은 카드에 남는다');
+  assert.equal(filterUpcomingMatchesForRuntime(matches, reserved, insideWindow).length, 0, '창 안에서는 아레나가 넘겨받는다');
+});

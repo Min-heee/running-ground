@@ -45,6 +45,9 @@ export type PartyRunStartPhaseInput = {
   linkedMatchId?: string | null;
   linkedMatchSlotStartAt?: string | null;
   syncedNowMs?: number | null;
+  // 예약 파티런 (2026-09-09): 'scheduled' 방은 수락 순간 링크되므로 슬롯이 며칠 뒤일 수 있다.
+  // 카운트다운 창 밖의 링크된 예약 방은 'waiting'으로 본다 (isReservedPartyRoomBeforeCountdown).
+  startMode?: 'host' | 'scheduled' | null;
 };
 
 export type PartyRunStartEvent =
@@ -95,6 +98,8 @@ export type ActiveMatchIdentityInput = {
 export type PartyRunLinkedRoomInput = {
   mode: RunningMatchRoomMode;
   state?: RunningMatchRoomState | null;
+  // 예약 파티런 판정용(isReservedPartyRoomBeforeCountdown). 생략하면 방장 시작 방과 같다.
+  startMode?: 'host' | 'scheduled' | null;
   distanceKm: number;
   slotStartAt: string;
   linkedMatchId?: string | null;

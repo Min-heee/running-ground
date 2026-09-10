@@ -9,7 +9,7 @@
 // 지울 게 없는 대부분의 주기는 blob 비교 한 번으로 끝나고 파일 쓰기/백업이 없다(#209).
 
 import { pruneMatchQueues } from '../lib/matchQueueStoreHelpers.mjs';
-import { pruneMatchRooms } from '../lib/matchRoom/matchRoomCore.mjs';
+import { syncMatchRooms } from '../lib/matchRoom/matchRoomSync.mjs';
 import { pruneMatchSessions } from '../lib/runningMatchSession/matchSessionLifecycle.mjs';
 import {
   pruneRunmadangChallenges,
@@ -24,16 +24,24 @@ function countQueueEntries(store) {
   return ['duel', 'group'].reduce((total, mode) => total + (queues[mode]?.length ?? 0), 0);
 }
 
+function collectUnlinkedRoomIds(store) {
+  return new Set((store?.matchRooms ?? []).filter((room) => room && !room.linkedMatchId).map((room) => room.id));
+}
+
 // 한 번 쓸어담기 — 지워진 개수를 돌려준다(전부 0이면 스토어는 그대로다).
 export async function sweepStaleMatchState({ mutateStore, now = new Date() }) {
   return mutateStore((store) => {
     const beforeRooms = store.matchRooms?.length ?? 0;
     const beforeSessions = store.matchSessions?.length ?? 0;
     const beforeQueueEntries = countQueueEntries(store);
+    const unlinkedRoomIdsBefore = collectUnlinkedRoomIds(store);
 
     pruneMatchQueues(store, now);
     pruneMatchSessions(store, now);
-    pruneMatchRooms(store, now);
+    // prune만이 아니라 sync — 예약 파티런의 링크(세션 생성)와 방장 시작 방의 카운트다운 무장은
+    // 누군가의 요청이 아니라 서버 시계가 결정해야 한다 (2026-09-09). syncMatchRooms가 prune을
+    // 먼저 돌리므로 예전의 pruneMatchRooms 호출을 그대로 품는다.
+    syncMatchRooms(store, now);
     // 그라운드: 만기 판 정산(환불·상금·알림) + 오래된 판 정리 — 아무도 앱을 안 열어도
     // 기간이 끝나면 결과가 나가야 한다.
     const settledRunmadang = settleDueRunmadangChallenges(store, now);
@@ -43,6 +51,7 @@ export async function sweepStaleMatchState({ mutateStore, now = new Date() }) {
       removedRooms: beforeRooms - (store.matchRooms?.length ?? 0),
       removedSessions: beforeSessions - (store.matchSessions?.length ?? 0),
       removedQueueEntries: beforeQueueEntries - countQueueEntries(store),
+      linkedRooms: (store.matchRooms ?? []).filter((room) => room?.linkedMatchId && unlinkedRoomIdsBefore.has(room.id)).length,
       settledRunmadang,
     };
   });
@@ -69,7 +78,7 @@ export function startStaleMatchStateSweeper({
     try {
       const swept = await sweepStaleMatchState({ mutateStore, now: new Date() });
 
-      if (onSwept && (swept.removedRooms || swept.removedSessions || swept.removedQueueEntries || swept.settledRunmadang)) {
+      if (onSwept && (swept.removedRooms || swept.removedSessions || swept.removedQueueEntries || swept.linkedRooms || swept.settledRunmadang)) {
         onSwept(swept);
       }
     } catch (error) {

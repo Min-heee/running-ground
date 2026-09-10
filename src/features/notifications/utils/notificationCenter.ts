@@ -47,6 +47,8 @@ export function getNotificationTypeLabel(type: InboxNotificationType) {
       return '초대';
     case 'match_room_closed':
       return '파티방';
+    case 'match_reserved':
+      return '파티런 예약';
     case 'match_result':
       return '결과';
     case 'friend_request':
@@ -92,6 +94,12 @@ export function resolveNotificationHref(notification: InboxNotification): Href |
     || notification.type === 'runmadang_settled'
   ) {
     return '/runmadang';
+  }
+
+  // 파티런 예약 확정 알림 → 예약이 걸린 대기방으로 (data.roomId 계약, 오너 2026-09-09). 방이
+  // 그새 사라졌으면 대기실 화면이 '열린 방이 없어요'를 보여주므로 data 없이도 성립.
+  if (notification.type === 'match_reserved') {
+    return '/match-room';
   }
 
   if (!data) {

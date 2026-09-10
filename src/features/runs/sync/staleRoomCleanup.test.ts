@@ -31,10 +31,24 @@ test('running match blocker details are detected from API errors', () => {
     blocker: 'activeRoom',
     blockerSource: 'matchRooms.participant',
     code: null,
+    isPartyRun: false,
     matchId: null,
     message: '이미 참여 중인 방이 있어요.',
     roomId: 'duel-room-deleted',
   });
+
+  // 파티런 예약이 막는 경우(2026-09-10): 자동 복구가 강제 이탈하지 않도록 표시가 살아 온다.
+  const partyError = new ApiError('request', '이미 예약된 파티런이 있어요.', {
+    details: {
+      blocker: 'matchSession',
+      blockerDetails: { sessionId: 'party-match-1', isPartyRun: true },
+      blockerSource: 'matchSessions.activeParticipant',
+      message: '이미 예약된 파티런이 있어요.',
+    },
+  });
+  const partyBlocker = getRunningMatchBlockerFromError(partyError);
+  assert.equal(partyBlocker?.isPartyRun, true);
+  assert.equal(partyBlocker?.matchId, 'party-match-1');
 });
 
 test('running match blocker extracts match ids from blocker details', () => {

@@ -20,6 +20,8 @@ export const NotificationTypeIcon = memo(function NotificationTypeIcon({ type, u
     ? 'flag'
     : type === 'match_room_closed'
       ? 'x-circle'
+      : type === 'match_reserved'
+      ? 'calendar'
       : type === 'friend_request'
       ? 'user-plus'
       : type === 'friend_accepted'

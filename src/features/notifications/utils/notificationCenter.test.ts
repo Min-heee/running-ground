@@ -52,3 +52,15 @@ test('runmadang notifications open the runmadang list screen', () => {
   );
   assert.equal(resolveNotificationHref(makeNotification({ type: 'runmadang_joined' })), '/runmadang');
 });
+
+// 파티런 예약 확정 알림은 data 유무와 무관하게 대기방으로 간다 (오너 2026-09-09).
+test('match reserved notifications open the party room', () => {
+  assert.equal(resolveNotificationHref(makeNotification({ type: 'match_reserved' })), '/match-room');
+  assert.equal(
+    resolveNotificationHref(makeNotification({
+      type: 'match_reserved',
+      data: { roomId: 'room-1', matchId: 'm-1', mode: 'duel', slotStartAt: '2026-09-10T02:00:00.000Z' },
+    })),
+    '/match-room',
+  );
+});

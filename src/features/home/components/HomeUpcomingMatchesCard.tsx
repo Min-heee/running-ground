@@ -8,6 +8,7 @@ import {
   shouldAutoOpenMatchArena,
   shouldShowMatchCardCountdown,
 } from '@/lib/matchCountdown';
+import { resolveUpcomingMatchInteraction } from '@/features/runs/components/upcomingMatchInteraction';
 import type { UpcomingRunningMatchItem } from '@/lib/api/types';
 import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
@@ -35,7 +36,10 @@ const HomeUpcomingMatchRow = memo(function HomeUpcomingMatchRow({
   const remainingSeconds = getMatchStartRemainingSeconds(match.slotStartAt, nowMs);
   // 레이스 편성 카드는 출발 전 언제든 대기실로, 출발 후엔 기존 대결 보기 경로 (오너 2026-08-13).
   const isRaceLobbyRow = Boolean(match.raceEventId) && match.status === 'matched';
+  // 파티런 예약 카드는 출발 전 언제든 파티런 대기방으로 (오너 2026-09-09).
+  const isPartyRoomRow = resolveUpcomingMatchInteraction(match, remainingSeconds).opensPartyRoom;
   const canOpenArena = isRaceLobbyRow
+    || isPartyRoomRow
     || match.status === 'active'
     || (match.status === 'matched' && shouldAutoOpenMatchArena(remainingSeconds));
   const handleOpenMatch = useCallback(() => onOpenMatch(match), [match, onOpenMatch]);
@@ -73,12 +77,16 @@ const HomeUpcomingMatchRow = memo(function HomeUpcomingMatchRow({
         ) : null}
         {canOpenArena ? (
           <Text style={styles.upcomingLinkText}>
-            {isRaceLobbyRow ? '누르면 레이스 대기실로 이동해요' : '누르면 바로 대결 보기로 이동해요'}
+            {isRaceLobbyRow
+              ? '누르면 레이스 대기실로 이동해요'
+              : isPartyRoomRow
+                ? '누르면 파티런 대기방으로 이동해요'
+                : '누르면 바로 대결 보기로 이동해요'}
           </Text>
         ) : null}
       </View>
       <Text style={styles.upcomingState}>
-        {match.status === 'active' ? '진행 중' : canOpenArena ? '곧 시작' : '예약됨'}
+        {match.status === 'active' ? '진행 중' : canOpenArena && !isPartyRoomRow ? '곧 시작' : '예약됨'}
       </Text>
     </Pressable>
   );

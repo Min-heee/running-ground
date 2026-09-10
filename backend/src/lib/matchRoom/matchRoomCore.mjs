@@ -153,11 +153,11 @@ export function getRunningMatchRoomState(room, store, now = new Date()) {
     // the slot.
     const remainingSeconds = Math.max(0, Math.ceil((linkedSlotMs - now.getTime()) / 1000));
 
-    if (room.startMode === 'host' && remainingSeconds > MATCH_ROOM_HOST_START_DELAY_SECONDS) {
-      return 'arming';
-    }
-
-    return remainingSeconds <= MATCH_ROOM_HOST_START_DELAY_SECONDS ? 'countdown' : 'waiting';
+    // 링크가 붙었는데 아직 카운트다운 창(10초) 밖이면 'arming' — 방장 시작 방은 예전부터
+    // 그랬고, 예약 방도 같다 (2026-09-09: 예약은 수락 순간 링크되므로 이 구간이 며칠일 수
+    // 있다. 예전엔 슬롯 10초 전에야 링크돼 이 구간이 관측된 적이 없었다). 'waiting'으로 두면
+    // 클라가 '예약 완료' 방을 빈 대기실로 오해한다.
+    return remainingSeconds <= MATCH_ROOM_HOST_START_DELAY_SECONDS ? 'countdown' : 'arming';
   }
 
   return 'waiting';

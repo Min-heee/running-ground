@@ -150,6 +150,10 @@ export function createMatchSession(store, mode, distanceKm, slotStartAt, partici
     mode,
     isTestMatch: options.isTestMatch === true,
     isPartyRun: options.isPartyRun === true,
+    // 예약 파티런(대기방에서 시간을 정하고 친구가 수락한 것)만 true. isPartyRun은 방장 시작
+    // 파티런에도 붙으므로(startRunningMatchRoom), 예약 전용 되돌리기·취소 규칙은 이 플래그로만
+    // 갈라야 기존 방장 시작 흐름이 그대로 남는다 (적대 검증 2026-09-10).
+    ...(options.isScheduledPartyRun === true ? { isScheduledPartyRun: true } : {}),
     distanceKm: normalizeMatchQueueDistance(distanceKm),
     slotStartAt,
     // The group anchor — the average pace of the founding 3 — is the gate every later
@@ -174,7 +178,12 @@ export function createMatchSession(store, mode, distanceKm, slotStartAt, partici
 // `store`를 받는 이유: 지각 합류자도 내구 로스터에 들어가야 한다. 세션에만 추가하면 세션이
 // pruned된 뒤 그 참가자는 "로스터에 없는 사람"이 되어 자기 기록이 영영 PENDING으로 남는다.
 export function addParticipantToMatchSession(store, session, participant) {
-  const index = session.participants.length;
+  // 자리(seedRank)는 인원수가 아니라 지금까지 쓰인 가장 큰 번호 다음이다 — 누가 빠져 인원이 줄면
+  // 인덱스 기준은 이미 쓰인 번호를 다시 발급해 두 사람이 같은 자리를 갖는다 (적대 검증 2026-09-10).
+  const index = session.participants.reduce(
+    (max, entry) => Math.max(max, Number.isFinite(entry?.seedRank) ? entry.seedRank : 0),
+    0,
+  );
   session.participants.push(buildSessionParticipant(participant, index));
   amendMatchRoster(store, session.id, participant?.id);
   return session;

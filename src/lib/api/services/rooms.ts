@@ -41,6 +41,8 @@ import {
   decorateMockRunningMatchRoom,
   createMockRunningMatchRoomState,
   applyMockRunningMatchRoomUpdate,
+  joinMockRunningMatchRoomAsCurrentUser,
+  syncMockScheduledRunningMatchRoomLink,
 } from './_shared';
 
 type FetchRunningMatchRoomOptions = {
@@ -49,6 +51,8 @@ type FetchRunningMatchRoomOptions = {
 
 export async function fetchRunningMatchRoom(options: FetchRunningMatchRoomOptions = {}): Promise<RunningMatchRoomResponse> {
   if (USE_MOCK_API) {
+    // 목 서버의 syncMatchRooms 역할: 조회 때마다 예약 방의 즉시 묶기를 한 번 돌린다.
+    syncMockScheduledRunningMatchRoomLink();
     return ensureRunningMatchRoomResponse(
       sanitizeRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom))),
       { action: 'fetch-active-room' },
@@ -219,13 +223,16 @@ export async function createRunningMatchRoom(input: CreateRunningMatchRoomInput)
 
 export async function joinRunningMatchRoom(input: JoinRunningMatchRoomInput): Promise<JoinedRunningMatchRoomResponse> {
   if (USE_MOCK_API) {
+    // 수락 = 참가 + (예약 방이면) 즉시 세션 묶기 (계약 C2).
+    joinMockRunningMatchRoomAsCurrentUser();
     return ensureJoinedRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom)));
   }
 
   try {
     const payload = await apiPost<RunningMatchRoomResponse>(
       '/running/rooms/join',
-      input,
+      // 이 앱은 예약 화면을 안다 — 예약 방 참가는 곧 시간 수락이다(서버 옛 앱 게이트, 2026-09-10).
+      { ...input, acceptSlot: true },
       {
         accessToken: await requireAccessToken(),
         fallbackMessage: '방에 들어가지 못했어요.',
@@ -235,6 +242,7 @@ export async function joinRunningMatchRoom(input: JoinRunningMatchRoomInput): Pr
     return ensureJoinedRunningMatchRoomResponse(payload);
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
+      joinMockRunningMatchRoomAsCurrentUser();
       return ensureJoinedRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom)));
     }
 
@@ -408,7 +416,7 @@ export async function updateRunningMatchRoomReady(input: UpdateRunningMatchRoomR
   try {
     const payload = await apiPost<RunningMatchRoomResponse>(
       '/running/rooms/ready',
-      input,
+      { ...input, acceptSlot: true },
       {
         accessToken: await requireAccessToken(),
         fallbackMessage: '준비 상태를 바꾸지 못했어요.',

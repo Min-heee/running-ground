@@ -70,6 +70,7 @@ import {
   selectLinkedRuntimeRoom,
   selectPartyRunRuntimeSource,
 } from '@/features/runs/lifecycle/matchRuntimeStateSelector';
+import { isMatchRoomReservedForFuture } from '@/features/runs/lifecycle/matchRoomFlow';
 import {
   clearLiveMatchRouteHydration,
   getLiveMatchRouteHydration,
@@ -481,11 +482,12 @@ export function TrackRunExperienceRuntime({
   });
 
   const linkedRuntimeRoom = selectLinkedRuntimeRoom({ matchRoom, visibleMatchRoom });
-  const hasLinkedRuntimeRoom = isLinkedRoomRuntimeState(linkedRuntimeRoom);
+  const hasLinkedRuntimeRoom = isLinkedRoomRuntimeState(linkedRuntimeRoom, syncedNowMs);
   const visibleUpcomingMatches = useMemo(
     () => filterUpcomingMatchesForRuntime(
       upcomingMatches.filter((match) => !shouldHidePastUpcomingMatch(match, syncedNowMs)),
       linkedRuntimeRoom,
+      syncedNowMs,
     ),
     [linkedRuntimeRoom, syncedNowMs, upcomingMatches],
   );
@@ -1887,6 +1889,7 @@ export function TrackRunExperienceRuntime({
         groupMatchState,
         matchRoomLinkedMatchId: matchRoom?.linkedMatchId,
         matchRoomState: matchRoom?.state,
+        matchRoomReservedForFuture: isMatchRoomReservedForFuture(matchRoom, syncedNowMs),
         arenaOpenFired: forceOpenActiveMatch,
         arenaOpenAtMs: arenaOpenAtMsRef.current,
         freshSyncedNowMs: getSyncedNowMs(),

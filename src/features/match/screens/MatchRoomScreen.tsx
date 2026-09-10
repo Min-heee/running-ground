@@ -8,6 +8,10 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { MatchRoomDistanceSettingsCard } from '@/features/runs/components/matchRoom/MatchRoomDistanceSettingsCard';
 import { MatchRoomFriendInviteCard } from '@/features/runs/components/matchRoom/MatchRoomFriendInviteCard';
 import { MatchRoomInviteActionCard } from '@/features/runs/components/matchRoom/MatchRoomInviteActionCard';
+import {
+  MatchRoomStartTimeCard,
+  type MatchRoomStartTimeSaveInput,
+} from '@/features/runs/components/matchRoom/MatchRoomStartTimeCard';
 import { MatchRoomSummaryCard } from '@/features/runs/components/matchRoom/MatchRoomSummaryCard';
 import { PartyRunParticipantListCard } from '@/features/runs/components/PartyRunParticipantListCard';
 import { LiveGapPushCard } from '@/features/runs/components/matchSetupCards/LiveGapPushCard';
@@ -51,9 +55,11 @@ export default function MatchRoomScreen() {
     () => (roomExitState === 'deleting' ? '방 삭제 중...' : '방 나가기 중...'),
     [roomExitState],
   );
+  // 예약 확정 방에서는 라벨이 곧 동작이다 — '예약 취소' / '예약에서 나가기' (2026-09-10).
+  const reservedLeaveLabel = roomUxModel.reservation.leaveLabel;
   const leaveButtonLabel = useMemo(
-    () => (isRoomExiting ? roomExitLabel : (saving ? '반영 중...' : (room?.isHost ? '방 삭제' : '방 나가기'))),
-    [isRoomExiting, room?.isHost, roomExitLabel, saving],
+    () => (isRoomExiting ? roomExitLabel : (saving ? '반영 중...' : (reservedLeaveLabel ?? (room?.isHost ? '방 삭제' : '방 나가기')))),
+    [isRoomExiting, reservedLeaveLabel, room?.isHost, roomExitLabel, saving],
   );
   const handleBack = useCallback(() => {
     router.back();
@@ -81,6 +87,9 @@ export default function MatchRoomScreen() {
   }, [handleStart]);
   const handleDistanceChange = useCallback((distanceKm: number) => {
     void saveRoomSettings({ distanceKm });
+  }, [saveRoomSettings]);
+  const handleSaveStartMode = useCallback((input: MatchRoomStartTimeSaveInput) => {
+    void saveRoomSettings(input);
   }, [saveRoomSettings]);
   const handleApplyCustomDistancePress = useCallback(() => {
     void handleApplyCustomDistance();
@@ -112,8 +121,8 @@ export default function MatchRoomScreen() {
       </View>
       <Text style={styles.pageTitle}>대기실</Text>
       {/* 오너 2026-08-13: 방장이 시작하면 로딩 → 카운트다운이 즉시 이어진다 — 그 사이 앱을
-          벗어난 참가자는 시작을 놓친다. 대기실 상단 고정 안내. */}
-      <Text style={styles.stayNotice}>방장이 시작하면 바로 카운트다운이 진행돼요 — 러닝스페이스 앱을 나가지 말고 기다려 주세요.</Text>
+          벗어난 참가자는 시작을 놓친다. 대기실 상단 고정 안내 (예약 방은 '시간 맞춰 켜 두라'). */}
+      <Text style={styles.stayNotice}>{roomUxModel.stayNotice}</Text>
 
       {loading ? (
         <LoadingRoomCard
@@ -129,6 +138,7 @@ export default function MatchRoomScreen() {
           <MatchRoomSummaryCard
             room={room}
             isInvitedOnly={isInvitedOnly}
+            reservation={roomUxModel.reservation}
             showLoadingBanner={showPartyRunLoadingBanner}
 	            showCountdownBanner={showPartyRunCountdownBanner}
 	            linkedMatchRemainingSeconds={linkedMatchRemainingSeconds}
@@ -158,6 +168,13 @@ export default function MatchRoomScreen() {
 
               {room.isHost && !room.linkedMatchId ? (
                 <>
+                  <MatchRoomStartTimeCard
+                    startMode={room.startMode}
+                    slotStartAt={room.slotStartAt}
+                    saving={saving}
+                    onSaveStartMode={handleSaveStartMode}
+                  />
+
                   <MatchRoomDistanceSettingsCard
 	                    distanceKm={room.distanceKm}
 	                    customDistanceText={customDistanceText}

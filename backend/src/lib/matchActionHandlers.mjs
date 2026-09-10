@@ -31,7 +31,11 @@ import {
   sealGroupFallbackResolutionIfElapsed,
 } from './runningMatchSessionStoreHelpers.mjs';
 import { buildRunningMatchStatusResponse } from './matchResponseBuilders.mjs';
-import { pruneMatchRooms } from './matchRoomStoreHelpers.mjs';
+import {
+  isPendingScheduledPartySession,
+  pruneMatchRooms,
+  withdrawFromReservedPartySession,
+} from './matchRoomStoreHelpers.mjs';
 import { isMatchTombstoned, recordVanishedMatch } from './vanishedMatchTombstones.mjs';
 // Imported straight from the submodule (not the facade) because ONLY the seal-revision hook
 // needs these; the facade re-export surface stays untouched for existing importers.
@@ -70,6 +74,15 @@ export function leaveRunningMatch(store, currentUser, { matchId, reason }) {
 
   if (!['matched', 'active'].includes(state)) {
     throw new ApiError(400, '매칭이 잡힌 뒤에만 혼자 계속 달릴 수 있어요.');
+  }
+
+  // 출발 전 '예약' 파티런에서의 '나가기'는 기권이 아니라 예약에서 빠지는 것이다 — 기권으로 박으면
+  // 세션이 즉시 '활성'이 되고 상대는 며칠 뒤 슬롯에 유령 매치를 만난다(적대 검증 2026-09-10:
+  // 클라의 blocker 자동 복구가 이 경로로 들어온다). 방장이면 예약 전체가 취소된다.
+  // 방장 시작 파티런(isPartyRun이지만 예약이 아님)은 예전 기권 경로 그대로다.
+  if (isPendingScheduledPartySession(session)) {
+    withdrawFromReservedPartySession(store, session, currentUser);
+    return { success: true };
   }
 
   const forfeitedAt = forfeitSessionParticipant(store, session, currentParticipant, { reason });
@@ -114,6 +127,7 @@ export function cancelRunningMatch(store, currentUser, { mode, distanceKm, slotS
     if (state === 'matched') {
       const cancellationDeadline = buildMatchCancellationDeadline(session.slotStartAt, {
         isTestMatch: isTestMatchSession(session),
+        isPartyRun: session.isScheduledPartyRun === true,
       });
 
       if (Date.now() >= cancellationDeadline.getTime()) {
@@ -121,6 +135,14 @@ export function cancelRunningMatch(store, currentUser, { mode, distanceKm, slotS
           ? '테스트 카운트다운이 시작된 뒤에는 취소할 수 없어요.'
           : '출발 1시간 전부터는 예약을 취소할 수 없어요.');
       }
+    }
+
+    // 파티런 예약(친구끼리의 약속, 2026-09-09)은 매칭 풀이 아니다 — 재큐잉 없이 방장이면 예약
+    // 전체를 걷고(세션·툼스톤·연결된 방 + 취소 알림), 게스트면 자기만 빠진다(대기실 '나가기'와
+    // 같은 규칙). 공식 예약과 방장 시작 파티런은 아래 그대로.
+    if (session.isScheduledPartyRun === true) {
+      withdrawFromReservedPartySession(store, session, currentUser);
+      return { success: true };
     }
 
     const requeuedParticipants = session.participants

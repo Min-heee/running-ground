@@ -22,8 +22,13 @@ import {
 } from './matchRoomCore.mjs';
 import {
   findRunningMatchRoomForUser,
+  findRunningMatchRoomJoinedByUser,
   syncMatchRooms,
 } from './matchRoomSync.mjs';
+import {
+  isPendingScheduledPartySession,
+  withdrawFromReservedPartySession,
+} from './matchRoomReservation.mjs';
 import {
   buildMatchRoomLockMessage,
   buildRunningMatchBlockerApiDetails,
@@ -174,6 +179,28 @@ function detachUserFromStaleMatchRoom(store, room, userId) {
 export function forceResetRunningMatchStateForUser(store, currentUser, now = new Date()) {
   const cleanedItems = [];
   const nowIso = now.toISOString();
+
+  // 출발 전 파티런 예약(2026-09-09)은 '기권'이 아니라 예약에서 빠지는 것으로 되돌린다 — 아래의
+  // 일반 경로는 방장을 남은 게스트에게 넘기고 나를 forfeited로 찍어, 친구의 카드가 이틀 전부터
+  // '진행 중'이 되고 아무 알림도 안 가는 유령 매치를 만든다(적대 검증 2026-09-10). 방장이면 예약
+  // 전체 취소, 게스트면 나만 빠진다 — 대기실 '나가기'와 같은 규칙.
+  for (const session of [...ensureMatchSessions(store)]) {
+    if (!isPendingScheduledPartySession(session, now) || !Array.isArray(session.participants)) {
+      continue;
+    }
+
+    const participant = session.participants.find((entry) => entry.userId === currentUser.id);
+
+    if (!participant || isParticipantDoneWithMatch(participant, now)) {
+      continue;
+    }
+
+    const withdrawn = withdrawFromReservedPartySession(store, session, currentUser, now);
+    cleanedItems.push(withdrawn.reservationCancelled
+      ? `matchSessions.reservationCancelled:${session.id}`
+      : `matchSessions.reservationLeft:${session.id}`);
+  }
+
   const rooms = ensureMatchRooms(store);
   const nextRooms = [];
 
@@ -300,7 +327,8 @@ export function cleanupStaleRunningMatchRoomState(store, currentUser, now = new 
 
   cleanedItems.push(...clearUserStaleReferenceFields(store, currentUser));
 
-  const existingRoom = findRunningMatchRoomForUser(store, currentUser.id, now);
+  // 참가자인 방만 — 답하지 않은 초대는 매칭을 막지 않는다 (2026-09-10).
+  const existingRoom = findRunningMatchRoomJoinedByUser(store, currentUser.id, now);
 
   if (existingRoom) {
     const linkedSession = getMatchRoomLinkedSession(existingRoom, store);
@@ -328,6 +356,7 @@ export function cleanupStaleRunningMatchRoomState(store, currentUser, now = new 
           roomId: existingRoom.id,
           mode: existingRoom.mode,
           state: getRunningMatchRoomState(existingRoom, store, now),
+          ...(existingRoom.startMode === 'scheduled' ? { isPartyRun: true } : {}),
         },
         message: blocker?.message ?? buildMatchRoomLockMessage(existingRoom, store, currentUser.id),
         room: roomPayload.room,

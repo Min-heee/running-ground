@@ -159,6 +159,9 @@ export type UpdateRunningMatchRoomInput = {
 
 export type JoinRunningMatchRoomInput = {
   inviteToken: string;
+  // 예약 방(시간이 정해진 방) 참가 = 그 시간 수락. 서비스 계층이 항상 true로 채운다 — 예약 화면이
+  // 없는 옛 앱은 이 플래그를 못 보내 서버가 참가를 거절한다(2026-09-10).
+  acceptSlot?: boolean;
 };
 
 export type StartRunningMatchRoomInput = {
@@ -176,6 +179,8 @@ export type LeaveRunningMatchRoomInput = {
 export type UpdateRunningMatchRoomReadyInput = {
   roomId: string;
   ready: boolean;
+  // 예약 방의 준비 = 예약 시간 수락. 서비스 계층이 항상 true로 채운다(옛 앱 차단 게이트).
+  acceptSlot?: boolean;
 };
 
 export type AcknowledgeRunningMatchRoomCountdownInput = {

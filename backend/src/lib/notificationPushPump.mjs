@@ -28,6 +28,7 @@ export const NOTIFICATION_PUSH_SETTING_KEY_BY_TYPE = {
   friend_accepted: 'friendAlerts',
   match_invite: 'matchReminders',
   match_room_closed: 'matchReminders',
+  match_reserved: 'matchReminders',
   match_result: 'matchReminders',
   chase_settlement: 'matchReminders',
   inquiry_reply: null,

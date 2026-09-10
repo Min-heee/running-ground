@@ -1,4 +1,5 @@
 import { ALLOW_TEST_MATCHES } from '../../config.mjs';
+import { parseLenientMatchSlotInput } from '../../lib/matchSlotValidation.mjs';
 
 // Client-supplied testMode is only honored where the env allows it (default: any
 // non-production APP_ENV). When disallowed it is silently coerced to false — never a
@@ -166,10 +167,16 @@ async function handleCancelRunningMatch({
   const mode = validateMatchMode(body.mode);
   const distanceKm = validateDuelMatchDistanceKm(body.distanceKm);
   const testMode = resolveTestModeIntake(body);
+  const matchId = typeof body.matchId === 'string' && body.matchId.trim() ? body.matchId.trim() : '';
+  // matchId가 있으면 슬롯은 세션을 고르는 키가 아니라 그 세션의 시각을 되돌려 보낸 것뿐이다
+  // (status 라우트와 같은 규칙). 예약 파티런은 출발 직전까지 취소할 수 있는데(C3/C4), 엄격
+  // 검증은 '출발 30분 전이 지난 슬롯'을 거부해 취소 자체를 막아 버린다. 세션이 있으면
+  // 취소 가능 여부는 cancelRunningMatch가 세션의 실제 시각으로 판정한다.
   const slotStartAt = testMode
     ? (typeof body.slotStartAt === 'string' && body.slotStartAt.trim() ? body.slotStartAt.trim() : new Date().toISOString())
-    : validateMatchSlotInput(body.slotStartAt);
-  const matchId = typeof body.matchId === 'string' && body.matchId.trim() ? body.matchId.trim() : '';
+    : matchId
+      ? parseLenientMatchSlotInput(body.slotStartAt)
+      : validateMatchSlotInput(body.slotStartAt);
   const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return cancelRunningMatch(store, currentUser, {

@@ -60,6 +60,10 @@ export type CountdownTickerGateInput = {
   groupMatchState: string | null | undefined;
   matchRoomLinkedMatchId: string | null | undefined;
   matchRoomState: string | null | undefined;
+  // 예약 파티런 방은 슬롯까지 며칠 동안 'arming'으로 보고된다 — 그 동안 1Hz 티커를 켜 두면
+  // 러닝 탭 전체가 초당 한 번씩 다시 그려진다 (적대 검증 2026-09-10). 카운트다운 창(30초)에
+  // 들어오면 false가 되어 예전의 always-on 규칙이 그대로 돌아온다.
+  matchRoomReservedForFuture?: boolean;
   // The slot-gated arena force-open flag (forceOpenActiveMatch) — true only
   // at/after this phone's slot, cleared on finish/leave.
   arenaOpenFired: boolean;
@@ -124,7 +128,7 @@ export function shouldEnableCountdownTicker(input: CountdownTickerGateInput): bo
     || input.hasActiveUpcomingMatch
     || input.duelMatchState === 'matched'
     || input.groupMatchState === 'matched'
-    || input.matchRoomState === 'arming'
+    || (input.matchRoomState === 'arming' && !input.matchRoomReservedForFuture)
     || input.matchRoomState === 'countdown'
   ) {
     return true;

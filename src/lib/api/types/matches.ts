@@ -258,6 +258,11 @@ export type UpcomingRunningMatchItem = {
   raceEventId?: string;
   raceEventTitle?: string;
   roomId?: string;
+  // 친구끼리의 파티런 예약(2026-09-09) — 카드 라벨·리마인더 카피용. roomId와 함께 온다.
+  isPartyRun?: boolean;
+  // 내가 그 대기방의 방장인가 — 취소하면 예약 전체가 사라지는지(방장), 나만 빠지는지(게스트)를
+  // 확인 문구가 정확히 말하기 위해 (2026-09-10).
+  isRoomHost?: boolean;
   mode: 'duel' | 'group';
   isTestMatch?: boolean;
   distanceKm: number;

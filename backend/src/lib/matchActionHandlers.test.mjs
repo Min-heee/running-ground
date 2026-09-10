@@ -12,6 +12,7 @@ import test from 'node:test';
 //      (finish freeze, LP) are untouched.
 import {
   PROGRESS_PRUNE_MIN_INTERVAL_MS,
+  cancelRunningMatch,
   leaveRunningMatch,
   resetProgressPruneThrottle,
   runProgressPollPrunesIfDue,
@@ -24,6 +25,10 @@ import {
   resolveSavedGroupMatchResult,
 } from './matchResultBuilders.mjs';
 import { getMatchBonusPoints } from './points.mjs';
+import {
+  clearVanishedMatchTombstones,
+  isMatchTombstoned,
+} from './vanishedMatchTombstones.mjs';
 
 function iso(offsetMs = 0) {
   return new Date(Date.now() + offsetMs).toISOString();
@@ -830,4 +835,183 @@ test('group: a save-only 실격패 blob forfeits + flags the participant for the
   assert.equal(flaggedRow.liveStatus, 'forfeited');
   assert.equal(flaggedRow.disqualified, true);
   assert.equal(hostView.participants.filter((entry) => 'disqualified' in entry).length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// 예약 취소 (2026-09-09 파티런 예약): 파티런 세션(isPartyRun)의 취소는 재큐잉 없이 세션·방을
+// 걷고 남은 사람에게 취소 알림을 남긴다. 공식 예약의 취소(남은 사람 재큐잉, 1시간 컷오프)는
+// 바이트 단위로 예전 그대로다.
+// ---------------------------------------------------------------------------
+
+function createReservationFixture({ matchId, isPartyRun, isScheduledPartyRun = isPartyRun, slotOffsetMs, withRoom = isPartyRun }) {
+  const host = createUser(`host-${matchId}`);
+  const guest = createUser(`guest-${matchId}`);
+  const slotStartAt = iso(slotOffsetMs);
+  const session = {
+    id: matchId,
+    mode: 'duel',
+    isTestMatch: false,
+    isPartyRun,
+    // 예약 전용 규칙은 isScheduledPartyRun으로만 갈린다 — 방장 시작 파티런은 isPartyRun만 참이다.
+    ...(isScheduledPartyRun ? { isScheduledPartyRun: true } : {}),
+    distanceKm: 5,
+    slotStartAt,
+    createdAt: iso(-60 * 1000),
+    matchedAt: iso(-60 * 1000),
+    participants: [host, guest].map((user, index) => ({
+      userId: user.id,
+      seedRank: index + 1,
+      acceptedAt: null,
+      liveStatus: 'ready',
+      liveDistanceKm: 0,
+      liveElapsedSeconds: 0,
+      livePace: '--:--/km',
+      liveUpdatedAt: null,
+      finishedAt: null,
+    })),
+  };
+  const room = {
+    id: `${matchId}-room`,
+    inviteToken: 'RSV001',
+    hostUserId: host.id,
+    mode: 'duel',
+    startMode: 'scheduled',
+    distanceKm: 5,
+    slotStartAt,
+    maxParticipants: 2,
+    minParticipants: 2,
+    invitedFriendIds: [],
+    participants: [host, guest].map((user, index) => ({
+      userId: user.id,
+      isHost: index === 0,
+      isReady: false,
+      isCountdownReady: false,
+      invited: index > 0,
+      joinedAt: iso(-60 * 1000),
+    })),
+    createdAt: iso(-120 * 1000),
+    linkedMatchId: matchId,
+  };
+  const store = {
+    users: [host, guest],
+    runs: [createProfileRun(host.id), createProfileRun(guest.id)],
+    matchSessions: [session],
+    matchQueues: { duel: [], group: [] },
+    matchRooms: withRoom ? [room] : [],
+    notifications: [],
+  };
+  return { store, session, room, host, guest, slotStartAt };
+}
+
+test('party reservation cancel: no requeue, session + linked room gone, tombstoned, the other side gets the cancel notice', () => {
+  clearVanishedMatchTombstones();
+  // 출발 30분 전 — 공식 예약이라면 이미 취소 마감. 파티런은 출발 직전까지 취소된다.
+  const { store, session, room, host, guest, slotStartAt } = createReservationFixture({
+    matchId: 'party-cancel',
+    isPartyRun: true,
+    slotOffsetMs: 30 * 60 * 1000,
+  });
+
+  const result = cancelRunningMatch(store, host, { mode: 'duel', distanceKm: 5, slotStartAt, matchId: session.id });
+
+  assert.deepEqual(result, { success: true });
+  assert.equal(store.matchSessions.some((entry) => entry.id === session.id), false);
+  assert.equal(isMatchTombstoned(session.id), true);
+  assert.equal(store.matchRooms.some((entry) => entry.id === room.id), false, '연결된 방도 함께 사라진다');
+  assert.deepEqual(store.matchQueues.duel, [], '파티런은 남은 사람을 매칭 큐에 넣지 않는다');
+
+  const guestNotices = store.notifications.filter((item) => item.userId === guest.id);
+  assert.equal(guestNotices.length, 1);
+  assert.equal(guestNotices[0].type, 'match_room_closed');
+  assert.equal(guestNotices[0].title, '파티런 예약이 취소됐어요');
+  assert.match(guestNotices[0].body, new RegExp(`^${host.name}님이 .+ 파티런 예약을 취소했어요$`));
+  assert.deepEqual(guestNotices[0].data, { mode: 'duel' }, '이미 없는 방으로 가는 roomId는 싣지 않는다');
+  assert.equal(store.notifications.some((item) => item.userId === host.id), false);
+});
+
+test('party reservation cancel is refused once the match has started', () => {
+  const { store, session, guest, slotStartAt } = createReservationFixture({
+    matchId: 'party-active',
+    isPartyRun: true,
+    slotOffsetMs: -60 * 1000,
+  });
+
+  assert.throws(
+    () => cancelRunningMatch(store, guest, { mode: 'duel', distanceKm: 5, slotStartAt, matchId: session.id }),
+    { statusCode: 400, message: '이미 출발한 매치는 취소할 수 없어요.' },
+  );
+  assert.equal(store.matchSessions.length, 1);
+  assert.equal(store.matchRooms.length, 1);
+});
+
+// 방장 시작 파티런도 isPartyRun이지만 '예약'이 아니다 — 취소 규칙은 공식 예약과 같아야 한다
+// (적대 검증 2026-09-10: 새 예약 분기가 방장 시작 방까지 걷어가던 회귀).
+test('a host-start party run is NOT treated as a reservation: the 1-hour cutoff and requeue stay', () => {
+  clearVanishedMatchTombstones();
+  const { store, session, host, guest, slotStartAt } = createReservationFixture({
+    matchId: 'host-start-party',
+    isPartyRun: true,
+    isScheduledPartyRun: false,
+    slotOffsetMs: 30 * 60 * 1000,
+    withRoom: true,
+  });
+
+  // 출발 30분 전 — 공식 규칙(1시간 컷오프)이 그대로 적용돼 취소가 막힌다.
+  assert.throws(
+    () => cancelRunningMatch(store, host, { mode: 'duel', distanceKm: 5, slotStartAt, matchId: session.id }),
+    { statusCode: 400 },
+  );
+  assert.equal(store.matchSessions.length, 1);
+  assert.equal(store.matchRooms.length, 1, '방장 시작 방은 취소 경로가 건드리지 않는다');
+
+  // 여유가 있으면 공식 예약처럼 남은 사람을 재큐잉한다(파티런 취소 알림 없음).
+  const early = createReservationFixture({
+    matchId: 'host-start-party-early',
+    isPartyRun: true,
+    isScheduledPartyRun: false,
+    slotOffsetMs: 3 * 60 * 60 * 1000,
+    withRoom: true,
+  });
+  const result = cancelRunningMatch(early.store, early.host, {
+    mode: 'duel', distanceKm: 5, slotStartAt: early.slotStartAt, matchId: early.session.id,
+  });
+  assert.deepEqual(result, { success: true });
+  assert.equal(early.store.matchQueues.duel.length, 1);
+  assert.equal(early.store.matchQueues.duel[0].userId, early.guest.id);
+  assert.equal(early.store.notifications.some((item) => item.type === 'match_room_closed'), false);
+  void guest;
+});
+
+test('official reservation cancel is unchanged: the other runner is re-queued for the same slot, no notice', () => {
+  clearVanishedMatchTombstones();
+  const { store, session, host, guest, slotStartAt } = createReservationFixture({
+    matchId: 'official-cancel',
+    isPartyRun: false,
+    slotOffsetMs: 2 * 60 * 60 * 1000,
+  });
+
+  const result = cancelRunningMatch(store, host, { mode: 'duel', distanceKm: 5, slotStartAt, matchId: session.id });
+
+  assert.deepEqual(result, { success: true });
+  assert.equal(store.matchSessions.length, 0);
+  assert.equal(isMatchTombstoned(session.id), true);
+  assert.equal(store.matchQueues.duel.length, 1);
+  assert.equal(store.matchQueues.duel[0].userId, guest.id);
+  assert.equal(store.matchQueues.duel[0].slotStartAt, slotStartAt);
+  assert.equal(store.notifications.length, 0);
+});
+
+test('official reservation cancel still hits the 1h cutoff', () => {
+  const { store, session, host, guest, slotStartAt } = createReservationFixture({
+    matchId: 'official-late',
+    isPartyRun: false,
+    slotOffsetMs: 30 * 60 * 1000,
+  });
+
+  assert.throws(
+    () => cancelRunningMatch(store, host, { mode: 'duel', distanceKm: 5, slotStartAt, matchId: session.id }),
+    { statusCode: 400, message: '출발 1시간 전부터는 예약을 취소할 수 없어요.' },
+  );
+  assert.equal(store.matchSessions.length, 1);
+  assert.equal(store.matchQueues.duel.some((entry) => entry.userId === guest.id), false);
 });

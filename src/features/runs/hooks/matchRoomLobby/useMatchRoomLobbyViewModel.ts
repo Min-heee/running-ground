@@ -9,6 +9,8 @@ import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateM
 import {
   buildMatchRoomUxModel,
   buildPendingMatchRoomInvitees,
+  isMatchRoomReservedForFuture,
+  isMatchRoomScheduledSlotPassed,
 } from '@/features/runs/lifecycle/matchRoomFlow';
 
 type UseMatchRoomLobbyViewModelInput = {
@@ -52,15 +54,22 @@ export function useMatchRoomLobbyViewModel({
     [friendLeaderboard?.ranks, room],
   );
 
+  const syncedNowMs = Date.now() + serverClockOffsetMs;
+  // 예약 확정(세션 묶임 + 슬롯이 카운트다운 창 밖) 판정. 불리언으로 좁혀 메모 키에 넣는다 —
+  // 시계값 자체를 키에 넣으면 매 렌더마다 모델을 다시 만든다.
+  const reserved = isMatchRoomReservedForFuture(room, syncedNowMs);
+  const scheduledSlotPassed = isMatchRoomScheduledSlotPassed(room, syncedNowMs);
+
   const roomUxModel = useMemo(
     () => buildMatchRoomUxModel({
       room,
       currentUserId: currentUserTag,
       pendingInvitees,
+      reserved,
+      scheduledSlotPassed,
     }),
-    [currentUserTag, pendingInvitees, room],
+    [currentUserTag, pendingInvitees, reserved, room, scheduledSlotPassed],
   );
-  const syncedNowMs = Date.now() + serverClockOffsetMs;
   const linkedMatchRemainingSeconds = room?.linkedMatchSlotStartAt
     ? getMatchStartRemainingSeconds(room.linkedMatchSlotStartAt, syncedNowMs)
     : null;
@@ -84,6 +93,9 @@ export function useMatchRoomLobbyViewModel({
       partyRunFlow.shouldShowCountdown
       && linkedMatchRemainingSeconds !== null,
     ),
-    showPartyRunLoadingBanner: partyRunFlow.shouldShowLoading,
+    // 예약 확정 방은 슬롯까지 몇 시간이고 linkedMatchStatus='matched'라 페이즈가 'arming'으로
+    // 잡힌다 — 그 동안 '로딩중...' 배너를 띄우면 안 된다. 카운트다운 창에 들어오면 reserved가
+    // 꺼지고 기존 로딩/카운트다운 배너가 그대로 이어진다.
+    showPartyRunLoadingBanner: partyRunFlow.shouldShowLoading && !reserved,
   };
 }

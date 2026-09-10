@@ -15,8 +15,10 @@ import {
   buildActiveRoomSnapshotKey,
 } from '@/features/runs/sync/activeRoomResult';
 import {
+  getSharedServerClockOffsetMs,
   shouldAcceptServerSnapshot,
 } from '@/features/runs/sync/serverClockSync';
+import { isMatchRoomReservedForFuture } from '@/features/runs/lifecycle/matchRoomFlow';
 import {
   clearServerConfirmedNoRoom,
   markServerConfirmedNoRoom,
@@ -213,7 +215,10 @@ export async function handleMatchRoomActiveRoomResult({
     handleRecipientInviteInbox(nextRoom, 'match-room snapshot');
   }
   commitRoom(nextRoom);
-  if (nextRoom?.linkedMatchId) {
+  // 링크됐다고 곧 핸드오프는 아니다 — 예약 파티런(2026-09-09)은 수락 순간 링크되고 슬롯까지
+  // 며칠을 산다. 그동안 폴링을 멈추면 상대의 이탈·취소가 열린 대기실에 영영 안 보인다(적대
+  // 검증 2026-09-10). 카운트다운 창(30초)에 들어오면 예약 판정이 꺼지고 예전처럼 멈춘다.
+  if (nextRoom?.linkedMatchId && !isMatchRoomReservedForFuture(nextRoom, Date.now() + getSharedServerClockOffsetMs())) {
     markLiveMatchHandoff(nextRoom, 'match-room snapshot');
   }
   setError(null);

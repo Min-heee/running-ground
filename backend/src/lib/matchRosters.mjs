@@ -130,6 +130,24 @@ export function amendMatchRoster(store, matchId, userId) {
   return true;
 }
 
+// 예약에서 빠진 사람은 내구 로스터에서도 빠진다 — 세션이 사라진 뒤 그룹 순위는 로스터를
+// 기준으로 '아직 안 낸 사람'을 기다리므로, 안 빼면 그 판정이 영원히 PENDING이 된다
+// (적대 검증 2026-09-10). 완주/기권으로 끝난 사람은 이 경로를 타지 않는다.
+export function removeFromMatchRoster(store, matchId, userId) {
+  if (typeof matchId !== 'string' || !matchId || typeof userId !== 'string' || !userId) {
+    return false;
+  }
+
+  const entry = ensureMatchRosters(store).find((roster) => roster?.id === matchId);
+
+  if (!entry || !Array.isArray(entry.participantIds) || !entry.participantIds.includes(userId)) {
+    return false;
+  }
+
+  entry.participantIds = entry.participantIds.filter((participantId) => participantId !== userId);
+  return true;
+}
+
 export function findMatchRoster(store, matchId) {
   if (typeof matchId !== 'string' || !matchId) {
     return null;

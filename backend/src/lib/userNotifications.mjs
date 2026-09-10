@@ -3,8 +3,11 @@ import { enqueueUserNotificationPush } from './notificationPushQueue.mjs';
 
 export const USER_NOTIFICATION_TYPES = new Set([
   'match_invite',
-  // 방장이 파티방을 삭제해 참가자/초대자가 퇴장당했을 때 (2026-07-31).
+  // 방장이 파티방을 삭제해 참가자/초대자가 퇴장당했을 때 (2026-07-31). 예약 파티런의
+  // 취소(예정 매치 카드·방 삭제·게스트 이탈)도 같은 유형으로 나간다 (2026-09-09).
   'match_room_closed',
+  // 예약 파티런 성립 — 초대받은 친구가 수락해 세션(=예약)이 만들어진 순간 (2026-09-09).
+  'match_reserved',
   'match_result',
   'friend_request',
   'friend_accepted',
