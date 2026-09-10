@@ -21,6 +21,9 @@ export type CadenceWatchdogConfig = {
   windowMovingSeconds: number;
   runningSpeedFloorMps: number;
   minCadenceSpm: number;
+  // 사람이 달릴 때 한 걸음이 갈 수 있는 최대 거리(m). 이걸 넘으면 '걸음은 찍히는데 그 걸음으로
+  // 갈 수 없는 거리'다 — 자전거·킥보드 서명 (오너 실측 2026-09-10: 4:00/km에서 80spm = 보폭 3.1m).
+  maxRunningStrideMeters: number;
   resumeGraceMs: number;
   maxTickGapMs: number;
   strikesToDisqualify: number;
@@ -32,10 +35,16 @@ export type CadenceWatchdogConfig = {
 // 이지, "적게 찍히면"이 아니다. 45spm이 찍히는 폰은 케이던스를 찍고 있는 것이다 — 유모차
 // 컵홀더·거치대·손에 든 폰처럼 몸 접촉이 약한 정직한 러너를 50spm 문턱은 잡아버렸다.
 // 차량/자전거 거치는 진동으로도 0~15spm 안이라 20이면 차량 서명은 그대로 걸린다.
+// maxRunningStrideMeters (오너 확정 2026-09-10): 실측 자전거 주행이 75~81spm으로 20spm 문턱을
+// 그대로 통과했다(4:00/km · 80spm → 보폭 3.1m). 사람의 달리기 보폭은 0.8~1.8m이고, 3:00/km를
+// 180spm으로 뛰는 최상급도 1.85m다. 2.2m는 그 위 여유선이라 진짜 러너는 절대 못 넘는다.
+// 다만 걸음을 절반 이하로 세는 폰(유모차·거치대)도 이 선을 넘는다 — 그래서 이 판정은
+// **실격이 아니라 집계 제외**다. 실격은 예전 그대로 근제로(minCadenceSpm) 대역에서만 난다.
 export const DEFAULT_CADENCE_WATCHDOG_CONFIG: CadenceWatchdogConfig = {
   windowMovingSeconds: 90,
   runningSpeedFloorMps: 2.4,
   minCadenceSpm: 20,
+  maxRunningStrideMeters: 2.2,
   resumeGraceMs: 15_000,
   maxTickGapMs: 5_000,
   strikesToDisqualify: 2,
@@ -44,6 +53,11 @@ export const DEFAULT_CADENCE_WATCHDOG_CONFIG: CadenceWatchdogConfig = {
 export type CadenceWatchdogState = {
   windowMovingMs: number;
   windowSteps: number;
+  // 창·전 구간에서 달리기 속도로 실제 이동한 거리(m) — 보폭 판정과 서버 백스톱의 재료.
+  windowMovingMeters: number;
+  auditMovingMeters: number;
+  // 보폭이 사람 범위를 벗어난 창이 한 번이라도 있었다 — 래치. 실격시키지 않고 집계에서만 뺀다.
+  suspectedNonRunning: boolean;
   lastTickAtMs: number | null;
   lastSteps: number | null;
   strikes: number;
@@ -74,12 +88,18 @@ export type CadenceWatchdogTick = {
 export type CadenceWatchdogEvent =
   | { type: 'warning'; strike: number; windowSpm: number }
   | { type: 'disqualify'; strikes: number; windowSpm: number }
+  // 걸음은 찍히는데 그 걸음으로 갈 수 없는 거리 — 자전거·킥보드. 달리기를 멈추지 않고,
+  // 기록도 남기되 랭킹·포인트·별에서 빠진다 (오너 확정 2026-09-10). 런당 한 번만 난다.
+  | { type: 'suspect'; windowSpm: number; strideMeters: number }
   | null;
 
 export function createCadenceWatchdogState(): CadenceWatchdogState {
   return {
     windowMovingMs: 0,
     windowSteps: 0,
+    windowMovingMeters: 0,
+    auditMovingMeters: 0,
+    suspectedNonRunning: false,
     lastTickAtMs: null,
     lastSteps: null,
     strikes: 0,
@@ -176,12 +196,15 @@ export function advanceCadenceWatchdog(
     return { state: next, event: null };
   }
 
+  const movedMeters = (tick.speedMps ?? 0) * (dtMs / 1000);
   next = {
     ...next,
     windowMovingMs: next.windowMovingMs + dtMs,
     windowSteps: next.windowSteps + stepDelta,
+    windowMovingMeters: next.windowMovingMeters + movedMeters,
     auditMovingMs: next.auditMovingMs + dtMs,
     auditSteps: next.auditSteps + stepDelta,
+    auditMovingMeters: next.auditMovingMeters + movedMeters,
   };
 
   if (next.windowMovingMs < config.windowMovingSeconds * 1000) {
@@ -189,10 +212,28 @@ export function advanceCadenceWatchdog(
   }
 
   const windowSpm = Math.round(next.windowSteps / (next.windowMovingMs / 60_000));
-  next = { ...next, windowMovingMs: 0, windowSteps: 0 };
+  const strideMeters = next.windowSteps > 0 ? next.windowMovingMeters / next.windowSteps : Number.POSITIVE_INFINITY;
+  next = { ...next, windowMovingMs: 0, windowSteps: 0, windowMovingMeters: 0 };
 
   if (windowSpm >= config.minCadenceSpm) {
-    return { state: { ...next, strikes: Math.max(0, next.strikes - 1) }, event: null };
+    // 걸음이 찍힌 창은 **언제나** 실격 스트라이크를 하나 되돌린다 — 보폭 판정이 붙기 전과
+    // 바이트 단위로 같은 실격 거동이다. 보폭 때문에 스트라이크가 안 풀리면 '근제로 → 보폭 →
+    // 근제로' 순서에서 예전엔 안 났을 실격이 난다(오너 방침: 실격 기준은 그대로).
+    const decayed = { ...next, strikes: Math.max(0, next.strikes - 1) };
+
+    // 그 걸음으로 갈 수 없는 거리를 갔다면 집계에서만 뺀다(래치, 런당 한 번만 알린다).
+    if (strideMeters > config.maxRunningStrideMeters) {
+      if (decayed.suspectedNonRunning) {
+        return { state: decayed, event: null };
+      }
+
+      return {
+        state: { ...decayed, suspectedNonRunning: true },
+        event: { type: 'suspect', windowSpm, strideMeters: Math.round(strideMeters * 10) / 10 },
+      };
+    }
+
+    return { state: decayed, event: null };
   }
 
   const strikes = next.strikes + 1;
@@ -213,6 +254,10 @@ export function buildCadenceAudit(state: CadenceWatchdogState, sensorAvailable: 
     sensorAvailable,
     foregroundMovingSeconds: Math.round(state.auditMovingMs / 1000),
     foregroundSteps: state.auditSteps,
+    // 서버 백스톱이 보폭을 직접 다시 계산할 수 있게 — 클라 래치를 못 믿을 이유는 없지만
+    // (자기 손해라 위조 유인이 없다) 원장만으로도 같은 결론이 나와야 한다.
+    foregroundMovingMeters: Math.round(state.auditMovingMeters),
+    suspectedNonRunning: state.suspectedNonRunning,
     strikes: state.strikes,
     disqualified: state.disqualified,
   };

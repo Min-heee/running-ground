@@ -117,6 +117,13 @@ export function useCadenceWatchdog(input: CadenceWatchdogInput) {
       // 창으로 스트라이크가 되돌아갔다 다시 쌓이면 같은 "(1/2)" 팝업이 반복돼 버그처럼 읽힌다.
       // 로컬 알림은 쓰지 않는다: 이벤트는 포그라운드에서만 나므로 알림은 늘 인앱 배너+소리로
       // Alert·음성 위에 겹칠 뿐이다.
+      // 보폭 판정: 달리기를 멈추지 않는다. 런당 한 번만 나므로 Alert·음성 모두 그대로 낸다.
+      if (result.event.type === 'suspect') {
+        void speakLiveGapMessage(presentation.speech);
+        Alert.alert(presentation.title, presentation.body, [{ text: '확인' }]);
+        return;
+      }
+
       if (result.event.type === 'warning') {
         void speakLiveGapMessage(presentation.speech);
         if (result.state.warningsIssued <= 1) {

@@ -154,12 +154,23 @@ test('깨끗한 창은 스트라이크를 하나 되돌린다 (잡음 관용) �
   assert.equal(dirtyAgain.state.warningsIssued, 2);
 });
 
-test('근제로 대역만 유죄: 30spm(유모차·거치대의 약한 접촉)은 깨끗한 창이다', () => {
+test('실격은 근제로 대역만: 30spm(유모차·거치대의 약한 접촉)은 멈추지 않고 집계에서만 빠진다', () => {
   const start = settled();
+  // 30spm · 3.0 m/s → 보폭 6.0m. 사람 범위를 벗어나므로 집계 제외 대상이지만(오너 확정
+  // 2026-09-10) 스트라이크는 쌓지 않고 달리기도 멈추지 않는다.
   const weakContact = drive(start.state, start.nowMs, 400, { stepsPerSecond: 0.5, speedMps: 3.0 });
-  assert.deepEqual(weakContact.events, []);
+  assert.deepEqual(weakContact.events.map((event) => event?.type), ['suspect']);
   assert.equal(weakContact.state.strikes, 0);
-  // 반면 15spm(차량 진동 수준)은 여전히 걸린다.
+  assert.equal(weakContact.state.disqualified, false);
+  assert.equal(weakContact.state.suspectedNonRunning, true);
+
+  // 같은 30spm이라도 보폭이 사람 범위 안이면(느린 조깅 2.2 m/s → 4.4m는 아니고, 1.0 m/s는
+  // 달리기 속도 미만) — 달리기 속도에서 사람 보폭을 지키려면 케이던스가 충분해야 한다.
+  const realJog = drive(start.state, start.nowMs, 400, { stepsPerSecond: 2.5, speedMps: 3.0 });
+  assert.deepEqual(realJog.events, []);
+  assert.equal(realJog.state.suspectedNonRunning, false);
+
+  // 반면 15spm(차량 진동 수준)은 여전히 실격이다.
   const vibration = drive(start.state, start.nowMs, 200, { stepsPerSecond: 0.25, speedMps: 6.0 });
   assert.equal(vibration.events.at(-1)?.type, 'disqualify');
 });
@@ -173,4 +184,74 @@ test('감사 원장은 포그라운드 달리기 속도 이동만 센다', () =>
   assert.equal(audit.foregroundSteps, 240);
   assert.equal(audit.sensorAvailable, true);
   assert.equal(audit.disqualified, false);
+});
+
+// 오너 실측 (2026-09-10): 자전거 주행이 4:00/km(4.17 m/s)에서 75~81spm으로 찍혀 근제로(20spm)
+// 문턱을 그대로 통과했다. 걸음은 찍히지만 그 걸음으로 갈 수 없는 거리 — 보폭 3.1m.
+// 판정은 실격이 아니라 집계 제외다(오너 확정): 달리기를 멈추지 않고 런당 한 번만 알린다.
+test('보폭 판정: 자전거(4:00/km · 80spm)는 실격이 아니라 집계 제외로 한 번만 걸린다', () => {
+  const { state, nowMs } = settled();
+  // 80spm = 초당 1.333걸음. 90초 창 → 120걸음, 이동 375m → 보폭 3.13m.
+  const ride = drive(state, nowMs, 180, { speedMps: 4.17, stepsPerSecond: 80 / 60 });
+
+  const suspects = ride.events.filter((event) => event?.type === 'suspect');
+  assert.equal(suspects.length, 1, '런당 한 번');
+  assert.equal(suspects[0]?.type === 'suspect' && suspects[0].windowSpm, 80);
+  assert.equal(suspects[0]?.type === 'suspect' && suspects[0].strideMeters > 3, true);
+  assert.equal(ride.events.some((event) => event?.type === 'warning' || event?.type === 'disqualify'), false, '실격 경로 아님');
+  assert.equal(ride.state.disqualified, false);
+  assert.equal(ride.state.strikes, 0);
+  assert.equal(ride.state.suspectedNonRunning, true, '래치');
+
+  // 원장에 실려 서버가 집계에서 뺀다.
+  const audit = buildCadenceAudit(ride.state, true);
+  assert.equal(audit.suspectedNonRunning, true);
+  assert.equal(audit.disqualified, false);
+  assert.equal(audit.foregroundMovingMeters > 700, true);
+  assert.equal(audit.foregroundMovingMeters / audit.foregroundSteps > 3, true);
+});
+
+test('보폭 판정: 진짜 러너(4:00/km · 170spm)는 절대 걸리지 않는다', () => {
+  const { state, nowMs } = settled();
+  // 보폭 = 4.17 / (170/60) = 1.47m.
+  const run = drive(state, nowMs, 200, { speedMps: 4.17, stepsPerSecond: 170 / 60 });
+
+  assert.deepEqual(run.events, []);
+  assert.equal(run.state.suspectedNonRunning, false);
+  assert.equal(buildCadenceAudit(run.state, true).suspectedNonRunning, false);
+
+  // 3:00/km를 180spm으로 뛰는 최상급(보폭 1.85m)도 마찬가지.
+  const elite = drive(settled().state, nowMs, 200, { speedMps: 5.56, stepsPerSecond: 180 / 60 });
+  assert.deepEqual(elite.events, []);
+  assert.equal(elite.state.suspectedNonRunning, false);
+});
+
+test('보폭 판정은 근제로 실격 경로를 건드리지 않는다 — 거치된 폰은 예전 그대로 2창에 실격', () => {
+  const { state, nowMs } = settled();
+  const mounted = drive(state, nowMs, 200, { speedMps: 4.17, stepsPerSecond: 5 / 60 });
+
+  assert.equal(mounted.events.some((event) => event?.type === 'warning'), true);
+  assert.equal(mounted.state.disqualified, true);
+  assert.equal(mounted.events.some((event) => event?.type === 'suspect'), false, '근제로는 실격이지 집계 제외가 아니다');
+});
+
+// 보폭 판정은 실격 거동을 절대 바꾸지 않는다: 걸음이 찍힌 창은 보폭과 무관하게 스트라이크를
+// 하나 되돌린다. 안 그러면 '근제로 → 보폭 → 근제로'가 예전엔 없던 실격을 만든다.
+test('보폭 창도 스트라이크를 되돌린다 — 예전엔 없던 실격이 생기지 않는다', () => {
+  const start = settled();
+  // 창1: 근제로(5spm) → 스트라이크 1.
+  const dirty = drive(start.state, start.nowMs, 95, { speedMps: 4.17, stepsPerSecond: 5 / 60 });
+  assert.equal(dirty.state.strikes, 1);
+  assert.equal(dirty.state.disqualified, false);
+
+  // 창2: 걸음은 찍히지만 보폭 초과(80spm · 4.17 m/s) → 집계 제외 표시 + 스트라이크 회복.
+  const suspect = drive(dirty.state, dirty.nowMs, 95, { speedMps: 4.17, stepsPerSecond: 80 / 60 }, dirty.steps);
+  assert.equal(suspect.events.filter((event) => event?.type === 'suspect').length, 1);
+  assert.equal(suspect.state.strikes, 0, '보폭 창도 스트라이크를 되돌린다');
+  assert.equal(suspect.state.suspectedNonRunning, true);
+
+  // 창3: 다시 근제로 → 스트라이크 1(실격 아님). 회복이 없었다면 여기서 실격이었다.
+  const dirtyAgain = drive(suspect.state, suspect.nowMs, 95, { speedMps: 4.17, stepsPerSecond: 5 / 60 }, suspect.steps);
+  assert.equal(dirtyAgain.state.strikes, 1);
+  assert.equal(dirtyAgain.state.disqualified, false);
 });

@@ -432,6 +432,8 @@ test('cadenceAudit: 케이던스 감사 원장은 주어질 때만 payload에 �
   const audit = {
     sensorAvailable: true,
     foregroundMovingSeconds: 240,
+    foregroundMovingMeters: 0,
+    suspectedNonRunning: false,
     foregroundSteps: 0,
     strikes: 1,
     disqualified: false,
@@ -461,6 +463,8 @@ test('cadenceAudit: 기권(실격) 저장에도 같은 원장이 실린다', () 
   const audit = {
     sensorAvailable: true,
     foregroundMovingSeconds: 180,
+    foregroundMovingMeters: 0,
+    suspectedNonRunning: false,
     foregroundSteps: 3,
     strikes: 2,
     disqualified: true,

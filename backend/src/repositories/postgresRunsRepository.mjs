@@ -27,6 +27,7 @@ import {
   requireSyncableConnectedSource,
   requireUserByToken,
   runWriteOperation,
+  updateRunCadenceAudit,
   updateRunMatchResult,
   updateUserConnectedSources,
 } from './postgresRunsQueries.mjs';
@@ -161,6 +162,15 @@ export function createPostgresRunsRepository({
           ));
 
           if (existingRun) {
+            // json 쌍둥이와 같은 이유 — 화면 꺼짐 저장이 비워 둔 케이던스 원장을 뒤늦은 JS
+            // 저장이 채운다(있는 원장은 덮지 않는다). 이 경로는 아직 서버에 등록되지 않았지만
+            // 두 어댑터가 갈라지면 나중에 그대로 사고가 된다.
+            const incomingCadenceAudit = normalizeCadenceAudit(input.cadenceAudit);
+
+            if (incomingCadenceAudit && !existingRun.cadenceAudit) {
+              await updateRunCadenceAudit(client, existingRun.id, incomingCadenceAudit, nowIso());
+            }
+
             const reResolvedMatchResult = await resolveMatchResult(user, input.matchResult);
 
             if (reResolvedMatchResult && shouldOverwriteMatchResult(existingRun.matchResult, reResolvedMatchResult)) {

@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { buildUserRunMetrics, getRunPointValue } from './points.mjs';
 import { createJsonRunsRepository } from '../repositories/runsRepository.mjs';
 import {
+  classifyCadenceStride,
+  INTEGRITY_REASON_CADENCE_STRIDE,
   applyRunIntegrityCheck,
   classifyCadenceAudit,
   classifyRunIntegrity,
@@ -673,3 +675,51 @@ await runTest('save path: a malformed cadence audit is dropped from the record a
 });
 
 console.log('[runIntegrity] all tests passed');
+
+// 보폭 판정 (오너 확정 2026-09-10): 걸음은 찍히는데 그 걸음으로 갈 수 없는 거리 — 자전거.
+// 실격이 아니라 집계 제외라, 판정은 vehicle이지만 클라 실격 경로(cadence-watchdog)와는 다르다.
+await runTest('cadence-stride: 자전거 원장(80spm · 보폭 3.1m)은 집계 제외 vehicle로 판정된다', () => {
+  // 실측 재현: 4:00/km로 6분 → 1500m, 80spm → 480걸음. 보폭 3.13m.
+  const ride = {
+    sensorAvailable: true,
+    foregroundMovingSeconds: 360,
+    foregroundSteps: 480,
+    foregroundMovingMeters: 1500,
+    suspectedNonRunning: true,
+    strikes: 0,
+    disqualified: false,
+  };
+  assert.equal(classifyCadenceStride(ride), 'vehicle');
+  assert.deepEqual(
+    resolveRunIntegrityVerdict({ distanceKm: 1.5, durationSeconds: 360, cadenceSpm: 80, cadenceAudit: ride }),
+    { verdict: 'vehicle', reason: INTEGRITY_REASON_CADENCE_STRIDE },
+  );
+
+  // 클라 래치가 없어도 원장만으로 같은 결론이 나온다(옛 래치·깨진 플래그 백스톱).
+  assert.equal(classifyCadenceStride({ ...ride, suspectedNonRunning: false }), 'vehicle');
+});
+
+await runTest('cadence-stride: 진짜 러너와 옛 앱 원장은 건드리지 않는다', () => {
+  // 4:00/km · 170spm → 보폭 1.47m.
+  const runner = {
+    sensorAvailable: true,
+    foregroundMovingSeconds: 360,
+    foregroundSteps: 1020,
+    foregroundMovingMeters: 1500,
+    suspectedNonRunning: false,
+    strikes: 0,
+    disqualified: false,
+  };
+  assert.equal(classifyCadenceStride(runner), 'clear');
+  assert.equal(resolveRunIntegrityVerdict({ distanceKm: 1.5, durationSeconds: 360, cadenceSpm: 170, cadenceAudit: runner }).verdict, 'clear');
+
+  // 보폭 필드가 없는 옛 앱 원장 — 판정은 침묵하고 나머지 원장은 그대로 쓰인다.
+  const legacy = { sensorAvailable: true, foregroundMovingSeconds: 360, foregroundSteps: 480, strikes: 0, disqualified: false };
+  assert.equal(classifyCadenceStride(legacy), 'clear');
+  assert.equal(normalizeCadenceAudit(legacy)?.foregroundSteps, 480);
+
+  // 센서가 없으면(권한 거부) 아무것도 판정하지 않는다.
+  assert.equal(classifyCadenceStride({ ...runner, sensorAvailable: false, suspectedNonRunning: true }), 'clear');
+  // 창 하나(90초)를 못 채운 짧은 구간도 침묵.
+  assert.equal(classifyCadenceStride({ ...runner, foregroundMovingSeconds: 60, foregroundSteps: 10, foregroundMovingMeters: 250 }), 'clear');
+});

@@ -190,6 +190,19 @@ export async function updateRunMatchResult(database, runId, matchResult, updated
   );
 }
 
+// 화면 꺼짐 저장이 비워 둔 케이던스 원장을 뒤늦은 JS 저장이 채울 때만 쓴다 (2026-09-10).
+export async function updateRunCadenceAudit(database, runId, cadenceAudit, updatedAt) {
+  await database.query(
+    `
+      update runs
+      set cadence_audit = $2,
+          updated_at = $3
+      where id = $1
+    `,
+    [runId, cadenceAudit ? JSON.stringify(cadenceAudit) : null, updatedAt],
+  );
+}
+
 export async function insertImport(database, entry) {
   await database.query(
     `

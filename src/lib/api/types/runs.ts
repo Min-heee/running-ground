@@ -23,6 +23,10 @@ export type RunCadenceAudit = {
   sensorAvailable: boolean;
   foregroundMovingSeconds: number;
   foregroundSteps: number;
+  // 보폭 판정 재료 (2026-09-10): 포그라운드 달리기 속도 이동 거리와, 그 걸음으로 갈 수 없는
+  // 거리를 간 창이 있었는지. 서버는 둘 중 하나만으로도 같은 결론을 낸다(집계 제외, 실격 아님).
+  foregroundMovingMeters: number;
+  suspectedNonRunning: boolean;
   strikes: number;
   disqualified: boolean;
 };

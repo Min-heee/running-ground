@@ -677,3 +677,80 @@ await runTest('cadenceAudit rides the tracked-run record; a malformed ledger is 
   });
   assert.equal('cadenceAudit' in storeHarness.getStore().runs.find((run) => run.id === withoutAudit.run.id), false);
 });
+
+// 화면 꺼짐 저장은 케이던스 원장을 못 싣는다(screenOffRunSave) — 앱을 다시 연 뒤의 JS 저장이
+// 같은 matchId로 dedupe될 때 그 원장을 채워야 판정이 산다 (적대 검증 2026-09-10).
+await runTest('매치 dedupe: 화면 꺼짐 저장이 비운 케이던스 원장을 뒤늦은 JS 저장이 채우고 판정이 다시 돈다', async () => {
+  const { repository, storeHarness } = createRepositoryHarness();
+  const matchResult = {
+    mode: 'duel',
+    source: 'party',
+    matchId: 'duel-screen-off-audit',
+    title: '대결 결과 집계 중',
+    summary: '상대 기록을 기다리는 중이에요.',
+    badgeLabel: '집계 중',
+  };
+  const baseInput = {
+    date: '2026-09-10',
+    distanceKm: 1.5,
+    pace: '04:00/km',
+    durationSeconds: 360,
+    route: [{ latitude: 37.5, longitude: 127.0 }],
+    endedAt: '2026-09-10T10:06:00.000Z',
+    matchResult,
+  };
+
+  // 1) 화면 꺼짐 네이티브 배달 — 원장 없음.
+  await repository.createTrackedRun({
+    token: 'token-1',
+    input: { ...baseInput, startedAt: '2026-09-10T10:00:03.000Z' },
+  });
+  const afterNative = storeHarness.getStore().runs[0];
+  assert.equal(afterNative.cadenceAudit, undefined);
+  assert.notEqual(afterNative.integrity?.verdict, 'vehicle');
+
+  // 2) 앱을 연 뒤의 JS 저장 — 자전거 원장(80spm · 보폭 3.1m)을 들고 온다.
+  await repository.createTrackedRun({
+    token: 'token-1',
+    input: {
+      ...baseInput,
+      startedAt: '2026-09-10T10:00:00.000Z',
+      cadenceAudit: {
+        sensorAvailable: true,
+        foregroundMovingSeconds: 360,
+        foregroundSteps: 480,
+        foregroundMovingMeters: 1500,
+        suspectedNonRunning: true,
+        strikes: 0,
+        disqualified: false,
+      },
+    },
+  });
+
+  const runs = storeHarness.getStore().runs;
+  assert.equal(runs.length, 1, '여전히 한 행');
+  assert.equal(runs[0].cadenceAudit?.suspectedNonRunning, true, '원장이 채워진다');
+  assert.equal(runs[0].integrity?.verdict, 'vehicle');
+  assert.equal(runs[0].integrity?.reason, 'cadence-stride');
+
+  // 3) 이미 원장이 있는 행은 재전송이 덮지 못한다 — 판정을 뒤집는 통로가 되면 안 된다.
+  await repository.createTrackedRun({
+    token: 'token-1',
+    input: {
+      ...baseInput,
+      startedAt: '2026-09-10T10:00:00.000Z',
+      cadenceAudit: {
+        sensorAvailable: true,
+        foregroundMovingSeconds: 360,
+        foregroundSteps: 1020,
+        foregroundMovingMeters: 1500,
+        suspectedNonRunning: false,
+        strikes: 0,
+        disqualified: false,
+      },
+    },
+  });
+  const afterTamper = storeHarness.getStore().runs[0];
+  assert.equal(afterTamper.cadenceAudit?.suspectedNonRunning, true);
+  assert.equal(afterTamper.integrity?.verdict, 'vehicle');
+});

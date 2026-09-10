@@ -533,6 +533,17 @@ export function createJsonRunsRepository({
           ));
 
           if (existingRun) {
+            // 화면 꺼짐 네이티브 저장(screenOffRunSave)은 케이던스 원장을 싣지 못한다 — 골인
+            // 순간 앱이 백그라운드라 워치독 상태를 읽을 수 없다. 앱을 다시 연 뒤 올라오는 JS
+            // 저장에는 원장이 있으므로, 저장된 행에 원장이 **없을 때만** 그걸 채운 뒤 아래
+            // 판정을 다시 돌린다. 이미 원장이 있으면 손대지 않는다 — 재전송이 이미 내려진
+            // 판정을 뒤집는 통로가 되면 안 된다 (적대 검증 2026-09-10).
+            const incomingCadenceAudit = normalizeCadenceAudit(input.cadenceAudit);
+
+            if (incomingCadenceAudit && !existingRun.cadenceAudit) {
+              existingRun.cadenceAudit = incomingCadenceAudit;
+            }
+
             const reResolvedMatchResult = resolveMatchResult(
               store,
               user,

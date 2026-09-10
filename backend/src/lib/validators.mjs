@@ -296,6 +296,16 @@ export function validateCadenceAudit(rawCadenceAudit) {
     foregroundSteps: validateNonNegativeInteger(rawCadenceAudit.foregroundSteps, '케이던스 감사 걸음 값이 올바르지 않아요.'),
     strikes: validateNonNegativeInteger(rawCadenceAudit.strikes, '케이던스 경고 횟수 값이 올바르지 않아요.'),
     disqualified: validateBoolean(rawCadenceAudit.disqualified, '케이던스 실격 정보가 올바르지 않아요.'),
+    // 보폭 판정 재료 (2026-09-10) — 옛 앱은 안 보내므로 선택 필드다.
+    ...(typeof rawCadenceAudit.foregroundMovingMeters === 'undefined' ? {} : {
+      foregroundMovingMeters: validateNonNegativeInteger(
+        rawCadenceAudit.foregroundMovingMeters,
+        '케이던스 감사 이동 거리 값이 올바르지 않아요.',
+      ),
+    }),
+    ...(typeof rawCadenceAudit.suspectedNonRunning === 'undefined' ? {} : {
+      suspectedNonRunning: validateBoolean(rawCadenceAudit.suspectedNonRunning, '케이던스 보폭 판정 값이 올바르지 않아요.'),
+    }),
   };
 }
 

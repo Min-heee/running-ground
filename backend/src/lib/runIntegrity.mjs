@@ -121,9 +121,21 @@ export const CADENCE_AUDIT_VEHICLE_SPM = 20;
 // 2차 판정을 못 내린" 런(앱 종료·저장 직행)을 마무리하는 장치지, 독립 판정기가 아니다.
 export const CADENCE_AUDIT_MIN_STRIKES = 1;
 
+// 보폭 상한 (오너 확정 2026-09-10) — 클라 워치독과 같은 값. 걸음은 찍히는데 그 걸음으로 갈 수
+// 없는 거리를 갔으면 자전거·킥보드다. 실측: 4:00/km에서 80spm → 보폭 3.1m. 사람의 달리기
+// 보폭은 0.8~1.8m, 3:00/km를 180spm으로 뛰는 최상급도 1.85m라 2.2m는 넉넉한 여유선이다.
+// **이 판정은 실격이 아니다** — 걸음을 적게 세는 폰(유모차·거치대)도 넘을 수 있으므로 기록은
+// 남기고 랭킹·포인트·별에서만 뺀다(vehicle 판정의 기존 의미). 실격은 근제로 대역 전용이다.
+export const CADENCE_STRIDE_MAX_METERS = 2.2;
+
+// 보폭 판정에 필요한 최소 포그라운드 달리기 속도 이동 — 창(90초) 하나 분량. GPS 초반 잡음과
+// 짧은 구간의 우연을 배제한다.
+export const CADENCE_STRIDE_MIN_MOVING_SECONDS = 90;
+
 export const INTEGRITY_REASON_SPEED = 'speed';
 export const INTEGRITY_REASON_CADENCE_WATCHDOG = 'cadence-watchdog';
 export const INTEGRITY_REASON_CADENCE_AUDIT = 'cadence-audit';
+export const INTEGRITY_REASON_CADENCE_STRIDE = 'cadence-stride';
 
 function isNonNegativeInteger(value) {
   return Number.isInteger(value) && value >= 0;
@@ -136,7 +148,15 @@ export function normalizeCadenceAudit(raw) {
     return null;
   }
 
-  const { sensorAvailable, foregroundMovingSeconds, foregroundSteps, strikes, disqualified } = raw;
+  const {
+    sensorAvailable,
+    foregroundMovingSeconds,
+    foregroundSteps,
+    foregroundMovingMeters,
+    suspectedNonRunning,
+    strikes,
+    disqualified,
+  } = raw;
 
   if (
     typeof sensorAvailable !== 'boolean'
@@ -148,7 +168,43 @@ export function normalizeCadenceAudit(raw) {
     return null;
   }
 
-  return { sensorAvailable, foregroundMovingSeconds, foregroundSteps, strikes, disqualified };
+  // 보폭 필드는 2026-09-10 이후 앱만 보낸다 — 없거나 모양이 깨졌으면 그 판정만 침묵하고
+  // 나머지 원장은 그대로 쓴다(옛 앱의 저장이 통째로 무시되면 안 된다).
+  return {
+    sensorAvailable,
+    foregroundMovingSeconds,
+    foregroundSteps,
+    ...(isNonNegativeInteger(foregroundMovingMeters) ? { foregroundMovingMeters } : {}),
+    ...(typeof suspectedNonRunning === 'boolean' ? { suspectedNonRunning } : {}),
+    strikes,
+    disqualified,
+  };
+}
+
+// 보폭 판정: 클라가 래치한 자진 신고(suspectedNonRunning)를 우선 믿고, 없으면 원장으로 직접
+// 계산한다. 자진 신고는 본인만 손해라 위조 유인이 없고, 직접 계산은 옛 원장·깨진 래치의 백스톱.
+export function classifyCadenceStride(rawCadenceAudit) {
+  const audit = normalizeCadenceAudit(rawCadenceAudit);
+
+  if (!audit || !audit.sensorAvailable) {
+    return 'clear';
+  }
+
+  if (audit.suspectedNonRunning === true) {
+    return 'vehicle';
+  }
+
+  if (
+    !isNonNegativeInteger(audit.foregroundMovingMeters)
+    || audit.foregroundSteps <= 0
+    || audit.foregroundMovingSeconds < CADENCE_STRIDE_MIN_MOVING_SECONDS
+  ) {
+    return 'clear';
+  }
+
+  return audit.foregroundMovingMeters / audit.foregroundSteps > CADENCE_STRIDE_MAX_METERS
+    ? 'vehicle'
+    : 'clear';
 }
 
 // 백스톱 단독 판정: 센서가 있고, 워치독 경고(strikes)가 최소 1회 있고, 포그라운드 달리기 속도
@@ -188,6 +244,11 @@ export function resolveRunIntegrityVerdict({ distanceKm, durationSeconds, cadenc
 
   if (classifyCadenceAudit(audit) === 'vehicle') {
     return { verdict: 'vehicle', reason: INTEGRITY_REASON_CADENCE_AUDIT };
+  }
+
+  // 걸음은 찍혔지만 그 걸음으로 갈 수 없는 거리 — 자전거·킥보드. 실격은 없고 집계에서만 뺀다.
+  if (classifyCadenceStride(audit) === 'vehicle') {
+    return { verdict: 'vehicle', reason: INTEGRITY_REASON_CADENCE_STRIDE };
   }
 
   return { verdict: speedVerdict };
@@ -248,6 +309,11 @@ function buildIntegrityLogLine(user, run, verdict, reason) {
   const auditSummary = audit
     ? `fgMovingS=${audit.foregroundMovingSeconds} fgSteps=${audit.foregroundSteps} strikes=${audit.strikes}`
       + ` sensor=${audit.sensorAvailable} dq=${audit.disqualified}`
+      + ` fgMovingM=${audit.foregroundMovingMeters ?? 'n/a'} stride=${
+        isNonNegativeInteger(audit.foregroundMovingMeters) && audit.foregroundSteps > 0
+          ? (audit.foregroundMovingMeters / audit.foregroundSteps).toFixed(2)
+          : 'n/a'
+      } suspect=${audit.suspectedNonRunning ?? 'n/a'}`
     : 'audit=none';
 
   return `[run-integrity] userId=${user.id} runId=${run.id} verdict=${verdict}`

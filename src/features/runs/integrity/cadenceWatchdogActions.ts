@@ -53,6 +53,12 @@ export const CADENCE_DISQUALIFY_TITLE = '부정 러닝 판정';
 export const CADENCE_DISQUALIFY_SOLO_BODY = '달리기 속도로 이동했지만 케이던스가 두 번 연속 감지되지 않았어요. 부정 러닝으로 판정돼 이 기록은 저장되지 않아요.';
 export const CADENCE_DISQUALIFY_MATCH_BODY = '달리기 속도로 이동했지만 케이던스가 두 번 연속 감지되지 않았어요. 부정 러닝으로 판정돼 이 대결은 실격패로 처리돼요.';
 export const CADENCE_DISQUALIFY_SOLO_SPEECH = '부정 러닝으로 판정됐어요. 이 기록은 저장되지 않아요.';
+// 보폭 판정 (오너 확정 2026-09-10): 걸음은 찍히는데 그 걸음으로 갈 수 없는 거리를 갔다 —
+// 자전거·킥보드. 달리기를 멈추지 않고 기록도 남기되 집계에서만 뺀다. 폰이 걸음을 적게 세는
+// 정직한 러너도 여기 걸릴 수 있으므로, 문구는 '부정'이 아니라 '집계 제외'와 해결법을 말한다.
+export const CADENCE_SUSPECT_TITLE = '이 기록은 랭킹에서 빠져요';
+export const CADENCE_SUSPECT_BODY = '달리기 속도인데 걸음 수가 너무 적어요. 이 기록은 저장되지만 랭킹·포인트·별과 주간/월간 집계(연속 러닝 포함)에서 빠져요. 폰을 몸에 지니고 달리면 정상 집계돼요.';
+export const CADENCE_SUSPECT_SPEECH = '걸음 수가 너무 적어 이 기록은 랭킹에서 제외돼요. 폰을 몸에 지니고 달려주세요.';
 export const CADENCE_DISQUALIFY_MATCH_SPEECH = '부정 러닝으로 판정돼 실격패 처리돼요.';
 
 export function buildCadenceWarningTitle(
@@ -93,6 +99,14 @@ export function buildCadenceWatchdogPresentation(
       title: buildCadenceWarningTitle(event.strike),
       body: CADENCE_WARNING_BODY,
       speech: CADENCE_WARNING_BODY,
+    };
+  }
+
+  if (event.type === 'suspect') {
+    return {
+      title: CADENCE_SUSPECT_TITLE,
+      body: CADENCE_SUSPECT_BODY,
+      speech: CADENCE_SUSPECT_SPEECH,
     };
   }
 
