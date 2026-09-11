@@ -113,7 +113,7 @@ export async function previewVoice(identifier: string | null): Promise<void> {
     if (typeof Speech.stop === 'function') {
       await Speech.stop().catch(() => undefined);
     }
-    Speech.speak('안녕하세요, 러닝스페이스예요. 오늘도 가볍게 달려볼까요?', {
+    Speech.speak('안녕하세요, 러닝그라운드예요. 오늘도 가볍게 달려볼까요?', {
       language: 'ko-KR',
       ...(identifier ? { voice: identifier } : {}),
       pitch: 0.95,

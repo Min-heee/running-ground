@@ -59,17 +59,20 @@ export default function TabsLayout() {
       marginTop: 2,
     },
   }), [tabBarBottomPadding, tabBarHeight]);
-  // 스페이스는 탭바를 숨긴다 (오너 2026-08-22). 우주를 보는 화면 아래에 밝은 흰 띠가
-  // 깔려 있으면 몰입이 끊기고, 세로 공간도 그만큼 하늘에서 뺏긴다. 나가는 길은 화면
-  // 안의 '나가기' 버튼이 대신한다 — 그게 없으면 탭바를 숨기는 순간 갇힌다.
+  // 스페이스 탭 숨김 (오너 2026-09-11): 탭바에서만 뺀다 — 마켓·레이스와 같은 방식으로
+  // href: null 은 버튼만 없애고 라우트는 남기므로, 되살릴 땐 href 한 줄만 지우면 된다.
+  // tabBarStyle 숨김은 그대로 둔다 — 프로그램 내비게이션으로 우주에 들어갔을 때도
+  // 하늘 아래 흰 띠가 깔리면 안 되고, 나가는 길은 화면 안의 '나가기' 버튼이 맡는다.
   const universeOptions = useMemo(() => ({
     ...getTabScreenOptions('universe'),
+    href: null as null,
     tabBarStyle: { display: 'none' as const },
   }), []);
   const tabListeners = useMemo(() => ({
     friends: buildTabInputListeners('friends'),
     home: buildTabInputListeners('home'),
     universe: buildTabInputListeners('universe'),
+    records: buildTabInputListeners('records'),
     league: buildTabInputListeners('league'),
     market: buildTabInputListeners('market'),
     race: buildTabInputListeners('race'),
@@ -79,7 +82,7 @@ export default function TabsLayout() {
   const tabOptions = useMemo(() => ({
     friends: getTabScreenOptions('friends'),
     home: getTabScreenOptions('home'),
-    universe: getTabScreenOptions('universe'),
+    records: getTabScreenOptions('records'),
     league: getTabScreenOptions('league'),
     // 마켓·레이스 탭 숨김 (오너 2026-08-25): 탭바에서만 뺀다 — href: null은 버튼을
     // 제거할 뿐 라우트는 남아서, 딥링크·프로그램 내비게이션·복귀는 그대로 동작한다.
@@ -94,9 +97,9 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={screenOptions}
     >
-      {/* 탭바 순서 = 자식 선언 순서 (오너 2026-09-01): 스페이스·랭킹·러닝·홈·친구·마이.
+      {/* 탭바 순서 = 자식 선언 순서 (오너 2026-09-11): 기록·랭킹·러닝·홈·친구·마이.
           초기 진입 탭은 app/index.tsx의 /(tabs)/home 리다이렉트가 정하므로 영향 없음. */}
-      <Tabs.Screen name="universe" options={universeOptions} listeners={tabListeners.universe} />
+      <Tabs.Screen name="records" options={tabOptions.records} listeners={tabListeners.records} />
       <Tabs.Screen name="league" options={tabOptions.league} listeners={tabListeners.league} />
       <Tabs.Screen name="running" options={tabOptions.running} listeners={tabListeners.running} />
       <Tabs.Screen name="home" options={tabOptions.home} listeners={tabListeners.home} />
@@ -104,6 +107,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="mypage" options={tabOptions.mypage} listeners={tabListeners.mypage} />
       <Tabs.Screen name="race" options={tabOptions.race} listeners={tabListeners.race} />
       <Tabs.Screen name="market" options={tabOptions.market} listeners={tabListeners.market} />
+      <Tabs.Screen name="universe" options={universeOptions} listeners={tabListeners.universe} />
     </Tabs>
     <TourOverlay />
     </View>

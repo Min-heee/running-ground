@@ -48,7 +48,7 @@ function buildDownloadLandingHtml({ iosFirst, autoUrl, iosInAppBrowser }) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>러닝스페이스 다운로드</title>
+<title>러닝그라운드 다운로드</title>
 <style>
   body { margin: 0; font-family: -apple-system, sans-serif; background: #EFF0FA; color: #111827;
          display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -72,7 +72,7 @@ function buildDownloadLandingHtml({ iosFirst, autoUrl, iosInAppBrowser }) {
 </head>
 <body>
 <div class="logo">R</div>
-<div class="name">러닝스페이스</div>
+<div class="name">러닝그라운드</div>
 <p class="hint">뛸수록 랭크가 오르는 러닝 대결 앱</p>
 ${iosInAppBrowser
     ? inAppGuide
@@ -97,7 +97,7 @@ function buildFriendLandingHtml({ tagCode, storeUrl }) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>러닝스페이스 친구 추가</title>
+<title>러닝그라운드 친구 추가</title>
 <style>
   body { margin: 0; font-family: -apple-system, sans-serif; background: #EFF0FA; color: #111827;
          display: flex; flex-direction: column; align-items: center; justify-content: center;

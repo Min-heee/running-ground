@@ -2,6 +2,7 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 
 const TAB_TITLES = {
   league: '랭킹',
+  records: '기록',
   universe: '스페이스',
   friends: '\uCE5C\uAD6C',
   home: '\uD648',
@@ -13,6 +14,7 @@ const TAB_TITLES = {
 
 const TAB_ICONS = {
   league: 'award',
+  records: 'list',
   friends: 'users',
   home: 'home',
   market: 'shopping-bag',

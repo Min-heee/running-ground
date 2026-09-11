@@ -421,11 +421,11 @@ test('an unlinked scheduled room shows the guest 예약 수락 and reads accepte
 test('stay notice differs between host-start and scheduled rooms', () => {
   assert.equal(
     buildMatchRoomStayNotice(room()),
-    '방장이 시작하면 바로 카운트다운이 진행돼요 — 러닝스페이스 앱을 나가지 말고 기다려 주세요.',
+    '방장이 시작하면 바로 카운트다운이 진행돼요 — 러닝그라운드 앱을 나가지 말고 기다려 주세요.',
   );
   assert.equal(
     buildMatchRoomStayNotice(room({ startMode: 'scheduled' })),
-    '예약 시간이 되면 자동으로 카운트다운이 진행돼요 — 시작 전에 러닝스페이스 앱을 켜 두세요.',
+    '예약 시간이 되면 자동으로 카운트다운이 진행돼요 — 시작 전에 러닝그라운드 앱을 켜 두세요.',
   );
   assert.equal(buildMatchRoomUxModel({ room: null, currentUserId: 'host' }).stayNotice, buildMatchRoomStayNotice(null));
 });

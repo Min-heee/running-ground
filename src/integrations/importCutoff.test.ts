@@ -45,13 +45,13 @@ test('all-pre-launch detection needs at least one fetched run', () => {
 test('partial-skip notice names the launch date, the count, and the policy in 존댓말', () => {
   const notice = buildPreLaunchSkipNotice(4);
 
-  assert.equal(notice, '출시(2026-07-13) 이전 기록 4개는 가져오지 않았어요 — 러닝스페이스는 출시 이후 기록만 반영해요.');
+  assert.equal(notice, '출시(2026-07-13) 이전 기록 4개는 가져오지 않았어요 — 러닝그라운드는 출시 이후 기록만 반영해요.');
 });
 
 test('all-pre-launch 0-import message explains the cutoff instead of permissions', () => {
   const message = buildAllPreLaunchImportMessage(7);
 
-  assert.equal(message, '기기에서 읽은 7개가 모두 출시(2026-07-13) 이전 기록이라 가져오지 않았어요 — 러닝스페이스는 출시 이후 기록만 반영해요.');
+  assert.equal(message, '기기에서 읽은 7개가 모두 출시(2026-07-13) 이전 기록이라 가져오지 않았어요 — 러닝그라운드는 출시 이후 기록만 반영해요.');
   // Must never read like the permission-guidance copy (설정/권한 안내).
   assert.doesNotMatch(message, /권한|설정/);
 });
@@ -62,6 +62,6 @@ test('skip notice is appended only when records were actually skipped', () => {
   assert.equal(appendPreLaunchSkipNotice(base, 0), base);
   assert.equal(
     appendPreLaunchSkipNotice(base, 2),
-    `${base} 출시(2026-07-13) 이전 기록 2개는 가져오지 않았어요 — 러닝스페이스는 출시 이후 기록만 반영해요.`,
+    `${base} 출시(2026-07-13) 이전 기록 2개는 가져오지 않았어요 — 러닝그라운드는 출시 이후 기록만 반영해요.`,
   );
 });

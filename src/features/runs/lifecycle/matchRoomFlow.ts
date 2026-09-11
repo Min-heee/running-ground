@@ -23,8 +23,8 @@ const SCHEDULED_ACCEPT_LABEL = '예약 수락';
 const SCHEDULED_ACCEPTED_LABEL = '수락 취소';
 const SCHEDULED_ACCEPT_HELPER_TEXT = '방장이 고른 시간에 달릴 수 있으면 예약 수락을 눌러 주세요. 모두 수락하면 예약이 확정돼요.';
 const SCHEDULED_ACCEPTED_HELPER_TEXT = '예약 시간을 수락했어요. 모두 수락하면 예약이 확정돼요.';
-const HOST_START_STAY_NOTICE = '방장이 시작하면 바로 카운트다운이 진행돼요 — 러닝스페이스 앱을 나가지 말고 기다려 주세요.';
-const SCHEDULED_START_STAY_NOTICE = '예약 시간이 되면 자동으로 카운트다운이 진행돼요 — 시작 전에 러닝스페이스 앱을 켜 두세요.';
+const HOST_START_STAY_NOTICE = '방장이 시작하면 바로 카운트다운이 진행돼요 — 러닝그라운드 앱을 나가지 말고 기다려 주세요.';
+const SCHEDULED_START_STAY_NOTICE = '예약 시간이 되면 자동으로 카운트다운이 진행돼요 — 시작 전에 러닝그라운드 앱을 켜 두세요.';
 
 export type MatchRoomInviteAcceptanceState = {
   isInvitedOnly: boolean;

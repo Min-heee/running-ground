@@ -756,7 +756,7 @@ class MatchUploadForegroundService : Service() {
     private const val CHANNEL_ID = "match_uploader"
     private const val CHANNEL_NAME = "러닝 기록 동기화"
     private const val CHANNEL_DESCRIPTION = "대결 중 백그라운드에서 기록을 계속 전송합니다."
-    private const val NOTIFICATION_TITLE = "러닝스페이스 기록 전송 중"
+    private const val NOTIFICATION_TITLE = "러닝그라운드 기록 전송 중"
     private const val NOTIFICATION_BODY = "화면이 꺼져도 대결 기록이 계속 전송됩니다."
     private const val WAKE_LOCK_TAG = "RunningGround:matchUpload"
   }

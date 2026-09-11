@@ -94,7 +94,7 @@ export default function AdminScreen() {
         <View style={[styles.container, isWide ? styles.containerWide : null]}>
           <View style={styles.hero}>
             <View style={styles.heroBadge}>
-              <Text style={styles.heroBadgeText}>RunningSpace ADMIN</Text>
+              <Text style={styles.heroBadgeText}>RunningGround ADMIN</Text>
             </View>
             <Text style={styles.heroTitle}>운영 관리 웹</Text>
             <Text style={styles.heroSubtitle}>

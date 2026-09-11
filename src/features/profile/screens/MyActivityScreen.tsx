@@ -1,11 +1,10 @@
 import { memo, useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Link, router } from 'expo-router';
+import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
-import { AuthHeader } from '@/components/ui/AuthHeader';
-import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
+import { TabHeader } from '@/components/ui/TabHeader';
 import { YearMonthFilterRow } from '@/components/ui/YearMonthFilterRow';
 import { useMyActivity } from '@/features/profile/hooks/useMyActivity';
 import type { ActivityRun } from '@/features/profile/hooks/useMyActivity';
@@ -13,6 +12,7 @@ import { getRunKind } from '@/features/runs/utils/runKind';
 import type { RunKind } from '@/features/runs/utils/runKind';
 import { getRunSourceLabel } from '@/features/runs/utils/sourceLabel';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
+import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
 
 type ActivityKindFilter = 'all' | RunKind;
 type ActivityModeFilter = 'all' | 'duel' | 'group';
@@ -44,7 +44,12 @@ const ActivityRunRow = memo(function ActivityRunRow({ run }: { run: ActivityRun 
   );
 });
 
+// 기록 탭의 화면 (오너 2026-09-11). 예전엔 마이 탭에서 밀어 올리는 /my-activity 스택
+// 화면이었고, 지금은 탭바에서 바로 열리는 탭 루트다 — 그래서 뒤로가기 헤더도,
+// '마이페이지로 돌아가기' 버튼도 없다(탭 루트에는 돌아갈 곳이 없다). 옛 경로는
+// app/my-activity.tsx의 리다이렉트가 이 탭으로 보낸다.
 export default function MyActivityScreen() {
+  useTabWarmupTrace('records');
   const { activity, activityRuns, error, loading } = useMyActivity();
   const [kindFilter, setKindFilter] = useState<ActivityKindFilter>('all');
   const [modeFilter, setModeFilter] = useState<ActivityModeFilter>('all');
@@ -100,11 +105,7 @@ export default function MyActivityScreen() {
 
   return (
     <Screen>
-      <AuthHeader
-        title="내 활동"
-        showBack
-        backHref="/(tabs)/mypage"
-      />
+      <TabHeader title="기록" />
 
       {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
       {error ? <Text>{error}</Text> : null}
@@ -154,8 +155,6 @@ export default function MyActivityScreen() {
               </View>
             )}
           </Card>
-
-          <SecondaryButton label="마이페이지로 돌아가기" onPress={() => router.replace('/(tabs)/mypage')} />
         </>
       ) : null}
     </Screen>

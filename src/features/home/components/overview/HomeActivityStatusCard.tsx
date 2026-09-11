@@ -112,7 +112,7 @@ function HomeActivityStatusCardImpl({ runs }: HomeActivityStatusCardProps) {
 
       <RunPeriodBarChart model={chartModel} />
 
-      <Link href="/my-activity" asChild>
+      <Link href="/(tabs)/records" asChild>
         <Pressable accessibilityRole="button" style={styles.recordButton}>
           <Text style={styles.recordButtonText}>기록 보기</Text>
         </Pressable>

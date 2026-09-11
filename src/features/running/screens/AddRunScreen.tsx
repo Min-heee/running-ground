@@ -28,7 +28,7 @@ export default function AddRunScreen() {
         title="수동 기록 추가"
         subtitle="기록 연동 전에도 직접 러닝 기록을 넣고 바로 포인트와 순위를 확인할 수 있어요."
         showBack
-        backHref="/my-activity"
+        backHref="/(tabs)/records"
       />
 
       <Card style={styles.formCard}>
@@ -92,7 +92,7 @@ export default function AddRunScreen() {
         <Text style={styles.todayButtonText}>오늘 날짜로 다시 맞추기</Text>
       </Pressable>
 
-      <SecondaryButton label="내 활동으로 돌아가기" onPress={() => router.replace('/my-activity')} />
+      <SecondaryButton label="기록으로 돌아가기" onPress={() => router.replace('/(tabs)/records')} />
     </Screen>
   );
 }

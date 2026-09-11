@@ -156,7 +156,7 @@ export default function WelcomeTourScreen() {
     <Screen>
       <View style={styles.container}>
         <View style={styles.topBar}>
-          <Text style={styles.logo}>RunningSpace</Text>
+          <Text style={styles.logo}>RunningGround</Text>
           <StepDots activeIndex={activeIndex} />
         </View>
 

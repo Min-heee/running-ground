@@ -1300,8 +1300,8 @@ export function TrackRunExperienceRuntime({
     trackerStatusRef,
     wasPartyRunRef,
   });
-  const backHref: Href = '/my-activity';
-  const discardRedirectHref: Href | null = isTabMode ? null : '/my-activity';
+  const backHref: Href = '/(tabs)/records';
+  const discardRedirectHref: Href | null = isTabMode ? null : '/(tabs)/records';
   useTrackRunSlotDistanceCleanup({
     duelDistanceKm,
     groupDistanceKm,

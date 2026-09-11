@@ -24,7 +24,7 @@ export async function handleRankedPersonPress({ userId, name }: { userId: string
 
   switch (relation.relation) {
     case 'self':
-      router.push('/my-activity');
+      router.push('/(tabs)/records');
       return;
     case 'friend':
       router.push({ pathname: '/friend-detail', params: { friendId: userId } });

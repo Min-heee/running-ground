@@ -83,7 +83,7 @@ export async function confirmBackgroundRestrictionOnce(): Promise<boolean> {
   return new Promise((resolve) => {
     Alert.alert(
       '배터리 설정 확인이 필요해요',
-      '갤럭시 등 일부 폰은 [설정 → 배터리 → 백그라운드 사용 제한] 목록에 앱이 들어 있으면 화면을 꺼둔 동안 측정이 멈출 수 있어요.\n\n러닝스페이스가 그 목록에 없는지 딱 한 번만 확인해 주세요.',
+      '갤럭시 등 일부 폰은 [설정 → 배터리 → 백그라운드 사용 제한] 목록에 앱이 들어 있으면 화면을 꺼둔 동안 측정이 멈출 수 있어요.\n\n러닝그라운드가 그 목록에 없는지 딱 한 번만 확인해 주세요.',
       [
         {
           text: '설정 열기',

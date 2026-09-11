@@ -89,12 +89,12 @@ export function useRunDetail({
     ? { pathname: '/friend-detail', params: { friendId } }
     : origin === 'running'
       ? '/(tabs)/running'
-      : '/my-activity';
+      : '/(tabs)/records';
   const backLabel = friendId
     ? '친구 활동으로 돌아가기'
     : origin === 'running'
       ? '런닝으로 돌아가기'
-      : '내 활동으로 돌아가기';
+      : '기록으로 돌아가기';
   const sourceLabel = runDetail ? getRunSourceLabel(runDetail.run) : '';
   // C3: surface the server-reconciled verdict when we have one; else the terminal neutral
   // overlay (§3-⑦, "결과 미확정으로 종료"); otherwise the as-saved record.

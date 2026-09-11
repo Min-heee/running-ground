@@ -77,7 +77,7 @@ function buildReminderBody(match: UpcomingRunningMatchItem, minutesBefore: numbe
   }
 
   if (minutesBefore <= 5) {
-    return `${minutesBefore}분 뒤 ${match.counterpartLabel}과 ${matchNoun}이 시작돼요. 핸드폰을 켜고 러닝스페이스 앱을 열어 주세요.`;
+    return `${minutesBefore}분 뒤 ${match.counterpartLabel}과 ${matchNoun}이 시작돼요. 핸드폰을 켜고 러닝그라운드 앱을 열어 주세요.`;
   }
 
   if (match.isPartyRun) {
