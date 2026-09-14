@@ -1,225 +1,115 @@
-import { memo, useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Link } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Screen } from '@/components/Screen';
-import { Card } from '@/components/Card';
-import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
+import { SegmentSwitch } from '@/components/ui/SegmentSwitch';
 import { TabHeader } from '@/components/ui/TabHeader';
-import { YearMonthFilterRow } from '@/components/ui/YearMonthFilterRow';
+import { ActivityMonthSection } from '@/features/profile/components/ActivityMonthSection';
+import { buildActivityMonthGroups } from '@/features/profile/utils/activityMonthGroups';
 import { useMyActivity } from '@/features/profile/hooks/useMyActivity';
-import type { ActivityRun } from '@/features/profile/hooks/useMyActivity';
 import { getRunKind } from '@/features/runs/utils/runKind';
 import type { RunKind } from '@/features/runs/utils/runKind';
-import { getRunSourceLabel } from '@/features/runs/utils/sourceLabel';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
-
-type ActivityKindFilter = 'all' | RunKind;
-type ActivityModeFilter = 'all' | 'duel' | 'group';
-
-const ACTIVITY_KIND_FILTER_OPTIONS = [
-  { key: 'all', label: '전체' },
-  { key: 'solo', label: '혼자러닝' },
-  { key: 'party', label: '파티런' },
-  { key: 'match', label: '매칭대결' },
-] as const;
-
-const ACTIVITY_MODE_FILTER_OPTIONS = [
-  { key: 'all', label: '전체' },
-  { key: 'duel', label: '1대1' },
-  { key: 'group', label: '그룹' },
-] as const;
-
-const ActivityRunRow = memo(function ActivityRunRow({ run }: { run: ActivityRun }) {
-  return (
-    <Link href={{ pathname: '/run-detail', params: { runId: run.id } }} asChild>
-      <Pressable style={styles.recordRow}>
-        <View style={styles.recordMeta}>
-          <Text style={styles.recordDate}>{run.date}</Text>
-          <Text style={styles.recordDetail}>{run.distanceKm}km · 페이스 {run.pace} · {getRunSourceLabel(run)}</Text>
-        </View>
-        <Text style={styles.recordLink}>보기</Text>
-      </Pressable>
-    </Link>
-  );
-});
 
 // 기록 탭의 화면 (오너 2026-09-11). 예전엔 마이 탭에서 밀어 올리는 /my-activity 스택
 // 화면이었고, 지금은 탭바에서 바로 열리는 탭 루트다 — 그래서 뒤로가기 헤더도,
 // '마이페이지로 돌아가기' 버튼도 없다(탭 루트에는 돌아갈 곳이 없다). 옛 경로는
 // app/my-activity.tsx의 리다이렉트가 이 탭으로 보낸다.
+//
+// 화면 개편 (오너 2026-09-14, 시안 C '월 타임라인'): 요약 카드 2장 + 연·월 드롭다운 +
+// 종류/모드 세그먼트 2줄 + 행마다 붙던 '보기'를 전부 걷어냈다. 내용에 닿기까지 크롬을
+// 네 겹 지나야 했고, 행에서 제일 큰 글씨가 사람이 안 읽는 ISO 날짜였다.
+// 지금은 세그먼트 하나 + 달 머리글 + 흰 블록 한 겹으로 한 줄기로 이어진다.
+
+type ActivityKindFilter = 'all' | RunKind;
+
+// 순서·단어는 러닝 탭 세그먼트(혼자/매칭/파티런)를 따라간다 — 필터 라벨과 행의 종류
+// 라벨이 같은 단어로 맞물려야 필터가 읽힌다.
+const KIND_FILTER_ITEMS: readonly { id: ActivityKindFilter; label: string }[] = [
+  { id: 'all', label: '전체' },
+  { id: 'solo', label: '혼자' },
+  { id: 'match', label: '매칭' },
+  { id: 'party', label: '파티런' },
+];
+
 export default function MyActivityScreen() {
   useTabWarmupTrace('records');
   const { activity, activityRuns, error, loading } = useMyActivity();
   const [kindFilter, setKindFilter] = useState<ActivityKindFilter>('all');
-  const [modeFilter, setModeFilter] = useState<ActivityModeFilter>('all');
-  const [yearFilter, setYearFilter] = useState<string | null>(null);
-  const [monthFilter, setMonthFilter] = useState<string>('all');
-  const showModeFilter = kindFilter === 'party' || kindFilter === 'match';
-  const handleKindChange = useCallback((next: ActivityKindFilter) => {
-    setKindFilter(next);
-    setModeFilter('all');
-  }, []);
+  const handleSelectKind = useCallback((id: string) => setKindFilter(id as ActivityKindFilter), []);
 
-  // Years present in the records, newest first. The active year follows the user's pick
-  // when it's still available, otherwise it falls back to the newest year — so it stays
-  // valid as data loads or changes without needing a sync effect. With no records yet,
-  // fall back to the current year so the year/month picker still shows.
-  const availableYears = useMemo(() => {
-    const recordYears = Array.from(new Set(activityRuns.map((run) => run.date.slice(0, 4))))
-      .sort((a, b) => b.localeCompare(a));
-    return recordYears.length > 0 ? recordYears : [String(new Date().getFullYear())];
-  }, [activityRuns]);
-  const selectedYear = (yearFilter && availableYears.includes(yearFilter))
-    ? yearFilter
-    : (availableYears[0] ?? null);
+  // 마운트 때 얼리면(useState) 탭 루트라 계속 마운트된 채 자정·월말을 넘기며 '이번 달'이
+  // 지난 달에 머문다. useMyActivity가 포커스마다 재조회하므로 새 페이로드에 맞춰 갱신한다.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- activity가 갱신될 때만 '지금'을 다시 읽는 게 목적이다
+  const nowMs = useMemo(() => Date.now(), [activity]);
+  const visibleRuns = useMemo(() => (
+    kindFilter === 'all'
+      ? activityRuns
+      : activityRuns.filter((run) => getRunKind(run) === kindFilter)
+  ), [activityRuns, kindFilter]);
+  // 서버가 이미 최신순(compareRunsLatestFirst)으로 내려준다 — 다시 정렬하지 않는다.
+  const groups = useMemo(() => buildActivityMonthGroups(visibleRuns, nowMs), [visibleRuns, nowMs]);
 
-  const visibleRuns = useMemo(() => {
-    const periodRuns = activityRuns.filter((run) => {
-      if (selectedYear && run.date.slice(0, 4) !== selectedYear) {
-        return false;
-      }
-      if (monthFilter !== 'all' && run.date.slice(5, 7) !== monthFilter) {
-        return false;
-      }
-      return true;
-    });
-
-    const baseRuns = kindFilter === 'all'
-      ? periodRuns
-      : periodRuns.filter((run) => getRunKind(run) === kindFilter);
-
-    if (!showModeFilter || modeFilter === 'all') {
-      return baseRuns;
-    }
-
-    return baseRuns.filter((run) => run.matchResult?.mode === modeFilter);
-  }, [activityRuns, kindFilter, modeFilter, monthFilter, selectedYear, showModeFilter]);
-  const noRunsAtAll = activityRuns.length === 0;
-  const emptyTitle = noRunsAtAll
-    ? '아직 저장된 러닝 기록이 없어요.'
-    : '해당 조건의 기록이 없어요.';
-  const emptyText = noRunsAtAll
-    ? '첫 기록을 추가하면 홈 게이지와 친구 순위가 바로 움직이기 시작해요.'
-    : '다른 연도·월이나 종류를 선택해보세요.';
+  const activeKindLabel = KIND_FILTER_ITEMS.find((item) => item.id === kindFilter)?.label ?? '전체';
+  const hint = activityRuns.length === 0
+    ? '러닝을 마치면 여기에 차곡차곡 쌓여요'
+    : (visibleRuns.length === 0 ? `${activeKindLabel} 기록이 아직 없어요` : null);
 
   return (
     <Screen>
       <TabHeader title="기록" />
 
-      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
-      {error ? <Text>{error}</Text> : null}
+      <SegmentSwitch
+        items={KIND_FILTER_ITEMS}
+        activeId={kindFilter}
+        onSelect={handleSelectKind}
+      />
+
+      {loading && !activity ? <ActivityIndicator size="large" color={colors.brand} /> : null}
+
+      {/* 이미 받아둔 기록이 있으면 재조회 실패는 조용히 삼킨다 — 에러 줄이 끼어들면 레이아웃이 튄다. */}
+      {error && !activity ? (
+        <View style={styles.errorBlock}>
+          <Text style={styles.errorTitle}>기록을 불러오지 못했어요</Text>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
 
       {activity ? (
-        <>
-          <View style={styles.summaryRow}>
-            <Card style={styles.summaryCard}>
-              <Text style={styles.summaryLabel}>이번 달 총 거리</Text>
-              <Text style={styles.summaryValue}>{activity.monthlyDistanceKm}km</Text>
-            </Card>
-            <Card style={styles.summaryCard}>
-              <Text style={styles.summaryLabel}>이번 달 포인트</Text>
-              <Text style={styles.summaryValue}>{activity.monthlyPoints}P</Text>
-            </Card>
-          </View>
-
-          <Card style={styles.historyCard}>
-            <Text style={styles.sectionTitle}>최근 러닝 기록</Text>
-            <YearMonthFilterRow
-              availableYears={availableYears}
-              selectedYear={selectedYear}
-              monthFilter={monthFilter}
-              onSelectYear={(year) => setYearFilter(year)}
-              onSelectMonth={(month) => setMonthFilter(month)}
-            />
-            <SegmentedTabs
-              options={ACTIVITY_KIND_FILTER_OPTIONS}
-              value={kindFilter}
-              onChange={handleKindChange}
-            />
-            {showModeFilter ? (
-              <SegmentedTabs
-                options={ACTIVITY_MODE_FILTER_OPTIONS}
-                value={modeFilter}
-                onChange={setModeFilter}
-              />
-            ) : null}
-            {visibleRuns.length > 0 ? (
-              visibleRuns.map((run) => (
-                <ActivityRunRow key={run.id} run={run} />
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>{emptyTitle}</Text>
-                <Text style={styles.emptyText}>{emptyText}</Text>
-              </View>
-            )}
-          </Card>
-        </>
+        <View style={styles.list}>
+          {groups.map((group) => (
+            <ActivityMonthSection key={group.key} group={group} />
+          ))}
+        </View>
       ) : null}
+
+      {activity && hint ? <Text style={styles.hint}>{hint}</Text> : null}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  summaryRow: {
-    flexDirection: 'row',
-    gap: spacing.s10,
+  list: {
+    gap: spacing.s20,
   },
-  summaryCard: {
-    flex: 1,
-  },
-  summaryLabel: {
+  hint: {
     color: colors.textSecondary,
-    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.semibold,
+    lineHeight: 20,
   },
-  summaryValue: {
+  errorBlock: {
+    gap: spacing.sm,
+  },
+  errorTitle: {
     color: colors.textPrimary,
-    fontSize: fontSizes.summaryValue,
+    fontSize: fontSizes.base,
     fontWeight: fontWeights.extraBold,
   },
-  historyCard: {
-    gap: spacing.s10,
-  },
-  sectionTitle: {
-    fontSize: fontSizes.title,
-    fontWeight: fontWeights.extraBold,
-    color: colors.textPrimary,
-  },
-  recordRow: {
-    paddingVertical: spacing.s12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderSoft,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: spacing.s12,
-  },
-  recordMeta: {
-    gap: spacing.xxs,
-    flex: 1,
-  },
-  recordDate: {
-    color: colors.textPrimary,
-    fontWeight: fontWeights.bold,
-  },
-  recordDetail: {
-    color: colors.textSecondary,
-  },
-  recordLink: {
-    color: colors.brand,
-    fontWeight: fontWeights.extraBold,
-  },
-  emptyState: {
-    paddingTop: spacing.s10,
-    gap: spacing.lg,
-  },
-  emptyTitle: {
-    color: colors.textPrimary,
-    fontWeight: fontWeights.extraBold,
-  },
-  emptyText: {
-    color: colors.textSecondary,
+  errorText: {
+    color: colors.danger,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.semibold,
     lineHeight: 20,
   },
 });
