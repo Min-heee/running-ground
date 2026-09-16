@@ -4,6 +4,7 @@ export const weeklySummary: WeeklySummary = {
   totalDistanceKm: 42.4,
   totalRuns: 8,
   goalAchievementRate: 84,
+  weeklyGoalKm: 50,
   streakDays: 3,
   weeklyStreakWeeks: 3,
   bestWeeklyStreakWeeks: 5,

@@ -60,6 +60,10 @@ export default function HomeScreen() {
               weeklyStreakWeeks={summary.weeklyStreakWeeks ?? 0}
               weeklyStreakRanThisWeek={summary.weeklyStreakRanThisWeek ?? false}
               weeklyStreakMinWeekDistanceKm={summary.weeklyStreakMinWeekDistanceKm ?? 3}
+              weeklyDistanceKm={summary.totalDistanceKm}
+              weeklyRunCount={summary.totalRuns}
+              weeklyGoalRate={summary.goalAchievementRate}
+              weeklyGoalKm={summary.weeklyGoalKm}
             />
           ) : null}
         </View>

@@ -10,6 +10,9 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+// 주간 거리 목표 — 홈 '이번 주' 카드의 달성률 기준 (오너 2026-09-16 카드 부활 때 이름 붙임).
+const WEEKLY_GOAL_KM = 50;
+
 export function buildHomeSummaryWithMetrics(store, user, metrics) {
   const latestRun = metrics.latestRun;
   const friendUsers = getFriendIds(store, user.id)
@@ -22,7 +25,10 @@ export function buildHomeSummaryWithMetrics(store, user, metrics) {
   return {
     totalDistanceKm: metrics.currentWeekDistanceKm,
     totalRuns: metrics.currentWeekRunCount,
-    goalAchievementRate: Math.min(100, Math.round((metrics.currentWeekDistanceKm / 50) * 100)),
+    goalAchievementRate: Math.min(100, Math.round((metrics.currentWeekDistanceKm / WEEKLY_GOAL_KM) * 100)),
+    // 홈 '이번 주' 카드가 '목표 50km'라고 적을 때 그 숫자를 여기서 받는다 — 클라 문구와
+    // 서버 달성률 기준이 절대 어긋나지 않게 (weeklyStreakMinWeekDistanceKm와 같은 규칙).
+    weeklyGoalKm: WEEKLY_GOAL_KM,
     previousWeekDistanceKm: metrics.previousWeekDistanceKm,
     streakDays: metrics.currentStreakDays,
     // 주 연속 러닝 뱃지 (오너 2026-09-01) — 서버 파생 표시값, 포인트 없음. 문턱은 서버가

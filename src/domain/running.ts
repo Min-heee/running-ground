@@ -14,6 +14,8 @@ export type WeeklySummary = {
   totalDistanceKm: number;
   totalRuns: number;
   goalAchievementRate: number;
+  // 달성률의 기준 거리(km). 옵셔널: 구백엔드 응답엔 없고, 그때 카드는 50으로 적는다.
+  weeklyGoalKm?: number;
   previousWeekDistanceKm?: number;
   streakDays: number;
   // 주 연속 러닝 뱃지 (오너 2026-09-01) — 서버 파생 표시값. 옵셔널: 구백엔드/캐시
