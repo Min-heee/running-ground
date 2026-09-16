@@ -13,7 +13,7 @@ export type ActivityMonthGroup = {
   key: string;
   // '이번 달' | '8월' | '2025년 12월'
   label: string;
-  // 이번 달: '8회' | '8회 · 평균 5:21/km' / 지난 달: '61.0km · 12회'
+  // '61.0km · 12회' — 이번 달도 같은 꼴 (큰 숫자는 위 기간 블록이 맡는다)
   metaLine: string;
   isCurrentMonth: boolean;
   // 서버 순서(compareRunsLatestFirst) 그대로 — 절대 재정렬하지 않는다.
@@ -37,7 +37,8 @@ function formatPaceLabel(secondsPerKm: number) {
 
 // 거리 가중 평균 페이스. 기권·정지 저장 기록의 '00:00/km'와 측정 불가의 '--:--/km'는
 // parsePaceSecondsPerKm가 null을 주므로 분자·분모 양쪽에서 빠진다(회수·거리에는 남는다).
-function buildAveragePaceLabel(runs: readonly MyRunRecord[]) {
+// 기간 블록(ActivityPeriodBlock)의 히어로 메타가 같은 규칙을 쓴다.
+export function buildAveragePaceLabel(runs: readonly MyRunRecord[]): string | null {
   let seconds = 0;
   let distanceKm = 0;
 
@@ -110,14 +111,11 @@ export function buildActivityMonthGroups(
     const isCurrentMonth = key === currentKey;
     const distanceKm = roundDistance(groupRuns.reduce((sum, run) => sum + (run.distanceKm ?? 0), 0));
     const runCount = groupRuns.length;
-    const averagePaceLabel = isCurrentMonth ? buildAveragePaceLabel(groupRuns) : null;
 
     return {
       key,
       label: buildLabel(key, isCurrentMonth, currentYear),
-      metaLine: isCurrentMonth
-        ? (averagePaceLabel ? `${runCount}회 · 평균 ${averagePaceLabel}` : `${runCount}회`)
-        : `${formatDistanceValue(distanceKm)}km · ${runCount}회`,
+      metaLine: `${formatDistanceValue(distanceKm)}km · ${runCount}회`,
       isCurrentMonth,
       runs: groupRuns,
       distanceKm,

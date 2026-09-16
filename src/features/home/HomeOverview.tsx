@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import type { MyRunRecord, RankState } from '@/domain';
-import { HomeActivityStatusCard } from '@/features/home/components/overview/HomeActivityStatusCard';
 import { HomePointGaugeCard } from '@/features/home/components/overview/HomePointGaugeCard';
 import { HomeRankCard } from '@/features/home/components/overview/HomeRankCard';
 import { HomeWeeklyStreakBadge } from '@/features/home/components/overview/HomeWeeklyStreakBadge';
@@ -70,7 +69,8 @@ export function HomeOverview({
         ranThisWeek={weeklyStreakRanThisWeek}
         minWeekDistanceKm={weeklyStreakMinWeekDistanceKm}
       />
-      <HomeActivityStatusCard runs={runs} />
+      {/* '내 러닝 기록'(주/월/년 + 그래프)은 기록 탭으로 옮겼다 (오너 2026-09-16) —
+          같은 숫자를 두 탭에서 보여주지 않는다. runs는 포인트·전적 계산에 계속 쓴다. */}
       <HomePointGaugeCard
         tracks={pointOverview.tracks}
         selectedTrack={selectedTrack}

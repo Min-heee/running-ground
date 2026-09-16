@@ -4,6 +4,7 @@ import { Screen } from '@/components/Screen';
 import { SegmentSwitch } from '@/components/ui/SegmentSwitch';
 import { TabHeader } from '@/components/ui/TabHeader';
 import { ActivityMonthSection } from '@/features/profile/components/ActivityMonthSection';
+import { ActivityPeriodBlock } from '@/features/profile/components/ActivityPeriodBlock';
 import { buildActivityMonthGroups } from '@/features/profile/utils/activityMonthGroups';
 import { useMyActivity } from '@/features/profile/hooks/useMyActivity';
 import { getRunKind } from '@/features/runs/utils/runKind';
@@ -20,6 +21,9 @@ import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
 // 종류/모드 세그먼트 2줄 + 행마다 붙던 '보기'를 전부 걷어냈다. 내용에 닿기까지 크롬을
 // 네 겹 지나야 했고, 행에서 제일 큰 글씨가 사람이 안 읽는 ISO 날짜였다.
 // 지금은 세그먼트 하나 + 달 머리글 + 흰 블록 한 겹으로 한 줄기로 이어진다.
+//
+// 기간 블록 (오너 2026-09-16): 홈의 '내 러닝 기록'(주/월/년 + 그래프)을 여기로 옮겼다.
+// 화면 맨 위가 기간 히어로(큰 숫자 하나)이고, 종류 세그먼트는 그 아래 목록 바로 위에 선다.
 
 type ActivityKindFilter = 'all' | RunKind;
 
@@ -59,11 +63,7 @@ export default function MyActivityScreen() {
     <Screen>
       <TabHeader title="기록" />
 
-      <SegmentSwitch
-        items={KIND_FILTER_ITEMS}
-        activeId={kindFilter}
-        onSelect={handleSelectKind}
-      />
+      {activity ? <ActivityPeriodBlock runs={activityRuns} nowMs={nowMs} /> : null}
 
       {loading && !activity ? <ActivityIndicator size="large" color={colors.brand} /> : null}
 
@@ -77,6 +77,11 @@ export default function MyActivityScreen() {
 
       {activity ? (
         <View style={styles.list}>
+          <SegmentSwitch
+            items={KIND_FILTER_ITEMS}
+            activeId={kindFilter}
+            onSelect={handleSelectKind}
+          />
           {groups.map((group) => (
             <ActivityMonthSection key={group.key} group={group} />
           ))}
