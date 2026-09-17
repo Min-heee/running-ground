@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { MyRunRecord, RankState } from '@/domain';
 import { HomePointGaugeCard } from '@/features/home/components/overview/HomePointGaugeCard';
 import { HomeRankCard } from '@/features/home/components/overview/HomeRankCard';
-import { HomeWeeklyStatusCard } from '@/features/home/components/overview/HomeWeeklyStatusCard';
+import { HomeMonthlyStatusCard } from '@/features/home/components/overview/HomeMonthlyStatusCard';
 import { HomeWeeklyStreakBadge } from '@/features/home/components/overview/HomeWeeklyStreakBadge';
 import {
   buildHomeOverviewCalendarRows,
@@ -19,11 +19,10 @@ type HomeOverviewProps = {
   weeklyStreakWeeks: number;
   weeklyStreakRanThisWeek: boolean;
   weeklyStreakMinWeekDistanceKm: number;
-  // '이번 주' 카드 (오너 2026-09-16) — 홈 summary의 이번 주 합계와 목표 달성률.
-  weeklyDistanceKm: number;
-  weeklyRunCount: number;
-  weeklyGoalRate: number;
-  weeklyGoalKm?: number;
+  // '이번 달' 카드 (오너 2026-09-19) — 이번 달 거리·러닝 횟수·번 포인트.
+  monthDistanceKm: number;
+  monthRunCount: number;
+  monthPoints: number;
 };
 
 export function HomeOverview({
@@ -32,10 +31,9 @@ export function HomeOverview({
   weeklyStreakWeeks,
   weeklyStreakRanThisWeek,
   weeklyStreakMinWeekDistanceKm,
-  weeklyDistanceKm,
-  weeklyRunCount,
-  weeklyGoalRate,
-  weeklyGoalKm,
+  monthDistanceKm,
+  monthRunCount,
+  monthPoints,
 }: HomeOverviewProps) {
   const [calendarMonthOffset, setCalendarMonthOffset] = useState(0);
   const [selectedTrackId, setSelectedTrackId] = useState<WeeklyPointTrackId>('distance');
@@ -80,12 +78,12 @@ export function HomeOverview({
         minWeekDistanceKm={weeklyStreakMinWeekDistanceKm}
       />
       {/* '내 러닝 기록'(주/월/년 + 그래프)은 기록 탭으로 옮겼고(오너 2026-09-16) 그 자리에
-          '이번 주' 숫자 세 칸이 선다 — 그래프는 기록 탭이 맡는다. runs는 포인트·전적 계산에 계속 쓴다. */}
-      <HomeWeeklyStatusCard
-        totalDistanceKm={weeklyDistanceKm}
-        totalRuns={weeklyRunCount}
-        goalAchievementRate={weeklyGoalRate}
-        weeklyGoalKm={weeklyGoalKm}
+          '이번 달' 숫자 세 칸이 선다(9/19에 이번 주 → 이번 달) — 그래프는 기록 탭이 맡는다.
+          runs는 포인트·전적 계산에 계속 쓴다. */}
+      <HomeMonthlyStatusCard
+        distanceKm={monthDistanceKm}
+        runCount={monthRunCount}
+        points={monthPoints}
       />
       <HomePointGaugeCard
         tracks={pointOverview.tracks}

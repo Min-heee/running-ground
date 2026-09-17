@@ -6,41 +6,27 @@ import { Card } from '@/components/Card';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 import { formatDistanceValue } from '@/utils/formatUnits';
 
-// 홈 '이번 주' 카드 (오너 2026-09-16: 내 러닝 기록이 기록 탭으로 간 뒤 "홈이 너무 허하다" →
-// 시연 세 장 중 ③ 선택). 그래프 없이 숫자 세 칸 — 거리 · 러닝 · 주 목표 달성률. 자세한 건
-// 오른쪽 '기록 ›'가 기록 탭으로 보낸다. 카드 결은 옆의 포인트 게이지·랭크 카드와 같다
-// (회색 작은 제목 + 오른쪽 링크, 흰 카드) — 오너가 "현재 홈이랑 너무 벗어나지 말라"고 했다.
+// 홈 '이번 달' 카드 (오너 2026-09-19: "이번주 카드 이번 달로 바꿔줘"). 연속 러닝과 포인트 게이지
+// 사이, 예전 '내 러닝 기록' 그래프가 있던 자리다. 그래프 없이 숫자 세 칸 — 거리 · 러닝 · 포인트.
+// 주 단위 카드의 셋째 칸은 '주 목표 50km 달성률'이었는데 월 목표는 없어서, 이 달에 번 포인트로
+// 바꿨다(바로 아래 포인트 게이지와 이어지고, 기록 탭에는 없는 숫자다). 자세한 건 '기록 ›'.
+// 카드 결은 옆 카드들과 같다 — 오너가 "현재 홈이랑 너무 벗어나지 말라"고 했다.
 
-// 서버가 weeklyGoalKm를 안 보내는 구버전 응답의 폴백 — 서버 상수(homeBuilders WEEKLY_GOAL_KM)와 같다.
-const DEFAULT_WEEKLY_GOAL_KM = 50;
-
-type HomeWeeklyStatusCardProps = {
-  totalDistanceKm: number;
-  totalRuns: number;
-  goalAchievementRate: number;
-  weeklyGoalKm?: number;
+type HomeMonthlyStatusCardProps = {
+  distanceKm: number;
+  runCount: number;
+  points: number;
 };
 
-function clampPercent(value: number) {
-  return Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) : 0;
-}
-
-function HomeWeeklyStatusCardImpl({
-  totalDistanceKm,
-  totalRuns,
-  goalAchievementRate,
-  weeklyGoalKm,
-}: HomeWeeklyStatusCardProps) {
-  const goalKm = typeof weeklyGoalKm === 'number' && Number.isFinite(weeklyGoalKm) && weeklyGoalKm > 0
-    ? weeklyGoalKm
-    : DEFAULT_WEEKLY_GOAL_KM;
-  const distanceKm = Number.isFinite(totalDistanceKm) && totalDistanceKm > 0 ? totalDistanceKm : 0;
-  const runCount = Number.isFinite(totalRuns) && totalRuns > 0 ? Math.round(totalRuns) : 0;
+function HomeMonthlyStatusCardImpl({ distanceKm, runCount, points }: HomeMonthlyStatusCardProps) {
+  const safeDistanceKm = Number.isFinite(distanceKm) && distanceKm > 0 ? distanceKm : 0;
+  const safeRunCount = Number.isFinite(runCount) && runCount > 0 ? Math.round(runCount) : 0;
+  const safePoints = Number.isFinite(points) && points > 0 ? Math.round(points) : 0;
 
   return (
     <Card style={styles.card}>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>이번 주</Text>
+        <Text style={styles.eyebrow}>이번 달</Text>
         {/* 함수형 style 금지 — Link asChild는 자식 style을 배열로 병합해 함수를 삼킨다. */}
         <Link href="/(tabs)/records" asChild>
           <Pressable
@@ -59,7 +45,7 @@ function HomeWeeklyStatusCardImpl({
         <View style={styles.metric}>
           <Text style={styles.metricLabel}>거리</Text>
           <Text style={styles.metricValue}>
-            {formatDistanceValue(distanceKm)}
+            {formatDistanceValue(safeDistanceKm)}
             <Text style={styles.metricUnit}>km</Text>
           </Text>
         </View>
@@ -67,16 +53,16 @@ function HomeWeeklyStatusCardImpl({
         <View style={styles.metric}>
           <Text style={styles.metricLabel}>러닝</Text>
           <Text style={styles.metricValue}>
-            {runCount}
+            {safeRunCount}
             <Text style={styles.metricUnit}>회</Text>
           </Text>
         </View>
         <View style={styles.divider} />
         <View style={styles.metric}>
-          <Text style={styles.metricLabel}>{`목표 ${goalKm}km`}</Text>
+          <Text style={styles.metricLabel}>포인트</Text>
           <Text style={styles.metricValue}>
-            {clampPercent(goalAchievementRate)}
-            <Text style={styles.metricUnit}>%</Text>
+            {safePoints.toLocaleString('ko-KR')}
+            <Text style={styles.metricUnit}>P</Text>
           </Text>
         </View>
       </View>
@@ -84,7 +70,7 @@ function HomeWeeklyStatusCardImpl({
   );
 }
 
-export const HomeWeeklyStatusCard = memo(HomeWeeklyStatusCardImpl);
+export const HomeMonthlyStatusCard = memo(HomeMonthlyStatusCardImpl);
 
 const styles = StyleSheet.create({
   card: {

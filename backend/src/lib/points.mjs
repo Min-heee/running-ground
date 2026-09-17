@@ -154,6 +154,9 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
   const competitiveWeekDistanceByKey = new Map();
   const weekRunCountByKey = new Map();
   const monthDistanceByKey = new Map();
+  // 홈 '이번 달' 카드의 러닝 횟수 (오너 2026-09-19). 월 거리와 같은 줄에서 세야 차량 판정 제외가
+  // 똑같이 걸린다 — 클라가 기록 목록에서 세면 제외된 러닝까지 세어 '1회 · 0km'가 된다.
+  const monthRunCountByKey = new Map();
   const distanceByDate = new Map();
   // POINTS 정책 (오너 2026-07-30 개정): 거리 레벨 사다리는 임포트 러닝 거리도
   // 포함해 오른다 — 타앱과 병행 측정하는 유저의 게이지가 반토막 나는 혼란이 커서.
@@ -250,6 +253,7 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
     weekDistanceByKey.set(weekKey, toFixed1((weekDistanceByKey.get(weekKey) ?? 0) + run.distanceKm));
     monthDistanceByKey.set(monthKey, toFixed1((monthDistanceByKey.get(monthKey) ?? 0) + run.distanceKm));
     weekRunCountByKey.set(weekKey, (weekRunCountByKey.get(weekKey) ?? 0) + 1);
+    monthRunCountByKey.set(monthKey, (monthRunCountByKey.get(monthKey) ?? 0) + 1);
     distanceByDate.set(run.date, toFixed1((distanceByDate.get(run.date) ?? 0) + run.distanceKm));
     latestRun = run;
   }
@@ -407,6 +411,7 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
   const previousWeekDistanceKm = weekDistanceByKey.get(previousWeekKey) ?? 0;
   const currentWeekRunCount = weekRunCountByKey.get(currentWeekKey) ?? 0;
   const currentMonthDistanceKm = monthDistanceByKey.get(currentMonthKey) ?? 0;
+  const currentMonthRunCount = monthRunCountByKey.get(currentMonthKey) ?? 0;
 
   let currentWeekPoints = 0;
   let currentMonthPoints = 0;
@@ -447,6 +452,7 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
     currentWeekRunCount,
     currentWeekPoints,
     currentMonthDistanceKm: toFixed1(currentMonthDistanceKm),
+    currentMonthRunCount,
     currentMonthPoints,
     // 리더보드 표시용 오늘 거리 — 전체 러닝(가져온 기록 포함). 경쟁 전용 값은 아래에.
     todayDistanceKm: toFixed1(distanceByDate.get(todayKey) ?? 0),

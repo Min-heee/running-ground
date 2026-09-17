@@ -73,6 +73,7 @@ runTest('imported runs still count in personal display metrics', () => {
   assert.equal(metrics.lifetimeDistanceKm, 12);
   assert.equal(metrics.distanceLevel, 1);
   assert.equal(metrics.currentWeekRunCount, 1);
+  assert.equal(metrics.currentMonthRunCount, 1);
   // ...but not in the competitive aggregates.
   assert.equal(metrics.competitiveWeekDistanceKm, 0);
   assert.equal(metrics.competitiveLifetimeDistanceKm, 0);
@@ -453,6 +454,7 @@ runTest('a vehicle-flagged run vanishes from every display aggregate, not just p
   assert.equal(metrics.currentWeekDistanceKm, 5);
   assert.equal(metrics.currentMonthDistanceKm, 5);
   assert.equal(metrics.currentWeekRunCount, 1);
+  assert.equal(metrics.currentMonthRunCount, 1);
   assert.equal(metrics.lifetimeDistanceKm, 5);
   assert.equal(metrics.latestRun.id, 't-honest');
   // 7/9 5km(자격) → 오늘은 차량 기록뿐이라 자격 없음 → 어제 자격으로 1일 유지 (예전엔 2일).

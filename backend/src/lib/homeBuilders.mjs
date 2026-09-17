@@ -29,6 +29,11 @@ export function buildHomeSummaryWithMetrics(store, user, metrics) {
     // 홈 '이번 주' 카드가 '목표 50km'라고 적을 때 그 숫자를 여기서 받는다 — 클라 문구와
     // 서버 달성률 기준이 절대 어긋나지 않게 (weeklyStreakMinWeekDistanceKm와 같은 규칙).
     weeklyGoalKm: WEEKLY_GOAL_KM,
+    // 홈 '이번 달' 카드 (오너 2026-09-19: 이번 주 카드를 이번 달로). 세 값 모두 같은 metrics에서
+    // 나와 기준(KST 월·차량 판정 제외)이 하나다.
+    monthDistanceKm: metrics.currentMonthDistanceKm,
+    monthRunCount: metrics.currentMonthRunCount,
+    monthPoints: metrics.currentMonthPoints,
     previousWeekDistanceKm: metrics.previousWeekDistanceKm,
     streakDays: metrics.currentStreakDays,
     // 주 연속 러닝 뱃지 (오너 2026-09-01) — 서버 파생 표시값, 포인트 없음. 문턱은 서버가
