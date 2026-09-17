@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AddressRegionNode } from './addressCatalog';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export function buildRegionSelectionState(
   regions: AddressRegionNode[],
@@ -96,7 +96,9 @@ const RegionChip = memo(function RegionChip({
 
   return (
     <Pressable
-      style={[styles.selectionChip, selected && styles.selectionChipSelected, disabled && styles.disabledButton]}
+      // 저장 중에도 **고른 칩은 흐리지 않는다**: 보라 칩에 opacity 0.6이 얹히면 흰 글씨가 2.4:1로
+      // 무너져, '무엇을 저장 중인지' 보여주는 그 칩이 제일 안 읽힌다. 잠금 신호는 나머지 칩이 맡는다.
+      style={[styles.selectionChip, selected && styles.selectionChipSelected, disabled && !selected && styles.disabledButton]}
       onPress={handleSelect}
       disabled={disabled}
     >
@@ -128,15 +130,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   selectionChipSelected: {
-    backgroundColor: colors.inkPill,
-    borderColor: colors.inkPill,
+    // 선택 = 브랜드 솔리드 + 흰 글씨 고정 짝 (오너 2026-09-18: 검은 알약을 보라로 통일 — SegmentSwitch와 같은 언어).
+    backgroundColor: fixedColors.brand,
+    borderColor: fixedColors.brand,
   },
   selectionChipText: {
     color: colors.textMuted,
     fontWeight: fontWeights.bold,
   },
   selectionChipTextSelected: {
-    color: colors.white,
+    color: fixedColors.white,
   },
   disabledButton: {
     opacity: 0.6,

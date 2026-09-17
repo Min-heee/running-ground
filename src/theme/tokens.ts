@@ -64,9 +64,12 @@ const LIGHT_COLORS = {
   surfaceChrome: '#FFFFFF',
   // 카드 공통 가장자리(글래스 엣지). 라이트는 거의 안 보이는 잉크 라인.
   cardEdge: 'rgba(16,24,40,0.06)',
-  // Dark chip/button fill that must stay legible with white text in BOTH modes.
-  // Light: near-black (the classic dark CTA); dark: an elevated indigo-slate so the
-  // active pill still reads as raised on navy cards instead of vanishing.
+  // Dark ACTION-button / avatar fill that must stay legible with white text in BOTH modes.
+  // Light: near-black (the classic dark CTA); dark: an elevated indigo-slate so the button
+  // still reads as raised on navy cards instead of vanishing.
+  // NOT for selected states — since 2026-09-18 every selected pill/chip/tab is
+  // fixedColors.brand + fixedColors.white (see SegmentSwitch). Reaching for inkPill there
+  // brings back the black-vs-purple split the owner removed.
   inkPill: '#111827',
   success: '#12B76A',
   successBright: '#32D583',
@@ -237,7 +240,8 @@ const DARK_COLORS: ThemeColors = {
   // 유리 카드의 가장자리 — 네온 바이올렛 (오너 튜닝 2026-07-26: 형광 최대치).
   cardEdge: 'rgba(158,138,255,0.65)',
   adminSurface: '#0D1526',
-  // 선택된 필/세그먼트 — 유리 위에서 브랜드 바이올렛이 또렷이 서게.
+  // 다크의 액션 버튼·아바타 채움 — 유리 위에서 또렷이 서게. (선택 상태는 inkPill이 아니라
+  // fixedColors.brand + fixedColors.white다 — 위 라이트 쪽 주석 참고.)
   inkPill: '#5D50E6',
   // Text ladder (inverted lightness, lavender-gray family).
   textPrimary: '#F3F5FF',

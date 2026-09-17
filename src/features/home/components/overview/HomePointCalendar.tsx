@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { StreakCalendarCell, WeeklyPointTrack } from '@/features/points/pointSystem';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type HomePointCalendarProps = {
   calendar: NonNullable<WeeklyPointTrack['calendar']>;
@@ -147,10 +147,11 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   calendarNavButtonCurrent: {
-    backgroundColor: colors.inkPill,
+    // 선택 = 브랜드 솔리드 + 흰 글씨 고정 짝 (오너 2026-09-18: 검은 알약을 보라로 통일 — SegmentSwitch와 같은 언어).
+    backgroundColor: fixedColors.brand,
   },
   calendarNavButtonCurrentText: {
-    color: colors.white,
+    color: fixedColors.white,
   },
   calendarMonth: {
     color: colors.textPrimary,

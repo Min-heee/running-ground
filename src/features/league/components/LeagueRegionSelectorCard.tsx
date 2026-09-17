@@ -9,7 +9,7 @@ import type { RegionBreadcrumbItem } from '@/lib/api/types';
 import { PodiumBadge } from '@/features/league/components/LeagueRankBadges';
 import { RegionStarBadge } from '@/features/league/components/RegionStarBadge';
 import { getPodiumTheme } from '@/features/league/utils/leagueRanking';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 import { formatDistanceKm, formatPeopleCount } from '@/utils/formatUnits';
 
 type LeagueRegionSelectorCardProps = {
@@ -334,7 +334,8 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   pathChipActive: {
-    backgroundColor: colors.inkPill,
+    // 선택 = 브랜드 솔리드 + 흰 글씨 고정 짝 (오너 2026-09-18: 검은 알약을 보라로 통일 — SegmentSwitch와 같은 언어).
+    backgroundColor: fixedColors.brand,
   },
   pathChipText: {
     color: colors.textMuted,
@@ -342,7 +343,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   pathChipTextActive: {
-    color: colors.white,
+    color: fixedColors.white,
   },
   pathArrow: {
     color: colors.textTertiary,
@@ -359,8 +360,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.xs,
   },
+  // 활성 경로 칩이 검정에서 보라로 바뀌면서(2026-09-18) 반투명 흰 워시는 못 쓴다 — 검정 위에선
+  // 10:1이던 10px 흰 글씨가 보라 위에선 3.4:1로 떨어지고 배지 윤곽도 칩에 녹는다.
+  // 선택 짝을 뒤집어 흰 바탕 + 브랜드 글씨(4.57:1)로 세운다.
   myRegionBadgeActive: {
-    backgroundColor: colors.translucentWhite18,
+    backgroundColor: fixedColors.white,
   },
   myRegionBadgeText: {
     color: colors.successText,
@@ -368,7 +372,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   myRegionBadgeTextActive: {
-    color: colors.white,
+    color: fixedColors.brand,
   },
   regionGrid: {
     gap: spacing.s10,

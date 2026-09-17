@@ -12,7 +12,7 @@ import {
   todayRankingCategoryLabels,
 } from '@/features/league/utils/todayRanking';
 import type { TodayRankingCategory, TodayRankingEntry } from '@/domain';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type TodayRankingTabProps = {
   active: boolean;
@@ -188,7 +188,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.s10,
   },
   tabButtonActive: {
-    backgroundColor: colors.inkPill,
+    // 선택 = 브랜드 솔리드 + 흰 글씨 고정 짝 (오너 2026-09-18: 검은 알약을 보라로 통일 — SegmentSwitch와 같은 언어).
+    backgroundColor: fixedColors.brand,
   },
   tabButtonText: {
     color: colors.textSecondary,
@@ -196,7 +197,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.bold,
   },
   tabButtonTextActive: {
-    color: colors.white,
+    color: fixedColors.white,
   },
   stateBlock: {
     alignItems: 'center',

@@ -4,7 +4,7 @@ import type { DimensionValue, StyleProp, ViewStyle } from 'react-native';
 import { Card } from '@/components/Card';
 import { HomePointCalendar } from '@/features/home/components/overview/HomePointCalendar';
 import type { StreakCalendarCell, WeeklyPointTrack, WeeklyPointTrackId } from '@/features/points/pointSystem';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type HomePointGaugeCardProps = {
   tracks: WeeklyPointTrack[];
@@ -150,7 +150,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pointTabActive: {
-    backgroundColor: colors.inkPill,
+    // 선택 = 브랜드 솔리드 + 흰 글씨 고정 짝 (오너 2026-09-18: 검은 알약을 보라로 통일 — SegmentSwitch와 같은 언어).
+    backgroundColor: fixedColors.brand,
   },
   pointTabText: {
     color: colors.textMuted,
@@ -159,7 +160,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   pointTabTextActive: {
-    color: colors.white,
+    color: fixedColors.white,
   },
   pointValueRow: {
     gap: spacing.lg,
@@ -199,7 +200,9 @@ const styles = StyleSheet.create({
   pointFill: {
     height: '100%',
     borderRadius: radii.pill,
-    backgroundColor: colors.textPrimary,
+    // 진행 막대도 브랜드 (오너 2026-09-18). 예전 textPrimary는 라이트에선 검정, 다크에선 흰색이라
+    // 같은 막대가 테마마다 다른 의미색으로 읽혔다.
+    backgroundColor: fixedColors.brand,
   },
   pointHelper: {
     color: colors.textSecondary,
