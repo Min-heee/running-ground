@@ -64,16 +64,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.s14,
   },
+  // 회색 원 + 글자 (오너 2026-09-18 '마이 정돈') — 선택색을 보라로 모은 뒤 탭에 남은 마지막 검은 덩어리였다.
   avatar: {
     width: 54,
     height: 54,
     borderRadius: 99,
-    backgroundColor: colors.inkPill,
+    backgroundColor: colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    color: colors.white,
+    color: colors.textPrimary,
     fontSize: fontSizes.summaryValue,
     fontWeight: fontWeights.extraBold,
   },
@@ -107,14 +108,13 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.xxl,
   },
+  // 회색 채움 (오너 2026-09-18 '마이 정돈') — 흰 카드 위 흰 버튼은 테두리로만 버티는 유령 버튼이었다.
   inlineActionButton: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceMuted,
     borderRadius: radii.pill,
     paddingHorizontal: spacing.s14,
     paddingVertical: spacing.s10,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   inlineActionText: {
     color: colors.textPrimary,

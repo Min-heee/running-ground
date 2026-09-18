@@ -47,7 +47,8 @@ const FriendListRow = memo(function FriendListRow({
         <Pressable style={styles.friendPrimaryAction} onPress={handleOpen}>
           <View style={styles.requestMeta}>
             <View style={styles.friendRowHeader}>
-              {friend.isRunningNow ? <View style={styles.friendLiveDot} /> : null}
+              {/* '달리는 중'은 오른쪽 초록 원 하나가 말한다 (오너 2026-09-18 '친구 정돈') —
+                  이름 앞 점과 '위치 공유 중' 글자까지 셋이 같은 말을 하고 있었다. */}
               <Text style={styles.requestName}>{friend.name}</Text>
               {friend.rankTier ? <Text style={styles.metaChip}>{friend.rankTier}</Text> : null}
               {/* 지역 = 시/도 + 시·군·구 (서버가 우리 지역 체계 2단계로 만들어 보낸 라벨).
@@ -61,9 +62,6 @@ const FriendListRow = memo(function FriendListRow({
                 <Text style={styles.statusMessage} numberOfLines={1}>
                   {friend.statusMessage}
                 </Text>
-              ) : null}
-              {friend.isRunningNow ? (
-                <Text style={styles.friendLiveLabel}>위치 공유 중</Text>
               ) : null}
             </View>
           </View>
@@ -95,7 +93,7 @@ const FriendListRow = memo(function FriendListRow({
             <MaterialCommunityIcons
               name="map-marker-radius"
               size={16}
-              color={friend.isRunningNow ? colors.white : colors.textTertiary}
+              color={friend.isRunningNow ? colors.successOnFill : colors.textTertiary}
             />
           </Pressable>
         </View>
@@ -263,22 +261,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xxl,
     flexWrap: 'wrap',
-  },
-  friendLiveDot: {
-    width: 9,
-    height: 9,
-    borderRadius: radii.pill,
-    backgroundColor: colors.success,
-    shadowColor: colors.success,
-    shadowOpacity: 0.28,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  friendLiveLabel: {
-    color: colors.successText,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.bold,
-    includeFontPadding: false,
   },
   requestName: {
     color: colors.textPrimary,

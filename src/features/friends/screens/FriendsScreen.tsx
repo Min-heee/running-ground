@@ -102,13 +102,21 @@ export default function FriendsScreen() {
             onShowMore={handleShowFullRanking}
           />
 
-          {/* 그라운드 (오너 2026-08-06): 기간제 포인트 내기 진입점. */}
-          <Pressable style={styles.runmadangCard} onPress={() => router.push('/runmadang')}>
-            <View style={styles.runmadangCopy}>
-              <Text style={styles.runmadangTitle}>그라운드</Text>
-              <Text style={styles.runmadangSubtitle}>기간을 정해 친구와 포인트를 걸고 달려요</Text>
-            </View>
-            <Text style={styles.runmadangChevron}>›</Text>
+          {/* 그라운드 (오너 2026-08-06): 기간제 포인트 내기 진입점.
+              흰 카드로 (오너 2026-09-18 '친구 정돈') — 연보라 워시는 회색 바탕과 명도가 거의 같아
+              카드가 아니라 얼룩으로 읽혔다. 다른 카드와 같은 Card 위에 한 줄. */}
+          <Pressable
+            onPress={() => router.push('/runmadang')}
+            accessibilityRole="button"
+            accessibilityLabel="그라운드 열기. 기간을 정해 친구와 포인트를 걸고 달려요"
+          >
+            <Card style={styles.runmadangCard}>
+              <View style={styles.runmadangCopy}>
+                <Text style={styles.runmadangTitle}>그라운드</Text>
+                <Text style={styles.runmadangSubtitle}>기간을 정해 친구와 포인트를 걸고 달려요</Text>
+              </View>
+              <Text style={styles.runmadangChevron}>›</Text>
+            </Card>
           </Pressable>
 
           <FriendListCard
@@ -138,9 +146,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.s12,
-    backgroundColor: colors.brandWash,
-    borderRadius: radii.lg,
-    paddingHorizontal: spacing.s18,
     paddingVertical: spacing.s14,
   },
   runmadangCopy: {
@@ -148,17 +153,17 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   runmadangTitle: {
-    color: colors.brandDeep,
-    fontSize: fontSizes.md,
+    color: colors.textPrimary,
+    fontSize: fontSizes.rank,
     fontWeight: fontWeights.extraBold,
   },
   runmadangSubtitle: {
-    color: colors.brandStrong,
+    color: colors.textSecondary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
   },
   runmadangChevron: {
-    color: colors.brandDeep,
+    color: colors.textTertiary,
     fontSize: fontSizes.summaryValue,
     fontWeight: fontWeights.extraBold,
   },

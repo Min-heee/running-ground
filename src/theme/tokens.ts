@@ -75,6 +75,8 @@ const LIGHT_COLORS = {
   successBright: '#32D583',
   successGoogle: '#0F9D58',
   successInk: '#123524',
+  // 초록 채움(successStrong) 위 글리프색 — 라이트의 진초록엔 흰색, 다크의 밝은 민트(#34D399)엔 잉크.
+  successOnFill: '#FFFFFF',
   successStrong: '#027A48',
   successText: '#067647',
   successSoft: '#D1FADF',
@@ -272,6 +274,7 @@ const DARK_COLORS: ThemeColors = {
   // Semantic: green — 유리 결에 맞춘 반투명 워시.
   successText: '#4ADE80',
   successStrong: '#34D399',
+  successOnFill: '#123524',
   successSoft: 'rgba(52,211,153,0.14)',
   successWash: 'rgba(52,211,153,0.20)',
   successCard: 'rgba(52,211,153,0.10)',
