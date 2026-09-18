@@ -1,10 +1,9 @@
 // 크루대전 규칙 상수 — 한 곳에만 둔다 (오너 승인 스펙 v1, 2026-09-18).
 //
-// 화면에 보이는 숫자(정원 30, 월 이동 3회, 하루 45km, 7일 합류, 48시간 확정)는 클라이언트
-// crewModel에 같은 값으로 거울처럼 들어간다 — 여기 값을 바꾸면 클라 문구도 같이 바꿔야 한다.
+// 화면에 보이는 숫자(정원 30, 월 이동 3회, 7일 합류, 1시간 뒤 확정)는 클라이언트 crewModel에
+// 같은 값으로 거울처럼 들어간다 — 여기 값을 바꾸면 클라 문구도 같이 바꿔야 한다.
 
 import { ApiError } from '../../response/httpResponse.mjs';
-import { RANKING_STARS_SEAL_DELAY_MS } from '../monthlyRankingStars.mjs';
 import { DAY_MS } from '../competitionWindow.mjs';
 
 // 활성 멤버 정원 — 그룹 매치 최대 인원(30)과 같다. 꽉 차면 crew_full.
@@ -56,8 +55,20 @@ export const CREW_INVITE_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{6}$/;
 
 // 시즌 점수 ---------------------------------------------------------------------------------
 
-// 멤버별 KST 하루 인정 상한 — 스크립트 클라이언트·GPS 조작의 피해를 계정당 하루 45km로 묶는다.
-export const CREW_DAY_CAP_KM = 45;
+// 기여로 인정하는 기록 출처 (오너 2026-09-18 '앱 기록만·하루 45km 규칙까지 없애기'): 앱 GPS
+// 기록에 더해 헬스 앱·연동 앱에서 가져온 기록도 센다. 하루 상한도 없다. 손으로 적어 넣은
+// 기록(manual)은 기기가 잰 기록이 아니라 계속 뺀다 — 숫자만 치면 1위가 되는 구멍이다. 차량
+// 판정(앱 기록만 받는다)도 그대로 뺀다. 시간이 겹치는 기록(앱 기록 + 헬스 앱에 복사된 같은 러닝)은
+// 가장 긴 것 하나만 센다.
+export const CREW_COUNTABLE_SOURCE_TYPES = new Set([
+  'runningground',
+  'apple_health',
+  'health_connect',
+  'garmin',
+  'strava',
+  'nrc',
+  'mynb',
+]);
 
 // 7일 규칙: 이번 시즌에 들어오거나 나간 멤버는 시즌 안 인정 기간이 7일 이상이어야 인원수(N)와
 // 총거리(T)에 들어간다 — 막판 용병과 사보타주 계정을 막는다.
@@ -79,9 +90,17 @@ export const CREW_FIRST_SEASON_KEY = '2026-09';
 export const CREW_PRESEASON_LAST_KEY = '2026-10';
 export const CREW_FIRST_STAR_SEASON_KEY = '2026-11';
 
-// 봉인 유예 — 월간 랭킹 별과 같은 48시간(늦은 업로드·늦게 붙는 차량 판정을 받아낸다).
-export const CREW_SEASON_SEAL_DELAY_MS = RANKING_STARS_SEAL_DELAY_MS;
-export const CREW_SEASON_RULE_VERSION = 1;
+// 봉인 유예 1시간 (오너 2026-09-18 '최대한 빠르게' → 48시간에서 줄임): 1일 0시에 달이 끝나면
+// 1시에 확정. 마지막 날 밤 기록이 조금 늦게 올라와도 받아내는 만큼만 기다린다 — 1시 넘어 올라온
+// 지난달 기록은 어느 시즌에도 안 들어간다. 같은 값이 기록 인정의 늦은 저장 유예(isRunCountable
+// graceMs)로도 쓰여, 봉인이 1시에 돌든 1시 5분(스위퍼 주기)에 돌든 스냅샷이 같다.
+export const CREW_SEASON_SEAL_DELAY_MS = 60 * 60 * 1000;
+// 결과 알림은 봉인(새벽 1시)이 아니라 그날 아침 9시(KST)에 보낸다 — 새벽 푸시로 깨우지 않는다.
+// 달 끝(1일 0시 KST)으로부터의 거리.
+export const CREW_RESULT_NOTIFY_DELAY_MS = 9 * 60 * 60 * 1000;
+// v2 (2026-09-18 같은 날): 가져온 기록 인정·하루 상한 없음·1시간 확정·프리시즌 즉시 합류.
+// 봉인된 시즌이 하나도 없을 때 바뀌어 v1 원장은 존재하지 않는다.
+export const CREW_SEASON_RULE_VERSION = 2;
 
 // 봉인 원장 스냅샷의 상위 행 수(시즌당 원장 크기를 ~2KB로 묶는다).
 export const CREW_AWARD_TOP_LIMIT = 10;
@@ -91,7 +110,7 @@ export const CREW_SEARCH_LIMIT = 20;
 
 // 정리 -------------------------------------------------------------------------------------
 
-// 종료된 크루·나간 멤버 행은 70일 뒤 정리 — 봉인(시즌 끝+48h)보다 한참 뒤라 집계에 영향이 없다.
+// 종료된 크루·나간 멤버 행은 70일 뒤 정리 — 봉인(시즌 끝+1h)보다 한참 뒤라 집계에 영향이 없다.
 export const CREW_CLOSED_RETENTION_MS = 70 * DAY_MS;
 // 결정된 가입 신청은 30일 뒤 정리. 단 취소된 신청은 재신청 대기(하루)가 끝나면 바로 정리한다 —
 // 신청·취소 반복으로 블롭이 불어나지 않게(취소 행은 대기 판정 말고는 쓸 데가 없다).

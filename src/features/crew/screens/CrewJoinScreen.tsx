@@ -51,6 +51,8 @@ export default function CrewJoinScreen() {
   const joiningRef = useRef(false);
   const previewSeqRef = useRef(0);
   const { home, loadHome, applyHome } = useCrewHome();
+  // null = 크루 정보를 아직 못 받음 — 인정 시작 문구를 단정하지 않는다.
+  const isPreseason = home ? home.season.isPreseason : null;
 
   useFocusEffect(useCallback(() => {
     void loadHome();
@@ -109,7 +111,11 @@ export default function CrewJoinScreen() {
 
     confirmCrewAction({
       title: `${preview.crew.name} 가입`,
-      message: buildCrewJoinConfirmMessage(home?.joinsLeftThisMonth ?? null, Boolean(home?.myPendingRequest)),
+      message: buildCrewJoinConfirmMessage(
+        home?.joinsLeftThisMonth ?? null,
+        Boolean(home?.myPendingRequest),
+        isPreseason,
+      ),
       confirmLabel: '가입하기',
       onConfirm: () => {
         if (joiningRef.current) {
@@ -130,7 +136,7 @@ export default function CrewJoinScreen() {
         })();
       },
     });
-  }, [applyHome, code, home?.joinsLeftThisMonth, home?.myPendingRequest, preview]);
+  }, [applyHome, code, home?.joinsLeftThisMonth, home?.myPendingRequest, isPreseason, preview]);
 
   return (
     <Screen>

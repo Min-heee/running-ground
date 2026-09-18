@@ -39,9 +39,9 @@ function rejectsWithCode(fn, code) {
   assert.throws(fn, (error) => error?.details?.code === code);
 }
 
-test('크루 만들기: 만든 사람이 캡틴 · 인정은 다음 날 0시(KST)부터 · 6자리 코드', () => {
+test('크루 만들기: 만든 사람이 캡틴 · 정규 시즌은 인정이 다음 날 0시(KST)부터 · 6자리 코드', () => {
   const store = buildStore();
-  const crew = createCrew(store, userOf(store, 'u1'), { name: '  새벽 러너스  ' }, kst('2026-10-05T23:59:00'));
+  const crew = createCrew(store, userOf(store, 'u1'), { name: '  새벽 러너스  ' }, kst('2026-11-05T23:59:00'));
 
   assert.equal(crew.name, '새벽 러너스');
   assert.equal(crew.nameKey, '새벽러너스');
@@ -50,11 +50,25 @@ test('크루 만들기: 만든 사람이 캡틴 · 인정은 다음 날 0시(KST
   assert.match(crew.inviteCode, CREW_INVITE_CODE_PATTERN);
   const [row] = store.crewMembers;
   assert.equal(row.role, 'captain');
-  assert.equal(row.countsFrom, iso('2026-10-06T00:00:00'));
+  assert.equal(row.countsFrom, iso('2026-11-06T00:00:00'));
 
   // 정확히 0시에 들어와도 그날이 아니라 다음 날 0시부터다.
-  const midnight = createCrew(store, userOf(store, 'u2'), { name: '노을' }, kst('2026-10-06T00:00:00'));
-  assert.equal(store.crewMembers.find((entry) => entry.crewId === midnight.id).countsFrom, iso('2026-10-07T00:00:00'));
+  const midnight = createCrew(store, userOf(store, 'u2'), { name: '노을' }, kst('2026-11-06T00:00:00'));
+  assert.equal(store.crewMembers.find((entry) => entry.crewId === midnight.id).countsFrom, iso('2026-11-07T00:00:00'));
+});
+
+test('프리시즌(9·10월) 가입은 들어온 순간부터 인정 (오너 2026-09-18 \'가입한 날 바로\')', () => {
+  const store = buildStore();
+  const september = createCrew(store, userOf(store, 'u1'), { name: '새벽' }, kst('2026-09-18T20:15:00'));
+  assert.equal(store.crewMembers.find((entry) => entry.crewId === september.id).countsFrom, iso('2026-09-18T20:15:00'));
+
+  // 10월 마지막 순간 가입도 그 순간부터 — 11월(정규)엔 기존 멤버로 1일부터 든다.
+  joinCrewByCode(store, userOf(store, 'u2'), september.inviteCode, kst('2026-10-31T23:59:00'));
+  assert.equal(store.crewMembers.find((entry) => entry.userId === 'u2').countsFrom, iso('2026-10-31T23:59:00'));
+
+  // 11월 1일 0시부터는 정규 시즌 — 다시 다음 날 0시.
+  joinCrewByCode(store, userOf(store, 'u3'), september.inviteCode, kst('2026-11-01T00:00:00'));
+  assert.equal(store.crewMembers.find((entry) => entry.userId === 'u3').countsFrom, iso('2026-11-02T00:00:00'));
 });
 
 test('이름 규칙: 2~12자·한글/영문/숫자/단일 공백, 금칙어, 열린 크루끼리 중복 불가', () => {
@@ -75,19 +89,21 @@ test('이름 규칙: 2~12자·한글/영문/숫자/단일 공백, 금칙어, 열
 
 test('코드 가입: 소문자 입력 허용, 같은 크루 재가입은 멱등, 다른 크루 소속이면 already_in_crew', () => {
   const store = buildStore();
-  const crewA = createCrew(store, userOf(store, 'u1'), { name: '새벽' }, NOW);
-  const crewB = createCrew(store, userOf(store, 'u2'), { name: '노을' }, NOW);
+  // 정규 시즌(11월) 시계 — 다음 날 0시 인정을 본다(프리시즌은 위 테스트).
+  const now = kst('2026-11-05T12:00:00');
+  const crewA = createCrew(store, userOf(store, 'u1'), { name: '새벽' }, now);
+  const crewB = createCrew(store, userOf(store, 'u2'), { name: '노을' }, now);
 
-  rejectsWithCode(() => joinCrewByCode(store, userOf(store, 'u3'), 'ZZZZZZ', NOW), 'not_found');
-  rejectsWithCode(() => joinCrewByCode(store, userOf(store, 'u3'), '!!', NOW), 'not_found');
+  rejectsWithCode(() => joinCrewByCode(store, userOf(store, 'u3'), 'ZZZZZZ', now), 'not_found');
+  rejectsWithCode(() => joinCrewByCode(store, userOf(store, 'u3'), '!!', now), 'not_found');
 
-  joinCrewByCode(store, userOf(store, 'u3'), crewA.inviteCode.toLowerCase(), NOW);
-  joinCrewByCode(store, userOf(store, 'u3'), crewA.inviteCode, NOW);
+  joinCrewByCode(store, userOf(store, 'u3'), crewA.inviteCode.toLowerCase(), now);
+  joinCrewByCode(store, userOf(store, 'u3'), crewA.inviteCode, now);
   assert.equal(store.crewMembers.filter((row) => row.userId === 'u3').length, 1);
-  assert.equal(store.crewMembers.find((row) => row.userId === 'u3').countsFrom, iso('2026-10-06T00:00:00'));
+  assert.equal(store.crewMembers.find((row) => row.userId === 'u3').countsFrom, iso('2026-11-06T00:00:00'));
 
-  rejectsWithCode(() => joinCrewByCode(store, userOf(store, 'u3'), crewB.inviteCode, NOW), 'already_in_crew');
-  rejectsWithCode(() => createCrew(store, userOf(store, 'u3'), { name: '한강' }, NOW), 'already_in_crew');
+  rejectsWithCode(() => joinCrewByCode(store, userOf(store, 'u3'), crewB.inviteCode, now), 'already_in_crew');
+  rejectsWithCode(() => createCrew(store, userOf(store, 'u3'), { name: '한강' }, now), 'already_in_crew');
 });
 
 test('월 이동 3회: 만들기·코드 가입을 모두 세고, 다음 달에 풀린다 · 만들기는 30일에 1개', () => {
@@ -157,12 +173,13 @@ test('내보내기: 캡틴만 · 30일 재가입 차단(코드·신청) · crew_
 
 test('캡틴 이양: 캡틴이 나가면 인정 시작이 가장 이른 멤버(같으면 먼저 들어온 사람) + crew_captain 알림', () => {
   const store = buildStore();
-  const crew = createCrew(store, userOf(store, 'u1'), { name: '새벽' }, kst('2026-10-01T09:00:00'));
-  joinCrewByCode(store, userOf(store, 'u2'), crew.inviteCode, kst('2026-10-02T20:00:00')); // 10/3부터
-  joinCrewByCode(store, userOf(store, 'u3'), crew.inviteCode, kst('2026-10-02T09:00:00')); // 10/3부터, 먼저 들어옴
-  joinCrewByCode(store, userOf(store, 'u4'), crew.inviteCode, kst('2026-10-04T09:00:00')); // 10/5부터
+  // 정규 시즌(11월) — 인정 시작이 다음 날 0시라 같은 날 들어온 두 사람이 동률이 된다.
+  const crew = createCrew(store, userOf(store, 'u1'), { name: '새벽' }, kst('2026-11-01T09:00:00'));
+  joinCrewByCode(store, userOf(store, 'u2'), crew.inviteCode, kst('2026-11-02T20:00:00')); // 11/3부터
+  joinCrewByCode(store, userOf(store, 'u3'), crew.inviteCode, kst('2026-11-02T09:00:00')); // 11/3부터, 먼저 들어옴
+  joinCrewByCode(store, userOf(store, 'u4'), crew.inviteCode, kst('2026-11-04T09:00:00')); // 11/5부터
 
-  leaveCrew(store, userOf(store, 'u1'), crew.id, NOW);
+  leaveCrew(store, userOf(store, 'u1'), crew.id, kst('2026-11-05T12:00:00'));
   assert.equal(crew.captainUserId, 'u3');
   assert.equal(listActiveCrewMembers(store, crew.id).find((row) => row.userId === 'u3').role, 'captain');
   assert.equal(store.notifications.filter((item) => item.type === 'crew_captain' && item.userId === 'u3').length, 1);
@@ -173,6 +190,22 @@ test('캡틴 이양: 캡틴이 나가면 인정 시작이 가장 이른 멤버(�
   const roles = Object.fromEntries(listActiveCrewMembers(store, crew.id).map((row) => [row.userId, row.role]));
   assert.deepEqual(roles, { u2: 'member', u3: 'member', u4: 'captain' });
   rejectsWithCode(() => transferCrewCaptain(store, userOf(store, 'u3'), crew.id, 'u2', NOW), 'not_captain');
+});
+
+test('캡틴 이양은 저장된 문자열이 아니라 판정식 인정 시작으로 — 9/18 배포 전 행(다음 날 0시)이 뒤로 밀리지 않는다', () => {
+  const store = buildStore();
+  const crew = createCrew(store, userOf(store, 'u1'), { name: '새벽' }, kst('2026-09-18T10:00:00'));
+  joinCrewByCode(store, userOf(store, 'u2'), crew.inviteCode, kst('2026-09-18T11:00:00'));
+  // 배포 전 규칙으로 저장된 두 행: 인정 시작 = 9/19 0시.
+  for (const row of store.crewMembers) {
+    row.countsFrom = iso('2026-09-19T00:00:00');
+  }
+  // 배포 뒤 저녁에 들어온 u3 — 새 규칙이라 인정 시작 = 21시(문자열로는 u2보다 앞선다).
+  joinCrewByCode(store, userOf(store, 'u3'), crew.inviteCode, kst('2026-09-18T21:00:00'));
+  assert.equal(store.crewMembers.find((row) => row.userId === 'u3').countsFrom, iso('2026-09-18T21:00:00'));
+
+  leaveCrew(store, userOf(store, 'u1'), crew.id, kst('2026-09-19T09:00:00'));
+  assert.equal(crew.captainUserId, 'u2');
 });
 
 test('마지막 멤버가 나가면 크루 종료 — 이름이 풀리고 대기 신청은 무효', () => {

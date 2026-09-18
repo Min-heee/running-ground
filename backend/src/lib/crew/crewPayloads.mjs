@@ -34,6 +34,7 @@ import {
   isCrewPreseason,
   isValidCrewSeasonKey,
   previousCrewSeasonKey,
+  resolveCrewCountsFromMs,
   resolveCrewSeasonBounds,
   resolveCrewSeasonPriorKm,
   resolveCurrentCrewSeasonKey,
@@ -153,7 +154,7 @@ function resolveCountedFromIso(row, stat, standings) {
   }
 
   // 순위 계산에 구간이 없는 사람 — 인정 시작이 시즌 끝 이후(말일 가입)라 이번 시즌 창이 비었다.
-  const countsFromMs = Date.parse(row.countsFrom ?? '');
+  const countsFromMs = resolveCrewCountsFromMs(row);
   const fromMs = Math.max(Number.isFinite(countsFromMs) ? countsFromMs : standings.startMs, standings.startMs);
 
   if (standings.isPreseason) {
@@ -162,6 +163,11 @@ function resolveCountedFromIso(row, stat, standings) {
 
   const enteringMs = fromMs + CREW_NEW_MEMBER_MIN_MS;
   return new Date(enteringMs <= standings.endMs ? enteringMs : standings.endMs).toISOString();
+}
+
+function resolveCountsFromIso(row) {
+  const countsFromMs = resolveCrewCountsFromMs(row);
+  return Number.isFinite(countsFromMs) ? new Date(countsFromMs).toISOString() : row.countsFrom;
 }
 
 function buildCrewMemberRows(store, crew, standings, ctx) {
@@ -173,7 +179,9 @@ function buildCrewMemberRows(store, crew, standings, ctx) {
         name: resolveUserName(ctx, row.userId),
         role: crew.captainUserId === row.userId ? 'captain' : 'member',
         contributionKm: stat?.contributionKm ?? 0,
-        countsFrom: row.countsFrom,
+        // 저장된 값이 아니라 판정식이 쓰는 인정 시작 — 프리시즌 즉시 합류 전에 '내일 0시'로 저장된
+        // 행도 화면에 '9/19 합류'가 남지 않는다.
+        countsFrom: resolveCountsFromIso(row),
         countedFrom: resolveCountedFromIso(row, stat, standings),
         isMe: row.userId === ctx.user?.id,
         joinedAt: row.joinedAt,

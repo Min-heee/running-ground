@@ -8,7 +8,6 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SegmentSwitch } from '@/components/ui/SegmentSwitch';
 import type { CrewLeagueResponse } from '@/lib/api/types/crew';
 import { colors, fontSizes, fontWeights } from '@/theme/tokens';
-import { CrewScoreExplainCard } from '../components/CrewScoreExplainCard';
 import { CrewSectionHeader, CrewStandingListRow } from '../components/CrewRows';
 import { crewListStyles } from '../components/crewListStyles';
 import {
@@ -20,8 +19,9 @@ import {
 import { useCrewLeague } from '../hooks/useCrewLeague';
 
 // 크루대전 전체 순위 (오너 2026-09-18). 순위에 오른 크루 전부(공동 순위는 같은 숫자) → '순위 밖'
-// 크루와 한 단어 사유 → 맨 아래 점수 설명. 탭의 순위 카드가 5개까지만 보여주고 '전체 순위 ›'가
-// 여기로 민다. 지난 시즌은 봉인 원장 스냅샷(상위 10개)이라 순위 밖 목록이 없다.
+// 크루와 한 단어 사유. 탭의 순위 카드가 5개까지만 보여주고 '전체 순위 ›'가 여기로 민다. 지난 시즌은
+// 봉인 원장 스냅샷(상위 10개)이라 순위 밖 목록이 없다. 점수 설명은 오너 2026-09-18에 여기서 빼
+// 크루 탭 '순위 기준 ›' 페이지(CrewRulesScreen)로 옮겼다.
 
 type LeagueSegment = 'current' | 'last';
 
@@ -111,7 +111,7 @@ function LeagueBody({
           <Text style={styles.empty}>
             {firstSeasonLabel
               ? `${firstSeasonLabel}이 첫 시즌이에요. 지난 시즌 결과는 다음 달부터 볼 수 있어요.`
-              : '아직 순위에 오른 크루가 없어요. 시즌 멤버 3명이 앱으로 달리면 순위에 올라요.'}
+              : '아직 순위에 오른 크루가 없어요. 시즌 멤버 3명이 달리면 순위에 올라요.'}
           </Text>
         )}
       </View>
@@ -132,8 +132,6 @@ function LeagueBody({
           </Card>
         </View>
       ) : null}
-
-      <CrewScoreExplainCard priorKm={league.season.priorKm} isPreseason={league.season.isPreseason} />
     </>
   );
 }

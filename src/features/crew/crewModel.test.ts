@@ -93,7 +93,7 @@ function buildSeason(overrides: Partial<CrewSeasonInfo> = {}): CrewSeasonInfo {
     firstStarSeasonKey: '2026-11',
     startsAt: '2026-10-31T15:00:00.000Z',
     endsAt: '2026-11-30T15:00:00.000Z',
-    sealsAt: '2026-12-02T15:00:00.000Z',
+    sealsAt: '2026-11-30T16:00:00.000Z',
     daysLeft: 12,
     priorKm: 30,
     status: 'live',
@@ -292,7 +292,7 @@ test('신입 합류 대기 크루가 순위에 오르는 날 = 시즌 멤버가 
   assert.equal(describeCrewUnranked('newcomers_pending', members), '10/12부터 순위에 올라요');
   assert.equal(describeCrewUnranked('newcomers_pending', []), '새 멤버가 합류하면 순위에 올라요');
   assert.equal(describeCrewUnranked('too_few_members'), '시즌 멤버가 3명이 되면 순위에 올라요');
-  assert.equal(describeCrewUnranked('no_distance'), '멤버가 앱으로 달리면 순위에 올라요');
+  assert.equal(describeCrewUnranked('no_distance'), '멤버가 달리면 순위에 올라요');
 });
 
 test('순위에 오르는 날은 서버 seasonMemberCount로 센다 — 7일을 채우고 나간 멤버도 N에 남는다', () => {
@@ -331,8 +331,8 @@ test('시즌 키 이동은 연말·연초를 넘는다', () => {
 test('시즌 상태 한 줄: 남은 날·마지막 날·집계 중·확정', () => {
   assert.equal(buildCrewSeasonStatusLine(buildSeason()), '11월 시즌 · 12일 남음');
   assert.equal(buildCrewSeasonStatusLine(buildSeason({ daysLeft: 0 })), '11월 시즌 · 오늘 끝나요');
-  // 봉인 = 12/2 15:00Z = 12/3 0시 KST.
-  assert.equal(buildCrewSeasonStatusLine(buildSeason({ status: 'tallying', daysLeft: 0 })), '11월 시즌 · 집계 중 · 12/3 0시 확정');
+  // 봉인 = 11/30 16:00Z = 12/1 1시 KST (달 끝 + 1시간).
+  assert.equal(buildCrewSeasonStatusLine(buildSeason({ status: 'tallying', daysLeft: 0 })), '11월 시즌 · 집계 중 · 12/1 1시 확정');
   assert.equal(buildCrewSeasonStatusLine(buildSeason({ status: 'sealed', daysLeft: 0 })), '11월 시즌 · 확정');
 });
 
@@ -369,7 +369,7 @@ test('내 크루 히어로의 시즌 한 줄', () => {
     '프리시즌 · 오늘 끝나요 · 별은 11월 시즌부터',
   );
   assert.equal(buildCrewHeroSeasonNote(buildSeason({ ...OCTOBER_PRESEASON, daysLeft: 3 })), '프리시즌 · 3일 남음 · 별은 11월 시즌부터');
-  assert.equal(buildCrewHeroSeasonNote(buildSeason({ status: 'tallying', daysLeft: 0 })), '11월 시즌 · 집계 중 · 12/3 0시 확정');
+  assert.equal(buildCrewHeroSeasonNote(buildSeason({ status: 'tallying', daysLeft: 0 })), '11월 시즌 · 집계 중 · 12/1 1시 확정');
 });
 
 test('시즌 순위표 재조회: 봉인 스냅샷만 영구 캐시, 집계 중 응답은 재진입·refreshKey 변화 때 다시', () => {
@@ -378,7 +378,7 @@ test('시즌 순위표 재조회: 봉인 스냅샷만 영구 캐시, 집계 중 
   assert.equal(shouldFetchCrewLeague({ ...base, enabled: false, cached: 'none' }), false);
   // 켜진 채 그대로면 다시 부르지 않는다(무한 재조회 방지).
   assert.equal(shouldFetchCrewLeague({ ...base, cached: 'unsealed' }), false);
-  // 12/2 '집계 중'을 받은 뒤: 세그먼트 재진입 또는 봉인으로 홈의 lastSeason 키가 바뀌면 다시.
+  // 12/1 0시 반 '집계 중'을 받은 뒤: 세그먼트 재진입 또는 봉인으로 홈의 lastSeason 키가 바뀌면 다시.
   assert.equal(shouldFetchCrewLeague({ ...base, cached: 'unsealed', wasEnabled: false }), true);
   assert.equal(shouldFetchCrewLeague({ ...base, cached: 'unsealed', refreshKeyChanged: true }), true);
   // 봉인 스냅샷은 절대 다시 안 부른다. 불러오는 중·에러도 여기서는 안 건드린다.
@@ -396,7 +396,7 @@ test('지난 시즌 머리 한 줄', () => {
   assert.equal(buildCrewLastSeasonHeadline({ season, sealed: true, champions: [] }), '11월 시즌 · 우승 크루가 없었어요');
   assert.equal(
     buildCrewLastSeasonHeadline({ season: buildSeason({ status: 'tallying' }), sealed: false, champions: [] }),
-    '11월 시즌 · 집계 중 · 12/3 0시 확정',
+    '11월 시즌 · 집계 중 · 12/1 1시 확정',
   );
   assert.equal(
     buildCrewLastSeasonHeadline({
@@ -424,6 +424,16 @@ test('가입 확인 문구 = 오너 스펙 문장, N은 이번 가입을 쓰고 
   // 만들기도 보내 둔 가입 신청을 취소한다 — 코드 가입과 같은 문장으로 미리 말한다.
   assert.match(buildCrewCreateConfirmMessage(2, true), /1번 더.*보내 둔 가입 신청은 취소돼요\.$/);
   assert.doesNotMatch(buildCrewCreateConfirmMessage(2), /가입 신청/);
+
+  // 프리시즌엔 들어온 순간부터 센다 (서버 pushMembershipRow와 같은 규칙).
+  assert.equal(
+    buildCrewJoinConfirmMessage(3, false, true),
+    '들어온 순간부터 기록이 크루 점수에 들어가요. 이번 달엔 크루를 2번 더 옮길 수 있어요.',
+  );
+  assert.match(buildCrewCreateConfirmMessage(2, false, true), /30일에 한 번만 만들 수 있어요\. 들어온 순간부터 기록이/);
+  // 크루 정보를 아직 못 받았으면(null) 인정 시작을 단정하지 않는다.
+  assert.equal(buildCrewJoinConfirmMessage(3, false, null), '이번 달엔 크루를 2번 더 옮길 수 있어요.');
+  assert.doesNotMatch(buildCrewCreateConfirmMessage(2, false, null), /0시|순간/);
 });
 
 test('신청 취소 확인은 같은 크루 재신청 대기(하루)를 미리 말한다', () => {
@@ -452,18 +462,27 @@ test('나가기·내보내기 확인 문구', () => {
   assert.doesNotMatch(buildCrewKickConfirmMessage('나래', true), /7일/);
 });
 
-test('점수 설명: 고정된 기준 P를 실제 값으로, 예시 하나, 규칙 4줄', () => {
+test('순위 기준: 고정된 기준 P를 실제 값으로, 예시 하나, 규칙 2줄 (오너 2026-09-18 개정)', () => {
   assert.equal(buildCrewScoreFormulaLine(30), '보정 인당 = (크루 총거리 + 기준 30km × 5) ÷ (시즌 멤버 + 5)');
   assert.equal(buildCrewScoreExampleLine(30), '예: 3명이 330km를 달리면 (330 + 150) ÷ 8 = 60.00km');
   assert.equal(buildCrewScoreExampleLine(40), '예: 3명이 330km를 달리면 (330 + 200) ÷ 8 = 66.25km');
-  const rules = buildCrewScoreRuleLines(false);
-  assert.equal(rules.length, 4);
-  assert.match(rules.join('\n'), /앱으로 기록한 러닝만[\s\S]*하루 45km[\s\S]*7일 뒤 합류[\s\S]*48시간 뒤 확정/);
-  assert.match(buildCrewScoreRuleLines(true)[2], /프리시즌/);
+  // '앱으로 기록한 러닝만'·'하루 45km'는 규칙째 없앴다.
+  assert.deepEqual(buildCrewScoreRuleLines(false), ['이번 달에 들어온 멤버는 7일 뒤 합류해요', '달이 끝나고 1시간 뒤 확정돼요']);
+  assert.deepEqual(buildCrewScoreRuleLines(true), ['프리시즌엔 가입하자마자 바로 합류해요', '달이 끝나고 1시간 뒤 확정돼요']);
+  assert.doesNotMatch([...buildCrewScoreRuleLines(false), ...buildCrewScoreRuleLines(true)].join(' '), /앱으로|45km|48시간/);
 });
 
 test('신청 날짜·검색 메타', () => {
   assert.equal(formatCrewRequestDate('2026-10-08T15:00:00.000Z'), '10/9 신청');
   assert.equal(buildCrewSearchMeta(12, 3), '12명 · 3위');
   assert.equal(buildCrewSearchMeta(2, null), '2명 · 순위 밖');
+});
+
+test('합류 태그는 폰 시계가 몇 초 늦어도 방금 들어온 사람에게 붙지 않는다 (프리시즌 즉시 합류)', () => {
+  const nowMs = Date.parse('2026-09-20T11:00:00.000Z');
+  const justJoined = buildMember({ countsFrom: new Date(nowMs + 2_000).toISOString(), countedFrom: null });
+  assert.equal(formatCrewMemberJoinTag(justJoined, nowMs), null);
+  // 내일 0시 인정(정규 시즌)은 그대로 태그.
+  const tomorrow = buildMember({ countsFrom: '2026-09-20T15:00:00.000Z', countedFrom: null });
+  assert.equal(formatCrewMemberJoinTag(tomorrow, nowMs), '9/21 합류');
 });

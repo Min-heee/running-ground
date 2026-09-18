@@ -92,10 +92,16 @@ function isMockPreseason(seasonKey: string): boolean {
   return seasonKey >= MOCK_FIRST_SEASON_KEY && seasonKey <= MOCK_PRESEASON_LAST_KEY;
 }
 
+// 서버 pushMembershipRow와 같은 인정 시작: 프리시즌은 들어온 순간, 정규 시즌은 다음 KST 0시.
+function mockCountsFromIso(nowMs: number): string {
+  return isMockPreseason(kstMonthKey(nowMs)) ? new Date(nowMs).toISOString() : nextKstMidnightIso(nowMs);
+}
+
 function buildSeasonInfo(seasonKey: string, nowMs: number): CrewSeasonInfo {
   const startsAtMs = seasonStartMs(seasonKey);
   const endsAtMs = seasonStartMs(shiftCrewSeasonKey(seasonKey, 1));
-  const sealsAtMs = endsAtMs + 2 * DAY_MS;
+  // 서버처럼 달 끝 1시간 뒤 확정 (오너 2026-09-18).
+  const sealsAtMs = endsAtMs + 60 * 60 * 1000;
   const isPreseason = isMockPreseason(seasonKey);
   const month = Number(seasonKey.split('-')[1]);
   const status: CrewSeasonInfo['status'] = nowMs < endsAtMs ? 'live' : nowMs < sealsAtMs ? 'tallying' : 'sealed';
@@ -149,7 +155,7 @@ function createInitialMockCrewState() {
   const seasonKey = kstMonthKey(nowMs);
   const isPreseason = isMockPreseason(seasonKey);
   const seasonStartIso = new Date(seasonStartMs(seasonKey) - 10 * DAY_MS).toISOString();
-  const newcomerCountsFrom = nextKstMidnightIso(nowMs);
+  const newcomerCountsFrom = mockCountsFromIso(nowMs);
 
   const mine: MockCrew = {
     id: 'crew-dawn',
@@ -164,7 +170,7 @@ function createInitialMockCrewState() {
       { userId: 'crew-dawn-m2', name: '김관우', role: 'member', contributionKm: 121.2, countsFrom: seasonStartIso, countedFrom: null },
       { userId: 'crew-dawn-m3', name: '이서준', role: 'member', contributionKm: 84.75, countsFrom: seasonStartIso, countedFrom: null },
       { userId: 'crew-dawn-m4', name: '박지훈', role: 'member', contributionKm: 52.1, countsFrom: seasonStartIso, countedFrom: null },
-      // 오늘 들어온 신입 — 내일 0시부터 기록 인정, 정규 시즌이면 7일 뒤 인원수에 합류.
+      // 방금 들어온 신입 — 프리시즌은 바로, 정규 시즌이면 내일 0시부터 기록 인정·7일 뒤 인원수에 합류.
       {
         userId: 'crew-dawn-m5',
         name: '정이안',
@@ -556,7 +562,7 @@ function joinCrewAsMe(crew: MockCrew) {
   }
 
   const nowMs = Date.now();
-  const countsFrom = nextKstMidnightIso(nowMs);
+  const countsFrom = mockCountsFromIso(nowMs);
   const isPreseason = isMockPreseason(kstMonthKey(nowMs));
   crew.members.push({
     userId: MOCK_ME_ID,
@@ -611,7 +617,7 @@ export function mockCreateCrew(rawName: string): CrewHomeResponse {
       name: myProfile.name,
       role: 'captain',
       contributionKm: 0,
-      countsFrom: nextKstMidnightIso(nowMs),
+      countsFrom: mockCountsFromIso(nowMs),
       countedFrom: null,
     }],
   });
@@ -698,7 +704,7 @@ export function mockDecideCrewJoinRequest(requestId: string, approve: boolean): 
       throw mockCrewError(409, 'crew_full', '인원이 꽉 찼어요.');
     }
     const nowMs = Date.now();
-    const countsFrom = nextKstMidnightIso(nowMs);
+    const countsFrom = mockCountsFromIso(nowMs);
     crew.members.push({
       userId: request.userId,
       name: request.name,

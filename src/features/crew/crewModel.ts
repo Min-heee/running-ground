@@ -18,7 +18,6 @@ export const CREW_JOINS_PER_MONTH = 3;
 export const CREW_NAME_MIN_LENGTH = 2;
 export const CREW_NAME_MAX_LENGTH = 12;
 export const CREW_INVITE_CODE_LENGTH = 6;
-export const CREW_DAY_CAP_KM = 45;
 export const CREW_KICK_BAN_DAYS = 30;
 export const CREW_CREATE_COOLDOWN_DAYS = 30;
 export const CREW_REQUEST_TTL_DAYS = 7;
@@ -296,19 +295,24 @@ export function formatCrewMonthDayHour(iso: string | null | undefined): string |
 }
 
 // 멤버 행의 회색 '10/9 합류' — 그날부터 이 멤버가 크루 점수(인원수와 거리)에 들어간다.
-// countedFrom(7일 규칙)이 먼저고, 이미 셈에 든 멤버라도 기록 인정(countsFrom = 가입 다음 날
-// 0시)이 아직이면 그 날짜를 보인다. 둘 다 지났으면 태그 없음.
+// countedFrom(7일 규칙)이 먼저고, 이미 셈에 든 멤버라도 기록 인정(countsFrom = 정규 시즌은 가입
+// 다음 날 0시, 프리시즌은 가입 순간)이 아직이면 그 날짜를 보인다. 둘 다 지났으면 태그 없음.
+// 1분 여유: 프리시즌 countsFrom은 서버 시계의 '지금'이라, 폰 시계가 몇 초 늦으면 방금 들어온
+// 사람에게 '오늘 합류' 태그가 붙는다(적대 리뷰 2026-09-18). 정규 시즌 값은 0시라 잃는 게 없다.
+const CREW_CLOCK_SKEW_TOLERANCE_MS = 60_000;
+
 export function formatCrewMemberJoinTag(member: CrewMemberRow, nowMs: number): string | null {
   const countedFromMs = member.countedFrom ? Date.parse(member.countedFrom) : Number.NaN;
+  const skewedNowMs = nowMs + CREW_CLOCK_SKEW_TOLERANCE_MS;
 
-  if (Number.isFinite(countedFromMs) && countedFromMs > nowMs) {
+  if (Number.isFinite(countedFromMs) && countedFromMs > skewedNowMs) {
     const label = formatCrewMonthDay(member.countedFrom);
     return label ? `${label} 합류` : null;
   }
 
   const countsFromMs = Date.parse(member.countsFrom);
 
-  if (Number.isFinite(countsFromMs) && countsFromMs > nowMs) {
+  if (Number.isFinite(countsFromMs) && countsFromMs > skewedNowMs) {
     const label = formatCrewMonthDay(member.countsFrom);
     return label ? `${label} 합류` : null;
   }
@@ -364,7 +368,7 @@ export function describeCrewUnranked(
   }
 
   if (reason === 'no_distance') {
-    return '멤버가 앱으로 달리면 순위에 올라요';
+    return '멤버가 달리면 순위에 올라요';
   }
 
   return `시즌 멤버가 ${CREW_MIN_RANKED_MEMBERS}명이 되면 순위에 올라요`;
@@ -417,7 +421,7 @@ export function shiftCrewSeasonKey(seasonKey: string, deltaMonths: number): stri
   return `${nextYear}-${String(nextMonth).padStart(2, '0')}`;
 }
 
-// 시즌 진행 한 마디: '12일 남음' / 마지막 날 '오늘 끝나요' / 봉인 전 48시간 '집계 중 · 10/3 0시 확정' / '확정'.
+// 시즌 진행 한 마디: '12일 남음' / 마지막 날 '오늘 끝나요' / 봉인 전 1시간 '집계 중 · 10/1 1시 확정' / '확정'.
 export function buildCrewSeasonProgressLabel(season: CrewSeasonInfo): string {
   if (season.status === 'tallying') {
     const sealsAt = formatCrewMonthDayHour(season.sealsAt);
@@ -506,7 +510,7 @@ export function buildCrewLastSeasonHeadline({
   sealed: boolean;
   champions: readonly { name: string }[];
 }): string {
-  // 봉인 전 48시간 — 지난 시즌은 끝났으니 '집계 중'뿐이다.
+  // 봉인 전 1시간 — 지난 시즌은 끝났으니 '집계 중'뿐이다.
   if (!sealed) {
     const sealsAt = formatCrewMonthDayHour(season.sealsAt);
     return sealsAt ? `${season.label} · 집계 중 · ${sealsAt} 확정` : `${season.label} · 집계 중`;
@@ -537,10 +541,21 @@ function describeJoinsLeftAfterUse(joinsLeftThisMonth: number | null): string | 
   return leftAfterUse > 0 ? `이번 달엔 크루를 ${leftAfterUse}번 더 옮길 수 있어요.` : '이번 달엔 크루를 더 옮길 수 없어요.';
 }
 
+// 기록이 언제부터 크루 점수에 들어가는지 — 서버 pushMembershipRow와 같은 규칙: 정규 시즌은 다음 날
+// 0시, 프리시즌은 들어온 순간부터 (오너 2026-09-18 '가입한 날 바로').
+export function describeCrewCountsStart(isPreseason: boolean): string {
+  return isPreseason ? '들어온 순간부터 기록이 크루 점수에 들어가요' : '내일 0시부터 기록이 크루 점수에 들어가요';
+}
+
 // 가입 확인 (오너 스펙 문구). N은 이번 가입을 쓰고 남는 횟수다.
-export function buildCrewJoinConfirmMessage(joinsLeftThisMonth: number | null, hasPendingRequest = false): string {
+// isPreseason null = 아직 크루 정보를 못 받음 — 모르는 채로 '내일 0시부터'라고 단정하지 않는다.
+export function buildCrewJoinConfirmMessage(
+  joinsLeftThisMonth: number | null,
+  hasPendingRequest = false,
+  isPreseason: boolean | null = false,
+): string {
   return [
-    '내일 0시부터 기록이 크루 점수에 들어가요.',
+    isPreseason === null ? null : `${describeCrewCountsStart(isPreseason)}.`,
     describeJoinsLeftAfterUse(joinsLeftThisMonth),
     hasPendingRequest ? '보내 둔 가입 신청은 취소돼요.' : null,
   ].filter(Boolean).join(' ');
@@ -549,10 +564,14 @@ export function buildCrewJoinConfirmMessage(joinsLeftThisMonth: number | null, h
 // 만들기도 이번 달 크루 이동 한 번으로 센다 (오너 스펙: 코드 가입·승인·만들기 모두 월 3회에 포함).
 // 만들면 서버가 보내 둔 가입 신청을 취소한다 — 코드 가입 확인과 같은 문장으로 미리 말한다
 // (적대 리뷰 2026-09-18: 만들기만 말없이 신청을 없애고 있었다).
-export function buildCrewCreateConfirmMessage(joinsLeftThisMonth: number | null, hasPendingRequest = false): string {
+export function buildCrewCreateConfirmMessage(
+  joinsLeftThisMonth: number | null,
+  hasPendingRequest = false,
+  isPreseason: boolean | null = false,
+): string {
   return [
     `크루는 ${CREW_CREATE_COOLDOWN_DAYS}일에 한 번만 만들 수 있어요.`,
-    '내일 0시부터 기록이 크루 점수에 들어가요.',
+    isPreseason === null ? null : `${describeCrewCountsStart(isPreseason)}.`,
     describeJoinsLeftAfterUse(joinsLeftThisMonth),
     hasPendingRequest ? '보내 둔 가입 신청은 취소돼요.' : null,
   ].filter(Boolean).join(' ');
@@ -621,14 +640,14 @@ export function buildCrewScoreExampleLine(priorKm: number): string {
   return `예: ${exampleMembers}명이 ${exampleTotalKm}km를 달리면 (${exampleTotalKm} + ${priorPart}) ÷ ${exampleMembers + CREW_SHRINKAGE_MEMBERS} = ${formatCrewScore(score)}km`;
 }
 
+// 순위 기준 페이지의 규칙 줄 (오너 2026-09-18: '앱 기록만'·'하루 45km'는 규칙째 없앴고, 프리시즌은
+// 가입 순간부터, 확정은 달 끝 1시간 뒤).
 export function buildCrewScoreRuleLines(isPreseason: boolean): string[] {
   return [
-    '앱으로 기록한 러닝만 들어가요',
-    `하루 ${CREW_DAY_CAP_KM}km까지 들어가요`,
     isPreseason
-      ? '프리시즌엔 가입 다음 날부터 바로 합류해요'
+      ? '프리시즌엔 가입하자마자 바로 합류해요'
       : `이번 달에 들어온 멤버는 ${CREW_NEWCOMER_DAYS}일 뒤 합류해요`,
-    '달이 끝나고 48시간 뒤 확정돼요',
+    '달이 끝나고 1시간 뒤 확정돼요',
   ];
 }
 

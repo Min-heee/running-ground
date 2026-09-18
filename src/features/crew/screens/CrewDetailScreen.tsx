@@ -127,7 +127,7 @@ export default function CrewDetailScreen() {
           />
 
           <View style={crewListStyles.section}>
-            <CrewSectionHeader title="멤버 기여" meta="앱으로 기록한 러닝" />
+            <CrewSectionHeader title="멤버 기여" />
             <Card style={crewListStyles.rowsCard}>
               {sortedMembers.map((member, index) => (
                 <CrewMemberListRow key={member.userId} member={member} isFirst={index === 0} nowMs={nowMs} />

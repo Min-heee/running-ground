@@ -33,7 +33,7 @@ export type CrewStandingRow = {
 
 export type CrewMemberRow = {
   userId: string; name: string; role: 'captain' | 'member';
-  contributionKm: number;     // this season, app-recorded only, capped/deduped
+  contributionKm: number;     // this season: app + imported runs (not manual), overlaps deduped, no daily cap
   countsFrom: string;         // ISO
   countedFrom: string | null; // ISO when this member enters N (7-day rule); null = already counted
   isMe: boolean;

@@ -130,13 +130,16 @@ export function listPendingCrewJoinRequests(store, crewId, nowMs) {
     .sort((left, right) => String(left.createdAt).localeCompare(String(right.createdAt)));
 }
 
-function notifyDecision(store, crew, request, approved, nowIso) {
+// countsNow: 저장된 행의 인정 시작이 가입 순간인가(프리시즌 즉시 합류) — 문구를 규칙에서 따로
+// 계산하지 않고 실제로 저장된 행에서 읽어, pushMembershipRow와 어긋날 수 없게 한다(적대 리뷰
+// 2026-09-18: 프리시즌 승인 알림이 '내일 0시부터'라고 거짓말했다).
+function notifyDecision(store, crew, request, approved, nowIso, countsNow = false) {
   appendUserNotification(store, {
     userId: request.userId,
     type: 'crew_join_decided',
     title: '크루 가입 신청',
     body: approved
-      ? `${crew.name}에 들어갔어요. 내일 0시부터 기록이 크루 점수에 들어가요.`
+      ? `${crew.name}에 들어갔어요. ${countsNow ? '들어온 순간부터' : '내일 0시부터'} 기록이 크루 점수에 들어가요.`
       : `${crew.name} 가입 신청이 거절됐어요.`,
     data: { crewId: crew.id, requestId: request.id, approved },
     nowIso: () => nowIso,
@@ -180,9 +183,9 @@ export function decideCrewJoinRequest(store, user, requestId, approve, now = new
     return { request, errorCode: active.crewId === crew.id ? null : 'already_in_crew' };
   }
 
-  admitCrewMember(store, crew, request.userId, now, { keepRequestId: request.id });
+  const { row } = admitCrewMember(store, crew, request.userId, now, { keepRequestId: request.id });
   request.status = 'approved';
   request.decidedAt = nowIso;
-  notifyDecision(store, crew, request, true, nowIso);
+  notifyDecision(store, crew, request, true, nowIso, row?.countsFrom === row?.joinedAt);
   return { request, errorCode: null };
 }

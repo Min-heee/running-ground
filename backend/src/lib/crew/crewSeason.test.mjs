@@ -19,7 +19,7 @@ import { nextMonthKey } from '../monthlyRankingStars.mjs';
 
 // 크루대전 시즌 점수·봉인: 시계는 전부 주입한다(KST 경계 포함). 스펙 v1 (오너 2026-09-18).
 // 9·10월은 프리시즌(별·7일 규칙 없음) — 정규 규칙은 첫 별 시즌인 11월로 시험한다.
-// 11월 시즌 = [2026-11-01 0시 KST, 2026-12-01 0시 KST), 봉인 = 12/3 0시 KST.
+// 11월 시즌 = [2026-11-01 0시 KST, 2026-12-01 0시 KST), 봉인 = 12/1 1시 KST, 결과 알림 = 12/1 9시 KST.
 
 const kst = (text) => new Date(`${text}+09:00`);
 const iso = (text) => kst(text).toISOString();
@@ -116,12 +116,12 @@ test('KST 월말 경계: 9/30 23:50 시작 → 10/1 00:20 종료 러닝은 ended
   assert.equal(september.memberStats.get('c1|u1').contributionKm, 0);
 });
 
-test('하루 45km 상한 + 겹친 기록은 가장 긴 것 하나(동률은 먼저 저장된 것) + 경쟁 기록만', () => {
+test('하루 상한 없음 + 가져온 기록도 인정 + 겹친 기록은 가장 긴 것 하나(동률은 먼저 저장된 것) (오너 2026-09-18)', () => {
   const store = buildStore({
     crews: [crew('c1', '새벽')],
     members: threeVeterans('c1', ['u1', 'u2', 'u3']),
     runs: [
-      // 10/2: 30 + 25 = 55 → 45 상한
+      // 10/2: 30 + 25 = 55 — 하루 상한이 없어 그대로 55
       run('u1', 30, '2026-10-02T09:30:00', { minutes: 150 }),
       run('u1', 25, '2026-10-02T18:00:00', { minutes: 120 }),
       // 10/3: 10:00~11:00 10km와 10:30~11:30 12km가 겹친다 → 12km만
@@ -130,17 +130,88 @@ test('하루 45km 상한 + 겹친 기록은 가장 긴 것 하나(동률은 먼�
       // 10/4: 같은 8km가 겹친다 → 먼저 저장된 쪽(14:51) 하나
       run('u1', 8, '2026-10-04T15:00:00', { started: '2026-10-04T14:00:00', created: '2026-10-04T15:01:00' }),
       run('u1', 8, '2026-10-04T14:50:00', { started: '2026-10-04T14:10:00', created: '2026-10-04T14:51:00' }),
-      // 제외: 헬스 임포트, 차량 판정, 창+48h 밖에 저장된 기록
+      // 인정: 헬스 앱·연동 앱에서 가져온 기록
       run('u1', 20, '2026-10-05T09:00:00', { sourceType: 'apple_health' }),
+      run('u1', 6, '2026-10-05T19:00:00', { sourceType: 'strava' }),
+      // 같은 러닝이 앱 기록 + 헬스 앱 사본으로 두 번 → 먼저 저장된 앱 기록 하나
+      run('u1', 10, '2026-10-09T08:00:00', { started: '2026-10-09T07:00:00', created: '2026-10-09T08:01:00' }),
+      run('u1', 10, '2026-10-09T08:00:00', {
+        started: '2026-10-09T07:00:00', created: '2026-10-09T08:30:00', sourceType: 'health_connect',
+      }),
+      // 제외: 손으로 적은 기록, 출처 없는 기록, 차량 판정, 창+1h 밖에 저장된 기록
+      run('u1', 15, '2026-10-06T07:00:00', { sourceType: 'manual' }),
+      run('u1', 4, '2026-10-06T08:00:00', { sourceType: null }),
       run('u1', 30, '2026-10-06T09:00:00', { verdict: 'vehicle' }),
-      run('u1', 9, '2026-10-07T09:00:00', { created: '2026-11-05T09:00:00' }),
-      // 인정: 매치 기록(matchResult)
+      run('u1', 9, '2026-10-07T09:00:00', { created: '2026-11-01T01:00:00' }),
+      // 인정: 창+1h 안(11/1 0시 59분)에 늦게 저장된 10월 기록, 매치 기록(matchResult)
+      run('u1', 7, '2026-10-31T23:30:00', { created: '2026-11-01T00:59:00' }),
       run('u1', 3, '2026-10-08T09:00:00', { sourceType: null, matchResult: { mode: 'duel' } }),
     ],
   });
 
-  const standings = buildCrewSeasonStandings(store, '2026-10', ms('2026-10-20T12:00:00'));
-  assert.equal(standings.memberStats.get('c1|u1').contributionKm, 45 + 12 + 8 + 3);
+  const standings = buildCrewSeasonStandings(store, '2026-10', ms('2026-11-01T00:59:30'));
+  assert.equal(standings.memberStats.get('c1|u1').contributionKm, 55 + 12 + 8 + 20 + 6 + 10 + 7 + 3);
+});
+
+test('달 끝 자정을 사이에 둔 같은 러닝의 앱 기록 + 가져온 사본은 앞 시즌 하나로만 센다 (양방향)', () => {
+  // ① 앱 기록이 11/1 0시 넘어 끝나고, 워치 사본(쉬는 시간 뺀 끝 시각)이 10/31에 끝난 경우.
+  const watchFirst = buildStore({
+    crews: [crew('c1', '새벽')],
+    members: threeVeterans('c1', ['u1', 'u2', 'u3']),
+    runs: [
+      run('u1', 20.5, '2026-11-01T00:00:10', { started: '2026-10-31T22:00:00' }),
+      run('u1', 21.4, '2026-10-31T23:59:50', {
+        started: '2026-10-31T22:00:00', created: '2026-11-01T00:30:00', sourceType: 'apple_health',
+      }),
+    ],
+  });
+  const octoberA = buildCrewSeasonStandings(watchFirst, '2026-10', ms('2026-11-01T00:40:00'));
+  const novemberA = buildCrewSeasonStandings(watchFirst, '2026-11', ms('2026-11-01T00:40:00'));
+  assert.equal(octoberA.memberStats.get('c1|u1').contributionKm, 21.4);
+  assert.equal(novemberA.memberStats.get('c1|u1').contributionKm, 0);
+
+  // ② 앱 기록이 10/31에 끝나고, 워치 사본이 11/1 0시 넘어 끝나 다음 날 아침에 가져온 경우.
+  const appFirst = buildStore({
+    crews: [crew('c1', '새벽')],
+    members: threeVeterans('c1', ['u1', 'u2', 'u3']),
+    runs: [
+      run('u1', 20.5, '2026-10-31T23:59:50', { started: '2026-10-31T22:00:00' }),
+      run('u1', 21.4, '2026-11-01T00:00:20', {
+        started: '2026-10-31T22:00:00', created: '2026-11-01T08:00:00', sourceType: 'health_connect',
+      }),
+      // 11월에 따로 뛴 기록은 그대로 센다.
+      run('u1', 5, '2026-11-01T08:30:00'),
+    ],
+  });
+  const octoberB = buildCrewSeasonStandings(appFirst, '2026-10', ms('2026-11-01T09:00:00'));
+  const novemberB = buildCrewSeasonStandings(appFirst, '2026-11', ms('2026-11-01T09:00:00'));
+  assert.equal(octoberB.memberStats.get('c1|u1').contributionKm, 20.5);
+  assert.equal(novemberB.memberStats.get('c1|u1').contributionKm, 5);
+
+  // 사본 없이 자정을 넘긴 러닝 하나는 끝난 달(11월)에 그대로 들어간다.
+  const single = buildStore({
+    crews: [crew('c1', '새벽')],
+    members: threeVeterans('c1', ['u1', 'u2', 'u3']),
+    runs: [run('u1', 12, '2026-11-01T00:30:00', { started: '2026-10-31T23:20:00' })],
+  });
+  assert.equal(buildCrewSeasonStandings(single, '2026-11', ms('2026-11-02T00:00:00')).memberStats.get('c1|u1').contributionKm, 12);
+});
+
+test('끝난 시각이 없는 가져온 기록은 세지 않는다 — 동기화 시각으로 끌려와 진짜 기록을 지우지 않게', () => {
+  const store = buildStore({
+    crews: [crew('c1', '새벽')],
+    members: [...threeVeterans('c1', ['u1', 'u2']), member('c1', 'u4', { joined: '2026-09-20T12:00:00' })],
+    runs: [
+      run('u4', 10, '2026-09-20T19:00:00', { started: '2026-09-20T18:00:00' }),
+      // 9/10(가입 전) 워크아웃, endedAt 없이 9/21에 동기화.
+      { ...run('u4', 12, '2026-09-10T08:00:00', {
+        started: '2026-09-10T07:00:00', created: '2026-09-21T09:00:00', sourceType: 'apple_health',
+      }), endedAt: undefined },
+    ],
+  });
+
+  const standings = buildCrewSeasonStandings(store, '2026-09', ms('2026-09-22T12:00:00'));
+  assert.equal(standings.memberStats.get('c1|u4').contributionKm, 10);
 });
 
 test('7일 규칙: 이번 달 신입은 7일 뒤 합류(기여는 추적), 첫 7일 안에 나간 기존 멤버는 빠진다', () => {
@@ -199,27 +270,37 @@ test('7일 규칙: 이번 달 신입은 7일 뒤 합류(기여는 추적), 첫 7
   assert.equal(joined.rowByCrewId.get('c1').rank, 1);
 });
 
-test('프리시즌은 7일 규칙을 끈다 — 인정이 시작된 신입은 바로 멤버', () => {
+test('프리시즌은 7일 규칙을 끄고, 가입한 순간부터 멤버 — \'다음 날 0시\'로 저장된 옛 행도 같다', () => {
   const store = buildStore({
     crews: [crew('c1', '새벽')],
     members: [
       member('c1', 'u1', { joined: '2026-09-20T12:00:00', role: 'captain' }),
       member('c1', 'u2', { joined: '2026-09-20T13:00:00' }),
       member('c1', 'u3', { joined: '2026-09-20T14:00:00' }),
-      // 오늘 가입 — 인정은 내일 0시부터라 아직 멤버가 아니다.
+      // 오늘 10시 가입 — 이 헬퍼는 countsFrom을 옛 규칙(내일 0시)으로 저장하지만 프리시즌 판정은
+      // 가입 순간부터 센다. 11시에 뛴 기록이 바로 들어간다.
       member('c1', 'u4', { joined: '2026-09-22T10:00:00' }),
     ],
-    runs: [run('u1', 5, '2026-09-21T08:00:00'), run('u2', 5, '2026-09-21T08:00:00')],
+    runs: [
+      run('u1', 5, '2026-09-21T08:00:00'),
+      run('u2', 5, '2026-09-21T08:00:00'),
+      run('u4', 3, '2026-09-22T09:30:00'), // 가입 전 — 안 센다
+      run('u4', 4, '2026-09-22T11:00:00'),
+    ],
   });
 
   const standings = buildCrewSeasonStandings(store, '2026-09', ms('2026-09-22T12:00:00'));
   const row = standings.rowByCrewId.get('c1');
   assert.equal(standings.isPreseason, true);
-  assert.equal(row.seasonMemberCount, 3);
+  assert.equal(row.seasonMemberCount, 4);
+  assert.equal(row.totalKm, 14);
   assert.equal(row.rank, 1);
 
   const home = buildCrewHomePayload(store, store.users[0], kst('2026-09-22T12:00:00'));
-  assert.equal(home.myCrew.members.find((entry) => entry.userId === 'u4').countedFrom, iso('2026-09-23T00:00:00'));
+  const newcomer = home.myCrew.members.find((entry) => entry.userId === 'u4');
+  assert.equal(newcomer.countedFrom, null);
+  assert.equal(newcomer.countsFrom, iso('2026-09-22T10:00:00'));
+  assert.equal(newcomer.contributionKm, 4);
   assert.equal(home.season.label, '9월 프리시즌');
   assert.equal(home.season.isPreseason, true);
   assert.equal(home.season.daysLeft, 9);
@@ -259,7 +340,7 @@ test('고정 P: 직전 시즌 봉인 avgKm, 없으면 30 — 점수 = (T + 5P) /
   assert.equal(resolveCrewSeasonPriorKm(store, '2026-12', ms('2026-12-20T12:00:00')), 30);
 });
 
-test('시즌 첫 48시간(직전 시즌 집계 중)에도 P는 봉인될 값 그대로 — 3일 0시 봉인 때 점수가 뛰지 않는다', () => {
+test('시즌 첫 1시간(직전 시즌 집계 중)에도 P는 봉인될 값 그대로 — 1일 1시 봉인 때 점수가 뛰지 않는다', () => {
   const store = buildStore({
     crews: [crew('c1', '새벽'), crew('c2', '노을', { captainUserId: 'u4' })],
     members: [...threeVeterans('c1', ['u1', 'u2', 'u3']), ...threeVeterans('c2', ['u4', 'u5', 'u6'])],
@@ -267,19 +348,19 @@ test('시즌 첫 48시간(직전 시즌 집계 중)에도 P는 봉인될 값 그
       // 9월 프리시즌: 120 + 30 = 150km / 6명 → avgKm 25 (기본값 30과 다르게 골랐다).
       ...['u1', 'u2', 'u3'].map((userId) => run(userId, 40, '2026-09-20T08:00:00')),
       ...['u4', 'u5', 'u6'].map((userId) => run(userId, 10, '2026-09-20T08:00:00')),
-      run('u1', 10, '2026-10-01T08:00:00'),
-      run('u4', 12, '2026-10-01T09:00:00'),
+      run('u1', 10, '2026-10-01T00:20:00'),
+      run('u4', 12, '2026-10-01T00:25:00'),
     ],
   });
 
-  const tallying = kst('2026-10-02T12:00:00');
-  assert.equal(hasUnsealedCrewSeason(store, tallying), false); // 9월 봉인은 10/3 0시
+  const tallying = kst('2026-10-01T00:30:00');
+  assert.equal(hasUnsealedCrewSeason(store, tallying), false); // 9월 봉인은 10/1 1시
   const before = buildCrewSeasonStandings(store, '2026-10', tallying.getTime());
   assert.equal(before.priorKm, 25);
   assert.equal(buildCrewSeasonInfo(store, '2026-10', tallying).priorKm, 25);
   assert.equal(buildCrewHomePayload(store, store.users[0], tallying).season.priorKm, 25);
 
-  const sealNow = kst('2026-10-03T00:00:01');
+  const sealNow = kst('2026-10-01T01:00:01');
   sweepCrewSeasons(store, sealNow);
   assert.equal(store.crewSeasonAwards.find((award) => award.seasonKey === '2026-09').avgKm, 25);
 
@@ -343,17 +424,17 @@ test('동률은 공동 순위, 우승도 공동 — 봉인 원장 + 결과 알�
   const live = buildCrewSeasonStandings(store, '2026-11', ms('2026-11-20T12:00:00'));
   assert.deepEqual(live.rows.map((row) => [row.crewId, row.rank]), [['c1', 1], ['c2', 1], ['c3', 3]]);
 
-  // 10/2 23:59엔 아직 봉인할 시즌이 없다. 12/2 23:59엔 9·10월 프리시즌이 이미 대상이고, 11월은
-  // 12/3 0시부터.
-  assert.equal(hasUnsealedCrewSeason(store, kst('2026-10-02T23:59:00')), false);
-  assert.equal(hasUnsealedCrewSeason(store, kst('2026-12-02T23:59:00')), true);
-  const sealNow = kst('2026-12-03T00:00:00');
+  // 10/1 0시 59분엔 아직 봉인할 시즌이 없다. 12/1 0시 59분엔 9·10월 프리시즌이 이미 대상이고,
+  // 11월은 12/1 1시부터(달 끝 + 1시간).
+  assert.equal(hasUnsealedCrewSeason(store, kst('2026-10-01T00:59:00')), false);
+  assert.equal(hasUnsealedCrewSeason(store, kst('2026-12-01T00:59:00')), true);
+  const sealNow = kst('2026-12-01T01:00:00');
   const created = sweepCrewSeasons(store, sealNow);
   assert.deepEqual(created.map((award) => award.seasonKey), ['2026-09', '2026-10', '2026-11']);
 
   const november = store.crewSeasonAwards.find((award) => award.seasonKey === '2026-11');
   assert.equal(november.isPreseason, false);
-  assert.equal(november.ruleVersion, 1);
+  assert.equal(november.ruleVersion, 2);
   assert.equal(november.priorKm, 30); // 10월 avgKm = 0 → 기본값
   assert.equal(november.rankedCount, 3);
   assert.deepEqual(november.champions.map((champion) => champion.crewId).sort(), ['c1', 'c2']);
@@ -367,17 +448,44 @@ test('동률은 공동 순위, 우승도 공동 — 봉인 원장 + 결과 알�
   assert.equal(stars.get('c2'), 1);
   assert.equal(stars.get('c3') ?? 0, 0);
 
-  // 결과 알림: 순위권 크루의 시즌 멤버에게 1통씩(9·10월 프리시즌은 없음).
+  // 결과 알림은 새벽 1시 봉인이 아니라 아침 9시(KST)에 — 그때까진 받을 사람만 원장에 적어 둔다.
+  const resultCount = () => store.notifications.filter((item) => item.type === 'crew_season_result').length;
+  assert.equal(resultCount(), 0);
+  assert.equal(november.pendingResultNotices.length, 3);
+  assert.equal(store.crewSeasonAwards.find((award) => award.seasonKey === '2026-10').pendingResultNotices, undefined);
+  sweepCrewSeasons(store, kst('2026-12-01T08:59:00'));
+  assert.equal(resultCount(), 0);
+
+  // 봉인 뒤 아침 전에 탈퇴한 u9는 건너뛴다. 순위권 크루의 시즌 멤버에게 1통씩(9·10월 프리시즌은 없음).
+  store.users = store.users.filter((user) => user.id !== 'u9');
+  const morning = kst('2026-12-01T09:00:00');
+  assert.deepEqual(sweepCrewSeasons(store, morning), []);
   const results = store.notifications.filter((item) => item.type === 'crew_season_result');
-  assert.equal(results.length, 9);
+  assert.equal(results.length, 8);
   assert.equal(results.find((item) => item.userId === 'u1').body, '11월 크루대전 우승: 새벽 ★');
   assert.equal(results.find((item) => item.userId === 'u7').body, '11월 크루대전 결과: 한강 3위 / 3크루');
+  assert.equal(results[0].createdAt, morning.toISOString());
+  assert.equal(november.pendingResultNotices, undefined);
+  assert.equal(november.resultsNotifiedAt, morning.toISOString());
 
   // 멱등: 다시 쓸어도 원장·알림이 그대로.
   assert.equal(hasUnsealedCrewSeason(store, sealNow), false);
-  assert.deepEqual(sweepCrewSeasons(store, kst('2026-12-03T00:05:00')), []);
+  assert.deepEqual(sweepCrewSeasons(store, kst('2026-12-01T09:05:00')), []);
   assert.equal(store.crewSeasonAwards.length, 3);
-  assert.equal(store.notifications.filter((item) => item.type === 'crew_season_result').length, 9);
+  assert.equal(resultCount(), 8);
+});
+
+test('서버가 아침까지 멈춰 있었으면 봉인과 결과 알림이 같은 스윕에서 나간다', () => {
+  const store = buildStore({
+    crews: [crew('c1', '새벽')],
+    members: threeVeterans('c1', ['u1', 'u2', 'u3']),
+    runs: ['u1', 'u2', 'u3'].map((userId) => run(userId, 10, '2026-11-12T08:00:00')),
+  });
+
+  sweepCrewSeasons(store, kst('2026-12-01T10:30:00'));
+  const november = store.crewSeasonAwards.find((award) => award.seasonKey === '2026-11');
+  assert.equal(november.pendingResultNotices, undefined);
+  assert.equal(store.notifications.filter((item) => item.type === 'crew_season_result').length, 3);
 });
 
 test('프리시즌 달력 상수는 서로 맞물린다 — 첫 별 시즌 = 프리시즌 마지막 달의 다음 달', () => {
@@ -392,7 +500,7 @@ test('프리시즌은 9·10월 (오너 2026-09-18 연장): 10월 1위는 별·�
     members: [
       ...threeVeterans('c1', ['u1', 'u2', 'u3']),
       ...threeVeterans('c2', ['u4', 'u5', 'u6']),
-      // 10/20 가입 → 10/21 0시 인정 → 정규 시즌이면 10/28 합류지만 프리시즌이라 바로 멤버.
+      // 10/20 12시 가입 → 프리시즌이라 그 순간부터 인정·바로 멤버(정규 시즌이면 10/21 0시 인정, 10/28 합류).
       member('c1', 'u7', { joined: '2026-10-20T12:00:00' }),
     ],
     runs: [
@@ -507,14 +615,16 @@ test('프리시즌 봉인: 원장은 남지만 별·결과 알림이 없다', ()
     runs: ['u1', 'u2', 'u3'].map((userId) => run(userId, 10, '2026-09-20T08:00:00')),
   });
 
-  assert.equal(hasUnsealedCrewSeason(store, kst('2026-10-02T23:59:00')), false);
-  assert.equal(hasUnsealedCrewSeason(store, kst('2026-10-03T00:00:00')), true);
-  sweepCrewSeasons(store, kst('2026-10-03T00:00:00'));
+  assert.equal(hasUnsealedCrewSeason(store, kst('2026-10-01T00:59:59')), false);
+  assert.equal(hasUnsealedCrewSeason(store, kst('2026-10-01T01:00:00')), true);
+  sweepCrewSeasons(store, kst('2026-10-01T01:00:00'));
 
   const [award] = store.crewSeasonAwards;
   assert.equal(award.seasonKey, '2026-09');
   assert.equal(award.isPreseason, true);
   assert.deepEqual(award.champions, []);
+  assert.equal(award.pendingResultNotices, undefined);
+  sweepCrewSeasons(store, kst('2026-10-01T09:00:00'));
   assert.deepEqual(award.top.map((row) => [row.crewId, row.rank]), [['c1', 1]]);
   assert.equal(award.avgKm, 10);
   assert.equal(buildCrewStarCounts(store).size, 0);

@@ -16,6 +16,7 @@ import {
   CREW_NAME_MIN_LENGTH,
   buildCrewCreateConfirmMessage,
   checkCrewName,
+  describeCrewCountsStart,
   getCrewErrorCode,
   getCrewErrorMessage,
 } from '../crewModel';
@@ -25,11 +26,15 @@ import { useCrewHome } from '../hooks/useCrewHome';
 // 이름 규칙(2~12자·한글/영문/숫자·띄어쓰기 한 칸)은 입력하는 동안 바로 알려주고, 금칙어·중복은
 // 서버만 알아서 거절 문구를 입력칸 아래에 그대로 띄운다. 30일에 한 번이라 확인을 한 번 받는다.
 
-const CREW_RULE_LINES = [
-  '한 번에 한 크루에만 들어갈 수 있어요',
-  '내일 0시부터 기록이 크루 점수에 들어가요',
-  `최대 ${CREW_MAX_MEMBERS}명까지 함께해요`,
-] as const;
+// isPreseason null = 크루 정보를 아직 못 받음 — 그땐 인정 시작 줄을 빼 둔다(모르는 채로 틀리게
+// 말하지 않는다).
+function buildCreateRuleLines(isPreseason: boolean | null): string[] {
+  return [
+    '한 번에 한 크루에만 들어갈 수 있어요',
+    isPreseason === null ? null : describeCrewCountsStart(isPreseason),
+    `최대 ${CREW_MAX_MEMBERS}명까지 함께해요`,
+  ].filter((line): line is string => line !== null);
+}
 
 // 이름 때문에 거절된 코드는 Alert 대신 입력칸 아래에 — 고칠 자리 바로 옆에서 말한다.
 const NAME_ERROR_CODES = new Set(['invalid_name', 'blocked_name', 'name_taken']);
@@ -42,6 +47,8 @@ function returnToCrewTab() {
 
 export default function CrewCreateScreen() {
   const { home, loadHome, applyHome } = useCrewHome();
+  // null = 크루 정보를 아직 못 받음 — 인정 시작 문구를 단정하지 않는다.
+  const isPreseason = home ? home.season.isPreseason : null;
   const [name, setName] = useState('');
   const [serverNameError, setServerNameError] = useState<{ name: string; message: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -71,7 +78,11 @@ export default function CrewCreateScreen() {
     const crewName = nameCheck.name;
     confirmCrewAction({
       title: `'${crewName}' 만들기`,
-      message: buildCrewCreateConfirmMessage(home?.joinsLeftThisMonth ?? null, Boolean(home?.myPendingRequest)),
+      message: buildCrewCreateConfirmMessage(
+        home?.joinsLeftThisMonth ?? null,
+        Boolean(home?.myPendingRequest),
+        isPreseason,
+      ),
       confirmLabel: '만들기',
       onConfirm: () => {
         // Alert 버튼 연타 가드 — state는 같은 렌더 배치에서 낡은 값이라 ref로 막는다.
@@ -99,7 +110,7 @@ export default function CrewCreateScreen() {
         })();
       },
     });
-  }, [applyHome, home?.joinsLeftThisMonth, home?.myPendingRequest, name, nameCheck]);
+  }, [applyHome, home?.joinsLeftThisMonth, home?.myPendingRequest, isPreseason, name, nameCheck]);
 
   return (
     <Screen>
@@ -128,7 +139,7 @@ export default function CrewCreateScreen() {
       </View>
 
       <Card style={styles.actionsCard}>
-        {CREW_RULE_LINES.map((line, index) => (
+        {buildCreateRuleLines(isPreseason).map((line, index) => (
           <View key={line} style={[styles.actionRow, index === 0 ? null : styles.actionRowDivided]}>
             <Text style={styles.actionLabel}>{line}</Text>
           </View>

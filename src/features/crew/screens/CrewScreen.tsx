@@ -91,6 +91,11 @@ function openManage() {
   router.push('/crew-manage');
 }
 
+// 순위 기준 (오너 2026-09-18): 전체 순위 맨 아래에 있던 점수 설명을 크루 탭 행 하나로 뺐다.
+function openRules() {
+  router.push('/crew-rules');
+}
+
 export default function CrewScreen() {
   useTabWarmupTrace('crew');
   const { home, error, nowMs, loadHome, applyHome } = useCrewHome();
@@ -238,7 +243,7 @@ const CrewBoardSection = memo(function CrewBoardSection({ home }: { home: CrewHo
             <Text style={crewListStyles.emptyTitle}>크루 모집 중</Text>
             <Text style={crewListStyles.emptyText}>
               순위에 오른 크루가 {CREW_BOARD_MIN_RANKED_CREWS}개가 되면 순위표가 열려요.
-              시즌 멤버 {CREW_MIN_RANKED_MEMBERS}명이 앱으로 달리면 크루가 순위에 올라요.
+              시즌 멤버 {CREW_MIN_RANKED_MEMBERS}명이 달리면 크루가 순위에 올라요.
             </Text>
           </View>
         )}
@@ -280,10 +285,11 @@ const MyCrewView = memo(function MyCrewView({
 
       <CrewBoardSection home={home} />
 
-      {/* '앱으로 기록한 러닝' 꼬리표는 빼지 않는다 (설계 리스크: 크루 기여는 앱 GPS 기록만·하루 45km·
-          종료 시각 기준이라 기록 탭의 이번 달 거리와 다를 수 있다 — 두 숫자를 같은 이름으로 부르지 않는다). */}
+      {/* 크루 기여는 가져온 기록까지 세지만(오너 2026-09-18), 겹친 기록은 하나만·손으로 적은 기록은
+          빼고·가입 뒤 기록만이라 기록 탭의 이번 달 거리와 다를 수 있다 — 그래서 '이번 달 거리'라고
+          부르지 않고 '기여'라고 부른다. */}
       <View style={crewListStyles.section}>
-        <CrewSectionHeader title="우리 크루 기여" meta="앱으로 기록한 러닝" />
+        <CrewSectionHeader title="우리 크루 기여" />
         <Card style={crewListStyles.rowsCard}>
           {sortedMembers.map((member, index) => (
             <CrewMemberListRow key={member.userId} member={member} isFirst={index === 0} nowMs={nowMs} />
@@ -302,6 +308,7 @@ const MyCrewView = memo(function MyCrewView({
             onPress={openManage}
           />
         ) : null}
+        <CrewActionRow isFirst={false} label="순위 기준" chevron onPress={openRules} />
         <CrewActionRow isFirst={false} label="크루 나가기" danger disabled={busy} onPress={() => onLeave(home, myCrew)} />
       </Card>
     </>
@@ -323,7 +330,7 @@ const NoCrewView = memo(function NoCrewView({
     <>
       <CrewHero
         label={buildCrewSeasonStatusLine(home.season)}
-        meta="크루원이 앱으로 달린 거리가 모여 크루 순위가 돼요."
+        meta="크루원이 달린 거리가 모여 크루 순위가 돼요."
         note={buildCrewPreseasonNote(home.season)}
       />
 
@@ -354,6 +361,7 @@ const NoCrewView = memo(function NoCrewView({
         ) : null}
         <CrewActionRow isFirst={!pendingRequest} label="초대 코드로 가입" onPress={openJoin} />
         <CrewActionRow isFirst={false} label="크루 찾기" onPress={openSearch} />
+        <CrewActionRow isFirst={false} label="순위 기준" chevron onPress={openRules} />
       </Card>
 
       <CrewBoardSection home={home} />
@@ -362,7 +370,7 @@ const NoCrewView = memo(function NoCrewView({
 });
 
 // 지난 시즌: 우승 한 줄 + 봉인 스냅샷 상위 10개. 봉인된 시즌은 서버가 원장 스냅샷만 준다 —
-// 기록이 나중에 바뀌어도 여기 숫자는 안 바뀐다. 봉인 전 48시간은 '집계 중'으로 라이브 값을 보인다.
+// 기록이 나중에 바뀌어도 여기 숫자는 안 바뀐다. 봉인 전 1시간은 '집계 중'으로 라이브 값을 보인다.
 const LastSeasonView = memo(function LastSeasonView({
   home,
   state,

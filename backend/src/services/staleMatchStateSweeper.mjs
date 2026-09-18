@@ -48,7 +48,7 @@ export async function sweepStaleMatchState({ mutateStore, now = new Date() }) {
     // 기간이 끝나면 결과가 나가야 한다.
     const settledRunmadang = settleDueRunmadangChallenges(store, now);
     pruneRunmadangChallenges(store, now);
-    // 크루대전 (2026-09-18): 유예(48h)가 지난 시즌 봉인(결과 알림 포함) + 오래된 크루·멤버십
+    // 크루대전 (2026-09-18): 유예(1h)가 지난 시즌 봉인 + 아침 9시가 된 결과 알림 + 오래된 크루·멤버십
     // 행·가입 신청 정리 — 크루 탭을 아무도 안 열어도 달이 바뀌면 별이 붙는다.
     const sealedCrewSeasons = sweepCrewSeasons(store, now).length;
     const prunedCrewRows = pruneCrewStore(store, now);

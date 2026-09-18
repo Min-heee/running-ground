@@ -8,7 +8,7 @@
 //
 // 멤버십은 '구간 행'이다: 나가도 행을 지우지 않고 leftAt만 찍는다. 시즌 기여 창
 // W = [max(countsFrom, 시즌시작), min(leftAt, 시즌끝))을 판정하려면 과거 구간이 필요하다.
-// 정리는 70일 뒤 prune — 봉인(시즌 끝+48h)보다 한참 뒤라 집계에 닿지 않는다.
+// 정리는 70일 뒤 prune — 봉인(시즌 끝+1h)보다 한참 뒤라 집계에 닿지 않는다.
 //
 // 가입의 유일한 길은 admitCrewMember 하나다: 코드 가입과 신청 승인이 같은 검사(이미 소속·
 // 차단·정원·월 이동 횟수)를 같은 순서로 탄다 — 두 경로가 갈라지면 한쪽만 뚫린다.
@@ -38,7 +38,7 @@ import {
   CREW_REQUEST_CANCEL_COOLDOWN_MS,
   throwCrewError,
 } from './crewConstants.mjs';
-import { invalidateCrewSeasonMemo } from './crewSeason.mjs';
+import { invalidateCrewSeasonMemo, isCrewPreseason, resolveCrewCountsFromMs } from './crewSeason.mjs';
 
 export function ensureCrewStore(store) {
   if (!Array.isArray(store.crews)) {
@@ -241,8 +241,12 @@ function pushMembershipRow(store, crew, userId, role, now) {
     userId,
     role,
     joinedAt: now.toISOString(),
-    // 다음 날 0시(KST)부터 인정 — 하루에 두 크루에서 동시에 인정받을 수 없다.
-    countsFrom: new Date(nextKstMidnightMs(now.getTime())).toISOString(),
+    // 정규 시즌은 다음 날 0시(KST)부터 인정 — 가입 전에 뛴 오늘 기록을 들고 옮겨 다니지 못한다.
+    // 프리시즌은 들어온 순간부터 (오너 2026-09-18 '가입한 날 바로'). 어느 쪽이든 인정 구간은
+    // 나간 순간에 닫혀서 한 기록이 두 크루에 들어가지 않는다.
+    countsFrom: isCrewPreseason(resolveKstMonthKey(now))
+      ? now.toISOString()
+      : new Date(nextKstMidnightMs(now.getTime())).toISOString(),
     leftAt: null,
     leftReason: null,
   };
@@ -266,10 +270,12 @@ function closeCrew(store, crew, now) {
   voidPendingCrewJoinRequestsForCrew(store, crew.id, now);
 }
 
-// 캡틴 자동 이양: 인정 시작(countsFrom)이 가장 이른 활성 멤버, 같으면 먼저 들어온 사람.
+// 캡틴 자동 이양: 인정 시작이 가장 이른 활성 멤버, 같으면 먼저 들어온 사람. 저장된 countsFrom
+// 문자열이 아니라 판정식(resolveCrewCountsFromMs)으로 읽는다 — 프리시즌 즉시 합류 전에 '다음 날
+// 0시'로 저장된 9/18 행보다 그 뒤에 들어온 사람이 앞서지 않게(적대 리뷰 2026-09-18).
 function pickCaptainSuccessor(activeRows) {
   return [...activeRows].sort((left, right) => (
-    String(left.countsFrom).localeCompare(String(right.countsFrom))
+    (resolveCrewCountsFromMs(left) - resolveCrewCountsFromMs(right) || 0)
     || String(left.joinedAt).localeCompare(String(right.joinedAt))
     || String(left.id).localeCompare(String(right.id))
   ))[0] ?? null;

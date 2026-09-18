@@ -130,7 +130,7 @@ test('재신청 대기: 같은 크루엔 취소 뒤 하루·거절 뒤 7일 — 
   assert.equal(captainNotices(), 3);
 });
 
-test('승인: 코드 가입과 같은 관문 → 다음 날 0시부터 인정 · 월 이동 1회 사용 · 결정 알림', () => {
+test('승인: 코드 가입과 같은 관문 → 인정 시작도 코드 가입과 같다(10월 프리시즌 = 승인 순간) · 월 이동 1회 사용 · 결정 알림', () => {
   const { store, crewA } = setup();
   const runner = userOf(store, 'u3');
   const request = requestToJoinCrew(store, runner, crewA.id, NOW);
@@ -142,10 +142,13 @@ test('승인: 코드 가입과 같은 관문 → 다음 날 0시부터 인정 ·
   assert.equal(request.status, 'approved');
   const row = findActiveCrewMembership(store, 'u3');
   assert.equal(row.crewId, crewA.id);
-  assert.equal(row.countsFrom, iso('2026-10-06T00:00:00'));
+  // 프리시즌(10월)이라 승인된 순간부터 — 정규 시즌의 다음 날 0시는 멤버십 테스트가 본다.
+  assert.equal(row.countsFrom, NOW.toISOString());
   assert.equal(getCrewJoinsLeftThisMonth(store, 'u3', NOW), 2);
   const decided = store.notifications.find((item) => item.type === 'crew_join_decided' && item.userId === 'u3');
   assert.equal(decided.data.approved, true);
+  // 알림 문구도 저장된 행을 따른다 (적대 리뷰 2026-09-18: 프리시즌에 '내일 0시부터'라고 했다).
+  assert.equal(decided.body, '새벽에 들어갔어요. 들어온 순간부터 기록이 크루 점수에 들어가요.');
 
   // 한 번 결정된 신청은 다시 결정할 수 없다.
   rejectsWithCode(() => decideCrewJoinRequest(store, userOf(store, 'u1'), request.id, true, NOW), 'not_found');
@@ -212,4 +215,16 @@ test('승인 실패(정원)는 던지고 신청은 대기로 남는다 · 7일 �
   const later = kst('2026-10-12T12:00:00');
   rejectsWithCode(() => decideCrewJoinRequest(store, userOf(store, 'u1'), request.id, true, later), 'not_found');
   assert.equal(buildCrewHomePayload(store, userOf(store, `u${CREW_MAX_MEMBERS + 1}`), later).myPendingRequest, null);
+});
+
+test('정규 시즌(11월) 승인은 다음 날 0시부터 — 알림 문구도 같다', () => {
+  const store = buildStore();
+  const november = kst('2026-11-05T12:00:00');
+  const crew = createCrew(store, userOf(store, 'u1'), { name: '새벽' }, november);
+  const request = requestToJoinCrew(store, userOf(store, 'u3'), crew.id, november);
+
+  decideCrewJoinRequest(store, userOf(store, 'u1'), request.id, true, november);
+  assert.equal(findActiveCrewMembership(store, 'u3').countsFrom, iso('2026-11-06T00:00:00'));
+  const decided = store.notifications.find((item) => item.type === 'crew_join_decided' && item.userId === 'u3');
+  assert.equal(decided.body, '새벽에 들어갔어요. 내일 0시부터 기록이 크루 점수에 들어가요.');
 });

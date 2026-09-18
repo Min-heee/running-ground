@@ -157,6 +157,7 @@ export function CrewActionRow({
   value,
   valueTone = 'muted',
   danger = false,
+  chevron = false,
   isFirst,
   disabled = false,
   onPress,
@@ -165,6 +166,8 @@ export function CrewActionRow({
   value?: string | null;
   valueTone?: 'muted' | 'brand';
   danger?: boolean;
+  // 다른 화면으로 넘어가는 행 — '›'는 그림일 뿐이라 읽어 주는 이름(accessibilityLabel)에 넣지 않는다.
+  chevron?: boolean;
   isFirst: boolean;
   disabled?: boolean;
   onPress: () => void;
@@ -188,6 +191,7 @@ export function CrewActionRow({
       {value ? (
         <Text style={[styles.actionValue, valueTone === 'brand' ? styles.actionValueBrand : null]}>{value}</Text>
       ) : null}
+      {chevron ? <Text style={styles.footerChevron}>›</Text> : null}
     </Pressable>
   );
 }
