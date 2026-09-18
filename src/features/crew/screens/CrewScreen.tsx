@@ -1,13 +1,12 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { router } from 'expo-router';
-import { ActivityIndicator, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 
 import { BrandLoadingView } from '@/components/BrandLoadingView';
 import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { SegmentSwitch } from '@/components/ui/SegmentSwitch';
 import { TabHeader } from '@/components/ui/TabHeader';
 import type { CrewHomeResponse, CrewPendingRequest, MyCrew } from '@/lib/api/types/crew';
 import { cancelCrewJoinRequest, leaveCrew } from '@/services';
@@ -32,7 +31,6 @@ import {
   buildCrewHeroMeta,
   buildCrewHeroSeasonNote,
   buildCrewInviteShareMessage,
-  buildCrewLastSeasonHeadline,
   buildCrewLeaveConfirmMessage,
   buildCrewPreseasonNote,
   buildCrewSeasonStatusLine,
@@ -42,37 +40,30 @@ import {
   formatCrewRequestDate,
   getCrewErrorMessage,
   isCrewBoardOpen,
-  isCrewFirstSeason,
   isCrewStateDriftError,
-  shiftCrewSeasonKey,
   sortCrewMembersForDisplay,
 } from '../crewModel';
 import { useCrewHome } from '../hooks/useCrewHome';
-import { useCrewLeague, type CrewLeagueState } from '../hooks/useCrewLeague';
 
 // 크루대전 탭 (오너 2026-09-18, 시안 A '월간 크루 리그'). 전국 크루가 한 순위표에 오르고, KST 달력
 // 한 달이 시즌이며, 달의 1위 크루가 별 ★을 받는다. 포인트는 없다 — 별과 기록뿐.
 //
 // 화면 언어는 지금 앱 그대로 (오너: "현재 앱이랑 너무 다르면 안 된다"): 맨바닥 히어로(큰 숫자
 // 하나 = 순위) → 달 머리글 + 흰 블록 한 겹의 헤어라인 행(기록 탭) → 설정식 액션 행(마이 탭 계정
-// 카드). 스위치는 공용 SegmentSwitch 하나, 선택 = 보라 솔리드 + 흰 글씨.
+// 카드). '이번 달 | 지난 시즌' 스위치는 오너 2026-09-18에 없앴다 — 맨 위가 '이번 시즌' 순위표이고,
+// 지난 시즌은 순위표 오른쪽 아래 '지난 시즌 ›'에서 따로 연다(CrewLastSeasonScreen).
 //
 // 폴링 없음: 순위는 하루에 몇 번 바뀌는 느린 값이라 탭에 들어올 때마다(포커스) 다시 부른다.
 
-type CrewSegment = 'current' | 'last';
-
-const SEASON_SEGMENT_ITEMS: readonly { id: CrewSegment; label: string }[] = [
-  { id: 'current', label: '이번 달' },
-  { id: 'last', label: '지난 시즌' },
-];
-
 // 첫 프레임을 가볍게 — 친구·마이 탭과 같은 지연.
 const CREW_INITIAL_FETCH_DEFER_MS = 120;
-// 지난 시즌은 봉인 스냅샷의 상위 10개만 (원장이 10개까지만 담는다).
-const LAST_SEASON_ROW_LIMIT = 10;
 
 function openLeague() {
   router.push('/crew-league');
+}
+
+function openLastSeason() {
+  router.push('/crew-last-season');
 }
 
 function openCreate() {
@@ -99,15 +90,10 @@ function openRules() {
 export default function CrewScreen() {
   useTabWarmupTrace('crew');
   const { home, error, nowMs, loadHome, applyHome } = useCrewHome();
-  const [segment, setSegment] = useState<CrewSegment>('current');
   const [busy, setBusy] = useState(false);
   // Alert 이중 탭·연타 가드는 state가 아니라 ref로 — state는 같은 렌더 배치에서 낡은 값이라
   // 두 번째 호출을 못 막는다 (그라운드 화면 적대 리뷰와 같은 교훈).
   const actionInFlightRef = useRef(false);
-  const previousSeasonKey = home ? shiftCrewSeasonKey(home.season.seasonKey, -1) : null;
-  // 홈의 lastSeason은 지난 시즌이 봉인되면 null → 그 시즌 키로 바뀐다. 포커스 재조회에서 이 값이
-  // 바뀌면 들고 있던 '집계 중' 순위표를 봉인 스냅샷으로 다시 부른다 (적대 리뷰 2026-09-18).
-  const lastSeason = useCrewLeague(previousSeasonKey, segment === 'last', home?.lastSeason?.seasonKey ?? null);
 
   useAndroidDeferredFocusEffect(() => {
     void loadHome();
@@ -118,8 +104,6 @@ export default function CrewScreen() {
     traceInitialFetch: true,
     work: 'crew data fetch',
   });
-
-  const handleSelectSegment = useCallback((id: string) => setSegment(id as CrewSegment), []);
 
   const runAction = useCallback(async (action: () => Promise<CrewHomeResponse>, failMessage: string) => {
     if (actionInFlightRef.current) {
@@ -204,11 +188,9 @@ export default function CrewScreen() {
 
       {home ? (
         <>
-          <SegmentSwitch items={SEASON_SEGMENT_ITEMS} activeId={segment} onSelect={handleSelectSegment} />
+          <CrewBoardSection home={home} />
 
-          {segment === 'last' ? (
-            <LastSeasonView home={home} state={lastSeason.state} onRetry={lastSeason.reload} />
-          ) : home.myCrew ? (
+          {home.myCrew ? (
             <MyCrewView
               home={home}
               myCrew={home.myCrew}
@@ -226,15 +208,16 @@ export default function CrewScreen() {
   );
 }
 
-// 이번 시즌 순위 카드: 상위 5개 + '전체 순위 ›'. 순위에 오른 크루가 3개 미만이면 빈 순위표 대신
-// '크루 모집 중' (심사 must-fix: 크루 2개짜리 순위표는 죽은 화면이다).
+// 맨 위 '이번 시즌' 순위 카드: 상위 5개 + '전체 순위 ›', 카드 오른쪽 아래 '지난 시즌 ›' (오너
+// 2026-09-18: 두 갈래 스위치 대신 이번 시즌 하나 + 지난 시즌 화살표). 순위에 오른 크루가 3개
+// 미만이면 빈 순위표 대신 '크루 모집 중' (심사 must-fix: 크루 2개짜리 순위표는 죽은 화면이다).
 const CrewBoardSection = memo(function CrewBoardSection({ home }: { home: CrewHomeResponse }) {
   const boardOpen = isCrewBoardOpen(home.rankedCrewCount);
   const rows = home.top.slice(0, CREW_BOARD_PREVIEW_LIMIT);
 
   return (
     <View style={crewListStyles.section}>
-      <CrewSectionHeader title="크루 순위" meta={boardOpen ? `${home.rankedCrewCount}크루` : null} />
+      <CrewSectionHeader title="이번 시즌" meta={boardOpen ? `${home.rankedCrewCount}크루` : null} />
       <Card style={crewListStyles.rowsCard}>
         {boardOpen ? rows.map((row, index) => (
           <CrewStandingListRow key={row.crewId} row={row} isFirst={index === 0} />
@@ -249,6 +232,16 @@ const CrewBoardSection = memo(function CrewBoardSection({ home }: { home: CrewHo
         )}
         <CrewFooterRow label="전체 순위" onPress={openLeague} />
       </Card>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="지난 시즌"
+        onPress={openLastSeason}
+        hitSlop={8}
+        style={styles.lastSeasonLink}
+      >
+        <Text style={styles.lastSeasonLinkText}>지난 시즌</Text>
+        <Text style={crewListStyles.footerChevron}>›</Text>
+      </Pressable>
     </View>
   );
 });
@@ -282,8 +275,6 @@ const MyCrewView = memo(function MyCrewView({
         meta={heroMeta}
         note={buildCrewHeroSeasonNote(home.season)}
       />
-
-      <CrewBoardSection home={home} />
 
       {/* 크루 기여는 가져온 기록까지 세지만(오너 2026-09-18), 겹친 기록은 하나만·손으로 적은 기록은
           빼고·가입 뒤 기록만이라 기록 탭의 이번 달 거리와 다를 수 있다 — 그래서 '이번 달 거리'라고
@@ -364,63 +355,7 @@ const NoCrewView = memo(function NoCrewView({
         <CrewActionRow isFirst={false} label="순위 기준" chevron onPress={openRules} />
       </Card>
 
-      <CrewBoardSection home={home} />
     </>
-  );
-});
-
-// 지난 시즌: 우승 한 줄 + 봉인 스냅샷 상위 10개. 봉인된 시즌은 서버가 원장 스냅샷만 준다 —
-// 기록이 나중에 바뀌어도 여기 숫자는 안 바뀐다. 봉인 전 1시간은 '집계 중'으로 라이브 값을 보인다.
-const LastSeasonView = memo(function LastSeasonView({
-  home,
-  state,
-  onRetry,
-}: {
-  home: CrewHomeResponse;
-  state: CrewLeagueState;
-  onRetry: () => void;
-}) {
-  if (state.status === 'idle' || state.status === 'loading') {
-    return <ActivityIndicator size="large" color={colors.brand} />;
-  }
-
-  if (state.status === 'error') {
-    return (
-      <Card>
-        <Text style={crewListStyles.errorText}>{state.message}</Text>
-        <PrimaryButton label="다시 불러오기" onPress={onRetry} />
-      </Card>
-    );
-  }
-
-  const league = state.status === 'ready' ? state.league : null;
-  const rows = (league?.ranked ?? []).slice(0, LAST_SEASON_ROW_LIMIT);
-
-  if (!league || rows.length === 0) {
-    return (
-      <Text style={styles.lastEmpty}>
-        {isCrewFirstSeason(home.season)
-          ? `${home.season.label}이 첫 시즌이에요. 지난 시즌 결과는 다음 달부터 여기서 볼 수 있어요.`
-          : '지난 시즌엔 순위에 오른 크루가 없었어요.'}
-      </Text>
-    );
-  }
-
-  // 우승은 순위만으로 정해지지 않는다(뛴 멤버 3명·시즌 끝까지 살아 있는 크루) — 서버 원장의
-  // 챔피언 목록이 이 시즌 것일 때만 쓴다.
-  const champions = home.lastSeason?.seasonKey === league.season.seasonKey ? home.lastSeason.champions : [];
-
-  return (
-    <View style={crewListStyles.section}>
-      <Text style={styles.lastHeadline}>
-        {buildCrewLastSeasonHeadline({ season: league.season, sealed: league.sealed, champions })}
-      </Text>
-      <Card style={crewListStyles.rowsCard}>
-        {rows.map((row, index) => (
-          <CrewStandingListRow key={row.crewId} row={row} isFirst={index === 0} />
-        ))}
-      </Card>
-    </View>
   );
 });
 
@@ -440,16 +375,16 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
   },
-  lastHeadline: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.title,
-    fontWeight: fontWeights.extraBold,
-    lineHeight: 24,
+  // 순위표 카드 오른쪽 아래 '지난 시즌 ›' — 카드 안 '전체 순위 ›'보다 한 단계 낮은 글자 링크.
+  lastSeasonLink: {
+    alignSelf: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xxs,
   },
-  lastEmpty: {
+  lastSeasonLinkText: {
     color: colors.textSecondary,
     fontSize: fontSizes.md,
     fontWeight: fontWeights.semibold,
-    lineHeight: 20,
   },
 });
