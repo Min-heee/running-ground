@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { SegmentSwitch } from '@/components/ui/SegmentSwitch';
 import type { FriendRank } from '@/domain';
@@ -14,9 +14,19 @@ import {
 type FriendsRankingProps = {
   ranks: FriendRank[];
   highlightTag?: string;
+  // 친구 탭은 5명까지만 보이고 '더보기'가 전체 순위표 페이지(/friend-ranking)로 보낸다
+  // (오너 2026-09-18). 페이지 쪽은 limit 없이 전부 그린다. 내 순위·내 거리는 위 요약바가
+  // 늘 보여주므로 내가 6위 밖이어도 잘리는 건 줄 하나뿐이다.
+  limit?: number;
+  onShowMore?: () => void;
 };
 
-export const FriendsRanking = memo(function FriendsRanking({ ranks, highlightTag }: FriendsRankingProps) {
+export const FriendsRanking = memo(function FriendsRanking({
+  ranks,
+  highlightTag,
+  limit,
+  onShowMore,
+}: FriendsRankingProps) {
   const [rankingWindow, setRankingWindow] = useState<FriendRankingWindow>('week');
   const handleSelectWindow = useCallback((id: string) => {
     setRankingWindow(id as FriendRankingWindow);
@@ -27,6 +37,9 @@ export const FriendsRanking = memo(function FriendsRanking({ ranks, highlightTag
   );
   const myRank = highlightTag ? displayedRanks.find((runner) => runner.tag === highlightTag) : null;
   const rankingWindowLabel = getFriendRankingWindowLabel(rankingWindow);
+  const isTruncated = typeof limit === 'number' && limit > 0 && displayedRanks.length > limit;
+  const visibleRanks = isTruncated ? displayedRanks.slice(0, limit) : displayedRanks;
+  const hiddenCount = displayedRanks.length - visibleRanks.length;
 
   if (ranks.length === 0) {
     return null;
@@ -67,7 +80,7 @@ export const FriendsRanking = memo(function FriendsRanking({ ranks, highlightTag
       ) : null}
 
       <View style={styles.rankList}>
-        {displayedRanks.map((runner) => (
+        {visibleRanks.map((runner) => (
           <FriendRankRow
             key={runner.id}
             runner={runner}
@@ -75,6 +88,20 @@ export const FriendsRanking = memo(function FriendsRanking({ ranks, highlightTag
           />
         ))}
       </View>
+
+      {isTruncated && onShowMore ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`친구 순위표 전체 보기, ${hiddenCount}명 더`}
+          onPress={onShowMore}
+          style={styles.moreButton}
+          hitSlop={8}
+        >
+          <Text style={styles.moreButtonText}>더보기</Text>
+          <Text style={styles.moreButtonHint}>{hiddenCount}명 더</Text>
+          <Text style={styles.moreButtonChevron}>›</Text>
+        </Pressable>
+      ) : null}
     </Card>
   );
 });

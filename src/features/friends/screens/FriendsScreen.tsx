@@ -14,6 +14,12 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
+const FRIENDS_TAB_RANKING_LIMIT = 5;
+
+function handleShowFullRanking() {
+  router.push('/friend-ranking');
+}
+
 export default function FriendsScreen() {
   useTabWarmupTrace('friends');
   const { scrollToTop } = useLocalSearchParams<{ scrollToTop?: string }>();
@@ -88,7 +94,13 @@ export default function FriendsScreen() {
 
       {leaderboard && profile ? (
         <>
-          <FriendsRanking ranks={leaderboard.ranks} highlightTag={profile.publicTag} />
+          {/* 5명까지만 (오너 2026-09-18) — 나머지는 '더보기'로 전체 순위표 페이지에서. */}
+          <FriendsRanking
+            ranks={leaderboard.ranks}
+            highlightTag={profile.publicTag}
+            limit={FRIENDS_TAB_RANKING_LIMIT}
+            onShowMore={handleShowFullRanking}
+          />
 
           {/* 그라운드 (오너 2026-08-06): 기간제 포인트 내기 진입점. */}
           <Pressable style={styles.runmadangCard} onPress={() => router.push('/runmadang')}>

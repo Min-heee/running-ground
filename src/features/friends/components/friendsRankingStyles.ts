@@ -70,6 +70,34 @@ export const friendsRankingStyles = StyleSheet.create({
   rankList: {
     gap: spacing.s10,
   },
+  // '더보기' 푸터 — 홈 랭크 카드의 '전적 ›' 푸터와 같은 문법(헤어라인 위 한 줄, 글자 + 꺾쇠).
+  moreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderSoft,
+    paddingTop: spacing.s12,
+  },
+  moreButtonText: {
+    color: colors.textPrimary,
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.extraBold,
+    includeFontPadding: false,
+  },
+  moreButtonHint: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+    includeFontPadding: false,
+  },
+  moreButtonChevron: {
+    color: colors.textTertiary,
+    fontSize: fontSizes.metric,
+    fontWeight: fontWeights.extraBold,
+    includeFontPadding: false,
+  },
   rankCard: {
     backgroundColor: colors.surfaceMuted,
     borderRadius: radii.xl,
