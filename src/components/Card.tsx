@@ -1,5 +1,5 @@
 import { PropsWithChildren } from 'react';
-import { Platform, StyleProp, StyleSheet, View, ViewProps, ViewStyle } from 'react-native';
+import { StyleProp, StyleSheet, View, ViewProps, ViewStyle } from 'react-native';
 
 import { colors, spacing, radii } from '@/theme/tokens';
 
@@ -17,19 +17,7 @@ const styles = StyleSheet.create({
     borderColor: colors.cardEdge,
     padding: spacing.s16,
     gap: spacing.xxl,
-    // Split shadow vs elevation per platform — RN applies elevation on Android
-    // even when shadow* are set, paying overdraw cost twice. Cards appear on
-    // every screen, so this lands across the whole app.
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.black,
-        shadowOpacity: 0.04,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 4 },
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    // 그림자·elevation 없음 (오너 2026-09-18 '카드 납작하게'): 회색 바탕 위 흰 카드는 색 차이만으로
+    // 서고, 그림자는 카드 둘레에 옅은 얼룩을 남겼다. 다크는 cardEdge 유리 테두리가 경계를 맡는다.
   },
 });

@@ -57,6 +57,7 @@ const styles = StyleSheet.create({
   inner: {
     paddingHorizontal: spacing.s16,
     paddingTop: spacing.s12,
-    gap: spacing.s14,
+    // 카드 사이 20 (오너 2026-09-18): 14는 카드 안 행 간격과 같아 '사이'와 '안'이 구분되지 않았다.
+    gap: spacing.s20,
   },
 });

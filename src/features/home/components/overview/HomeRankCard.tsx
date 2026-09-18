@@ -73,11 +73,9 @@ export function HomeRankCard({ rankState, duelRecord, recordHref }: HomeRankCard
   const progressPercent = Math.max(0, Math.min(100, (normalizedRankState.lp / LP_PER_TIER) * 100));
   const rankCardStyle = useMemo<StyleProp<ViewStyle>>(() => [
     styles.rankCard,
-    {
-      backgroundColor: softColor,
-      borderColor: accentColor,
-    },
-  ], [accentColor, softColor]);
+    // 등급색 테두리 선은 뺐다 (오너 2026-09-18 '홈 정돈') — 파스텔 배경만으로 등급이 읽힌다.
+    { backgroundColor: softColor },
+  ], [softColor]);
   const tierBadgeStyle = useMemo<StyleProp<ViewStyle>>(() => [
     styles.tierBadge,
     { borderColor: accentColor },
@@ -159,7 +157,6 @@ export function HomeRankCard({ rankState, duelRecord, recordHref }: HomeRankCard
 
 const styles = StyleSheet.create({
   rankCard: {
-    borderWidth: 1,
     // 위아래로 낮게 (오너 2026-08-01) — 홈 첫 화면에서 기록 카드가 함께 보이게.
     gap: spacing.s10,
   },

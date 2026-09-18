@@ -90,6 +90,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentWrap: {
-    gap: spacing.s16,
+    // Screen.inner와 같은 20 — 홈만 자체 래퍼를 써서 따로 맞춘다.
+    gap: spacing.s20,
   },
 });

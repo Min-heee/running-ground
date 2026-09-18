@@ -33,9 +33,7 @@ function HomeWeeklyStreakBadgeImpl({ weeks, ranThisWeek, minWeekDistanceKm }: Ho
             : `이번 주 ${minWeekDistanceKm}km 이상 달리면 ${weeks + 1}주로 이어져요`}
         </Text>
       </View>
-      <View style={styles.weekPill}>
-        <Text style={styles.weekPillText}>{weeks}주</Text>
-      </View>
+      {/* 오른쪽 'N주' 알약은 뺐다 (오너 2026-09-18) — 제목이 이미 'N주 연속 러닝'이다. */}
     </Card>
   );
 }
@@ -72,16 +70,5 @@ const styles = StyleSheet.create({
     color: fixedColors.textSecondary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
-  },
-  weekPill: {
-    borderRadius: radii.pill,
-    backgroundColor: fixedColors.brand,
-    paddingHorizontal: spacing.s12,
-    paddingVertical: spacing.sm,
-  },
-  weekPillText: {
-    color: fixedColors.white,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.black,
   },
 });

@@ -111,9 +111,9 @@ export function HomeHeader() {
 }
 
 const styles = StyleSheet.create({
+  // 흰 동그라미 없이 아이콘만 (오너 2026-09-18 '홈 정돈'). 40×40 누르는 영역은 그대로.
   iconButton: {
     alignItems: 'center',
-    backgroundColor: colors.surface,
     borderRadius: radii.pill,
     height: spacing.s20 * 2,
     justifyContent: 'center',
