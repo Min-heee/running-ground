@@ -1,18 +1,21 @@
 // 친구 순위표 (오너 2026-08-03: 토스 뉴트럴 전환에 맞춰 다크 카드 폐기).
 // 흰 카드 + 회색 필 내부 요소 + 보라 포인트(순위 배지·활성 탭 글씨) — 앱 공통 결.
+// 세로 다이어트 (오너 2026-09-18 "너무 위아래로 뚱뚱해"): 구조는 그대로 두고 카드 패딩 18→16,
+// 요소 간격 14→12, 요약바·행 세로 패딩 14/15→10, 행 간격 10→8, 제목은 옆 '친구' 카드와 같은
+// 18pt로 — 5명 카드 기준 약 90pt 낮아진다.
 
 import { StyleSheet } from 'react-native';
 import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export const friendsRankingStyles = StyleSheet.create({
   card: {
-    padding: spacing.s18,
-    gap: spacing.s14,
+    padding: spacing.s16,
+    gap: spacing.s12,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: spacing.s12,
   },
   headerCopy: {
@@ -21,7 +24,7 @@ export const friendsRankingStyles = StyleSheet.create({
   },
   title: {
     color: colors.textPrimary,
-    fontSize: fontSizes.summaryValue,
+    fontSize: fontSizes.title,
     fontWeight: fontWeights.extraBold,
     includeFontPadding: false,
   },
@@ -43,7 +46,7 @@ export const friendsRankingStyles = StyleSheet.create({
     backgroundColor: colors.surfaceMuted,
     borderRadius: radii.lg,
     paddingHorizontal: spacing.s16,
-    paddingVertical: spacing.s14,
+    paddingVertical: spacing.s10,
   },
   summaryItem: {
     flex: 1,
@@ -68,7 +71,7 @@ export const friendsRankingStyles = StyleSheet.create({
     includeFontPadding: false,
   },
   rankList: {
-    gap: spacing.s10,
+    gap: spacing.xxl,
   },
   // '더보기' 푸터 — 홈 랭크 카드의 '전적 ›' 푸터와 같은 문법(헤어라인 위 한 줄, 글자 + 꺾쇠).
   moreButton: {
@@ -78,7 +81,7 @@ export const friendsRankingStyles = StyleSheet.create({
     gap: spacing.lg,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.borderSoft,
-    paddingTop: spacing.s12,
+    paddingTop: spacing.s10,
   },
   moreButtonText: {
     color: colors.textPrimary,
@@ -104,7 +107,7 @@ export const friendsRankingStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
     paddingHorizontal: spacing.s16,
-    paddingVertical: 15,
+    paddingVertical: spacing.s10,
   },
   // 내 줄: 흰 카드 + 브랜드 보더 (선택 카드와 같은 신호 언어).
   myCard: {
