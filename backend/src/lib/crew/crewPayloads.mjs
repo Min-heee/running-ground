@@ -7,6 +7,8 @@ import { ApiError } from '../../response/httpResponse.mjs';
 import { roundDistanceKm } from '../distancePrecision.mjs';
 import { DAY_MS, kstDayStartMs } from '../competitionWindow.mjs';
 import {
+  CREW_FIRST_SEASON_KEY,
+  CREW_FIRST_STAR_SEASON_KEY,
   CREW_HOME_TOP_LIMIT,
   CREW_NEW_MEMBER_MIN_MS,
   CREW_SEARCH_LIMIT,
@@ -77,6 +79,10 @@ export function buildCrewSeasonInfo(store, seasonKey, now = new Date()) {
     seasonKey,
     label: buildCrewSeasonLabel(seasonKey),
     isPreseason: isCrewPreseason(seasonKey),
+    // 프리시즌이 여러 달이라 '프리시즌 = 첫 시즌'도, '별은 다음 달부터'도 성립하지 않는다 — 앱이
+    // 짐작하지 않게 서버가 둘 다 말해 준다.
+    isFirstSeason: seasonKey === CREW_FIRST_SEASON_KEY,
+    firstStarSeasonKey: CREW_FIRST_STAR_SEASON_KEY,
     startsAt: new Date(startMs).toISOString(),
     endsAt: new Date(endMs).toISOString(),
     sealsAt: new Date(sealMs).toISOString(),

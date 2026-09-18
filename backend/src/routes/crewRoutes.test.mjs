@@ -159,7 +159,7 @@ async function runTest(name, testFn) {
 }
 
 const sortedKeys = (value) => Object.keys(value).sort();
-const SEASON_KEYS = ['daysLeft', 'endsAt', 'isPreseason', 'label', 'priorKm', 'sealsAt', 'seasonKey', 'startsAt', 'status'];
+const SEASON_KEYS = ['daysLeft', 'endsAt', 'firstStarSeasonKey', 'isFirstSeason', 'isPreseason', 'label', 'priorKm', 'sealsAt', 'seasonKey', 'startsAt', 'status'];
 const SUMMARY_KEYS = ['captainName', 'id', 'memberCount', 'name', 'stars'];
 const STANDING_KEYS = ['crewId', 'isMine', 'name', 'rank', 'runnerCount', 'score', 'seasonMemberCount', 'stars', 'totalKm', 'unrankedReason'];
 const MEMBER_KEYS = ['contributionKm', 'countedFrom', 'countsFrom', 'isMe', 'name', 'role', 'userId'];

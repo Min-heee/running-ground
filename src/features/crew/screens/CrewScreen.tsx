@@ -42,6 +42,7 @@ import {
   formatCrewRequestDate,
   getCrewErrorMessage,
   isCrewBoardOpen,
+  isCrewFirstSeason,
   isCrewStateDriftError,
   shiftCrewSeasonKey,
   sortCrewMembersForDisplay,
@@ -390,7 +391,7 @@ const LastSeasonView = memo(function LastSeasonView({
   if (!league || rows.length === 0) {
     return (
       <Text style={styles.lastEmpty}>
-        {home.season.isPreseason
+        {isCrewFirstSeason(home.season)
           ? `${home.season.label}이 첫 시즌이에요. 지난 시즌 결과는 다음 달부터 여기서 볼 수 있어요.`
           : '지난 시즌엔 순위에 오른 크루가 없었어요.'}
       </Text>

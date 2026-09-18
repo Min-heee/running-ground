@@ -14,6 +14,7 @@ import { crewListStyles } from '../components/crewListStyles';
 import {
   buildCrewSeasonProgressLabel,
   formatCrewUnrankedShort,
+  isCrewFirstSeason,
   shiftCrewSeasonKey,
 } from '../crewModel';
 import { useCrewLeague } from '../hooks/useCrewLeague';
@@ -58,7 +59,7 @@ export default function CrewLeagueScreen() {
 
       {active.state.status === 'missing' ? (
         <Text style={styles.empty}>
-          {segment === 'last' && currentLeague?.season.isPreseason
+          {segment === 'last' && currentLeague && isCrewFirstSeason(currentLeague.season)
             ? `${currentLeague.season.label}이 첫 시즌이에요. 지난 시즌 결과는 다음 달부터 볼 수 있어요.`
             : '이 시즌 기록이 없어요.'}
         </Text>
@@ -68,7 +69,9 @@ export default function CrewLeagueScreen() {
         <LeagueBody
           league={active.state.league}
           showUnranked={segment === 'current'}
-          firstSeasonLabel={segment === 'last' && currentLeague?.season.isPreseason ? currentLeague.season.label : null}
+          firstSeasonLabel={segment === 'last' && currentLeague && isCrewFirstSeason(currentLeague.season)
+            ? currentLeague.season.label
+            : null}
         />
       ) : null}
     </Screen>

@@ -39,7 +39,7 @@ import {
   CREW_MIN_CHAMPION_RUNNERS,
   CREW_MIN_RANKED_MEMBERS,
   CREW_NEW_MEMBER_MIN_MS,
-  CREW_PRESEASON_KEY,
+  CREW_PRESEASON_LAST_KEY,
   CREW_SEASON_RULE_VERSION,
   CREW_SEASON_SEAL_DELAY_MS,
 } from './crewConstants.mjs';
@@ -73,8 +73,9 @@ export function isValidCrewSeasonKey(seasonKey) {
     && seasonKey >= CREW_FIRST_SEASON_KEY;
 }
 
+// 'YYYY-MM'은 사전순이 곧 시간순이라 문자열 범위 비교로 충분하다.
 export function isCrewPreseason(seasonKey) {
-  return seasonKey === CREW_PRESEASON_KEY;
+  return seasonKey >= CREW_FIRST_SEASON_KEY && seasonKey <= CREW_PRESEASON_LAST_KEY;
 }
 
 // 지금 진행 중인 시즌 — 첫 시즌 이전 시각(테스트 시계)이면 첫 시즌을 돌려준다.

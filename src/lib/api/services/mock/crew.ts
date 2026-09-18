@@ -33,7 +33,10 @@ import type {
 } from '../../types';
 
 const MOCK_ME_ID = 'mock-user';
-const MOCK_PRESEASON_KEY = '2026-09';
+// 서버 crewConstants와 같은 달력: 프리시즌 9·10월(오너 2026-09-18 연장), 첫 별 시즌 11월.
+const MOCK_FIRST_SEASON_KEY = '2026-09';
+const MOCK_PRESEASON_LAST_KEY = '2026-10';
+const MOCK_FIRST_STAR_SEASON_KEY = '2026-11';
 const MOCK_PRIOR_KM = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -85,11 +88,15 @@ function nextKstMidnightIso(ms: number) {
   return new Date(nextDayUtc - KST_OFFSET_MS).toISOString();
 }
 
+function isMockPreseason(seasonKey: string): boolean {
+  return seasonKey >= MOCK_FIRST_SEASON_KEY && seasonKey <= MOCK_PRESEASON_LAST_KEY;
+}
+
 function buildSeasonInfo(seasonKey: string, nowMs: number): CrewSeasonInfo {
   const startsAtMs = seasonStartMs(seasonKey);
   const endsAtMs = seasonStartMs(shiftCrewSeasonKey(seasonKey, 1));
   const sealsAtMs = endsAtMs + 2 * DAY_MS;
-  const isPreseason = seasonKey === MOCK_PRESEASON_KEY;
+  const isPreseason = isMockPreseason(seasonKey);
   const month = Number(seasonKey.split('-')[1]);
   const status: CrewSeasonInfo['status'] = nowMs < endsAtMs ? 'live' : nowMs < sealsAtMs ? 'tallying' : 'sealed';
 
@@ -97,6 +104,8 @@ function buildSeasonInfo(seasonKey: string, nowMs: number): CrewSeasonInfo {
     seasonKey,
     label: isPreseason ? `${month}월 프리시즌` : `${month}월 시즌`,
     isPreseason,
+    isFirstSeason: seasonKey === MOCK_FIRST_SEASON_KEY,
+    firstStarSeasonKey: MOCK_FIRST_STAR_SEASON_KEY,
     startsAt: new Date(startsAtMs).toISOString(),
     endsAt: new Date(endsAtMs).toISOString(),
     sealsAt: new Date(sealsAtMs).toISOString(),
@@ -138,7 +147,7 @@ function seedMembers(crewId: string, names: string[], contributions: number[], s
 function createInitialMockCrewState() {
   const nowMs = Date.now();
   const seasonKey = kstMonthKey(nowMs);
-  const isPreseason = seasonKey === MOCK_PRESEASON_KEY;
+  const isPreseason = isMockPreseason(seasonKey);
   const seasonStartIso = new Date(seasonStartMs(seasonKey) - 10 * DAY_MS).toISOString();
   const newcomerCountsFrom = nextKstMidnightIso(nowMs);
 
@@ -433,7 +442,8 @@ function buildLastSeason(nowMs: number) {
   return {
     seasonKey,
     label: info.label,
-    champions: [{ crewId: 'crew-hangang', name: '한강나이트런' }],
+    // 서버처럼 프리시즌(9·10월)은 우승이 없다.
+    champions: info.isPreseason ? [] : [{ crewId: 'crew-hangang', name: '한강나이트런' }],
   };
 }
 
@@ -482,7 +492,7 @@ export function buildMockCrewLeague(seasonKey?: string): CrewLeagueResponse {
 
   if (targetKey === shiftCrewSeasonKey(currentKey, -1)) {
     return {
-      season: { ...buildSeasonInfo(targetKey, nowMs), isPreseason: false, status: 'sealed', daysLeft: 0 },
+      season: { ...buildSeasonInfo(targetKey, nowMs), status: 'sealed', daysLeft: 0 },
       sealed: true,
       ranked: buildLastSeasonSnapshot(),
       unranked: [],
@@ -547,7 +557,7 @@ function joinCrewAsMe(crew: MockCrew) {
 
   const nowMs = Date.now();
   const countsFrom = nextKstMidnightIso(nowMs);
-  const isPreseason = kstMonthKey(nowMs) === MOCK_PRESEASON_KEY;
+  const isPreseason = isMockPreseason(kstMonthKey(nowMs));
   crew.members.push({
     userId: MOCK_ME_ID,
     name: myProfile.name,
@@ -695,7 +705,7 @@ export function mockDecideCrewJoinRequest(requestId: string, approve: boolean): 
       role: 'member',
       contributionKm: 0,
       countsFrom,
-      countedFrom: kstMonthKey(nowMs) === MOCK_PRESEASON_KEY
+      countedFrom: isMockPreseason(kstMonthKey(nowMs))
         ? null
         : new Date(Date.parse(countsFrom) + 7 * DAY_MS).toISOString(),
     });

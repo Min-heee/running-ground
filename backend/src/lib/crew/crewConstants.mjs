@@ -71,10 +71,13 @@ export const CREW_DEFAULT_PRIOR_KM = 30;
 export const CREW_MIN_RANKED_MEMBERS = 3;
 export const CREW_MIN_CHAMPION_RUNNERS = 3;
 
-// 출시 달 = 프리시즌 (오너 2026-09-18): 순위표는 돌고 원장에도 봉인되지만 별·결과 알림이
-// 없고 7일 규칙도 끈다. 첫 별 시즌은 2026-10. 이 달보다 앞선 시즌은 존재하지 않는다.
-export const CREW_PRESEASON_KEY = '2026-09';
-export const CREW_FIRST_SEASON_KEY = CREW_PRESEASON_KEY;
+// 프리시즌 = 출시 달(2026-09)부터 2026-10까지 (오너 2026-09-18, 같은 날 '10월까지 연장'):
+// 순위표는 돌고 원장에도 봉인되지만 별·결과 알림이 없고 7일 규칙도 끈다. 첫 별 시즌은 그다음 달.
+// 첫 시즌보다 앞선 시즌은 존재하지 않는다. 기간을 또 바꾸면 LAST와 FIRST_STAR를 함께 옮긴다 —
+// 앱은 시즌 응답의 firstStarSeasonKey로 '별은 N월 시즌부터'를 쓰므로 OTA 없이 따라온다.
+export const CREW_FIRST_SEASON_KEY = '2026-09';
+export const CREW_PRESEASON_LAST_KEY = '2026-10';
+export const CREW_FIRST_STAR_SEASON_KEY = '2026-11';
 
 // 봉인 유예 — 월간 랭킹 별과 같은 48시간(늦은 업로드·늦게 붙는 차량 판정을 받아낸다).
 export const CREW_SEASON_SEAL_DELAY_MS = RANKING_STARS_SEAL_DELAY_MS;

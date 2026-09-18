@@ -436,21 +436,33 @@ export function buildCrewSeasonStatusLine(season: CrewSeasonInfo): string {
   return `${season.label} · ${buildCrewSeasonProgressLabel(season)}`;
 }
 
-// 프리시즌(출시한 달)은 순위만 돌고 별은 다음 달부터 — 크루가 없을 때 히어로 아래 한 줄로 미리 말해 둔다.
+// 별을 주는 첫 시즌 — 프리시즌이 9·10월 두 달이라(오너 2026-09-18 연장) '다음 달'로 짐작하면 9월에
+// '별은 10월부터'라고 틀린다. 서버 값을 쓰고, 필드가 없는 구 백엔드(프리시즌 9월 한 달)면 그 서버의
+// 뜻 그대로 다음 달이다(적대 리뷰 2026-09-18: 없는 값을 그대로 쓰면 split에서 크루 탭이 죽는다).
+export function resolveCrewFirstStarSeasonKey(season: CrewSeasonInfo): string {
+  return season.firstStarSeasonKey ?? shiftCrewSeasonKey(season.seasonKey, 1);
+}
+
+// 이전 시즌이 없는 첫 시즌인지 — 구 백엔드는 프리시즌 = 첫 시즌(9월 한 달)이었다.
+export function isCrewFirstSeason(season: CrewSeasonInfo): boolean {
+  return season.isFirstSeason ?? season.isPreseason;
+}
+
+// 프리시즌은 순위만 돌고 별은 첫 별 시즌부터 — 크루가 없을 때 히어로 아래 한 줄로 미리 말해 둔다.
 export function buildCrewPreseasonNote(season: CrewSeasonInfo): string | null {
   if (!season.isPreseason) {
     return null;
   }
 
-  return `프리시즌이에요 · 별은 ${formatCrewSeasonMonth(shiftCrewSeasonKey(season.seasonKey, 1))} 시즌부터 받아요`;
+  return `프리시즌이에요 · 별은 ${formatCrewSeasonMonth(resolveCrewFirstStarSeasonKey(season))} 시즌부터 받아요`;
 }
 
 // 내 크루 히어로 맨 아래 작은 한 줄: 시즌이 언제 끝나는지, 프리시즌이면 별이 언제부터인지까지.
 // 히어로 줄 수를 늘리지 않으려고 한 줄에 접는다.
 export function buildCrewHeroSeasonNote(season: CrewSeasonInfo): string {
   if (season.status === 'live' && season.isPreseason) {
-    const nextMonth = formatCrewSeasonMonth(shiftCrewSeasonKey(season.seasonKey, 1));
-    return `프리시즌 · ${buildCrewSeasonProgressLabel(season)} · 별은 ${nextMonth} 시즌부터`;
+    const starsFrom = formatCrewSeasonMonth(resolveCrewFirstStarSeasonKey(season));
+    return `프리시즌 · ${buildCrewSeasonProgressLabel(season)} · 별은 ${starsFrom} 시즌부터`;
   }
 
   return buildCrewSeasonStatusLine(season);

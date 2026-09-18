@@ -6,8 +6,12 @@ export type CrewUnrankedReason = 'too_few_members' | 'no_distance' | 'newcomers_
 
 export type CrewSeasonInfo = {
   seasonKey: string;          // 'YYYY-MM'
-  label: string;              // '10월 시즌' | '9월 프리시즌'
-  isPreseason: boolean;
+  label: string;              // '11월 시즌' | '9월 프리시즌'
+  isPreseason: boolean;       // 9·10월 (오너 2026-09-18 연장) — 별·7일 규칙 없음
+  // 아래 둘은 프리시즌 연장 때 더한 필드라 그 전 백엔드(86c4a059) 응답엔 없다 — 백엔드 롤백·배포
+  // 지연에도 크루 탭이 죽지 않게 옵셔널로 두고 crewModel의 resolve 함수로만 읽는다.
+  isFirstSeason?: boolean;     // 이전 시즌이 없는 달(2026-09) — '지난 시즌' 빈 문구용
+  firstStarSeasonKey?: string; // 'YYYY-MM' 별을 주는 첫 시즌 — '별은 N월 시즌부터'
   startsAt: string; endsAt: string; sealsAt: string;   // ISO
   daysLeft: number;           // whole KST days until endsAt, 0 when tallying/sealed
   priorKm: number;            // fixed P

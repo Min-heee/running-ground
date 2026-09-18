@@ -38,10 +38,12 @@ import {
   getCrewErrorCode,
   getCrewErrorMessage,
   isCrewBoardOpen,
+  isCrewFirstSeason,
   isCrewPodiumRank,
   isCrewStateDriftError,
   isValidCrewInviteCode,
   normalizeCrewInviteCode,
+  resolveCrewFirstStarSeasonKey,
   resolveCrewRankedFromDate,
   shiftCrewSeasonKey,
   shouldFetchCrewLeague,
@@ -84,12 +86,14 @@ function buildMember(overrides: Partial<CrewMemberRow> = {}): CrewMemberRow {
 
 function buildSeason(overrides: Partial<CrewSeasonInfo> = {}): CrewSeasonInfo {
   return {
-    seasonKey: '2026-10',
-    label: '10월 시즌',
+    seasonKey: '2026-11',
+    label: '11월 시즌',
     isPreseason: false,
-    startsAt: '2026-09-30T15:00:00.000Z',
-    endsAt: '2026-10-31T15:00:00.000Z',
-    sealsAt: '2026-11-02T15:00:00.000Z',
+    isFirstSeason: false,
+    firstStarSeasonKey: '2026-11',
+    startsAt: '2026-10-31T15:00:00.000Z',
+    endsAt: '2026-11-30T15:00:00.000Z',
+    sealsAt: '2026-12-02T15:00:00.000Z',
     daysLeft: 12,
     priorKm: 30,
     status: 'live',
@@ -325,28 +329,47 @@ test('시즌 키 이동은 연말·연초를 넘는다', () => {
 });
 
 test('시즌 상태 한 줄: 남은 날·마지막 날·집계 중·확정', () => {
-  assert.equal(buildCrewSeasonStatusLine(buildSeason()), '10월 시즌 · 12일 남음');
-  assert.equal(buildCrewSeasonStatusLine(buildSeason({ daysLeft: 0 })), '10월 시즌 · 오늘 끝나요');
-  // 봉인 = 11/2 15:00Z = 11/3 0시 KST.
-  assert.equal(buildCrewSeasonStatusLine(buildSeason({ status: 'tallying', daysLeft: 0 })), '10월 시즌 · 집계 중 · 11/3 0시 확정');
-  assert.equal(buildCrewSeasonStatusLine(buildSeason({ status: 'sealed', daysLeft: 0 })), '10월 시즌 · 확정');
+  assert.equal(buildCrewSeasonStatusLine(buildSeason()), '11월 시즌 · 12일 남음');
+  assert.equal(buildCrewSeasonStatusLine(buildSeason({ daysLeft: 0 })), '11월 시즌 · 오늘 끝나요');
+  // 봉인 = 12/2 15:00Z = 12/3 0시 KST.
+  assert.equal(buildCrewSeasonStatusLine(buildSeason({ status: 'tallying', daysLeft: 0 })), '11월 시즌 · 집계 중 · 12/3 0시 확정');
+  assert.equal(buildCrewSeasonStatusLine(buildSeason({ status: 'sealed', daysLeft: 0 })), '11월 시즌 · 확정');
 });
 
-test('프리시즌 안내는 프리시즌에만, 다음 달 시즌을 가리킨다', () => {
-  assert.equal(
-    buildCrewPreseasonNote(buildSeason({ seasonKey: '2026-09', label: '9월 프리시즌', isPreseason: true })),
-    '프리시즌이에요 · 별은 10월 시즌부터 받아요',
-  );
+// 프리시즌이 9·10월 두 달이라(오너 2026-09-18 연장) '다음 달'이 아니라 서버의 첫 별 시즌을 가리킨다.
+const SEPTEMBER_PRESEASON = { seasonKey: '2026-09', label: '9월 프리시즌', isPreseason: true, isFirstSeason: true };
+const OCTOBER_PRESEASON = { seasonKey: '2026-10', label: '10월 프리시즌', isPreseason: true };
+
+test('프리시즌 안내는 프리시즌에만, 서버가 준 첫 별 시즌을 가리킨다', () => {
+  assert.equal(buildCrewPreseasonNote(buildSeason(SEPTEMBER_PRESEASON)), '프리시즌이에요 · 별은 11월 시즌부터 받아요');
+  assert.equal(buildCrewPreseasonNote(buildSeason(OCTOBER_PRESEASON)), '프리시즌이에요 · 별은 11월 시즌부터 받아요');
   assert.equal(buildCrewPreseasonNote(buildSeason()), null);
 });
 
+test('두 필드가 없는 구 백엔드 응답(86c4a059)도 죽지 않고 그 서버의 뜻대로 읽는다', () => {
+  // 구 백엔드는 프리시즌이 9월 한 달 = 첫 시즌, 별은 다음 달부터였다.
+  const legacySeptember = buildSeason({ seasonKey: '2026-09', label: '9월 프리시즌', isPreseason: true });
+  delete legacySeptember.isFirstSeason;
+  delete legacySeptember.firstStarSeasonKey;
+  assert.equal(resolveCrewFirstStarSeasonKey(legacySeptember), '2026-10');
+  assert.equal(buildCrewPreseasonNote(legacySeptember), '프리시즌이에요 · 별은 10월 시즌부터 받아요');
+  assert.equal(buildCrewHeroSeasonNote(legacySeptember), '프리시즌 · 12일 남음 · 별은 10월 시즌부터');
+  assert.equal(isCrewFirstSeason(legacySeptember), true);
+
+  // 새 백엔드 값이 있으면 그 값이 이긴다.
+  assert.equal(resolveCrewFirstStarSeasonKey(buildSeason(OCTOBER_PRESEASON)), '2026-11');
+  assert.equal(isCrewFirstSeason(buildSeason(OCTOBER_PRESEASON)), false);
+  assert.equal(isCrewFirstSeason(buildSeason(SEPTEMBER_PRESEASON)), true);
+});
+
 test('내 크루 히어로의 시즌 한 줄', () => {
-  assert.equal(buildCrewHeroSeasonNote(buildSeason()), '10월 시즌 · 12일 남음');
+  assert.equal(buildCrewHeroSeasonNote(buildSeason()), '11월 시즌 · 12일 남음');
   assert.equal(
-    buildCrewHeroSeasonNote(buildSeason({ seasonKey: '2026-09', label: '9월 프리시즌', isPreseason: true, daysLeft: 0 })),
-    '프리시즌 · 오늘 끝나요 · 별은 10월 시즌부터',
+    buildCrewHeroSeasonNote(buildSeason({ ...SEPTEMBER_PRESEASON, daysLeft: 0 })),
+    '프리시즌 · 오늘 끝나요 · 별은 11월 시즌부터',
   );
-  assert.equal(buildCrewHeroSeasonNote(buildSeason({ status: 'tallying', daysLeft: 0 })), '10월 시즌 · 집계 중 · 11/3 0시 확정');
+  assert.equal(buildCrewHeroSeasonNote(buildSeason({ ...OCTOBER_PRESEASON, daysLeft: 3 })), '프리시즌 · 3일 남음 · 별은 11월 시즌부터');
+  assert.equal(buildCrewHeroSeasonNote(buildSeason({ status: 'tallying', daysLeft: 0 })), '11월 시즌 · 집계 중 · 12/3 0시 확정');
 });
 
 test('시즌 순위표 재조회: 봉인 스냅샷만 영구 캐시, 집계 중 응답은 재진입·refreshKey 변화 때 다시', () => {
@@ -355,7 +378,7 @@ test('시즌 순위표 재조회: 봉인 스냅샷만 영구 캐시, 집계 중 
   assert.equal(shouldFetchCrewLeague({ ...base, enabled: false, cached: 'none' }), false);
   // 켜진 채 그대로면 다시 부르지 않는다(무한 재조회 방지).
   assert.equal(shouldFetchCrewLeague({ ...base, cached: 'unsealed' }), false);
-  // 11/2 '집계 중'을 받은 뒤: 세그먼트 재진입 또는 봉인으로 홈의 lastSeason 키가 바뀌면 다시.
+  // 12/2 '집계 중'을 받은 뒤: 세그먼트 재진입 또는 봉인으로 홈의 lastSeason 키가 바뀌면 다시.
   assert.equal(shouldFetchCrewLeague({ ...base, cached: 'unsealed', wasEnabled: false }), true);
   assert.equal(shouldFetchCrewLeague({ ...base, cached: 'unsealed', refreshKeyChanged: true }), true);
   // 봉인 스냅샷은 절대 다시 안 부른다. 불러오는 중·에러도 여기서는 안 건드린다.
@@ -365,15 +388,15 @@ test('시즌 순위표 재조회: 봉인 스냅샷만 영구 캐시, 집계 중 
 
 test('지난 시즌 머리 한 줄', () => {
   const season = buildSeason({ status: 'sealed', daysLeft: 0 });
-  assert.equal(buildCrewLastSeasonHeadline({ season, sealed: true, champions: [{ name: '새벽러너스' }] }), '10월 시즌 우승 · 새벽러너스 ★');
+  assert.equal(buildCrewLastSeasonHeadline({ season, sealed: true, champions: [{ name: '새벽러너스' }] }), '11월 시즌 우승 · 새벽러너스 ★');
   assert.equal(
     buildCrewLastSeasonHeadline({ season, sealed: true, champions: [{ name: 'A' }, { name: 'B' }] }),
-    '10월 시즌 공동 우승 · A ★, B ★',
+    '11월 시즌 공동 우승 · A ★, B ★',
   );
-  assert.equal(buildCrewLastSeasonHeadline({ season, sealed: true, champions: [] }), '10월 시즌 · 우승 크루가 없었어요');
+  assert.equal(buildCrewLastSeasonHeadline({ season, sealed: true, champions: [] }), '11월 시즌 · 우승 크루가 없었어요');
   assert.equal(
     buildCrewLastSeasonHeadline({ season: buildSeason({ status: 'tallying' }), sealed: false, champions: [] }),
-    '10월 시즌 · 집계 중 · 11/3 0시 확정',
+    '11월 시즌 · 집계 중 · 12/3 0시 확정',
   );
   assert.equal(
     buildCrewLastSeasonHeadline({
