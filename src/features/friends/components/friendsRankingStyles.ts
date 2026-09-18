@@ -89,12 +89,6 @@ export const friendsRankingStyles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
     includeFontPadding: false,
   },
-  moreButtonHint: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.bold,
-    includeFontPadding: false,
-  },
   moreButtonChevron: {
     color: colors.textTertiary,
     fontSize: fontSizes.metric,

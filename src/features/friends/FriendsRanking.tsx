@@ -39,7 +39,6 @@ export const FriendsRanking = memo(function FriendsRanking({
   const rankingWindowLabel = getFriendRankingWindowLabel(rankingWindow);
   const isTruncated = typeof limit === 'number' && limit > 0 && displayedRanks.length > limit;
   const visibleRanks = isTruncated ? displayedRanks.slice(0, limit) : displayedRanks;
-  const hiddenCount = displayedRanks.length - visibleRanks.length;
 
   if (ranks.length === 0) {
     return null;
@@ -92,13 +91,13 @@ export const FriendsRanking = memo(function FriendsRanking({
       {isTruncated && onShowMore ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`친구 순위표 전체 보기, ${hiddenCount}명 더`}
+          accessibilityLabel="친구 순위표 전체 보기"
           onPress={onShowMore}
           style={styles.moreButton}
           hitSlop={8}
         >
+          {/* 'N명 더' 힌트는 오너가 뺐다 (2026-09-18) — 전체 인원은 위 'N명' 배지가 이미 말한다. */}
           <Text style={styles.moreButtonText}>더보기</Text>
-          <Text style={styles.moreButtonHint}>{hiddenCount}명 더</Text>
           <Text style={styles.moreButtonChevron}>›</Text>
         </Pressable>
       ) : null}
