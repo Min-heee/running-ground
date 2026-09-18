@@ -600,6 +600,42 @@ await runTest('deletes the current account and cleans related records', async ()
   assert.deepEqual(store.offlineRaceEvents[0].registeredUserTags, ['#FRI01']);
 });
 
+// 크루대전 (2026-09-18): 탈퇴하면 크루 멤버십이 끝나고(캡틴이면 이양) 가입 신청이 취소된다.
+await runTest('deleteAccount ends the crew membership and hands captaincy over', async () => {
+  const { repository, storeHarness } = createRepositoryHarness({
+    users: [
+      { id: 'user-captain', name: '캡틴', publicTag: '#CAP01' },
+      { id: 'user-member', name: '멤버', publicTag: '#MEM01' },
+    ],
+    sessions: [
+      { token: 'token-captain', userId: 'user-captain', createdAt: '2026-10-05T00:00:00.000Z', expiresAt: '2099-01-01T00:00:00.000Z' },
+    ],
+    crews: [
+      {
+        id: 'crew-1', name: '새벽', nameKey: '새벽', inviteCode: 'ABC234', captainUserId: 'user-captain',
+        createdByUserId: 'user-captain', createdAt: '2026-10-01T00:00:00.000Z', closedAt: null, bans: [],
+      },
+    ],
+    crewMembers: [
+      { id: 'row-1', crewId: 'crew-1', userId: 'user-captain', role: 'captain', joinedAt: '2026-10-01T00:00:00.000Z', countsFrom: '2026-10-01T15:00:00.000Z', leftAt: null, leftReason: null },
+      { id: 'row-2', crewId: 'crew-1', userId: 'user-member', role: 'member', joinedAt: '2026-10-02T00:00:00.000Z', countsFrom: '2026-10-02T15:00:00.000Z', leftAt: null, leftReason: null },
+    ],
+    crewJoinRequests: [],
+    crewSeasonAwards: [],
+  });
+
+  await repository.deleteAccount({ token: 'token-captain' });
+
+  const store = storeHarness.getStore();
+  const captainRow = store.crewMembers.find((row) => row.userId === 'user-captain');
+  assert.equal(captainRow.leftReason, 'deleted');
+  assert.equal(typeof captainRow.leftAt, 'string');
+  assert.equal(store.crews[0].captainUserId, 'user-member');
+  assert.equal(store.crews[0].closedAt, null);
+  assert.equal(store.crewMembers.find((row) => row.userId === 'user-member').role, 'captain');
+  assert.equal(store.notifications.filter((item) => item.type === 'crew_captain' && item.userId === 'user-member').length, 1);
+});
+
 await runTest('requires a valid session to delete the current account', async () => {
   const { repository } = createRepositoryHarness();
 

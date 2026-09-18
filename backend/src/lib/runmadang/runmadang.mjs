@@ -14,6 +14,8 @@ import { appendUserNotification } from '../userNotifications.mjs';
 import { areFriends } from '../socialStoreHelpers.mjs';
 import { isCompetitiveRun } from '../competitiveRuns.mjs';
 import { formatKstDateKey } from '../kstDate.mjs';
+// 인정 창 판정은 크루대전과 공유한다 (2026-09-18 추출 — 동작 변화 없음).
+import { isRunCountable, parseKstDayStartMs } from '../competitionWindow.mjs';
 import {
   getRedeemedPointCost,
   getUserMetrics,
@@ -114,10 +116,6 @@ function requireStakeBalance(store, userId, stakePoints) {
 }
 
 const KST_DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-function parseKstDayStartMs(dateKey) {
-  return Date.parse(`${dateKey}T00:00:00+09:00`);
-}
 
 function resolvePeriod(input, now) {
   const preset = typeof input.periodPreset === 'string' ? input.periodPreset : null;
@@ -399,31 +397,8 @@ export function hideRunmadangChallenge(store, user, challengeId, now = new Date(
   return challenge;
 }
 
-// 늦은 오프라인 업로드 유예 — 기간 안에 뛴 기록이 bg-sync 지연으로 종료 후에 저장돼도
-// 이 시간 안이면 인정한다.
-const RUN_UPLOAD_GRACE_MS = 48 * 60 * 60 * 1000;
-
-// 집계 인정 조건 (적대 리뷰 2026-08-06):
-// 1. 끝난 시각(endedAt, 옛 기록은 createdAt 폴백)이 [fromMs, endMs) 안 — fromMs는
-//    참가자별 max(판 시작, 참가 시각). 참가 전 기록을 소급 인정하면 초대만 받아놓고
-//    이기고 있을 때만 막판에 참가하는 무위험 옵션이 생긴다.
-// 2. 서버가 찍은 저장 시각(createdAt)도 창(+늦은 업로드 유예) 안 — endedAt은
-//    클라이언트 임의값이라, 창 밖에서 저장된 기록을 창 안 시각으로 위조해 넣는 것을
-//    서버 시각으로 막는다. (창 안에서 과거 러닝을 복제 재저장하는 변종은 GPS 경로
-//    지문 비교가 필요해 안티치트 3단계 백로그.)
-// 임포트/수동 기록·차량 판정은 isCompetitiveRun이 걸러낸다.
-function isRunCountable(run, fromMs, endMs) {
-  const endedMs = Date.parse(run.endedAt ?? run.createdAt ?? '');
-  if (!Number.isFinite(endedMs) || endedMs < fromMs || endedMs >= endMs) {
-    return false;
-  }
-
-  const savedMs = Date.parse(run.createdAt ?? '');
-  if (!Number.isFinite(savedMs)) {
-    return true; // createdAt 없는 옛 기록 폴백
-  }
-  return savedMs >= fromMs && savedMs < endMs + RUN_UPLOAD_GRACE_MS;
-}
+// 집계 인정 조건(endedAt 창 + 서버 createdAt 창·48h 유예)은 competitionWindow.isRunCountable
+// 한 곳에 있다 — 크루대전 기여 인정과 같은 판정식을 쓴다 (2026-09-18 추출).
 
 function sumMetricValue(runs, metric) {
   if (metric === 'duration') {

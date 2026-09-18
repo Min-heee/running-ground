@@ -3,6 +3,7 @@ import { sendExpoPushNotifications } from '../lib/expoPushSender.mjs';
 import { collectPushTargetEntries, removePushToken } from '../lib/pushTokens.mjs';
 import { countUnreadUserNotifications } from '../lib/userNotifications.mjs';
 import { buildAdminInquiriesPayload, replyToInquiry } from '../lib/inquiries.mjs';
+import { adminCloseCrew, adminRenameCrew } from '../lib/crew/crewMembership.mjs';
 import {
   isAppleRevocationConfigured,
   revokeAppleRefreshToken,
@@ -179,6 +180,31 @@ export async function routeAdminRequest(routeContext) {
     requireAdmin(request);
     const body = (await parseJsonBody(request)) ?? {};
     const payload = await mutateStore((store) => replyToInquiry(store, adminInquiryReplyMatch[1], { body: body.body }));
+    sendJson(response, 200, payload);
+    return true;
+  }
+
+  // 크루대전 운영 도구 (2026-09-18, 심판 필수 수정) — 크루 이름이 전국 순위표에 그대로
+  // 노출되므로 부적절한 이름은 운영자가 바로 바꾸거나 크루를 닫을 수 있어야 한다. 앱에는
+  // 금칙어 목록 말고는 모더레이션 필터가 없다(우회 표기는 이 두 엔드포인트가 받는다).
+  if (pathname === '/api/admin/crews/rename' && method === 'POST') {
+    requireAdmin(request);
+    const body = (await parseJsonBody(request)) ?? {};
+    const payload = await mutateStore((store) => {
+      const crew = adminRenameCrew(store, String(body.crewId ?? ''), body.name);
+      return { success: true, crew: { id: crew.id, name: crew.name } };
+    });
+    sendJson(response, 200, payload);
+    return true;
+  }
+
+  if (pathname === '/api/admin/crews/close' && method === 'POST') {
+    requireAdmin(request);
+    const body = (await parseJsonBody(request)) ?? {};
+    const payload = await mutateStore((store) => {
+      const crew = adminCloseCrew(store, String(body.crewId ?? ''));
+      return { success: true, crew: { id: crew.id, name: crew.name, closedAt: crew.closedAt } };
+    });
     sendJson(response, 200, payload);
     return true;
   }

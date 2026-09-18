@@ -46,3 +46,10 @@ test('파티런 예약 확정 푸시는 예약이 걸린 대기방으로 딥링�
   assert.equal(resolveUserNotificationPushHref({ type: 'match_reserved', roomId: 'room-1' }), '/match-room');
   assert.equal(resolveUserNotificationPushHref({ type: 'match_reserved' }), '/match-room');
 });
+
+test('크루대전 푸시: 가입 신청 도착은 크루 관리로, 나머지는 크루 탭으로 (오너 2026-09-18)', () => {
+  assert.equal(resolveUserNotificationPushHref({ type: 'crew_join_request', crewId: 'crew-1' }), '/crew-manage');
+  for (const type of ['crew_season_result', 'crew_kicked', 'crew_captain', 'crew_join_decided']) {
+    assert.equal(resolveUserNotificationPushHref({ type }), '/(tabs)/crew', type);
+  }
+});

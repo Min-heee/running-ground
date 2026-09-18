@@ -112,6 +112,8 @@ test('themed surface/text tokens actually differ between palettes', () => {
     'successText',
     'danger',
     'inkPill',
+    // 표면 위 1~3위 금색 숫자 — 다크 유리 위 대비 (크루 순위표, 2026-09-18)
+    'podiumGoldOnSurface',
   ] as const;
 
   for (const key of mustDiffer) {

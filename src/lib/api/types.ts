@@ -1,5 +1,6 @@
 export * from './types/admin';
 export * from './types/chase';
+export * from './types/crew';
 export * from './types/friends';
 export * from './types/league';
 export * from './types/market';

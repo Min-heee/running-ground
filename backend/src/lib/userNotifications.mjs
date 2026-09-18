@@ -18,6 +18,12 @@ export const USER_NOTIFICATION_TYPES = new Set([
   'runmadang_invite',
   'runmadang_joined',
   'runmadang_settled',
+  // 크루대전 (2026-09-18): 시즌 결과 / 내보내짐 / 캡틴 이양 / 가입 신청(캡틴에게) / 신청 결정.
+  'crew_season_result',
+  'crew_kicked',
+  'crew_captain',
+  'crew_join_request',
+  'crew_join_decided',
 ]);
 export const MAX_USER_NOTIFICATIONS = 50;
 

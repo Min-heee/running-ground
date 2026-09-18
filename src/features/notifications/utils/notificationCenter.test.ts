@@ -64,3 +64,16 @@ test('match reserved notifications open the party room', () => {
     '/match-room',
   );
 });
+
+// 크루대전 알림 (오너 2026-09-18): 가입 신청 도착은 크루 관리, 나머지는 크루 탭. data 없이도 성립.
+test('crew notifications open the crew tab, join requests open crew manage', () => {
+  assert.equal(resolveNotificationHref(makeNotification({ type: 'crew_join_request' })), '/crew-manage');
+  for (const type of ['crew_season_result', 'crew_kicked', 'crew_captain', 'crew_join_decided'] as const) {
+    assert.equal(resolveNotificationHref(makeNotification({ type })), '/(tabs)/crew', type);
+    assert.equal(
+      resolveNotificationHref(makeNotification({ type, data: { crewId: 'crew-1', roomId: 'room-1' } as never })),
+      '/(tabs)/crew',
+      `${type} with data`,
+    );
+  }
+});

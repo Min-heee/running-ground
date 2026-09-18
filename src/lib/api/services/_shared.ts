@@ -4,6 +4,7 @@ export type {
   MockOfflineRaceHubState,
 } from './mock/state';
 export * from './mock/auth';
+export * from './mock/crew';
 export * from './mock/friends';
 export * from './mock/integrations';
 export * from './mock/league';

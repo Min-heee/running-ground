@@ -1,6 +1,7 @@
 import { buildSessionExpiry, setUserPassword, verifyPassword } from '../auth.mjs';
 import { removeUserPushTokens } from '../lib/pushTokens.mjs';
 import { removeUserInquiries } from '../lib/inquiries.mjs';
+import { endCrewMembershipsForDeletedUser } from '../lib/crew/crewMembership.mjs';
 import { INITIAL_RANK } from '../lib/rankSystem.mjs';
 import { SOCIAL_PROVIDER_LABEL } from '../lib/socialAuthProviders.mjs';
 
@@ -251,6 +252,10 @@ export function createJsonAuthRepository({
         }
 
         const { user } = sessionUser;
+
+        // 크루대전 (2026-09-18): 활성 크루 멤버십 종료(캡틴이면 이양, 마지막이면 크루 종료) +
+        // 기다리던 가입 신청 취소. users에서 지우기 전에 불러야 후임 캡틴 알림이 남는다.
+        endCrewMembershipsForDeletedUser(store, user.id);
 
         store.users = store.users.filter((entry) => entry.id !== user.id);
         store.runs = (store.runs ?? []).filter((entry) => entry.userId !== user.id);

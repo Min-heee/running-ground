@@ -2,6 +2,7 @@ import { buildAdminLiveActivity } from '../lib/adminLiveActivity.mjs';
 import { removeUserPushTokens } from '../lib/pushTokens.mjs';
 import { removeUserInquiries } from '../lib/inquiries.mjs';
 import { recordVanishedMatch } from '../lib/vanishedMatchTombstones.mjs';
+import { endCrewMembershipsForDeletedUser } from '../lib/crew/crewMembership.mjs';
 
 function createNowIso() {
   return new Date().toISOString();
@@ -143,6 +144,10 @@ export function createJsonAdminRepository({
       return mutateStore((store) => {
         ensureOfflineRaceStore(store);
         const deletedUser = findUserById(store, userId);
+
+        // 크루대전 (2026-09-18): 유저 탈퇴 경로와 같은 계약 — 크루 멤버십 종료·캡틴 이양·
+        // 가입 신청 취소. users에서 지우기 전에 부른다.
+        endCrewMembershipsForDeletedUser(store, userId);
 
         store.users = store.users.filter((entry) => entry.id !== userId);
         store.runs = store.runs.filter((entry) => entry.userId !== userId);

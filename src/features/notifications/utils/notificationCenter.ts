@@ -65,6 +65,12 @@ export function getNotificationTypeLabel(type: InboxNotificationType) {
     case 'runmadang_joined':
     case 'runmadang_settled':
       return '그라운드';
+    case 'crew_season_result':
+    case 'crew_kicked':
+    case 'crew_captain':
+    case 'crew_join_request':
+    case 'crew_join_decided':
+      return '크루';
     default:
       return '알림';
   }
@@ -94,6 +100,21 @@ export function resolveNotificationHref(notification: InboxNotification): Href |
     || notification.type === 'runmadang_settled'
   ) {
     return '/runmadang';
+  }
+
+  // 크루대전 알림 (오너 2026-09-18): 가입 신청 도착은 캡틴이 바로 승인·거절하도록 크루 관리로,
+  // 나머지(시즌 결과·내보내짐·캡틴이 됨·신청 결과)는 크루 탭으로. 크루 탭이 지금 상태를 다 보여주므로
+  // data 없이도 성립한다.
+  if (notification.type === 'crew_join_request') {
+    return '/crew-manage';
+  }
+  if (
+    notification.type === 'crew_season_result'
+    || notification.type === 'crew_kicked'
+    || notification.type === 'crew_captain'
+    || notification.type === 'crew_join_decided'
+  ) {
+    return '/(tabs)/crew';
   }
 
   // 파티런 예약 확정 알림 → 예약이 걸린 대기방으로 (data.roomId 계약, 오너 2026-09-09). 방이

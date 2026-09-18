@@ -16,6 +16,13 @@ const INBOX_PUSH_TYPES = new Set([
   'inquiry_reply',
 ]);
 
+const CREW_TAB_PUSH_TYPES = new Set([
+  'crew_season_result',
+  'crew_kicked',
+  'crew_captain',
+  'crew_join_decided',
+]);
+
 export function resolveUserNotificationPushHref(data: unknown): Href | null {
   const type = (data as { type?: unknown } | null | undefined)?.type;
 
@@ -41,6 +48,15 @@ export function resolveUserNotificationPushHref(data: unknown): Href | null {
   // 그라운드 푸시(초대/참가/정산)도 알림함 대신 바로 그라운드 목록으로.
   if (type === 'runmadang_invite' || type === 'runmadang_joined' || type === 'runmadang_settled') {
     return '/runmadang';
+  }
+
+  // 크루대전 푸시 (오너 2026-09-18) — 인앱 알림함 라우팅과 같은 목적지: 가입 신청 도착은 크루 관리,
+  // 나머지는 크루 탭.
+  if (type === 'crew_join_request') {
+    return '/crew-manage';
+  }
+  if (CREW_TAB_PUSH_TYPES.has(type)) {
+    return '/(tabs)/crew';
   }
 
   if (INBOX_PUSH_TYPES.has(type)) {

@@ -1,4 +1,4 @@
-// 앱 다운로드 단축 링크: GET /download[?tag=CODE]
+// 앱 다운로드 단축 링크: GET /download[?tag=CODE | ?crew=CODE]
 //
 // 태그 공유 메시지의 apps.apple.com 링크는 카톡 등 메신저의 인앱 브라우저에서
 // 웹 스토어 페이지를 먼저 띄워 "바로 안 열리는" 경험이 된다. 우리 도메인을
@@ -20,6 +20,13 @@ const PLAY_STORE_WEB_URL = 'https://play.google.com/store/apps/details?id=com.mi
 function sanitizeTagCode(rawTag) {
   const code = String(rawTag ?? '').replace(/^#/, '').trim().toUpperCase();
   return /^[A-Z0-9]{3,8}$/.test(code) ? code : null;
+}
+
+// 크루 초대 코드(크루대전, 2026-09-18) — 초대 코드 알파벳(I, O, 0, 1 제외) 6자리만 통과.
+// 태그와 마찬가지로 HTML/URL에 그대로 박히므로 화이트리스트가 곧 XSS 차단이다.
+function sanitizeCrewCode(rawCode) {
+  const code = String(rawCode ?? '').trim().toUpperCase();
+  return /^[A-HJ-NP-Z2-9]{6}$/.test(code) ? code : null;
 }
 
 // 다운로드 랜딩 = 자체 링크트리 (2026-08-05 안드로이드 정식 출시로 개편): 양대
@@ -129,6 +136,52 @@ function buildFriendLandingHtml({ tagCode, storeUrl }) {
 </html>`;
 }
 
+// ?crew=CODE 랜딩: 설치된 폰은 runningground://crew-join?code= 로 앱의 코드 가입 화면이
+// (코드가 채워진 채) 열린다 — 자동 가입은 없고 사용자가 미리보기를 보고 '가입하기'를 누른다.
+// 미설치면 잠시 후 스토어로. 코드를 크게 보여 줘서 앱을 새로 깐 사람이 손으로 옮겨 적을 수
+// 있게 한다(로그아웃 상태로 딥링크를 열면 가입 게이트를 지나며 코드가 사라진다).
+function buildCrewLandingHtml({ crewCode, storeUrl }) {
+  const appLink = `runningground://crew-join?code=${crewCode}`;
+
+  return `<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>러닝그라운드 크루 초대</title>
+<style>
+  body { margin: 0; font-family: -apple-system, sans-serif; background: #EFF0FA; color: #111827;
+         display: flex; flex-direction: column; align-items: center; justify-content: center;
+         min-height: 100vh; gap: 14px; padding: 24px; text-align: center; }
+  .label { color: #667085; font-size: 14px; font-weight: 700; }
+  .code { font-size: 34px; font-weight: 800; letter-spacing: 6px; color: #6D5EF7; }
+  .hint { color: #667085; font-size: 14px; line-height: 1.5; }
+  a.button { display: block; width: 100%; max-width: 320px; padding: 14px 0; border-radius: 12px;
+             text-decoration: none; font-weight: 700; }
+  a.primary { background: #6D5EF7; color: #fff; }
+  a.secondary { background: rgba(109, 94, 247, 0.14); color: #4338CA; }
+</style>
+</head>
+<body>
+<div class="label">크루 초대 코드</div>
+<div class="code">${crewCode}</div>
+<p class="hint">앱이 설치돼 있으면 크루 가입 화면이 열려요.<br>앱을 새로 받았다면 크루 탭에서 이 코드를 입력해 주세요.</p>
+<a class="button primary" href="${appLink}">앱에서 크루 가입</a>
+<a class="button secondary" href="${storeUrl}">앱 받기</a>
+<script>
+  // 설치된 폰: 스킴 이동으로 앱이 뜬다. 미설치: 스킴이 무시되므로 잠시 후 스토어로.
+  // 앱이 떠서 페이지가 백그라운드로 가면(hidden) 스토어 폴백을 쏘지 않는다.
+  location.href = ${JSON.stringify(appLink)};
+  setTimeout(function () {
+    if (!document.hidden) {
+      location.href = ${JSON.stringify(storeUrl)};
+    }
+  }, 1800);
+</script>
+</body>
+</html>`;
+}
+
 export async function routeDownloadRedirectRequest({ method, pathname, request, response, url }) {
   // HEAD도 허용 — 메신저 링크 미리보기 크롤러가 HEAD로 찔러본다.
   if (pathname !== '/download' || (method !== 'GET' && method !== 'HEAD')) {
@@ -160,6 +213,17 @@ export async function routeDownloadRedirectRequest({ method, pathname, request, 
       'Cache-Control': 'no-store',
     });
     response.end(html);
+    return true;
+  }
+
+  const crewCode = sanitizeCrewCode(url?.searchParams?.get('crew'));
+
+  if (crewCode && method === 'GET') {
+    response.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+    });
+    response.end(buildCrewLandingHtml({ crewCode, storeUrl }));
     return true;
   }
 

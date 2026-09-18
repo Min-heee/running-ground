@@ -15,7 +15,14 @@ export type InboxNotificationType =
   // 그라운드 (기간제 포인트 내기): 초대 / 참가 / 정산·취소 결과.
   | 'runmadang_invite'
   | 'runmadang_joined'
-  | 'runmadang_settled';
+  | 'runmadang_settled'
+  // 크루대전 (오너 2026-09-18): 시즌 결과 / 내보내짐 / 캡틴이 됨 / 가입 신청 도착(캡틴) /
+  // 내 신청의 승인·거절. 가입 신청만 크루 관리로, 나머지는 크루 탭으로 간다.
+  | 'crew_season_result'
+  | 'crew_kicked'
+  | 'crew_captain'
+  | 'crew_join_request'
+  | 'crew_join_decided';
 
 export type InboxNotificationData = {
   roomId?: string;

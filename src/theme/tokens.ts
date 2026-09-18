@@ -148,6 +148,10 @@ const LIGHT_COLORS = {
   podiumGoldSoft: '#FFF7CC',
   podiumGoldBorder: '#FACC15',
   podiumGoldText: '#B45309',
+  // 카드 표면에 바로 찍는 1~3위 금색 숫자(크루 순위표) — THEMED. podiumGoldText는 파스텔 칩
+  // 위 글자라 두 모드 모두 진한 호박색이어야 하지만, 다크 유리 위에선 3.3:1로 순위표에서 가장
+  // 흐린 숫자가 된다 (적대 리뷰 2026-09-18). 다크는 밝은 호박색으로 바꾼다.
+  podiumGoldOnSurface: '#B45309',
   podiumSilver: '#94A3B8',
   // Dedicated silver-row surface/border so the podium chip no longer borrows the
   // THEMED surfaceSoft/indigoBorder tokens — all three podium chips stay light
@@ -290,6 +294,7 @@ const DARK_COLORS: ThemeColors = {
   warningSoft: 'rgba(253,176,34,0.14)',
   orangeText: '#FDBA74',
   orangeWash: 'rgba(253,186,116,0.14)',
+  podiumGoldOnSurface: '#F5B84A',
   // Semantic: blue — 오로라의 시안 기운.
   blueAccent: '#6BA6FF',
   blueStrong: '#96B7FF',

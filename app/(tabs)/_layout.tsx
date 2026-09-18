@@ -69,6 +69,7 @@ export default function TabsLayout() {
     tabBarStyle: { display: 'none' as const },
   }), []);
   const tabListeners = useMemo(() => ({
+    crew: buildTabInputListeners('crew'),
     friends: buildTabInputListeners('friends'),
     home: buildTabInputListeners('home'),
     universe: buildTabInputListeners('universe'),
@@ -80,6 +81,7 @@ export default function TabsLayout() {
     running: buildTabInputListeners('running'),
   }), []);
   const tabOptions = useMemo(() => ({
+    crew: getTabScreenOptions('crew'),
     friends: getTabScreenOptions('friends'),
     home: getTabScreenOptions('home'),
     records: getTabScreenOptions('records'),
@@ -97,8 +99,8 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={screenOptions}
     >
-      {/* 탭바 순서 = 자식 선언 순서 (오너 2026-09-11 #2): 랭킹·러닝·홈·친구·기록·마이.
-          초기 진입 탭은 app/index.tsx의 /(tabs)/home 리다이렉트가 정하므로 영향 없음.
+      {/* 탭바 순서 = 자식 선언 순서 (오너 2026-09-11 #2, 크루 추가 2026-09-18):
+          랭킹·러닝·크루·홈·친구·기록·마이. 초기 진입 탭은 app/index.tsx의 /(tabs)/home 리다이렉트가 정하므로 영향 없음.
           다만 **맨 앞 자식은 안드로이드 하드웨어 뒤로가기의 목적지**다 — react-navigation
           TabRouter의 기본 backBehavior가 'firstRoute'라 routes[0]로 한 번 튄 뒤 앱이 닫힌다.
           그래서 href: null 인 숨은 라우트(레이스·마켓·스페이스)는 반드시 뒤에 둔다: 앞에
@@ -106,6 +108,7 @@ export default function TabsLayout() {
           순서와 무관하게 만들려면 <Tabs>에 backBehavior="history"를 주면 된다(미적용). */}
       <Tabs.Screen name="league" options={tabOptions.league} listeners={tabListeners.league} />
       <Tabs.Screen name="running" options={tabOptions.running} listeners={tabListeners.running} />
+      <Tabs.Screen name="crew" options={tabOptions.crew} listeners={tabListeners.crew} />
       <Tabs.Screen name="home" options={tabOptions.home} listeners={tabListeners.home} />
       <Tabs.Screen name="friends" options={tabOptions.friends} listeners={tabListeners.friends} />
       <Tabs.Screen name="records" options={tabOptions.records} listeners={tabListeners.records} />

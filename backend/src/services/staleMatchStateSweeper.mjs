@@ -15,6 +15,8 @@ import {
   pruneRunmadangChallenges,
   settleDueRunmadangChallenges,
 } from '../lib/runmadang/runmadang.mjs';
+import { pruneCrewStore } from '../lib/crew/crewMembership.mjs';
+import { sweepCrewSeasons } from '../lib/crew/crewSeason.mjs';
 
 // 5분: 대기방 수명(2시간)에 비해 충분히 촘촘하면서, 주기당 비용(blob 직렬화 1회)이 무의미한 간격.
 export const MATCH_STATE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
@@ -46,6 +48,10 @@ export async function sweepStaleMatchState({ mutateStore, now = new Date() }) {
     // 기간이 끝나면 결과가 나가야 한다.
     const settledRunmadang = settleDueRunmadangChallenges(store, now);
     pruneRunmadangChallenges(store, now);
+    // 크루대전 (2026-09-18): 유예(48h)가 지난 시즌 봉인(결과 알림 포함) + 오래된 크루·멤버십
+    // 행·가입 신청 정리 — 크루 탭을 아무도 안 열어도 달이 바뀌면 별이 붙는다.
+    const sealedCrewSeasons = sweepCrewSeasons(store, now).length;
+    const prunedCrewRows = pruneCrewStore(store, now);
 
     return {
       removedRooms: beforeRooms - (store.matchRooms?.length ?? 0),
@@ -53,6 +59,8 @@ export async function sweepStaleMatchState({ mutateStore, now = new Date() }) {
       removedQueueEntries: beforeQueueEntries - countQueueEntries(store),
       linkedRooms: (store.matchRooms ?? []).filter((room) => room?.linkedMatchId && unlinkedRoomIdsBefore.has(room.id)).length,
       settledRunmadang,
+      sealedCrewSeasons,
+      prunedCrewRows,
     };
   });
 }
@@ -78,7 +86,8 @@ export function startStaleMatchStateSweeper({
     try {
       const swept = await sweepStaleMatchState({ mutateStore, now: new Date() });
 
-      if (onSwept && (swept.removedRooms || swept.removedSessions || swept.removedQueueEntries || swept.linkedRooms || swept.settledRunmadang)) {
+      if (onSwept && (swept.removedRooms || swept.removedSessions || swept.removedQueueEntries || swept.linkedRooms || swept.settledRunmadang
+        || swept.sealedCrewSeasons || swept.prunedCrewRows)) {
         onSwept(swept);
       }
     } catch (error) {

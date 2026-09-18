@@ -32,7 +32,10 @@ export const NotificationTypeIcon = memo(function NotificationTypeIcon({ type, u
             ? 'target'
             : type === 'runmadang_invite' || type === 'runmadang_joined' || type === 'runmadang_settled'
               ? 'award'
-              : 'trending-up';
+              // 크루대전 알림은 크루 탭 아이콘(방패)과 같은 모양 (오너 2026-09-18).
+              : type.startsWith('crew_')
+                ? 'shield'
+                : 'trending-up';
 
   return <Feather name={iconName} size={fontSizes.title} color={iconColor} />;
 });

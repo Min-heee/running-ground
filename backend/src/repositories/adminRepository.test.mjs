@@ -232,6 +232,42 @@ await runTest('deletes a user and cleans related records', async () => {
   assert.deepEqual(store.offlineRaceEvents[0].registeredUserTags, ['#FRI01']);
 });
 
+// 크루대전 (2026-09-18): 관리자 삭제도 유저 탈퇴와 같은 계약 — 마지막 멤버면 크루가 닫힌다.
+await runTest('deleteUser closes the crew of its last member and cancels pending join requests', async () => {
+  const { repository, storeHarness } = createRepositoryHarness({
+    users: [
+      { id: 'user-me', name: '민병희', publicTag: '#ME001' },
+      { id: 'user-captain', name: '캡틴', publicTag: '#CAP01' },
+    ],
+    crews: [
+      {
+        id: 'crew-solo', name: '혼자', nameKey: '혼자', inviteCode: 'ABC234', captainUserId: 'user-me',
+        createdByUserId: 'user-me', createdAt: '2026-10-01T00:00:00.000Z', closedAt: null, bans: [],
+      },
+      {
+        id: 'crew-other', name: '노을', nameKey: '노을', inviteCode: 'XYZ789', captainUserId: 'user-captain',
+        createdByUserId: 'user-captain', createdAt: '2026-10-01T00:00:00.000Z', closedAt: null, bans: [],
+      },
+    ],
+    crewMembers: [
+      { id: 'row-1', crewId: 'crew-solo', userId: 'user-me', role: 'captain', joinedAt: '2026-10-01T00:00:00.000Z', countsFrom: '2026-10-01T15:00:00.000Z', leftAt: null, leftReason: null },
+      { id: 'row-2', crewId: 'crew-other', userId: 'user-captain', role: 'captain', joinedAt: '2026-10-01T00:00:00.000Z', countsFrom: '2026-10-01T15:00:00.000Z', leftAt: null, leftReason: null },
+    ],
+    crewJoinRequests: [
+      { id: 'request-1', crewId: 'crew-other', userId: 'user-me', status: 'pending', createdAt: new Date().toISOString(), decidedAt: null },
+    ],
+    crewSeasonAwards: [],
+  });
+
+  await repository.deleteUser({ userId: 'user-me' });
+
+  const store = storeHarness.getStore();
+  assert.equal(store.crewMembers.find((row) => row.userId === 'user-me').leftReason, 'deleted');
+  assert.equal(typeof store.crews.find((crew) => crew.id === 'crew-solo').closedAt, 'string');
+  assert.equal(store.crews.find((crew) => crew.id === 'crew-other').closedAt, null);
+  assert.equal(store.crewJoinRequests[0].status, 'cancelled');
+});
+
 await runTest('surfaces missing notice errors', async () => {
   const { repository } = createRepositoryHarness();
 

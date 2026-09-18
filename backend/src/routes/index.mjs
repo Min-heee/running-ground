@@ -4,6 +4,7 @@ import { routeLegalRequest } from './legalRoutes.mjs';
 import { routeAdminRequest } from './adminRoutes.mjs';
 import { routeAuthRequest } from './authRoutes.mjs';
 import { routeChaseRequest } from './chaseRoutes.mjs';
+import { routeCrewRequest } from './crewRoutes.mjs';
 import { routeLeagueRequest } from './leagueRoutes.mjs';
 import { routeMarketRequest } from './marketRoutes.mjs';
 import { routeRaceRequest } from './raceRoutes.mjs';
@@ -22,6 +23,7 @@ const ROUTE_HANDLERS = [
   routeRunningMatchRequest,
   routeChaseRequest,
   routeRunmadangRequest,
+  routeCrewRequest,
   routeRunRequest,
   routeUserRequest,
   routeMarketRequest,

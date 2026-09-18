@@ -1,4 +1,5 @@
 export * from './chase';
+export * from './crew';
 export * from './home';
 export * from './runs';
 export * from './matches';

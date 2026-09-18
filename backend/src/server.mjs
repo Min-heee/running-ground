@@ -94,6 +94,28 @@ import {
   withdrawRunmadangChallenge,
 } from './lib/runmadang/runmadang.mjs';
 import {
+  createCrew,
+  joinCrewByCode,
+  kickCrewMember,
+  leaveCrew,
+  rotateCrewInviteCode,
+  transferCrewCaptain,
+} from './lib/crew/crewMembership.mjs';
+import {
+  cancelCrewJoinRequest,
+  decideCrewJoinRequest,
+  requestToJoinCrew,
+} from './lib/crew/crewRequests.mjs';
+import { hasUnsealedCrewSeason, sweepCrewSeasons } from './lib/crew/crewSeason.mjs';
+import {
+  buildCrewDetailPayload,
+  buildCrewHomePayload,
+  buildCrewLeaguePayload,
+  buildCrewPreviewPayload,
+  buildCrewRequestsPayload,
+  buildCrewSearchPayload,
+} from './lib/crew/crewPayloads.mjs';
+import {
   normalizeOptionalString,
 } from './lib/adminNormalizers.mjs';
 import {
@@ -308,6 +330,24 @@ const routeRequest = createApiRouteHandler({
   joinRunmadangChallenge,
   settleDueRunmadangChallenges,
   withdrawRunmadangChallenge,
+  // 크루대전 (2026-09-18)
+  buildCrewDetailPayload,
+  buildCrewHomePayload,
+  buildCrewLeaguePayload,
+  buildCrewPreviewPayload,
+  buildCrewRequestsPayload,
+  buildCrewSearchPayload,
+  cancelCrewJoinRequest,
+  createCrew,
+  decideCrewJoinRequest,
+  hasUnsealedCrewSeason,
+  joinCrewByCode,
+  kickCrewMember,
+  leaveCrew,
+  requestToJoinCrew,
+  rotateCrewInviteCode,
+  sweepCrewSeasons,
+  transferCrewCaptain,
   getStoredRunRoute,
   buildHealthStatus: backendStatusService.buildHealthStatus,
   ENABLE_ADMIN_STATUS,

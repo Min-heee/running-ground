@@ -1,6 +1,7 @@
 export * from './adminService';
 export * from './authService';
 export * from './chaseService';
+export * from './crewService';
 export * from './friendsService';
 export * from './integrationsService';
 export * from './leagueService';

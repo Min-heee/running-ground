@@ -36,6 +36,12 @@ export const NOTIFICATION_PUSH_SETTING_KEY_BY_TYPE = {
   runmadang_invite: 'friendAlerts',
   runmadang_joined: 'friendAlerts',
   runmadang_settled: 'friendAlerts',
+  // 크루대전 — 사람 사이의 모임이라 친구 알림 설정을 따른다 (2026-09-18).
+  crew_season_result: 'friendAlerts',
+  crew_kicked: 'friendAlerts',
+  crew_captain: 'friendAlerts',
+  crew_join_request: 'friendAlerts',
+  crew_join_decided: 'friendAlerts',
 };
 
 // 인박스 전용(푸시 안 보냄) 유형 — rank_change는 랭크전 완료 때 match_result와 항상

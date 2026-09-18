@@ -46,7 +46,8 @@ export function resolveKstMonthKey(now) {
   return new Date(now.getTime() + KST_OFFSET_MS).toISOString().slice(0, 7);
 }
 
-function nextMonthKey(monthKey) {
+// 크루대전 시즌 경계도 같은 달 산술을 쓴다 (2026-09-18 export).
+export function nextMonthKey(monthKey) {
   let [year, month] = monthKey.split('-').map(Number);
   month += 1;
 

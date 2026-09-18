@@ -2,6 +2,9 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 
 const TAB_TITLES = {
   league: '랭킹',
+  // 크루대전 탭 (오너 2026-09-18): 탭바 글자는 두 자 '크루' — '크루대전'(4자)은 360dp 안드로이드에서
+  // 글꼴을 키우면 '크루대…'로 잘린다. 화면 제목(TabHeader)은 '크루대전'.
+  crew: '크루',
   records: '기록',
   universe: '스페이스',
   friends: '\uCE5C\uAD6C',
@@ -14,6 +17,7 @@ const TAB_TITLES = {
 
 const TAB_ICONS = {
   league: 'award',
+  crew: 'shield',
   records: 'list',
   friends: 'users',
   home: 'home',

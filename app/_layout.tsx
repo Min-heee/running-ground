@@ -128,6 +128,14 @@ export default function RootLayout() {
         <Stack.Screen name="group-reservation" />
         <Stack.Screen name="opponent-profile" />
         <Stack.Screen name="friend-detail" />
+        {/* 크루대전 (오너 2026-09-18): 탭 루트(크루)에서 밀어 올리는 서브 화면들. crew-join은
+            runningground://crew-join?code= 딥링크의 착지점이기도 하다. */}
+        <Stack.Screen name="crew-league" />
+        <Stack.Screen name="crew-detail" />
+        <Stack.Screen name="crew-create" />
+        <Stack.Screen name="crew-join" />
+        <Stack.Screen name="crew-search" />
+        <Stack.Screen name="crew-manage" />
         <Stack.Screen name="integration-management" />
         <Stack.Screen name="my-activity" />
         <Stack.Screen name="add-run" />
