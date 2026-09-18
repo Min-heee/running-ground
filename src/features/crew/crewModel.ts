@@ -28,8 +28,6 @@ export const CREW_NEWCOMER_DAYS = 7;
 export const CREW_SHRINKAGE_MEMBERS = 5;
 // 순위에 오르는 최소 시즌 멤버 수.
 export const CREW_MIN_RANKED_MEMBERS = 3;
-// 순위에 오른 크루가 이보다 적으면 빈 순위표 대신 '크루 모집 중'을 보여준다 (심사 must-fix: 콜드스타트).
-export const CREW_BOARD_MIN_RANKED_CREWS = 3;
 // 크루 탭 순위 카드는 5개까지 — 나머지는 '전체 순위 ›'에서 (친구 순위표 5명 + 더보기와 같은 결).
 export const CREW_BOARD_PREVIEW_LIMIT = 5;
 // 초대 링크 — 마이 탭 태그 공유와 같은 우리 도메인 리다이렉트(GET /download). 앱 설치자는
@@ -245,8 +243,13 @@ export function isCrewPodiumRank(rank: number | null): boolean {
   return typeof rank === 'number' && rank >= 1 && rank <= 3;
 }
 
-export function isCrewBoardOpen(rankedCrewCount: number): boolean {
-  return rankedCrewCount >= CREW_BOARD_MIN_RANKED_CREWS;
+// 이번 시즌 순위표가 비었을 때 카드 안 두 줄 (오너 2026-09-18: '크루 모집 중'과 '순위에 오른 크루가
+// 3개가 되면 순위표가 열려요'를 없애고, 순위에 오른 크루가 하나라도 있으면 바로 순위표를 보인다).
+// 내 크루가 있는데 '아직 크루가 없어요'라고 하면 바로 아래 내 크루와 어긋나서 말을 바꾼다.
+export function buildCrewBoardEmptyCopy(hasMyCrew: boolean): { title: string; body: string } {
+  return hasMyCrew
+    ? { title: '아직 순위에 오른 크루가 없어요', body: `시즌 멤버 ${CREW_MIN_RANKED_MEMBERS}명이 함께 달리면 순위에 올라가요.` }
+    : { title: '아직 크루가 없어요', body: '크루를 만들어서 활동하면 순위에 올라가요.' };
 }
 
 // 전체 순위의 '순위 밖' 행 옆 한 단어.

@@ -4,6 +4,7 @@ import test from 'node:test';
 import type { CrewMemberRow, CrewSeasonInfo, CrewStandingRow } from '@/lib/api/types/crew';
 import { ApiError } from '@/services/apiError';
 import {
+  buildCrewBoardEmptyCopy,
   buildCrewCancelRequestConfirmMessage,
   buildCrewCreateConfirmMessage,
   buildCrewGapLine,
@@ -37,7 +38,6 @@ import {
   formatCrewUnrankedShort,
   getCrewErrorCode,
   getCrewErrorMessage,
-  isCrewBoardOpen,
   isCrewFirstSeason,
   isCrewPodiumRank,
   isCrewStateDriftError,
@@ -239,9 +239,18 @@ test('순위 밖 한 단어 사유', () => {
   assert.equal(formatCrewUnrankedShort(null), '순위 밖');
 });
 
-test('순위에 오른 크루가 3개 미만이면 순위표 대신 모집 중', () => {
-  assert.equal(isCrewBoardOpen(2), false);
-  assert.equal(isCrewBoardOpen(3), true);
+test('이번 시즌 순위표가 비었을 때 문구 — 크루가 없으면 오너 문구, 내 크루가 있으면 어긋나지 않게', () => {
+  assert.deepEqual(buildCrewBoardEmptyCopy(false), {
+    title: '아직 크루가 없어요',
+    body: '크루를 만들어서 활동하면 순위에 올라가요.',
+  });
+  assert.deepEqual(buildCrewBoardEmptyCopy(true), {
+    title: '아직 순위에 오른 크루가 없어요',
+    body: '시즌 멤버 3명이 함께 달리면 순위에 올라가요.',
+  });
+  // '크루 모집 중'·'순위표가 열려요'는 없앴다 (오너 2026-09-18).
+  const all = [buildCrewBoardEmptyCopy(false), buildCrewBoardEmptyCopy(true)].flatMap((copy) => [copy.title, copy.body]).join(' ');
+  assert.doesNotMatch(all, /모집|열려요/);
 });
 
 test('1위와의 차이: 2위 이하는 1위와, 1위는 바로 아래와, 공동 1위는 그대로', () => {

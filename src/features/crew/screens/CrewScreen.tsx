@@ -24,9 +24,8 @@ import {
 import { crewListStyles } from '../components/crewListStyles';
 import { confirmCrewAction, showCrewNotice } from '../crewAlerts';
 import {
-  CREW_BOARD_MIN_RANKED_CREWS,
   CREW_BOARD_PREVIEW_LIMIT,
-  CREW_MIN_RANKED_MEMBERS,
+  buildCrewBoardEmptyCopy,
   buildCrewCancelRequestConfirmMessage,
   buildCrewHeroMeta,
   buildCrewHeroSeasonNote,
@@ -39,7 +38,6 @@ import {
   formatCrewRank,
   formatCrewRequestDate,
   getCrewErrorMessage,
-  isCrewBoardOpen,
   isCrewStateDriftError,
   sortCrewMembersForDisplay,
 } from '../crewModel';
@@ -209,25 +207,22 @@ export default function CrewScreen() {
 }
 
 // 맨 위 '이번 시즌' 순위 카드: 상위 5개 + '전체 순위 ›', 카드 오른쪽 아래 '지난 시즌 ›' (오너
-// 2026-09-18: 두 갈래 스위치 대신 이번 시즌 하나 + 지난 시즌 화살표). 순위에 오른 크루가 3개
-// 미만이면 빈 순위표 대신 '크루 모집 중' (심사 must-fix: 크루 2개짜리 순위표는 죽은 화면이다).
+// 2026-09-18: 두 갈래 스위치 대신 이번 시즌 하나 + 지난 시즌 화살표). 순위에 오른 크루가 하나라도
+// 있으면 바로 순위표 — 예전의 '크루 모집 중'(3개 미만이면 가림)은 오너가 같은 날 없앴다.
 const CrewBoardSection = memo(function CrewBoardSection({ home }: { home: CrewHomeResponse }) {
-  const boardOpen = isCrewBoardOpen(home.rankedCrewCount);
   const rows = home.top.slice(0, CREW_BOARD_PREVIEW_LIMIT);
+  const emptyCopy = buildCrewBoardEmptyCopy(Boolean(home.myCrew));
 
   return (
     <View style={crewListStyles.section}>
-      <CrewSectionHeader title="이번 시즌" meta={boardOpen ? `${home.rankedCrewCount}크루` : null} />
+      <CrewSectionHeader title="이번 시즌" meta={home.rankedCrewCount > 0 ? `${home.rankedCrewCount}크루` : null} />
       <Card style={crewListStyles.rowsCard}>
-        {boardOpen ? rows.map((row, index) => (
+        {rows.length > 0 ? rows.map((row, index) => (
           <CrewStandingListRow key={row.crewId} row={row} isFirst={index === 0} />
         )) : (
           <View style={crewListStyles.emptyBlock}>
-            <Text style={crewListStyles.emptyTitle}>크루 모집 중</Text>
-            <Text style={crewListStyles.emptyText}>
-              순위에 오른 크루가 {CREW_BOARD_MIN_RANKED_CREWS}개가 되면 순위표가 열려요.
-              시즌 멤버 {CREW_MIN_RANKED_MEMBERS}명이 달리면 크루가 순위에 올라요.
-            </Text>
+            <Text style={crewListStyles.emptyTitle}>{emptyCopy.title}</Text>
+            <Text style={crewListStyles.emptyText}>{emptyCopy.body}</Text>
           </View>
         )}
         <CrewFooterRow label="전체 순위" onPress={openLeague} />
