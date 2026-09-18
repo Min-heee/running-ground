@@ -31,8 +31,6 @@ import {
   buildCrewHeroSeasonNote,
   buildCrewInviteShareMessage,
   buildCrewLeaveConfirmMessage,
-  buildCrewPreseasonNote,
-  buildCrewSeasonStatusLine,
   describeCrewUnranked,
   formatCrewNameWithStars,
   formatCrewRank,
@@ -48,7 +46,7 @@ import { useCrewHome } from '../hooks/useCrewHome';
 //
 // 화면 언어는 지금 앱 그대로 (오너: "현재 앱이랑 너무 다르면 안 된다"): 맨바닥 히어로(큰 숫자
 // 하나 = 순위) → 달 머리글 + 흰 블록 한 겹의 헤어라인 행(기록 탭) → 설정식 액션 행(마이 탭 계정
-// 카드). '이번 달 | 지난 시즌' 스위치는 오너 2026-09-18에 없앴다 — 맨 위가 '이번 시즌' 순위표이고,
+// 카드). '이번 달 | 지난 시즌' 스위치는 오너 2026-09-18에 없앴다 — 맨 위가 '크루 랭킹' 순위표이고,
 // 지난 시즌은 순위표 오른쪽 아래 '지난 시즌 ›'에서 따로 연다(CrewLastSeasonScreen).
 //
 // 폴링 없음: 순위는 하루에 몇 번 바뀌는 느린 값이라 탭에 들어올 때마다(포커스) 다시 부른다.
@@ -206,8 +204,8 @@ export default function CrewScreen() {
   );
 }
 
-// 맨 위 '이번 시즌' 순위 카드: 상위 5개 + '전체 순위 ›', 카드 오른쪽 아래 '지난 시즌 ›' (오너
-// 2026-09-18: 두 갈래 스위치 대신 이번 시즌 하나 + 지난 시즌 화살표). 순위에 오른 크루가 하나라도
+// 맨 위 '크루 랭킹' 순위 카드(이번 시즌): 상위 5개 + '전체 순위 ›', 카드 오른쪽 아래 '지난 시즌 ›'
+// (오너 2026-09-18: 두 갈래 스위치 대신 이번 시즌 하나 + 지난 시즌 화살표, 제목은 '크루 랭킹'). 순위에 오른 크루가 하나라도
 // 있으면 바로 순위표 — 예전의 '크루 모집 중'(3개 미만이면 가림)은 오너가 같은 날 없앴다.
 const CrewBoardSection = memo(function CrewBoardSection({ home }: { home: CrewHomeResponse }) {
   const rows = home.top.slice(0, CREW_BOARD_PREVIEW_LIMIT);
@@ -215,7 +213,7 @@ const CrewBoardSection = memo(function CrewBoardSection({ home }: { home: CrewHo
 
   return (
     <View style={crewListStyles.section}>
-      <CrewSectionHeader title="이번 시즌" meta={home.rankedCrewCount > 0 ? `${home.rankedCrewCount}크루` : null} />
+      <CrewSectionHeader title="크루 랭킹" meta={home.rankedCrewCount > 0 ? `${home.rankedCrewCount}크루` : null} />
       <Card style={crewListStyles.rowsCard}>
         {rows.length > 0 ? rows.map((row, index) => (
           <CrewStandingListRow key={row.crewId} row={row} isFirst={index === 0} />
@@ -312,14 +310,10 @@ const NoCrewView = memo(function NoCrewView({
 }) {
   const pendingRequest = home.myPendingRequest;
 
+  // 시즌 안내 히어로('9월 프리시즌 · 13일 남음' + 설명 두 줄)는 오너 2026-09-18에 뺐다 — 크루
+  // 랭킹 카드 바로 아래가 '크루 만들기'다. 규칙 설명은 '순위 기준 ›' 페이지에 있다.
   return (
     <>
-      <CrewHero
-        label={buildCrewSeasonStatusLine(home.season)}
-        meta="크루원이 달린 거리가 모여 크루 순위가 돼요."
-        note={buildCrewPreseasonNote(home.season)}
-      />
-
       <PrimaryButton label="크루 만들기" onPress={openCreate} />
 
       <Card style={crewListStyles.actionsCard}>
