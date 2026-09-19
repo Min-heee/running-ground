@@ -9,7 +9,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { TabHeader } from '@/components/ui/TabHeader';
 import type { CrewHomeResponse, CrewPendingRequest, MyCrew } from '@/lib/api/types/crew';
 import { cancelCrewJoinRequest } from '@/services';
-import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 import { useAndroidDeferredFocusEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
 import { CrewHero } from '../components/CrewHero';
@@ -24,11 +24,14 @@ import {
   CREW_BOARD_PREVIEW_LIMIT,
   buildCrewBoardEmptyCopy,
   buildCrewCancelRequestConfirmMessage,
-  buildCrewHeroMeta,
+  buildCrewClimbGauge,
+  buildCrewMyCardMeta,
+  buildCrewSeasonProgressLabel,
   formatCrewNameWithStars,
   formatCrewRank,
   formatCrewRequestDate,
   getCrewErrorMessage,
+  isCrewSeasonFinalDays,
   isCrewStateDriftError,
 } from '../crewModel';
 import { useCrewHome } from '../hooks/useCrewHome';
@@ -171,11 +174,15 @@ const CrewBoardSection = memo(function CrewBoardSection({ home }: { home: CrewHo
     <View style={crewListStyles.section}>
       <Card style={crewListStyles.rowsCard}>
         {/* 제목은 카드 안에 (오너 2026-09-19: '크루 랭킹이랑 내 크루를 해당 카드 안으로'). */}
+        {/* 제목 옆은 남은 날만 (오너 2026-09-19: '6크루'는 빼고 '12일 남음'), 마지막 3일은 보라. */}
         <View style={styles.cardHeader}>
           <Text style={crewListStyles.sectionTitle}>크루 랭킹</Text>
-          {home.rankedCrewCount > 0 ? (
-            <Text style={crewListStyles.sectionMeta} numberOfLines={1}>{home.rankedCrewCount}크루</Text>
-          ) : null}
+          <Text
+            style={[crewListStyles.sectionMeta, isCrewSeasonFinalDays(home.season) ? styles.finalDays : null]}
+            numberOfLines={1}
+          >
+            {buildCrewSeasonProgressLabel(home.season)}
+          </Text>
         </View>
         {rows.length > 0 ? rows.map((row, index) => (
           <CrewStandingListRow key={row.crewId} row={row} isFirst={index === 0} />
@@ -206,15 +213,17 @@ const CrewBoardSection = memo(function CrewBoardSection({ home }: { home: CrewHo
 // 순위 밖이어도 큰 글자 아래 설명 줄은 없다(같은 날 오너가 '시즌 멤버가 3명이 되면…'을 뺐다).
 // 캡틴에게 온 가입 신청은 카드 오른쪽에 '신청 N'으로만 알린다 — 처리는 안에서.
 const MyCrewView = memo(function MyCrewView({ home, myCrew }: { home: CrewHomeResponse; myCrew: MyCrew }) {
-  const { crew, standing, pendingRequestCount } = myCrew;
+  const { crew, standing, members, pendingRequestCount } = myCrew;
   const rank = formatCrewRank(standing.rank);
-  const meta = standing.rank === null ? null : buildCrewHeroMeta(standing, home.top);
+  const meta = buildCrewMyCardMeta(standing, members);
+  const gauge = buildCrewClimbGauge(standing, home.top);
   // 카드의 글자를 그대로 읽어 준다 — 캡틴에게 '신청 N'은 이제 탭에서 유일한 신청 신호다(적대 리뷰).
   const a11yLabel = [
     `내 크루 ${crew.name}`,
     `${crew.memberCount}명`,
     rank,
     meta,
+    gauge ? [gauge.label, gauge.value].filter(Boolean).join(' ') : null,
     pendingRequestCount > 0 ? `가입 신청 ${pendingRequestCount}건` : null,
   ].filter(Boolean).join(', ');
 
@@ -242,6 +251,18 @@ const MyCrewView = memo(function MyCrewView({ home, myCrew }: { home: CrewHomeRe
               <Text style={crewListStyles.footerChevron}>›</Text>
             </View>
           </View>
+          {/* 한 계단 위 추격 게이지 (오너 2026-09-19): 홈 포인트 게이지와 같은 보라 막대. */}
+          {gauge ? (
+            <View style={styles.gauge}>
+              <View style={styles.gaugeLabels}>
+                <Text style={styles.gaugeLabel}>{gauge.label}</Text>
+                {gauge.value ? <Text style={styles.gaugeValue}>{gauge.value}</Text> : null}
+              </View>
+              <View style={styles.gaugeTrack}>
+                <View style={[styles.gaugeFill, { width: `${Math.round(gauge.progress * 100)}%` }]} />
+              </View>
+            </View>
+          ) : null}
         </Card>
       </Pressable>
 
@@ -363,6 +384,41 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: fontSizes.md,
     fontWeight: fontWeights.semibold,
+  },
+  finalDays: {
+    color: colors.brandStrong,
+    fontWeight: fontWeights.extraBold,
+  },
+  gauge: {
+    gap: spacing.xs,
+  },
+  gaugeLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.s12,
+  },
+  gaugeLabel: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+  },
+  gaugeValue: {
+    color: colors.brandStrong,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.extraBold,
+  },
+  // 홈 포인트 게이지 막대와 같은 값(높이 10, borderMuted 트랙, 브랜드 채움).
+  gaugeTrack: {
+    height: 10,
+    borderRadius: radii.pill,
+    backgroundColor: colors.borderMuted,
+    overflow: 'hidden',
+  },
+  gaugeFill: {
+    height: '100%',
+    borderRadius: radii.pill,
+    backgroundColor: fixedColors.brand,
   },
   // 크루 랭킹 카드 안 제목 줄 — 행과 같은 좌우 여백.
   cardHeader: {

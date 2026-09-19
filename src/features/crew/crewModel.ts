@@ -409,6 +409,63 @@ export function buildCrewHeroMeta(standing: CrewStandingRow, top: readonly CrewS
   return [formatCrewScoreLine(standing.score), buildCrewGapLine(standing, top)].filter(Boolean).join(' · ');
 }
 
+// --- 크루 탭 내 크루 카드 (오너 2026-09-19 '밋밋하다' → 추격 게이지 + 내 기여 + 남은 날) ---
+
+// 카드 메타 한 줄: '인당 71.27km · 내 기여 66.2km'. '1위와 … 차이'는 아래 추격 게이지가 맡는다.
+// 순위 밖이면 인당 없이 '내 기여 …km'만 (순위 밖 아래 설명 줄은 오너가 뺐다 — 숫자 하나만 둔다).
+export function buildCrewMyCardMeta(
+  standing: CrewStandingRow,
+  members: readonly CrewMemberRow[],
+): string | null {
+  const me = members.find((member) => member.isMe);
+  const contribution = me ? `내 기여 ${formatCrewKm(me.contributionKm)}km` : null;
+  return [standing.rank === null ? null : formatCrewScoreLine(standing.score), contribution]
+    .filter(Boolean)
+    .join(' · ') || null;
+}
+
+export type CrewClimbGauge = { label: string; value: string | null; progress: number };
+
+// 한 계단 위 추격 게이지 — 바로 위 순위 크루를 따라잡는 데 우리 크루가 '총' 몇 km 더 달려야 하나
+// (오너 2026-09-19: 인당 차이가 아니라 총 km). 필요 km = (위 크루 인당 − 우리 인당) × 우리 시즌
+// 멤버 수를 0.1km 단위로 올림(최소 0.1). 같아지면 공동 순위라 '까지'가 맞다. 막대 = 우리 ÷ 위.
+// 바로 위 크루가 순위표(top 5) 밖이면(7위 이하) 순위표에 보이는 가장 가까운 크루(5위)를 목표로. 1위면 꽉 찬 막대에 '1위 지키는 중'
+// (공동 1위면 '공동 1위'), 순위 밖이면 게이지 없음(null).
+export function buildCrewClimbGauge(
+  standing: CrewStandingRow,
+  top: readonly CrewStandingRow[],
+): CrewClimbGauge | null {
+  const rank = standing.rank;
+  if (rank === null) {
+    return null;
+  }
+
+  if (rank === 1) {
+    const sharedFirst = top.filter((row) => row.rank === 1).length > 1;
+    return { label: sharedFirst ? '공동 1위' : '1위 지키는 중', value: null, progress: 1 };
+  }
+
+  const ranked = top.filter((row) => row.rank !== null && row.crewId !== standing.crewId);
+  const above = ranked.filter((row) => (row.rank as number) < rank).at(-1) ?? ranked[0];
+  if (!above || above.rank === null || !(above.score > 0)) {
+    return null;
+  }
+
+  const gapTotalKm = Math.round(Math.max(0, above.score - standing.score) * standing.seasonMemberCount * 100) / 100;
+  const neededKm = Math.max(0.1, Math.ceil(gapTotalKm * 10) / 10);
+  return {
+    label: `${above.rank}위까지`,
+    value: `${formatCrewKm(neededKm)}km`,
+    progress: Math.min(1, Math.max(0, standing.score / above.score)),
+  };
+}
+
+// 크루 랭킹 카드 제목 옆: 남은 날만('12일 남음', 오너 2026-09-19 '6크루'는 뺐다). 마지막 3일은
+// 보라로 올려 월말을 알린다.
+export function isCrewSeasonFinalDays(season: CrewSeasonInfo): boolean {
+  return season.status === 'live' && season.daysLeft > 0 && season.daysLeft <= 3;
+}
+
 // --- 시즌 ---
 
 export function formatCrewSeasonMonth(seasonKey: string): string {

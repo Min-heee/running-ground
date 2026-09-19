@@ -14,8 +14,10 @@ import {
   buildCrewInviteShareMessage,
   buildCrewJoinConfirmMessage,
   buildCrewKickConfirmMessage,
+  buildCrewClimbGauge,
   buildCrewLastSeasonHeadline,
   buildCrewLeaveConfirmMessage,
+  buildCrewMyCardMeta,
   buildCrewPreseasonNote,
   buildCrewSearchMeta,
   buildCrewSeasonStatusLine,
@@ -38,6 +40,7 @@ import {
   getCrewErrorMessage,
   isCrewFirstSeason,
   isCrewPodiumRank,
+  isCrewSeasonFinalDays,
   isCrewStateDriftError,
   isValidCrewInviteCode,
   normalizeCrewInviteCode,
@@ -507,4 +510,44 @@ test('크루 설명 한 장: 순위 설명을 합치고, 서버 거울 숫자 + 
   // 오너가 뺀 줄과 옛 규칙은 없다.
   const all = [...preseason, ...buildCrewGuideItems(buildSeason())].map((item) => `${item.text} ${item.sub ?? ''}`).join(' ');
   assert.doesNotMatch(all, /초대 코드·가입 신청으로 들어가요|보정|앱으로|45km|48시간/);
+});
+
+test('추격 게이지: 바로 위 크루까지 총 몇 km (인당 차이 × 시즌 멤버, 0.1 올림) — 오너 2026-09-19', () => {
+  const top = [
+    buildStanding({ crewId: 'a', rank: 1, score: 80.47, isMine: false }),
+    buildStanding({ crewId: 'b', rank: 2, score: 74.37, isMine: false }),
+    buildStanding({ crewId: 'mine', rank: 3, score: 71.27, seasonMemberCount: 5 }),
+  ];
+  // (74.37 − 71.27) × 5 = 15.5 — 부동소수 꼬리로 15.6이 되지 않는다.
+  assert.deepEqual(buildCrewClimbGauge(top[2], top), { label: '2위까지', value: '15.5km', progress: 71.27 / 74.37 });
+  // 한 끗 차이도 최소 0.1km.
+  const close = [top[0], buildStanding({ crewId: 'b', rank: 2, score: 71.28 }), top[2]];
+  assert.equal(buildCrewClimbGauge(top[2], close)?.value, '0.1km');
+  // 1위 / 공동 1위: 꽉 찬 막대, 숫자 없음.
+  assert.deepEqual(buildCrewClimbGauge(buildStanding({ rank: 1, score: 80 }), [buildStanding({ rank: 1, score: 80 })]), {
+    label: '1위 지키는 중', value: null, progress: 1,
+  });
+  assert.equal(
+    buildCrewClimbGauge(buildStanding({ rank: 1 }), [buildStanding({ crewId: 'x', rank: 1 }), buildStanding({ rank: 1 })])?.label,
+    '공동 1위',
+  );
+  // 순위 밖이면 게이지 없음.
+  assert.equal(buildCrewClimbGauge(buildStanding({ rank: null }), top), null);
+  // 바로 위가 top 5 밖(7위 이하)이면 1위를 목표로.
+  const far = buildStanding({ crewId: 'mine', rank: 8, score: 40, seasonMemberCount: 10 });
+  assert.equal(buildCrewClimbGauge(far, top.slice(0, 2))?.label, '2위까지');
+});
+
+test('내 크루 카드 메타: 인당 · 내 기여 (순위 밖이면 내 기여만)', () => {
+  const members = [buildMember({ userId: 'me', isMe: true, contributionKm: 66.2 }), buildMember()];
+  assert.equal(buildCrewMyCardMeta(buildStanding({ score: 71.27 }), members), '인당 71.27km · 내 기여 66.2km');
+  assert.equal(buildCrewMyCardMeta(buildStanding({ rank: null }), members), '내 기여 66.2km');
+  assert.equal(buildCrewMyCardMeta(buildStanding({ rank: null }), [buildMember()]), null);
+});
+
+test('크루 랭킹 남은 날: 마지막 3일만 강조', () => {
+  assert.equal(isCrewSeasonFinalDays(buildSeason({ daysLeft: 3 })), true);
+  assert.equal(isCrewSeasonFinalDays(buildSeason({ daysLeft: 4 })), false);
+  assert.equal(isCrewSeasonFinalDays(buildSeason({ daysLeft: 0 })), false);
+  assert.equal(isCrewSeasonFinalDays(buildSeason({ status: 'tallying', daysLeft: 0 })), false);
 });
