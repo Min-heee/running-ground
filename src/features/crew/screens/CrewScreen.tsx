@@ -16,7 +16,6 @@ import { CrewHero } from '../components/CrewHero';
 import {
   CrewActionRow,
   CrewFooterRow,
-  CrewSectionHeader,
   CrewStandingListRow,
 } from '../components/CrewRows';
 import { crewListStyles } from '../components/crewListStyles';
@@ -170,8 +169,14 @@ const CrewBoardSection = memo(function CrewBoardSection({ home }: { home: CrewHo
 
   return (
     <View style={crewListStyles.section}>
-      <CrewSectionHeader title="크루 랭킹" meta={home.rankedCrewCount > 0 ? `${home.rankedCrewCount}크루` : null} />
       <Card style={crewListStyles.rowsCard}>
+        {/* 제목은 카드 안에 (오너 2026-09-19: '크루 랭킹이랑 내 크루를 해당 카드 안으로'). */}
+        <View style={styles.cardHeader}>
+          <Text style={crewListStyles.sectionTitle}>크루 랭킹</Text>
+          {home.rankedCrewCount > 0 ? (
+            <Text style={crewListStyles.sectionMeta} numberOfLines={1}>{home.rankedCrewCount}크루</Text>
+          ) : null}
+        </View>
         {rows.length > 0 ? rows.map((row, index) => (
           <CrewStandingListRow key={row.crewId} row={row} isFirst={index === 0} />
         )) : (
@@ -215,15 +220,16 @@ const MyCrewView = memo(function MyCrewView({ home, myCrew }: { home: CrewHomeRe
 
   return (
     <>
-      <View style={crewListStyles.section}>
-        <CrewSectionHeader title="내 크루" />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={a11yLabel}
-          accessibilityHint="내 크루 화면을 열어요"
-          onPress={openMyCrew}
-        >
-          <Card style={styles.myCrewCard}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={a11yLabel}
+        accessibilityHint="내 크루 화면을 열어요"
+        onPress={openMyCrew}
+      >
+        <Card>
+          {/* 제목은 카드 안에 (오너 2026-09-19). */}
+          <Text style={crewListStyles.sectionTitle}>내 크루</Text>
+          <View style={styles.myCrewRow}>
             <View style={styles.myCrewBody}>
               <CrewHero
                 label={`${formatCrewNameWithStars(crew.name, crew.stars)} · ${crew.memberCount}명`}
@@ -235,9 +241,9 @@ const MyCrewView = memo(function MyCrewView({ home, myCrew }: { home: CrewHomeRe
               {pendingRequestCount > 0 ? <Text style={styles.myCrewBadge}>신청 {pendingRequestCount}</Text> : null}
               <Text style={crewListStyles.footerChevron}>›</Text>
             </View>
-          </Card>
-        </Pressable>
-      </View>
+          </View>
+        </Card>
+      </Pressable>
 
       <CrewBrowseCard hasCrew />
 
@@ -358,8 +364,18 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     fontWeight: fontWeights.semibold,
   },
-  // 내 크루 카드: 왼쪽 히어로(이름·순위·인당 km), 오른쪽 '신청 N' + 꺾쇠.
-  myCrewCard: {
+  // 크루 랭킹 카드 안 제목 줄 — 행과 같은 좌우 여백.
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.s12,
+    paddingHorizontal: spacing.s16,
+    paddingTop: spacing.s16,
+    paddingBottom: spacing.xs,
+  },
+  // 내 크루 카드: 제목 아래 왼쪽 히어로(이름·순위·인당 km), 오른쪽 '신청 N' + 꺾쇠.
+  myCrewRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.s12,

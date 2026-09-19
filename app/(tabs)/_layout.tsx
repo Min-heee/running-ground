@@ -99,16 +99,16 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={screenOptions}
     >
-      {/* 탭바 순서 = 자식 선언 순서 (오너 2026-09-11 #2, 크루 추가 2026-09-18):
-          랭킹·러닝·크루·홈·친구·기록·마이. 초기 진입 탭은 app/index.tsx의 /(tabs)/home 리다이렉트가 정하므로 영향 없음.
+      {/* 탭바 순서 = 자식 선언 순서 (오너 2026-09-11 #2, 크루 추가 2026-09-18, 크루↔러닝 2026-09-19):
+          랭킹·크루·러닝·홈·친구·기록·마이. 초기 진입 탭은 app/index.tsx의 /(tabs)/home 리다이렉트가 정하므로 영향 없음.
           다만 **맨 앞 자식은 안드로이드 하드웨어 뒤로가기의 목적지**다 — react-navigation
           TabRouter의 기본 backBehavior가 'firstRoute'라 routes[0]로 한 번 튄 뒤 앱이 닫힌다.
           그래서 href: null 인 숨은 라우트(레이스·마켓·스페이스)는 반드시 뒤에 둔다: 앞에
           두면 뒤로가기가 탭바도 없는 우주 화면으로 떨어져 사용자가 갇힌다. 뒤로가기를
           순서와 무관하게 만들려면 <Tabs>에 backBehavior="history"를 주면 된다(미적용). */}
       <Tabs.Screen name="league" options={tabOptions.league} listeners={tabListeners.league} />
-      <Tabs.Screen name="running" options={tabOptions.running} listeners={tabListeners.running} />
       <Tabs.Screen name="crew" options={tabOptions.crew} listeners={tabListeners.crew} />
+      <Tabs.Screen name="running" options={tabOptions.running} listeners={tabListeners.running} />
       <Tabs.Screen name="home" options={tabOptions.home} listeners={tabListeners.home} />
       <Tabs.Screen name="friends" options={tabOptions.friends} listeners={tabListeners.friends} />
       <Tabs.Screen name="records" options={tabOptions.records} listeners={tabListeners.records} />
