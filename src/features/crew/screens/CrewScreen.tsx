@@ -41,8 +41,8 @@ import { useCrewHome } from '../hooks/useCrewHome';
 // 하나 = 순위) → 달 머리글 + 흰 블록 한 겹의 헤어라인 행(기록 탭) → 설정식 액션 행(마이 탭 계정
 // 카드). '이번 달 | 지난 시즌' 스위치는 오너 2026-09-18에 없앴다 — 맨 위가 '크루 랭킹' 순위표이고,
 // 지난 시즌은 순위표 오른쪽 아래 '지난 시즌 ›'에서 따로 연다(CrewLastSeasonScreen).
-// 크루가 있으면 그 아래 '내 크루' 카드 하나와 '순위 기준 및 크루 설명' 행뿐이다 — 멤버 기여·초대 코드
-// 공유·크루 관리·크루 나가기는 카드를 눌러 들어가는 내 크루 화면(CrewMyCrewScreen)에 있다.
+// 크루가 있으면 그 아래 '내 크루' 카드, '크루 둘러보기' 카드, '순위 기준 및 크루 설명' 행뿐이다 — 멤버
+// 기여·초대 코드 공유·크루 관리·크루 나가기는 카드를 눌러 들어가는 내 크루 화면(CrewMyCrewScreen)에 있다.
 //
 // 폴링 없음: 순위는 하루에 몇 번 바뀌는 느린 값이라 탭에 들어올 때마다(포커스) 다시 부른다.
 
@@ -239,10 +239,35 @@ const MyCrewView = memo(function MyCrewView({ home, myCrew }: { home: CrewHomeRe
         </Pressable>
       </View>
 
+      <CrewBrowseCard hasCrew />
+
       <Card style={crewListStyles.actionsCard}>
         <CrewActionRow isFirst label="순위 기준 및 크루 설명" chevron onPress={openRules} />
       </Card>
     </>
+  );
+});
+
+// 크루 둘러보기 카드 (오너 2026-09-19: "사람들이 크루를 찾아 가입 신청할 수 있게 — 크루 둘러보기 카드를
+// 만들어 누르면 크루들을 볼 수 있게"). 누르면 공개 크루 목록(순위 순서 + 이름 검색) → 크루 상세 → 가입 신청.
+// 크루가 있는 사람도 다른 크루를 구경할 수 있게 두 화면 모두에 둔다(신청 버튼은 크루 상세가 알아서 숨긴다).
+const CrewBrowseCard = memo(function CrewBrowseCard({ hasCrew }: { hasCrew: boolean }) {
+  const sub = hasCrew ? '다른 크루들을 둘러볼 수 있어요' : '크루를 둘러보고 가입 신청할 수 있어요';
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`크루 둘러보기, ${sub}`}
+      onPress={openSearch}
+    >
+      <Card style={styles.browseCard}>
+        <View style={styles.browseBody}>
+          <Text style={styles.browseTitle}>크루 둘러보기</Text>
+          <Text style={styles.browseSub}>{sub}</Text>
+        </View>
+        <Text style={crewListStyles.footerChevron}>›</Text>
+      </Card>
+    </Pressable>
   );
 });
 
@@ -261,6 +286,8 @@ const NoCrewView = memo(function NoCrewView({
   // 랭킹 카드 바로 아래가 '크루 만들기'다. 규칙 설명은 '순위 기준 ›' 페이지에 있다.
   return (
     <>
+      <CrewBrowseCard hasCrew={false} />
+
       <PrimaryButton label="크루 만들기" onPress={openCreate} />
 
       <Card style={crewListStyles.actionsCard}>
@@ -287,7 +314,6 @@ const NoCrewView = memo(function NoCrewView({
           </View>
         ) : null}
         <CrewActionRow isFirst={!pendingRequest} label="초대 코드로 가입" onPress={openJoin} />
-        <CrewActionRow isFirst={false} label="크루 찾기" onPress={openSearch} />
         <CrewActionRow isFirst={false} label="순위 기준 및 크루 설명" chevron onPress={openRules} />
       </Card>
 
@@ -309,6 +335,27 @@ const styles = StyleSheet.create({
   pendingMeta: {
     color: colors.textSecondary,
     fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+  },
+  // 크루 둘러보기 카드: 제목 + 한 줄 설명, 오른쪽 꺾쇠.
+  browseCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s12,
+  },
+  browseBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.xxs,
+  },
+  browseTitle: {
+    color: colors.textPrimary,
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
+  },
+  browseSub: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.md,
     fontWeight: fontWeights.semibold,
   },
   // 내 크루 카드: 왼쪽 히어로(이름·순위·인당 km), 오른쪽 '신청 N' + 꺾쇠.

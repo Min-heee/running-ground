@@ -17,7 +17,7 @@ import {
   getCrewErrorMessage,
 } from '../crewModel';
 
-// 크루 찾기 (오너 2026-09-18: 공개 크루 검색 + 가입 신청). 처음엔 빈 검색어로 이번 시즌 순위 순서를
+// 크루 둘러보기 (오너 2026-09-18 '크루 찾기' → 2026-09-19 크루 탭 '크루 둘러보기' 카드에서 연다: 공개 크루 목록·검색 + 가입 신청). 처음엔 빈 검색어로 이번 시즌 순위 순서를
 // 보여주고, 이름을 넣고 검색을 누르면 이름이 들어간 크루(최대 20개). 서버가 사용자당 10분에
 // 10번으로 막으므로 글자마다 부르지 않고 제출할 때만 부른다.
 
@@ -78,7 +78,7 @@ export default function CrewSearchScreen() {
 
   return (
     <Screen>
-      <AuthHeader showBack backHref="/(tabs)/crew" title="크루 찾기" />
+      <AuthHeader showBack backHref="/(tabs)/crew" title="크루 둘러보기" />
 
       <TextInput
         style={styles.fieldInput}
