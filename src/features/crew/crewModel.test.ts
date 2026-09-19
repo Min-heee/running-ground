@@ -115,7 +115,7 @@ test('에러 코드: 최상위 code와 안쪽 details.code 모두 읽고, 모르
 
 test('에러 코드 → 한국어 문구: 스펙의 모든 코드가 사람 말로 바뀐다', () => {
   const expectations: Record<string, RegExp> = {
-    crew_full: /꽉 찼어요.*30명/,
+    crew_full: /꽉 찼어요.*50명/,
     join_limit: /3번을 다 썼어요/,
     create_limit: /30일에 한 번/,
     invalid_name: /2~12자/,
@@ -201,14 +201,14 @@ test('초대 공유 문구에 https 다운로드 ?crew= 링크가 실린다', ()
   assert.doesNotMatch(message, /!/);
 });
 
-test('보정 인당: 식과 예시(원안 P=40 → 66.25), 표시는 늘 소수 둘째 자리', () => {
-  assert.equal(computeCrewScore(330, 3, 40), 66.25);
-  assert.equal(computeCrewScore(360, 4, 40), 62.22);
-  assert.equal(computeCrewScore(1300, 20, 40), 60);
-  assert.equal(computeCrewScore(330, 3, 30), 60);
+test('인당 km = 총거리 ÷ 시즌 멤버 (오너 2026-09-19), 표시는 늘 소수 둘째 자리', () => {
+  assert.equal(computeCrewScore(330, 3), 110);
+  assert.equal(computeCrewScore(100, 3), 33.33);
+  assert.equal(computeCrewScore(1300, 20), 65);
+  assert.equal(computeCrewScore(50, 0), 0);
   assert.equal(formatCrewScore(60), '60.00');
   assert.equal(formatCrewScore(66.254999), '66.25');
-  assert.equal(formatCrewScoreLine(66.25), '보정 인당 66.25km');
+  assert.equal(formatCrewScoreLine(66.25), '인당 66.25km');
   assert.equal(formatCrewScore(Number.NaN), '0.00');
 });
 
@@ -261,7 +261,7 @@ test('1위와의 차이: 2위 이하는 1위와, 1위는 바로 아래와, 공�
     buildStanding({ crewId: 'crew-mine', rank: 3, score: 66.25 }),
   ];
   assert.equal(buildCrewGapLine(top[2], top), '1위와 4.25km 차이');
-  assert.equal(buildCrewHeroMeta(top[2], top), '보정 인당 66.25km · 1위와 4.25km 차이');
+  assert.equal(buildCrewHeroMeta(top[2], top), '인당 66.25km · 1위와 4.25km 차이');
   assert.equal(buildCrewGapLine(top[0], top), '2위와 2.50km 차이');
 
   const tied = [
@@ -272,7 +272,7 @@ test('1위와의 차이: 2위 이하는 1위와, 1위는 바로 아래와, 공�
 
   // 1위 혼자뿐이면 차이를 말하지 않는다.
   const alone = [buildStanding({ crewId: 'crew-mine', rank: 1, score: 70 })];
-  assert.equal(buildCrewHeroMeta(alone[0], alone), '보정 인당 70.00km');
+  assert.equal(buildCrewHeroMeta(alone[0], alone), '인당 70.00km');
   assert.equal(buildCrewGapLine(buildStanding({ rank: null }), top), null);
   // 부동소수 꼬리 없이.
   assert.equal(formatCrewScoreGap(66.3, 66.1), '0.20');
@@ -472,13 +472,21 @@ test('나가기·내보내기 확인 문구', () => {
   assert.doesNotMatch(buildCrewKickConfirmMessage('나래', true), /7일/);
 });
 
-test('순위 기준: 고정된 기준 P를 실제 값으로, 예시 하나, 규칙 2줄 (오너 2026-09-18 개정)', () => {
-  assert.equal(buildCrewScoreFormulaLine(30), '보정 인당 = (크루 총거리 + 기준 30km × 5) ÷ (시즌 멤버 + 5)');
-  assert.equal(buildCrewScoreExampleLine(30), '예: 3명이 330km를 달리면 (330 + 150) ÷ 8 = 60.00km');
-  assert.equal(buildCrewScoreExampleLine(40), '예: 3명이 330km를 달리면 (330 + 200) ÷ 8 = 66.25km');
+test('순위 기준: 총거리 ÷ 인원 한 줄 + 예시 하나 + 규칙 3줄 (오너 2026-09-18·19 개정)', () => {
+  assert.equal(buildCrewScoreFormulaLine(), '인당 km = 크루 총거리 ÷ 시즌 멤버 수');
+  assert.equal(buildCrewScoreExampleLine(), '예: 3명이 330km를 달리면 330 ÷ 3 = 110.00km');
+  assert.doesNotMatch(buildCrewScoreFormulaLine() + buildCrewScoreExampleLine(), /보정|기준/);
   // '앱으로 기록한 러닝만'·'하루 45km'는 규칙째 없앴다.
-  assert.deepEqual(buildCrewScoreRuleLines(false), ['이번 달에 들어온 멤버는 7일 뒤 합류해요', '달이 끝나고 1시간 뒤 확정돼요']);
-  assert.deepEqual(buildCrewScoreRuleLines(true), ['프리시즌엔 가입하자마자 바로 합류해요', '달이 끝나고 1시간 뒤 확정돼요']);
+  assert.deepEqual(buildCrewScoreRuleLines(false), [
+    '시즌 멤버 3명부터 순위에 올라요',
+    '이번 달에 들어온 멤버는 7일 뒤 합류해요',
+    '달이 끝나고 1시간 뒤 확정돼요',
+  ]);
+  assert.deepEqual(buildCrewScoreRuleLines(true), [
+    '시즌 멤버 3명부터 순위에 올라요',
+    '프리시즌엔 가입하자마자 바로 합류해요',
+    '달이 끝나고 1시간 뒤 확정돼요',
+  ]);
   assert.doesNotMatch([...buildCrewScoreRuleLines(false), ...buildCrewScoreRuleLines(true)].join(' '), /앱으로|45km|48시간/);
 });
 
@@ -500,7 +508,7 @@ test('합류 태그는 폰 시계가 몇 초 늦어도 방금 들어온 사람�
 test('크루 설명 줄: 서버 거울 숫자 + 프리시즌엔 별이 붙는 첫 시즌을 함께', () => {
   const preseason = buildCrewGuideLines(buildSeason({ seasonKey: '2026-09', label: '9월 프리시즌', isPreseason: true }));
   assert.equal(preseason[1], '달린 멤버가 3명 이상인 1위 크루가 매달 별 ★을 받아요 · 별은 11월 시즌부터');
-  assert.match(preseason.join(' '), /최대 30명.*한 크루에만/);
+  assert.match(preseason.join(' '), /최대 50명.*한 크루에만/);
   assert.match(preseason.join(' '), /한 달에 3번까지/);
   // 정규 시즌엔 괄호 없이.
   assert.equal(buildCrewGuideLines(buildSeason())[1], '달린 멤버가 3명 이상인 1위 크루가 매달 별 ★을 받아요');

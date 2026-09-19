@@ -13,7 +13,8 @@ import type {
 } from '@/lib/api/types/crew';
 import { getApiErrorMessage } from '@/services/apiError';
 
-export const CREW_MAX_MEMBERS = 30;
+// 정원 50명 (오너 2026-09-19, 처음엔 30) — 서버 crewConstants.mjs 거울.
+export const CREW_MAX_MEMBERS = 50;
 export const CREW_JOINS_PER_MONTH = 3;
 export const CREW_NAME_MIN_LENGTH = 2;
 export const CREW_NAME_MAX_LENGTH = 12;
@@ -24,8 +25,6 @@ export const CREW_REQUEST_TTL_DAYS = 7;
 // 같은 크루에 다시 신청하기까지: 취소 뒤 하루, 거절 뒤 7일 (서버 request_cooldown, 2026-09-18).
 export const CREW_REQUEST_REJECT_COOLDOWN_DAYS = 7;
 export const CREW_NEWCOMER_DAYS = 7;
-// 보정 인당의 K — 서버는 universeBodies.mjs의 SHRINKAGE_PRIOR_MEMBERS를 import한다. 설명 문구용 거울.
-export const CREW_SHRINKAGE_MEMBERS = 5;
 // 순위에 오르는 최소 시즌 멤버 수.
 export const CREW_MIN_RANKED_MEMBERS = 3;
 // 별을 받는 1위 크루의 최소 '실제로 달린' 멤버 수 — 서버 crewConstants.mjs CREW_MIN_CHAMPION_RUNNERS 거울.
@@ -208,15 +207,14 @@ function roundKm(value: number): number {
   return Number.isFinite(value) ? Number(value.toFixed(2)) : 0;
 }
 
-// 보정 인당은 늘 소수 둘째 자리까지 — 순위를 가르는 값이라 60과 60.00이 한 열에 섞이면 안 된다.
+// 인당 km는 늘 소수 둘째 자리까지 — 순위를 가르는 값이라 60과 60.00이 한 열에 섞이면 안 된다.
 export function formatCrewScore(score: number): string {
   return roundKm(score).toFixed(2);
 }
 
-// '보정 인당 66.25km' — 보정 전 인당 평균은 어디에도 보여주지 않는다 (심사 must-fix: '평균이
-// 더 높은데 왜 아래지?' 모순 차단). 순위표·히어로의 큰 숫자는 이 값 하나뿐이다.
+// '인당 110.00km' — 순위를 매기는 값 그대로 (오너 2026-09-19: '보정 인당'을 없애고 총거리 ÷ 인원).
 export function formatCrewScoreLine(score: number): string {
-  return `보정 인당 ${formatCrewScore(score)}km`;
+  return `인당 ${formatCrewScore(score)}km`;
 }
 
 // 기여·총거리 km — 서버 roundDistanceKm(소수 2자리, 2026-08-15 거리 정밀도 단일 근원)이 준 값을
@@ -225,10 +223,10 @@ export function formatCrewKm(km: number): string {
   return String(roundKm(km));
 }
 
-// (T + K·P) ÷ (N + K) — 설명 카드 예시용 거울. 실제 순위는 서버가 같은 식으로 매긴다.
-export function computeCrewScore(totalKm: number, seasonMemberCount: number, priorKm: number): number {
-  const members = Math.max(0, seasonMemberCount);
-  return roundKm((totalKm + CREW_SHRINKAGE_MEMBERS * priorKm) / (members + CREW_SHRINKAGE_MEMBERS));
+// 총거리 ÷ 시즌 멤버 수 — 설명 카드 예시용 거울. 실제 순위는 서버가 같은 식으로 매긴다
+// (crewSeason.mjs computeCrewScore). 멤버가 없으면 0.
+export function computeCrewScore(totalKm: number, seasonMemberCount: number): number {
+  return seasonMemberCount > 0 ? roundKm(totalKm / seasonMemberCount) : 0;
 }
 
 export function formatCrewNameWithStars(name: string, stars: number): string {
@@ -379,7 +377,7 @@ export function describeCrewUnranked(
   return `시즌 멤버가 ${CREW_MIN_RANKED_MEMBERS}명이 되면 순위에 올라요`;
 }
 
-// 두 보정 인당의 차이 — 반올림된 두 값을 빼고 다시 반올림(부동소수 꼬리 제거).
+// 두 인당 km의 차이 — 반올림된 두 값을 빼고 다시 반올림(부동소수 꼬리 제거).
 export function formatCrewScoreGap(higherScore: number, lowerScore: number): string {
   return formatCrewScore(Math.max(0, roundKm(higherScore) - roundKm(lowerScore)));
 }
@@ -406,7 +404,7 @@ export function buildCrewGapLine(standing: CrewStandingRow, top: readonly CrewSt
   return runnerUp ? `${runnerUp.rank}위와 ${formatCrewScoreGap(standing.score, runnerUp.score)}km 차이` : null;
 }
 
-// 히어로 메타 한 줄: '보정 인당 66.25km · 1위와 4.25km 차이'.
+// 히어로 메타 한 줄: '인당 66.25km · 1위와 4.25km 차이'.
 export function buildCrewHeroMeta(standing: CrewStandingRow, top: readonly CrewStandingRow[]): string {
   return [formatCrewScoreLine(standing.score), buildCrewGapLine(standing, top)].filter(Boolean).join(' · ');
 }
@@ -632,17 +630,17 @@ export function buildCrewTransferCaptainConfirmMessage(memberName: string): stri
 
 // --- 점수 설명 카드 ---
 
-export function buildCrewScoreFormulaLine(priorKm: number): string {
-  return `보정 인당 = (크루 총거리 + 기준 ${formatCrewKm(priorKm)}km × ${CREW_SHRINKAGE_MEMBERS}) ÷ (시즌 멤버 + ${CREW_SHRINKAGE_MEMBERS})`;
+// 오너 2026-09-19: '보정 인당은 이렇게 매겨요'가 무슨 소리인지 모르겠다 → 총거리 ÷ 인원 한 줄.
+export function buildCrewScoreFormulaLine(): string {
+  return '인당 km = 크루 총거리 ÷ 시즌 멤버 수';
 }
 
-// 예시 하나: 3명이 330km — 설계 원안의 예시와 같은 크루다.
-export function buildCrewScoreExampleLine(priorKm: number): string {
+// 예시 하나: 3명이 330km.
+export function buildCrewScoreExampleLine(): string {
   const exampleMembers = 3;
   const exampleTotalKm = 330;
-  const score = computeCrewScore(exampleTotalKm, exampleMembers, priorKm);
-  const priorPart = formatCrewKm(roundKm(priorKm * CREW_SHRINKAGE_MEMBERS));
-  return `예: ${exampleMembers}명이 ${exampleTotalKm}km를 달리면 (${exampleTotalKm} + ${priorPart}) ÷ ${exampleMembers + CREW_SHRINKAGE_MEMBERS} = ${formatCrewScore(score)}km`;
+  const score = computeCrewScore(exampleTotalKm, exampleMembers);
+  return `예: ${exampleMembers}명이 ${exampleTotalKm}km를 달리면 ${exampleTotalKm} ÷ ${exampleMembers} = ${formatCrewScore(score)}km`;
 }
 
 // '순위 기준 및 크루 설명' 페이지의 크루 설명 줄 (오너 2026-09-18). 숫자는 이 파일의 서버 거울 상수에서,
@@ -667,6 +665,7 @@ export function buildCrewGuideLines(season: CrewSeasonInfo): string[] {
 // 가입 순간부터, 확정은 달 끝 1시간 뒤).
 export function buildCrewScoreRuleLines(isPreseason: boolean): string[] {
   return [
+    `시즌 멤버 ${CREW_MIN_RANKED_MEMBERS}명부터 순위에 올라요`,
     isPreseason
       ? '프리시즌엔 가입하자마자 바로 합류해요'
       : `이번 달에 들어온 멤버는 ${CREW_NEWCOMER_DAYS}일 뒤 합류해요`,

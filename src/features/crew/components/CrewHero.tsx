@@ -5,7 +5,7 @@ import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 // 크루 히어로 — 카드 없이 맨바닥에 앉는다 (기록 탭 기간 블록의 히어로와 같은 값: 라벨 13/800,
 // 큰 숫자 heroLarge/900, 메타 14/600). 한 화면의 큰 숫자는 이것 하나 — 순위('3위' / '순위 밖').
-// 보정 전 인당 평균은 여기에도 없다: 큰 숫자 아래 메타는 늘 '보정 인당 …km'.
+// 큰 숫자 아래 메타는 늘 '인당 …km'(총거리 ÷ 시즌 멤버, 오너 2026-09-19).
 
 export const CrewHero = memo(function CrewHero({
   label,

@@ -133,7 +133,7 @@ test('월 이동 3회: 만들기·코드 가입을 모두 세고, 다음 달에 
   createCrew(store, userOf(store, 'u1'), { name: '새벽2' }, kst('2026-11-05T12:00:00'));
 });
 
-test('정원 30명: 꽉 차면 crew_full', () => {
+test('정원 50명(오너 2026-09-19): 꽉 차면 crew_full', () => {
   const store = buildStore(CREW_MAX_MEMBERS + 1);
   const crew = createCrew(store, userOf(store, 'u1'), { name: '가득' }, NOW);
 

@@ -306,7 +306,7 @@ test('프리시즌은 7일 규칙을 끄고, 가입한 순간부터 멤버 — \
   assert.equal(home.season.daysLeft, 9);
 });
 
-test('고정 P: 직전 시즌 봉인 avgKm, 없으면 30 — 점수 = (T + 5P) / (N + 5)', () => {
+test('점수 = 인당 km = T / N (오너 2026-09-19 단순화) · P는 점수에 안 들어가고 시즌 응답에만 남는다', () => {
   const store = buildStore({
     crews: [crew('c1', '새벽')],
     members: threeVeterans('c1', ['u1', 'u2', 'u3']),
@@ -327,7 +327,7 @@ test('고정 P: 직전 시즌 봉인 avgKm, 없으면 30 — 점수 = (T + 5P) /
   const row = november.rowByCrewId.get('c1');
   assert.equal(november.priorKm, 40);
   assert.equal(row.totalKm, 330);
-  assert.equal(row.score, 66.25);
+  assert.equal(row.score, 110); // 330km ÷ 3명 — 예전 보정식이면 (330 + 200) ÷ 8 = 66.25
 
   // 시즌 정보의 priorKm도 같은 고정값이다.
   const info = buildCrewSeasonInfo(store, '2026-11', kst('2026-11-20T12:00:00'));
@@ -434,7 +434,7 @@ test('동률은 공동 순위, 우승도 공동 — 봉인 원장 + 결과 알�
 
   const november = store.crewSeasonAwards.find((award) => award.seasonKey === '2026-11');
   assert.equal(november.isPreseason, false);
-  assert.equal(november.ruleVersion, 2);
+  assert.equal(november.ruleVersion, 3);
   assert.equal(november.priorKm, 30); // 10월 avgKm = 0 → 기본값
   assert.equal(november.rankedCount, 3);
   assert.deepEqual(november.champions.map((champion) => champion.crewId).sort(), ['c1', 'c2']);

@@ -7,11 +7,13 @@
 // 보여 주고 절대 다시 계산하지 않는다 — 그라운드는 정산 뒤에도 순위를 store.runs에서 다시
 // 계산해 트로피 주인과 화면 1위가 어긋날 수 있는데, 그 함정을 되풀이하지 않는다.
 //
-// 점수 = roundDistanceKm((T + K·P) / (N + K)), K = SHRINKAGE_PRIOR_MEMBERS(5, 우주 탭과 같은 값).
+// 점수 = 인당 km = roundDistanceKm(T / N) (오너 2026-09-19: '보정 인당' 공식이 무슨 소리인지 모르겠다
+// → 크루 총거리 ÷ 인원으로 단순화. 소수 크루가 유리해지는 건 감수하고, 나중에 순위 최소 인원을
+// 10명으로 올려 조정한다).
 //  - T: 시즌 멤버 기여 합, N: 시즌 멤버 수, R: 기여 > 0인 시즌 멤버 수.
-//  - P(기준 인당 km)는 시즌 동안 고정: 직전 시즌 봉인값 avgKm, 없으면 30.
-//    (실시간 ΣT/ΣN은 남의 크루가 뛰기만 해도 작은 크루 점수를 흔든다 — 심판 필수 수정.)
-//  - 화면 표기는 '보정 인당 66.25km' — 보정 전 인당 평균은 어디에도 내보내지 않는다.
+//  - P(직전 시즌 봉인 avgKm, 없으면 30)는 더 이상 점수에 안 들어간다. 시즌 응답의 priorKm으로만
+//    남긴다 — 옛 앱 번들의 설명 카드가 읽는 필드라 계약에서 빼지 않는다.
+//  - 화면 표기는 '인당 66.25km'.
 //
 // 기여 인정: isCrewCountableRun(앱 GPS·매치·가져온 기록, 손으로 적은 기록·차량 판정 제외) +
 // isRunCountable(endedAt이 멤버십 창 안, 서버 createdAt이 창+1h 안) → 같은 사람의 시간이 겹친
@@ -24,7 +26,6 @@
 
 import { isVehicleFlaggedRun } from '../competitiveRuns.mjs';
 import { roundDistanceKm } from '../distancePrecision.mjs';
-import { SHRINKAGE_PRIOR_MEMBERS } from '../universeBodies.mjs';
 import { nextMonthKey, resolveKstMonthKey } from '../monthlyRankingStars.mjs';
 import { appendUserNotification } from '../userNotifications.mjs';
 import {
@@ -155,10 +156,9 @@ export function resolveCrewSeasonPriorKm(store, seasonKey, nowMs = Date.now()) {
   return Number.isFinite(avgKm) && avgKm > 0 ? avgKm : CREW_DEFAULT_PRIOR_KM;
 }
 
-export function computeCrewScore(totalKm, memberCount, priorKm) {
-  return roundDistanceKm(
-    (totalKm + SHRINKAGE_PRIOR_MEMBERS * priorKm) / (memberCount + SHRINKAGE_PRIOR_MEMBERS),
-  );
+// 인당 km. 시즌 멤버가 없으면 0 (순위 밖 행에도 점수 칸이 있다).
+export function computeCrewScore(totalKm, memberCount) {
+  return memberCount > 0 ? roundDistanceKm(totalKm / memberCount) : 0;
 }
 
 function resolveRunStartMs(run, endedMs) {
@@ -443,7 +443,7 @@ export function buildCrewSeasonStandings(store, seasonKey, nowMs = Date.now()) {
       name: crew.name,
       createdAt: crew.createdAt,
       closedAt: crew.closedAt ?? null,
-      score: computeCrewScore(stats.totalKm, stats.memberCount, priorKm),
+      score: computeCrewScore(stats.totalKm, stats.memberCount),
       totalKm: stats.totalKm,
       seasonMemberCount: stats.memberCount,
       runnerCount: stats.runnerCount,

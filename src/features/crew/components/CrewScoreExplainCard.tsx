@@ -10,30 +10,22 @@ import {
   buildCrewScoreRuleLines,
 } from '../crewModel';
 
-// 점수 설명 (심사 must-fix: 큰 숫자에 단위 + 고정된 기준 P를 실제 값으로 + 예시 하나).
-// 기준 P는 지난 시즌 크루들의 인당 거리(첫 시즌은 30km)고, 이번 달에 누가 뛰어도 안 바뀐다
-// (지난 시즌 확정 전 1시간 동안 늦게 올라온 지난달 기록만큼만 움직일 수 있다 — 서버는 그 사이에도
-// 봉인될 값을 미리 계산해 쓴다). 오너 2026-09-18부터 크루 탭 '순위 기준' 페이지에만 뜬다 — 전체
-// 순위 맨 아래에서 밖으로 뺐고, '앱 기록만'·'하루 45km' 줄은 규칙째 없앴다.
+// 순위 설명 — 인당 km = 크루 총거리 ÷ 시즌 멤버 수 (오너 2026-09-19: '보정 인당은 이렇게 매겨요'가
+// 무슨 소리인지 모르겠다 → 공식을 단순 인당으로 바꾸고 설명도 한 줄로). 크루 탭 '순위 기준 및 크루
+// 설명' 페이지에만 뜬다. '앱 기록만'·'하루 45km' 줄은 오너 2026-09-18에 규칙째 없앴다.
 
 export const CrewScoreExplainCard = memo(function CrewScoreExplainCard({
-  priorKm,
   isPreseason,
 }: {
-  priorKm: number;
   isPreseason: boolean;
 }) {
   return (
     <Card style={styles.card}>
-      <SectionTitle>보정 인당은 이렇게 매겨요</SectionTitle>
+      <SectionTitle>순위는 이렇게 매겨요</SectionTitle>
       <View style={styles.block}>
-        <Text style={styles.formula}>{buildCrewScoreFormulaLine(priorKm)}</Text>
-        <Text style={styles.body}>{buildCrewScoreExampleLine(priorKm)}</Text>
-        <Text style={styles.body}>
-          기준 거리는 지난 시즌 크루들의 인당 거리예요(첫 시즌은 30km). 이번 달에 누가 얼마를 뛰든
-          바뀌지 않아요. 인원이 적은 크루일수록 기준 쪽으로 당겨져서, 한두 명이 많이 뛴 것만으로
-          1위가 되지 않아요.
-        </Text>
+        <Text style={styles.formula}>{buildCrewScoreFormulaLine()}</Text>
+        <Text style={styles.body}>{buildCrewScoreExampleLine()}</Text>
+        <Text style={styles.body}>인당 km가 높은 크루가 1위예요.</Text>
       </View>
       <View>
         {buildCrewScoreRuleLines(isPreseason).map((line, index) => (

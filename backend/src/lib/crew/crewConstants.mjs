@@ -6,8 +6,8 @@
 import { ApiError } from '../../response/httpResponse.mjs';
 import { DAY_MS } from '../competitionWindow.mjs';
 
-// 활성 멤버 정원 — 그룹 매치 최대 인원(30)과 같다. 꽉 차면 crew_full.
-export const CREW_MAX_MEMBERS = 30;
+// 활성 멤버 정원 50명 (오너 2026-09-19, 처음엔 그룹 매치 최대 인원과 같은 30). 꽉 차면 crew_full.
+export const CREW_MAX_MEMBERS = 50;
 
 // KST 한 달에 새로 들어갈 수 있는 횟수 — 코드 가입·승인된 신청·크루 만들기를 모두 센다.
 // 한 사람이 여러 크루를 돌며 '용병'으로 돕는 효과를 묶는 장치다.
@@ -100,7 +100,8 @@ export const CREW_SEASON_SEAL_DELAY_MS = 60 * 60 * 1000;
 export const CREW_RESULT_NOTIFY_DELAY_MS = 9 * 60 * 60 * 1000;
 // v2 (2026-09-18 같은 날): 가져온 기록 인정·하루 상한 없음·1시간 확정·프리시즌 즉시 합류.
 // 봉인된 시즌이 하나도 없을 때 바뀌어 v1 원장은 존재하지 않는다.
-export const CREW_SEASON_RULE_VERSION = 2;
+// v3 (2026-09-19): 점수를 보정 인당 (T+5P)/(N+5)에서 단순 인당 T/N으로, 정원 30 → 50.
+export const CREW_SEASON_RULE_VERSION = 3;
 
 // 봉인 원장 스냅샷의 상위 행 수(시즌당 원장 크기를 ~2KB로 묶는다).
 export const CREW_AWARD_TOP_LIMIT = 10;

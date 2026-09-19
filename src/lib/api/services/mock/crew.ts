@@ -352,7 +352,7 @@ function buildLiveStandings(): { ranked: CrewStandingRow[]; unranked: CrewStandi
     const pendingMembers = crew.members.length - seasonMembers.length;
     const totalKm = Number(seasonMembers.reduce((sum, member) => sum + member.contributionKm, 0).toFixed(2));
     const runnerCount = seasonMembers.filter((member) => member.contributionKm > 0).length;
-    const score = computeCrewScore(totalKm, seasonMembers.length, MOCK_PRIOR_KM);
+    const score = computeCrewScore(totalKm, seasonMembers.length);
     let unrankedReason: CrewUnrankedReason | null = null;
 
     if (seasonMembers.length < CREW_MIN_RANKED_MEMBERS) {

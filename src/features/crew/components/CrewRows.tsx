@@ -29,7 +29,7 @@ function openCrewDetail(crewId: string) {
   router.push({ pathname: '/crew-detail', params: { crewId } });
 }
 
-// 순위 한 줄: 순위 숫자(1~3위 금색) · 이름 ★n · 오른쪽 값. 오른쪽 값은 기본이 보정 인당 km,
+// 순위 한 줄: 순위 숫자(1~3위 금색) · 이름 ★n · 오른쪽 값. 오른쪽 값은 기본이 인당 km,
 // 순위 밖 목록에서는 한 단어 사유를 넘겨 받는다.
 export const CrewStandingListRow = memo(function CrewStandingListRow({
   row,
@@ -50,7 +50,7 @@ export const CrewStandingListRow = memo(function CrewStandingListRow({
     <Pressable
       onPress={handlePress}
       accessibilityRole="button"
-      accessibilityLabel={[row.rank ? `${row.rank}위` : '순위 밖', displayName, rightText ?? `보정 인당 ${valueText}`].join(' ')}
+      accessibilityLabel={[row.rank ? `${row.rank}위` : '순위 밖', displayName, rightText ?? `인당 ${valueText}`].join(' ')}
       style={({ pressed }) => [
         styles.row,
         isFirst ? null : styles.rowDivided,

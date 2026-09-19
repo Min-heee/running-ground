@@ -126,7 +126,7 @@ function buildEmptyStandingRow(crew, standings, ctx) {
     name: crew.name,
     stars: ctx.starCounts.get(crew.id) ?? 0,
     rank: null,
-    score: roundDistanceKm(standings.priorKm),
+    score: 0, // 시즌 멤버가 없는 크루 — 인당 km 0 (오너 2026-09-19 단순 인당)
     totalKm: 0,
     seasonMemberCount: 0,
     runnerCount: 0,

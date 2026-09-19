@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
   },
-  // 내 크루 카드: 왼쪽 히어로(이름·순위·보정 인당), 오른쪽 '신청 N' + 꺾쇠.
+  // 내 크루 카드: 왼쪽 히어로(이름·순위·인당 km), 오른쪽 '신청 N' + 꺾쇠.
   myCrewCard: {
     flexDirection: 'row',
     alignItems: 'center',

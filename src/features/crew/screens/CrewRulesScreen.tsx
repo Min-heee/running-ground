@@ -13,8 +13,7 @@ import { useCrewLeague } from '../hooks/useCrewLeague';
 
 // 순위 기준 및 크루 설명 (오너 2026-09-18: 전체 순위 맨 아래 설명을 밖으로 빼 크루 탭 행에서 연다.
 // 같은 날 '크루 설명'도 여기에 붙였다 — 크루 탭엔 내 크루 카드 밑 한 줄만 남긴다).
-// 기준 거리 P와 프리시즌 여부는 이번 시즌 순위 응답에서 읽는다 — 설명의 숫자가 실제 순위 계산과
-// 같은 값이어야 해서 화면에 따로 적어 두지 않는다.
+// 프리시즌 여부·별이 붙는 첫 시즌은 이번 시즌 순위 응답에서 읽는다 — 설명이 실제 규칙과 어긋나지 않게.
 export default function CrewRulesScreen() {
   const current = useCrewLeague(undefined, true);
   const { state } = current;
@@ -40,10 +39,7 @@ export default function CrewRulesScreen() {
 
       {state.status === 'ready' ? (
         <>
-          <CrewScoreExplainCard
-            priorKm={state.league.season.priorKm}
-            isPreseason={state.league.season.isPreseason}
-          />
+          <CrewScoreExplainCard isPreseason={state.league.season.isPreseason} />
           <CrewGuideCard season={state.league.season} />
         </>
       ) : null}
