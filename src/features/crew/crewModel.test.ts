@@ -8,7 +8,7 @@ import {
   buildCrewCancelRequestConfirmMessage,
   buildCrewCreateConfirmMessage,
   buildCrewGapLine,
-  buildCrewGuideLines,
+  buildCrewGuideItems,
   buildCrewHeroMeta,
   buildCrewHeroSeasonNote,
   buildCrewInviteShareMessage,
@@ -17,9 +17,6 @@ import {
   buildCrewLastSeasonHeadline,
   buildCrewLeaveConfirmMessage,
   buildCrewPreseasonNote,
-  buildCrewScoreExampleLine,
-  buildCrewScoreFormulaLine,
-  buildCrewScoreRuleLines,
   buildCrewSearchMeta,
   buildCrewSeasonStatusLine,
   checkCrewName,
@@ -472,24 +469,6 @@ test('나가기·내보내기 확인 문구', () => {
   assert.doesNotMatch(buildCrewKickConfirmMessage('나래', true), /7일/);
 });
 
-test('순위 기준: 총거리 ÷ 인원 한 줄 + 예시 하나 + 규칙 3줄 (오너 2026-09-18·19 개정)', () => {
-  assert.equal(buildCrewScoreFormulaLine(), '인당 km = 크루 총거리 ÷ 시즌 멤버 수');
-  assert.equal(buildCrewScoreExampleLine(), '예: 3명이 330km를 달리면 330 ÷ 3 = 110.00km');
-  assert.doesNotMatch(buildCrewScoreFormulaLine() + buildCrewScoreExampleLine(), /보정|기준/);
-  // '앱으로 기록한 러닝만'·'하루 45km'는 규칙째 없앴다.
-  assert.deepEqual(buildCrewScoreRuleLines(false), [
-    '시즌 멤버 3명부터 순위에 올라요',
-    '이번 달에 들어온 멤버는 7일 뒤 합류해요',
-    '달이 끝나고 1시간 뒤 확정돼요',
-  ]);
-  assert.deepEqual(buildCrewScoreRuleLines(true), [
-    '시즌 멤버 3명부터 순위에 올라요',
-    '프리시즌엔 가입하자마자 바로 합류해요',
-    '달이 끝나고 1시간 뒤 확정돼요',
-  ]);
-  assert.doesNotMatch([...buildCrewScoreRuleLines(false), ...buildCrewScoreRuleLines(true)].join(' '), /앱으로|45km|48시간/);
-});
-
 test('신청 날짜·검색 메타', () => {
   assert.equal(formatCrewRequestDate('2026-10-08T15:00:00.000Z'), '10/9 신청');
   assert.equal(buildCrewSearchMeta(12, 3), '12명 · 3위');
@@ -505,11 +484,27 @@ test('합류 태그는 폰 시계가 몇 초 늦어도 방금 들어온 사람�
   assert.equal(formatCrewMemberJoinTag(tomorrow, nowMs), '9/21 합류');
 });
 
-test('크루 설명 줄: 서버 거울 숫자 + 프리시즌엔 별이 붙는 첫 시즌을 함께', () => {
-  const preseason = buildCrewGuideLines(buildSeason({ seasonKey: '2026-09', label: '9월 프리시즌', isPreseason: true }));
-  assert.equal(preseason[1], '달린 멤버가 3명 이상인 1위 크루가 매달 별 ★을 받아요 · 별은 11월 시즌부터');
-  assert.match(preseason.join(' '), /최대 50명.*한 크루에만/);
-  assert.match(preseason.join(' '), /한 달에 3번까지/);
-  // 정규 시즌엔 괄호 없이.
-  assert.equal(buildCrewGuideLines(buildSeason())[1], '달린 멤버가 3명 이상인 1위 크루가 매달 별 ★을 받아요');
+test('크루 설명 한 장: 순위 설명을 합치고, 서버 거울 숫자 + 프리시즌엔 별이 붙는 첫 시즌 (오너 2026-09-19)', () => {
+  const preseason = buildCrewGuideItems(buildSeason({ seasonKey: '2026-09', label: '9월 프리시즌', isPreseason: true }));
+  assert.deepEqual(preseason.map((item) => item.text), [
+    '크루원이 달린 거리를 모아 한 달 동안 크루끼리 겨뤄요',
+    '인당 km가 높은 크루가 1위예요',
+    '시즌 멤버 3명부터 순위에 올라요',
+    '프리시즌엔 가입하자마자 바로 합류해요',
+    '달이 끝나고 1시간 뒤 확정돼요',
+    '달린 멤버가 3명 이상인 1위 크루가 매달 별 ★을 받아요 · 별은 11월 시즌부터',
+    '크루는 최대 50명, 한 사람은 한 크루에만 들어가요',
+    '크루 이동(가입·만들기)은 한 달에 3번까지예요',
+    '캡틴은 가입 신청 승인, 멤버 내보내기, 캡틴 넘기기를 할 수 있어요',
+  ]);
+  assert.equal(preseason[1].sub, '인당 km = 크루 총거리 ÷ 시즌 멤버 수 · 예: 3명이 330km → 110.00km');
+
+  // 정규 시즌: 7일 합류, 별 줄에 첫 시즌 꼬리 없음.
+  const regular = buildCrewGuideItems(buildSeason()).map((item) => item.text);
+  assert.equal(regular[3], '이번 달에 들어온 멤버는 7일 뒤 합류해요');
+  assert.equal(regular[5], '달린 멤버가 3명 이상인 1위 크루가 매달 별 ★을 받아요');
+
+  // 오너가 뺀 줄과 옛 규칙은 없다.
+  const all = [...preseason, ...buildCrewGuideItems(buildSeason())].map((item) => `${item.text} ${item.sub ?? ''}`).join(' ');
+  assert.doesNotMatch(all, /초대 코드·가입 신청으로 들어가요|보정|앱으로|45km|48시간/);
 });

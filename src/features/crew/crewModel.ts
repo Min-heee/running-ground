@@ -628,48 +628,40 @@ export function buildCrewTransferCaptainConfirmMessage(memberName: string): stri
   return `${memberName}님이 캡틴이 되면 멤버 관리와 초대 코드는 ${memberName}님이 맡아요.`;
 }
 
-// --- 점수 설명 카드 ---
+// --- 크루 설명 (순위 기준 및 크루 설명 페이지) ---
 
-// 오너 2026-09-19: '보정 인당은 이렇게 매겨요'가 무슨 소리인지 모르겠다 → 총거리 ÷ 인원 한 줄.
-export function buildCrewScoreFormulaLine(): string {
-  return '인당 km = 크루 총거리 ÷ 시즌 멤버 수';
-}
+export type CrewGuideItem = { text: string; sub?: string };
 
-// 예시 하나: 3명이 330km.
-export function buildCrewScoreExampleLine(): string {
+// 크루 설명 카드 한 장 (오너 2026-09-19: '순위는 이렇게 매겨요' 카드를 '크루 설명'으로 합치고
+// '크루 만들기·초대 코드·가입 신청으로 들어가요' 줄은 뺐다). 순서: 무엇을 겨루나 → 순위 → 합류·확정
+// → 별 → 인원·이동·캡틴. 숫자는 이 파일의 서버 거울 상수에서, 별이 붙는 첫 시즌은 서버 시즌 응답에서.
+export function buildCrewGuideItems(season: CrewSeasonInfo): CrewGuideItem[] {
   const exampleMembers = 3;
   const exampleTotalKm = 330;
-  const score = computeCrewScore(exampleTotalKm, exampleMembers);
-  return `예: ${exampleMembers}명이 ${exampleTotalKm}km를 달리면 ${exampleTotalKm} ÷ ${exampleMembers} = ${formatCrewScore(score)}km`;
-}
-
-// '순위 기준 및 크루 설명' 페이지의 크루 설명 줄 (오너 2026-09-18). 숫자는 이 파일의 서버 거울 상수에서,
-// 별이 붙는 첫 시즌은 서버 시즌 응답에서 — 프리시즌이 끝나면 괄호 없이 한 줄이 된다.
-export function buildCrewGuideLines(season: CrewSeasonInfo): string[] {
+  const exampleScore = formatCrewScore(computeCrewScore(exampleTotalKm, exampleMembers));
   // 서버는 1위라도 실제로 달린 멤버가 3명 미만이면 별을 주지 않는다 — 그 조건까지 말한다(적대 리뷰).
   const starBase = `달린 멤버가 ${CREW_MIN_CHAMPION_RUNNERS}명 이상인 1위 크루가 매달 별 ★을 받아요`;
-  const starLine = season.isPreseason
+  const starText = season.isPreseason
     ? `${starBase} · 별은 ${formatCrewSeasonMonth(resolveCrewFirstStarSeasonKey(season))} 시즌부터`
     : starBase;
-  return [
-    '크루원이 달린 거리를 모아 한 달 동안 크루끼리 겨뤄요',
-    starLine,
-    `크루는 최대 ${CREW_MAX_MEMBERS}명, 한 사람은 한 크루에만 들어가요`,
-    '크루 만들기·초대 코드·가입 신청으로 들어가요',
-    `크루 이동(가입·만들기)은 한 달에 ${CREW_JOINS_PER_MONTH}번까지예요`,
-    '캡틴은 가입 신청 승인, 멤버 내보내기, 캡틴 넘기기를 할 수 있어요',
-  ];
-}
 
-// 순위 기준 페이지의 규칙 줄 (오너 2026-09-18: '앱 기록만'·'하루 45km'는 규칙째 없앴고, 프리시즌은
-// 가입 순간부터, 확정은 달 끝 1시간 뒤).
-export function buildCrewScoreRuleLines(isPreseason: boolean): string[] {
   return [
-    `시즌 멤버 ${CREW_MIN_RANKED_MEMBERS}명부터 순위에 올라요`,
-    isPreseason
-      ? '프리시즌엔 가입하자마자 바로 합류해요'
-      : `이번 달에 들어온 멤버는 ${CREW_NEWCOMER_DAYS}일 뒤 합류해요`,
-    '달이 끝나고 1시간 뒤 확정돼요',
+    { text: '크루원이 달린 거리를 모아 한 달 동안 크루끼리 겨뤄요' },
+    {
+      text: '인당 km가 높은 크루가 1위예요',
+      sub: `인당 km = 크루 총거리 ÷ 시즌 멤버 수 · 예: ${exampleMembers}명이 ${exampleTotalKm}km → ${exampleScore}km`,
+    },
+    { text: `시즌 멤버 ${CREW_MIN_RANKED_MEMBERS}명부터 순위에 올라요` },
+    {
+      text: season.isPreseason
+        ? '프리시즌엔 가입하자마자 바로 합류해요'
+        : `이번 달에 들어온 멤버는 ${CREW_NEWCOMER_DAYS}일 뒤 합류해요`,
+    },
+    { text: '달이 끝나고 1시간 뒤 확정돼요' },
+    { text: starText },
+    { text: `크루는 최대 ${CREW_MAX_MEMBERS}명, 한 사람은 한 크루에만 들어가요` },
+    { text: `크루 이동(가입·만들기)은 한 달에 ${CREW_JOINS_PER_MONTH}번까지예요` },
+    { text: '캡틴은 가입 신청 승인, 멤버 내보내기, 캡틴 넘기기를 할 수 있어요' },
   ];
 }
 
