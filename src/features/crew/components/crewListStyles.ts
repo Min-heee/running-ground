@@ -5,7 +5,7 @@
 // - 카드 안에 채운 상자를 또 넣지 않는다. 위계는 크기·굵기로만. 그림자 없음(Card가 이미 납작).
 
 import { StyleSheet } from 'react-native';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export const crewListStyles = StyleSheet.create({
   section: {
@@ -98,6 +98,32 @@ export const crewListStyles = StyleSheet.create({
   // 테마 토큰 — 다크 유리 위에서도 4위 이하 숫자보다 흐려지지 않게 (2026-09-18).
   rankNumberPodium: {
     color: colors.podiumGoldOnSurface,
+  },
+  // 등수 칸 — 1~3위 왕관 메달(RankMarker, 최소 폭 42)과 숫자가 같은 폭을 쓴다.
+  rankCell: {
+    width: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // 내 크루 화면 멤버 줄: 이름 아래 기여 막대.
+  memberMain: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.xs,
+  },
+  memberBarTrack: {
+    height: 6,
+    borderRadius: radii.pill,
+    backgroundColor: colors.borderMuted,
+    overflow: 'hidden',
+  },
+  memberBarFill: {
+    height: '100%',
+    borderRadius: radii.pill,
+    backgroundColor: colors.textTertiary,
+  },
+  memberBarFillMine: {
+    backgroundColor: fixedColors.brand,
   },
   // '어제보다 ▲▼' 칸 (오너 2026-09-19): 순위 숫자 바로 옆 좁은 칸. 오르면 보라, 내리면 회색.
   rankChange: {

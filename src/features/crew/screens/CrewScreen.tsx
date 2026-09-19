@@ -23,7 +23,6 @@ import { crewListStyles } from '../components/crewListStyles';
 import { confirmCrewAction, showCrewNotice } from '../crewAlerts';
 import {
   CREW_BOARD_PREVIEW_LIMIT,
-  buildCrewBoardEmptyCopy,
   buildCrewCancelRequestConfirmMessage,
   buildCrewClimbGauge,
   buildCrewMyCardMeta,
@@ -172,7 +171,6 @@ export default function CrewScreen() {
 const CrewBoardSection = memo(function CrewBoardSection({ home }: { home: CrewHomeResponse }) {
   const rows = home.top.slice(0, CREW_BOARD_PREVIEW_LIMIT);
   const showChange = hasCrewRankChanges(rows);
-  const emptyCopy = buildCrewBoardEmptyCopy(Boolean(home.myCrew));
 
   return (
     <View style={crewListStyles.section}>
@@ -191,7 +189,7 @@ const CrewBoardSection = memo(function CrewBoardSection({ home }: { home: CrewHo
         {rows.map((row, index) => (
           <CrewStandingListRow key={row.crewId} row={row} isFirst={index === 0} showChange={showChange} />
         ))}
-        {/* 크루가 모자라도 1~5등 자리는 늘 보인다 (오너 2026-09-19). */}
+        {/* 크루가 모자라도 1~5등 자리는 늘 보인다 (오너 2026-09-19). 빈 순위표 안내 문구는 같은 날 뺐다. */}
         {Array.from({ length: Math.max(0, CREW_BOARD_PREVIEW_LIMIT - rows.length) }, (_, index) => (
           <CrewStandingEmptyRow
             key={`empty-${rows.length + index + 1}`}
@@ -200,12 +198,6 @@ const CrewBoardSection = memo(function CrewBoardSection({ home }: { home: CrewHo
             showChange={showChange}
           />
         ))}
-        {rows.length === 0 ? (
-          <View style={[crewListStyles.emptyBlock, styles.boardEmptyNote]}>
-            <Text style={crewListStyles.emptyTitle}>{emptyCopy.title}</Text>
-            <Text style={crewListStyles.emptyText}>{emptyCopy.body}</Text>
-          </View>
-        ) : null}
         <CrewFooterRow label="전체 순위" onPress={openLeague} />
       </Card>
       <Pressable
@@ -436,11 +428,6 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: radii.pill,
     backgroundColor: fixedColors.brand,
-  },
-  // 빈 순위표 안내(오너 문구)는 빈 등수 5줄 아래 헤어라인으로 나눈다.
-  boardEmptyNote: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.borderSoft,
   },
   // 크루 랭킹 카드 안 제목 줄 — 행과 같은 좌우 여백.
   cardHeader: {

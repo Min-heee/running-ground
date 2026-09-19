@@ -4,11 +4,11 @@ import test from 'node:test';
 import type { CrewMemberRow, CrewSeasonInfo, CrewStandingRow } from '@/lib/api/types/crew';
 import { ApiError } from '@/services/apiError';
 import {
-  buildCrewBoardEmptyCopy,
   buildCrewCancelRequestConfirmMessage,
   buildCrewCreateConfirmMessage,
   buildCrewGapLine,
-  buildCrewGuideItems,
+  buildCrewGuideSections,
+  buildCrewMyContribution,
   buildCrewHeroMeta,
   buildCrewHeroSeasonNote,
   buildCrewInviteShareMessage,
@@ -27,6 +27,7 @@ import {
   describeCrewRankChange,
   describeCrewSearchResults,
   describeCrewUnranked,
+  formatCrewContributionDiff,
   formatCrewKm,
   formatCrewMemberJoinTag,
   formatCrewMonthDay,
@@ -240,20 +241,6 @@ test('순위 밖 한 단어 사유', () => {
   assert.equal(formatCrewUnrankedShort('no_distance'), '기록 없음');
   assert.equal(formatCrewUnrankedShort('newcomers_pending'), '합류 대기');
   assert.equal(formatCrewUnrankedShort(null), '순위 밖');
-});
-
-test('이번 시즌 순위표가 비었을 때 문구 — 크루가 없으면 오너 문구, 내 크루가 있으면 어긋나지 않게', () => {
-  assert.deepEqual(buildCrewBoardEmptyCopy(false), {
-    title: '아직 크루가 없어요',
-    body: '크루를 만들어서 활동하면 순위에 올라가요.',
-  });
-  assert.deepEqual(buildCrewBoardEmptyCopy(true), {
-    title: '아직 순위에 오른 크루가 없어요',
-    body: '시즌 멤버 3명이 함께 달리면 순위에 올라가요.',
-  });
-  // '크루 모집 중'·'순위표가 열려요'는 없앴다 (오너 2026-09-18).
-  const all = [buildCrewBoardEmptyCopy(false), buildCrewBoardEmptyCopy(true)].flatMap((copy) => [copy.title, copy.body]).join(' ');
-  assert.doesNotMatch(all, /모집|열려요/);
 });
 
 test('1위와의 차이: 2위 이하는 1위와, 1위는 바로 아래와, 공동 1위는 그대로', () => {
@@ -489,31 +476,31 @@ test('합류 태그는 폰 시계가 몇 초 늦어도 방금 들어온 사람�
   assert.equal(formatCrewMemberJoinTag(tomorrow, nowMs), '9/21 합류');
 });
 
-test('크루 설명 한 장: 순위 설명을 합치고, 서버 거울 숫자 + 프리시즌엔 별이 붙는 첫 시즌 (오너 2026-09-19)', () => {
-  const preseason = buildCrewGuideItems(buildSeason({ seasonKey: '2026-09', label: '9월 프리시즌', isPreseason: true }));
-  assert.deepEqual(preseason.map((item) => item.text), [
-    '크루원이 달린 거리를 모아 한 달 동안 크루끼리 겨뤄요',
+test('크루 설명: 순위·별·크루 세 묶음 번호 목록, 서버 거울 숫자 (오너 2026-09-19)', () => {
+  const preseason = buildCrewGuideSections(buildSeason({ seasonKey: '2026-09', label: '9월 프리시즌', isPreseason: true }));
+  assert.deepEqual(preseason.map((section) => section.title), ['순위', '별', '크루']);
+  assert.deepEqual(preseason[0].items.map((item) => item.text), [
     '인당 km가 높은 크루가 1위예요',
     '시즌 멤버 3명부터 순위에 올라요',
     '프리시즌엔 가입하자마자 바로 합류해요',
     '달이 끝나고 1시간 뒤 확정돼요',
-    '달린 멤버가 3명 이상인 1위 크루가 매달 별 ★을 받아요 · 별은 11월 시즌부터',
+  ]);
+  assert.equal(preseason[0].items[0].sub, '인당 km = 크루 총거리 ÷ 시즌 멤버 수 · 예: 3명이 330km → 110.00km');
+  assert.deepEqual(preseason[1].items.map((item) => item.text), [
+    '달린 멤버가 3명 이상인 1위 크루가 매달 별 ★을 받아요',
+    '지금은 프리시즌이라 별은 11월 시즌부터 받아요',
+  ]);
+  assert.deepEqual(preseason[2].items.map((item) => item.text), [
     '크루는 최대 50명, 한 사람은 한 크루에만 들어가요',
     '크루 이동(가입·만들기)은 한 달에 3번까지예요',
     '캡틴은 가입 신청 승인, 멤버 내보내기, 캡틴 넘기기를 할 수 있어요',
   ]);
-  assert.equal(preseason[1].sub, '인당 km = 크루 총거리 ÷ 시즌 멤버 수 · 예: 3명이 330km → 110.00km');
 
-  // 정규 시즌: 7일 합류, 별 줄에 첫 시즌 꼬리 없음.
-  const regular = buildCrewGuideItems(buildSeason()).map((item) => item.text);
-  assert.equal(regular[3], '이번 달에 들어온 멤버는 7일 뒤 합류해요');
-  assert.equal(regular[5], '달린 멤버가 3명 이상인 1위 크루가 매달 별 ★을 받아요');
-
-  // 오너가 뺀 줄과 옛 규칙은 없다.
-  const all = [...preseason, ...buildCrewGuideItems(buildSeason())].map((item) => `${item.text} ${item.sub ?? ''}`).join(' ');
-  assert.doesNotMatch(all, /초대 코드·가입 신청으로 들어가요|보정|앱으로|45km|48시간/);
+  // 정규 시즌: 7일 합류, 별 묶음은 한 줄.
+  const regular = buildCrewGuideSections(buildSeason());
+  assert.equal(regular[0].items[2].text, '이번 달에 들어온 멤버는 7일 뒤 합류해요');
+  assert.equal(regular[1].items.length, 1);
 });
-
 test('추격 게이지: 바로 위 크루까지 총 몇 km (인당 차이 × 시즌 멤버, 0.1 올림) — 오너 2026-09-19', () => {
   const top = [
     buildStanding({ crewId: 'a', rank: 1, score: 80.47, isMine: false }),
@@ -564,5 +551,37 @@ test('어제보다 순위 ▲▼: 오르면 보라 ▲n, 내리면 회색 ▼n, 
   assert.equal(describeCrewRankChange({ rank: 3 }), null);
   assert.equal(hasCrewRankChanges([{ rank: 1, previousRank: 1 }, { rank: 2 }]), false);
   assert.equal(hasCrewRankChanges([{ rank: 1, previousRank: 2 }, { rank: 2, previousRank: 1 }]), true);
+});
+
+test('내 기여: 크루 몫(%)·몫 막대 조각·인당 평균과의 차이 (오너 2026-09-19)', () => {
+  const members = [
+    buildMember({ userId: 'a', contributionKm: 120 }),
+    buildMember({ userId: 'me', name: '나래', isMe: true, contributionKm: 90 }),
+    buildMember({ userId: 'b', name: '다온', contributionKm: 90 }),
+    buildMember({ userId: 'c', contributionKm: 0 }),
+  ];
+  const result = buildCrewMyContribution(members, buildStanding({ score: 75, seasonMemberCount: 4 }));
+  assert.equal(result?.myKm, 90);
+  assert.equal(result?.sharePercent, 30);
+  // 기여 큰 순(같으면 이름 순) — 크루 기여 목록과 같은 순서.
+  assert.deepEqual(result?.segments.map((segment) => [segment.userId, segment.isMe]), [['a', false], ['me', true], ['b', false]]);
+  assert.equal(result?.segments.reduce((sum, segment) => sum + segment.ratio, 0), 1);
+  assert.equal(result?.averageKm, 75);
+  assert.equal(result?.diffKm, 15);
+
+  // 평균보다 적게 뛰면 마이너스.
+  const behind = buildCrewMyContribution([buildMember({ userId: 'me', isMe: true, contributionKm: 58.7 })], buildStanding({ score: 71.27 }));
+  assert.equal(behind?.diffKm, -12.6);
+  assert.equal(formatCrewContributionDiff(-12.6), '−12.6km');
+  assert.equal(formatCrewContributionDiff(27), '+27.0km');
+  assert.equal(formatCrewContributionDiff(0), '±0km');
+
+  // 내가 없거나 아무도 안 뛰었으면.
+  assert.equal(buildCrewMyContribution([buildMember()], buildStanding()), null);
+  const idle = buildCrewMyContribution([buildMember({ userId: 'me', isMe: true, contributionKm: 0 })], buildStanding({ seasonMemberCount: 0 }));
+  assert.equal(idle?.sharePercent, 0);
+  assert.deepEqual(idle?.segments, []);
+  assert.equal(idle?.averageKm, null);
+  assert.equal(idle?.diffKm, null);
 });
 

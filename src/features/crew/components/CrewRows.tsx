@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 
 import type { CrewMemberRow, CrewStandingRow } from '@/lib/api/types/crew';
+import { RankMarker } from '@/features/league/components/LeagueRankBadges';
 import {
   describeCrewRankChange,
   formatCrewKm,
@@ -22,6 +23,20 @@ export function CrewSectionHeader({ title, meta }: { title: string; meta?: strin
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
       {meta ? <Text style={styles.sectionMeta} numberOfLines={1}>{meta}</Text> : null}
+    </View>
+  );
+}
+
+// 등수 칸: 1~3위는 랭킹 탭과 같은 왕관 메달(RankMarker — 금·은·동), 그 밖은 숫자. 칸 폭을 메달에
+// 맞춰 고정해 이름이 줄마다 가지런하다 (오너 2026-09-19 '1·2·3등은 메달이나 왕관으로').
+function CrewRankCell({ rank }: { rank: number | null }) {
+  return (
+    <View style={styles.rankCell}>
+      {rank !== null && isCrewPodiumRank(rank) ? (
+        <RankMarker rank={rank} />
+      ) : (
+        <Text style={styles.rankNumber}>{rank ?? ''}</Text>
+      )}
     </View>
   );
 }
@@ -66,9 +81,7 @@ export const CrewStandingListRow = memo(function CrewStandingListRow({
         pressed ? styles.rowPressed : null,
       ]}
     >
-      <Text style={[styles.rankNumber, isCrewPodiumRank(row.rank) ? styles.rankNumberPodium : null]}>
-        {row.rank ?? ''}
-      </Text>
+      <CrewRankCell rank={row.rank} />
       {showChange ? (
         <Text style={[styles.rankChange, change?.tone === 'up' ? styles.rankChangeUp : null]} numberOfLines={1}>
           {change?.text ?? ''}
@@ -109,7 +122,7 @@ export const CrewStandingEmptyRow = memo(function CrewStandingEmptyRow({
       accessibilityLabel={`${rank}위 비어 있음`}
       style={[styles.row, isFirst ? null : styles.rowDivided]}
     >
-      <Text style={[styles.rankNumber, isCrewPodiumRank(rank) ? styles.rankNumberPodium : null]}>{rank}</Text>
+      <CrewRankCell rank={rank} />
       {showChange ? <Text style={styles.rankChange} /> : null}
       <View style={styles.rowBody}>
         <Text style={[styles.name, styles.nameEmpty]}>—</Text>
@@ -142,6 +155,7 @@ export const CrewMemberListRow = memo(function CrewMemberListRow({
   showKm = true,
   action,
   disabled = false,
+  barRatio = null,
 }: {
   member: CrewMemberRow;
   isFirst: boolean;
@@ -149,6 +163,8 @@ export const CrewMemberListRow = memo(function CrewMemberListRow({
   showKm?: boolean;
   action?: CrewMemberRowAction | null;
   disabled?: boolean;
+  // 이름 아래 기여 막대(가장 많이 뛴 멤버 = 1). 내 줄은 보라, 다른 멤버는 회색 — 내 크루 화면만 켠다.
+  barRatio?: number | null;
 }) {
   const joinTag = formatCrewMemberJoinTag(member, nowMs);
   const tags = [member.role === 'captain' ? '캡틴' : null, member.isMe ? '나' : null, joinTag]
@@ -157,10 +173,28 @@ export const CrewMemberListRow = memo(function CrewMemberListRow({
 
   return (
     <View style={[styles.row, isFirst ? null : styles.rowDivided]}>
-      <View style={styles.nameLine}>
-        <Text style={styles.name} numberOfLines={1}>{member.name}</Text>
-        {tags ? <Text style={styles.nameTag}>{tags}</Text> : null}
-      </View>
+      {barRatio === null ? (
+        <View style={styles.nameLine}>
+          <Text style={styles.name} numberOfLines={1}>{member.name}</Text>
+          {tags ? <Text style={styles.nameTag}>{tags}</Text> : null}
+        </View>
+      ) : (
+        <View style={styles.memberMain}>
+          <View style={styles.nameLine}>
+            <Text style={styles.name} numberOfLines={1}>{member.name}</Text>
+            {tags ? <Text style={styles.nameTag}>{tags}</Text> : null}
+          </View>
+          <View style={styles.memberBarTrack}>
+            <View
+              style={[
+                styles.memberBarFill,
+                member.isMe ? styles.memberBarFillMine : null,
+                { width: `${Math.round(Math.min(1, Math.max(0, barRatio)) * 100)}%` },
+              ]}
+            />
+          </View>
+        </View>
+      )}
       {showKm ? (
         <Text style={[styles.value, joinTag ? styles.valueMuted : null]}>
           {formatCrewKm(member.contributionKm)}km

@@ -10,6 +10,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import type { CrewHomeResponse, MyCrew } from '@/lib/api/types/crew';
 import { leaveCrew } from '@/services';
 import { colors, fontSizes, fontWeights } from '@/theme/tokens';
+import { CrewContributionCard } from '../components/CrewContributionCard';
 import { CrewHero } from '../components/CrewHero';
 import { CrewActionRow, CrewMemberListRow, CrewSectionHeader } from '../components/CrewRows';
 import { crewListStyles } from '../components/crewListStyles';
@@ -19,6 +20,7 @@ import {
   buildCrewHeroSeasonNote,
   buildCrewInviteShareMessage,
   buildCrewLeaveConfirmMessage,
+  buildCrewMyContribution,
   describeCrewRankChange,
   formatCrewNameWithStars,
   formatCrewRank,
@@ -160,6 +162,9 @@ function MyCrewBody({
 }) {
   const { crew, standing, members, role, inviteCode, pendingRequestCount } = myCrew;
   const sortedMembers = useMemo(() => sortCrewMembersForDisplay(members), [members]);
+  const contribution = useMemo(() => buildCrewMyContribution(members, standing), [members, standing]);
+  // 멤버 줄 막대 눈금 — 가장 많이 뛴 멤버가 꽉 찬 막대.
+  const topKm = useMemo(() => Math.max(0, ...members.map((member) => member.contributionKm)), [members]);
 
   return (
     <>
@@ -171,6 +176,8 @@ function MyCrewBody({
         note={buildCrewHeroSeasonNote(home.season)}
       />
 
+      {contribution ? <CrewContributionCard contribution={contribution} /> : null}
+
       {/* 크루 기여는 가져온 기록까지 세지만(오너 2026-09-18), 겹친 기록은 하나만·손으로 적은 기록은
           빼고·가입 뒤 기록만이라 기록 탭의 이번 달 거리와 다를 수 있다 — 그래서 '이번 달 거리'라고
           부르지 않고 '기여'라고 부른다. */}
@@ -178,7 +185,13 @@ function MyCrewBody({
         <CrewSectionHeader title="우리 크루 기여" />
         <Card style={crewListStyles.rowsCard}>
           {sortedMembers.map((member, index) => (
-            <CrewMemberListRow key={member.userId} member={member} isFirst={index === 0} nowMs={nowMs} />
+            <CrewMemberListRow
+              key={member.userId}
+              member={member}
+              isFirst={index === 0}
+              nowMs={nowMs}
+              barRatio={topKm > 0 ? member.contributionKm / topKm : 0}
+            />
           ))}
         </Card>
       </View>

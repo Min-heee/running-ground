@@ -243,15 +243,6 @@ export function isCrewPodiumRank(rank: number | null): boolean {
   return typeof rank === 'number' && rank >= 1 && rank <= 3;
 }
 
-// 이번 시즌 순위표가 비었을 때 카드 안 두 줄 (오너 2026-09-18: '크루 모집 중'과 '순위에 오른 크루가
-// 3개가 되면 순위표가 열려요'를 없애고, 순위에 오른 크루가 하나라도 있으면 바로 순위표를 보인다).
-// 내 크루가 있는데 '아직 크루가 없어요'라고 하면 바로 아래 내 크루와 어긋나서 말을 바꾼다.
-export function buildCrewBoardEmptyCopy(hasMyCrew: boolean): { title: string; body: string } {
-  return hasMyCrew
-    ? { title: '아직 순위에 오른 크루가 없어요', body: `시즌 멤버 ${CREW_MIN_RANKED_MEMBERS}명이 함께 달리면 순위에 올라가요.` }
-    : { title: '아직 크루가 없어요', body: '크루를 만들어서 활동하면 순위에 올라가요.' };
-}
-
 // 전체 순위의 '순위 밖' 행 옆 한 단어.
 export const CREW_UNRANKED_SHORT_LABELS: Record<CrewUnrankedReason, string> = {
   too_few_members: '3명 미만',
@@ -711,38 +702,99 @@ export function buildCrewTransferCaptainConfirmMessage(memberName: string): stri
 // --- 크루 설명 (순위 기준 및 크루 설명 페이지) ---
 
 export type CrewGuideItem = { text: string; sub?: string };
+export type CrewGuideSection = { title: string; items: CrewGuideItem[] };
 
-// 크루 설명 카드 한 장 (오너 2026-09-19: '순위는 이렇게 매겨요' 카드를 '크루 설명'으로 합치고
-// '크루 만들기·초대 코드·가입 신청으로 들어가요' 줄은 뺐다). 순서: 무엇을 겨루나 → 순위 → 합류·확정
-// → 별 → 인원·이동·캡틴. 숫자는 이 파일의 서버 거울 상수에서, 별이 붙는 첫 시즌은 서버 시즌 응답에서.
-export function buildCrewGuideItems(season: CrewSeasonInfo): CrewGuideItem[] {
+// 크루 설명 페이지의 첫 줄 — 크루대전이 무엇인지 한 문장.
+export const CREW_GUIDE_INTRO = '크루원이 달린 거리를 모아 한 달 동안 크루끼리 겨뤄요';
+
+// 순위·별·크루 세 묶음의 번호 목록 (오너 2026-09-19: '글씨로 와다다다 → 1. 2. 로 정리'). 숫자는 이
+// 파일의 서버 거울 상수에서, 별이 붙는 첫 시즌은 서버 시즌 응답에서.
+export function buildCrewGuideSections(season: CrewSeasonInfo): CrewGuideSection[] {
   const exampleMembers = 3;
   const exampleTotalKm = 330;
   const exampleScore = formatCrewScore(computeCrewScore(exampleTotalKm, exampleMembers));
-  // 서버는 1위라도 실제로 달린 멤버가 3명 미만이면 별을 주지 않는다 — 그 조건까지 말한다(적대 리뷰).
-  const starBase = `달린 멤버가 ${CREW_MIN_CHAMPION_RUNNERS}명 이상인 1위 크루가 매달 별 ★을 받아요`;
-  const starText = season.isPreseason
-    ? `${starBase} · 별은 ${formatCrewSeasonMonth(resolveCrewFirstStarSeasonKey(season))} 시즌부터`
-    : starBase;
+  const stars: CrewGuideItem[] = [
+    // 서버는 1위라도 실제로 달린 멤버가 3명 미만이면 별을 주지 않는다 — 그 조건까지 말한다(적대 리뷰).
+    { text: `달린 멤버가 ${CREW_MIN_CHAMPION_RUNNERS}명 이상인 1위 크루가 매달 별 ★을 받아요` },
+  ];
+  if (season.isPreseason) {
+    stars.push({ text: `지금은 프리시즌이라 별은 ${formatCrewSeasonMonth(resolveCrewFirstStarSeasonKey(season))} 시즌부터 받아요` });
+  }
 
   return [
-    { text: '크루원이 달린 거리를 모아 한 달 동안 크루끼리 겨뤄요' },
     {
-      text: '인당 km가 높은 크루가 1위예요',
-      sub: `인당 km = 크루 총거리 ÷ 시즌 멤버 수 · 예: ${exampleMembers}명이 ${exampleTotalKm}km → ${exampleScore}km`,
+      title: '순위',
+      items: [
+        {
+          text: '인당 km가 높은 크루가 1위예요',
+          sub: `인당 km = 크루 총거리 ÷ 시즌 멤버 수 · 예: ${exampleMembers}명이 ${exampleTotalKm}km → ${exampleScore}km`,
+        },
+        { text: `시즌 멤버 ${CREW_MIN_RANKED_MEMBERS}명부터 순위에 올라요` },
+        {
+          text: season.isPreseason
+            ? '프리시즌엔 가입하자마자 바로 합류해요'
+            : `이번 달에 들어온 멤버는 ${CREW_NEWCOMER_DAYS}일 뒤 합류해요`,
+        },
+        { text: '달이 끝나고 1시간 뒤 확정돼요' },
+      ],
     },
-    { text: `시즌 멤버 ${CREW_MIN_RANKED_MEMBERS}명부터 순위에 올라요` },
+    { title: '별', items: stars },
     {
-      text: season.isPreseason
-        ? '프리시즌엔 가입하자마자 바로 합류해요'
-        : `이번 달에 들어온 멤버는 ${CREW_NEWCOMER_DAYS}일 뒤 합류해요`,
+      title: '크루',
+      items: [
+        { text: `크루는 최대 ${CREW_MAX_MEMBERS}명, 한 사람은 한 크루에만 들어가요` },
+        { text: `크루 이동(가입·만들기)은 한 달에 ${CREW_JOINS_PER_MONTH}번까지예요` },
+        { text: '캡틴은 가입 신청 승인, 멤버 내보내기, 캡틴 넘기기를 할 수 있어요' },
+      ],
     },
-    { text: '달이 끝나고 1시간 뒤 확정돼요' },
-    { text: starText },
-    { text: `크루는 최대 ${CREW_MAX_MEMBERS}명, 한 사람은 한 크루에만 들어가요` },
-    { text: `크루 이동(가입·만들기)은 한 달에 ${CREW_JOINS_PER_MONTH}번까지예요` },
-    { text: '캡틴은 가입 신청 승인, 멤버 내보내기, 캡틴 넘기기를 할 수 있어요' },
   ];
+}
+
+// --- 내 기여 (내 크루 화면, 오너 2026-09-19: '내가 크루에 얼마나 기여했나·얼마나 마이너스인가') ---
+
+export type CrewContributionSegment = { userId: string; ratio: number; isMe: boolean };
+export type CrewMyContribution = {
+  myKm: number;
+  // 크루 멤버 기여 합에서 내 몫(%) — 합이 0이면 0.
+  sharePercent: number;
+  // 기여 큰 순서의 몫 막대 조각(기여 0인 사람은 뺀다).
+  segments: CrewContributionSegment[];
+  // 크루 인당 km(순위 점수와 같은 값) — 시즌 멤버가 없으면 null.
+  averageKm: number | null;
+  // 나 − 인당 평균 (0.1km 반올림). 평균이 없으면 null.
+  diffKm: number | null;
+};
+
+export function buildCrewMyContribution(
+  members: readonly CrewMemberRow[],
+  standing: Pick<CrewStandingRow, 'score' | 'seasonMemberCount'>,
+): CrewMyContribution | null {
+  const me = members.find((member) => member.isMe);
+  if (!me) {
+    return null;
+  }
+
+  const totalKm = members.reduce((sum, member) => sum + Math.max(0, member.contributionKm), 0);
+  const segments = sortCrewMembersForDisplay(members)
+    .filter((member) => member.contributionKm > 0)
+    .map((member) => ({ userId: member.userId, ratio: member.contributionKm / totalKm, isMe: member.isMe }));
+  const averageKm = standing.seasonMemberCount > 0 ? standing.score : null;
+
+  return {
+    myKm: me.contributionKm,
+    sharePercent: totalKm > 0 ? Math.round((me.contributionKm / totalKm) * 100) : 0,
+    segments,
+    averageKm,
+    diffKm: averageKm === null ? null : Math.round((me.contributionKm - averageKm) * 10) / 10,
+  };
+}
+
+// '+27.0km' / '−12.3km' / '±0km' — 평균과의 차이 한 마디(마이너스는 진짜 빼기 기호).
+export function formatCrewContributionDiff(diffKm: number): string {
+  if (diffKm === 0) {
+    return '±0km';
+  }
+  return `${diffKm > 0 ? '+' : '−'}${Math.abs(diffKm).toFixed(1)}km`;
 }
 
 export function formatCrewRequestDate(createdAt: string): string {
