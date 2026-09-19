@@ -179,8 +179,13 @@ export default function CrewManageScreen() {
         void runHomeAction(() => transferCrewCaptain(crewId, member.userId), '캡틴 넘기기', '캡틴을 넘기지 못했어요.', () => {
           setMode('manage');
           showCrewNotice('캡틴 넘기기', `${member.name}님이 캡틴이 됐어요.`);
-          // 이제 캡틴이 아니다 — 관리 화면에 남아 있을 이유가 없다.
-          goToCrewTab();
+          // 이제 캡틴이 아니다 — 관리 화면에 남아 있을 이유가 없다. 들어온 곳(내 크루 화면)으로 돌아가고,
+          // 알림 딥링크처럼 뒤가 없으면 크루 탭으로 (오너 2026-09-19 구조: 탭 → 내 크루 → 관리).
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            goToCrewTab();
+          }
         });
       },
     });

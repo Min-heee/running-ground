@@ -28,6 +28,8 @@ export const CREW_NEWCOMER_DAYS = 7;
 export const CREW_SHRINKAGE_MEMBERS = 5;
 // 순위에 오르는 최소 시즌 멤버 수.
 export const CREW_MIN_RANKED_MEMBERS = 3;
+// 별을 받는 1위 크루의 최소 '실제로 달린' 멤버 수 — 서버 crewConstants.mjs CREW_MIN_CHAMPION_RUNNERS 거울.
+export const CREW_MIN_CHAMPION_RUNNERS = 3;
 // 크루 탭 순위 카드는 5개까지 — 나머지는 '전체 순위 ›'에서 (친구 순위표 5명 + 더보기와 같은 결).
 export const CREW_BOARD_PREVIEW_LIMIT = 5;
 // 초대 링크 — 마이 탭 태그 공유와 같은 우리 도메인 리다이렉트(GET /download). 앱 설치자는
@@ -641,6 +643,24 @@ export function buildCrewScoreExampleLine(priorKm: number): string {
   const score = computeCrewScore(exampleTotalKm, exampleMembers, priorKm);
   const priorPart = formatCrewKm(roundKm(priorKm * CREW_SHRINKAGE_MEMBERS));
   return `예: ${exampleMembers}명이 ${exampleTotalKm}km를 달리면 (${exampleTotalKm} + ${priorPart}) ÷ ${exampleMembers + CREW_SHRINKAGE_MEMBERS} = ${formatCrewScore(score)}km`;
+}
+
+// '순위 기준 및 크루 설명' 페이지의 크루 설명 줄 (오너 2026-09-18). 숫자는 이 파일의 서버 거울 상수에서,
+// 별이 붙는 첫 시즌은 서버 시즌 응답에서 — 프리시즌이 끝나면 괄호 없이 한 줄이 된다.
+export function buildCrewGuideLines(season: CrewSeasonInfo): string[] {
+  // 서버는 1위라도 실제로 달린 멤버가 3명 미만이면 별을 주지 않는다 — 그 조건까지 말한다(적대 리뷰).
+  const starBase = `달린 멤버가 ${CREW_MIN_CHAMPION_RUNNERS}명 이상인 1위 크루가 매달 별 ★을 받아요`;
+  const starLine = season.isPreseason
+    ? `${starBase} · 별은 ${formatCrewSeasonMonth(resolveCrewFirstStarSeasonKey(season))} 시즌부터`
+    : starBase;
+  return [
+    '크루원이 달린 거리를 모아 한 달 동안 크루끼리 겨뤄요',
+    starLine,
+    `크루는 최대 ${CREW_MAX_MEMBERS}명, 한 사람은 한 크루에만 들어가요`,
+    '크루 만들기·초대 코드·가입 신청으로 들어가요',
+    `크루 이동(가입·만들기)은 한 달에 ${CREW_JOINS_PER_MONTH}번까지예요`,
+    '캡틴은 가입 신청 승인, 멤버 내보내기, 캡틴 넘기기를 할 수 있어요',
+  ];
 }
 
 // 순위 기준 페이지의 규칙 줄 (오너 2026-09-18: '앱 기록만'·'하루 45km'는 규칙째 없앴고, 프리시즌은

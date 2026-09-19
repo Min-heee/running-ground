@@ -138,6 +138,7 @@ export default function RootLayout() {
         <Stack.Screen name="crew-manage" />
         <Stack.Screen name="crew-rules" />
         <Stack.Screen name="crew-last-season" />
+        <Stack.Screen name="crew-mine" />
         <Stack.Screen name="integration-management" />
         <Stack.Screen name="my-activity" />
         <Stack.Screen name="add-run" />

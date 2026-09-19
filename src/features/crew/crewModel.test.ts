@@ -8,6 +8,7 @@ import {
   buildCrewCancelRequestConfirmMessage,
   buildCrewCreateConfirmMessage,
   buildCrewGapLine,
+  buildCrewGuideLines,
   buildCrewHeroMeta,
   buildCrewHeroSeasonNote,
   buildCrewInviteShareMessage,
@@ -494,4 +495,13 @@ test('합류 태그는 폰 시계가 몇 초 늦어도 방금 들어온 사람�
   // 내일 0시 인정(정규 시즌)은 그대로 태그.
   const tomorrow = buildMember({ countsFrom: '2026-09-20T15:00:00.000Z', countedFrom: null });
   assert.equal(formatCrewMemberJoinTag(tomorrow, nowMs), '9/21 합류');
+});
+
+test('크루 설명 줄: 서버 거울 숫자 + 프리시즌엔 별이 붙는 첫 시즌을 함께', () => {
+  const preseason = buildCrewGuideLines(buildSeason({ seasonKey: '2026-09', label: '9월 프리시즌', isPreseason: true }));
+  assert.equal(preseason[1], '달린 멤버가 3명 이상인 1위 크루가 매달 별 ★을 받아요 · 별은 11월 시즌부터');
+  assert.match(preseason.join(' '), /최대 30명.*한 크루에만/);
+  assert.match(preseason.join(' '), /한 달에 3번까지/);
+  // 정규 시즌엔 괄호 없이.
+  assert.equal(buildCrewGuideLines(buildSeason())[1], '달린 멤버가 3명 이상인 1위 크루가 매달 별 ★을 받아요');
 });

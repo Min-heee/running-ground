@@ -16,7 +16,6 @@ import { crewListStyles } from '../components/crewListStyles';
 import { confirmCrewAction, showCrewNotice } from '../crewAlerts';
 import {
   buildCrewRequestConfirmMessage,
-  describeCrewUnranked,
   formatCrewNameWithStars,
   formatCrewRank,
   formatCrewScoreLine,
@@ -121,9 +120,8 @@ export default function CrewDetailScreen() {
           <CrewHero
             label={`${formatCrewNameWithStars(detail.crew.name, detail.crew.stars)} · ${detail.crew.memberCount}명`}
             value={formatCrewRank(detail.standing.rank)}
-            meta={detail.standing.rank === null
-              ? describeCrewUnranked(detail.standing.unrankedReason, detail.members, detail.standing.seasonMemberCount)
-              : formatCrewScoreLine(detail.standing.score)}
+            // 순위 밖이면 큰 글자 아래 설명 줄 없음 (오너 2026-09-18: '시즌 멤버가 3명이 되면…'을 뺐다).
+            meta={detail.standing.rank === null ? null : formatCrewScoreLine(detail.standing.score)}
           />
 
           <View style={crewListStyles.section}>
