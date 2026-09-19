@@ -92,6 +92,32 @@ export const CrewStandingListRow = memo(function CrewStandingListRow({
   );
 });
 
+// 빈 등수 한 줄 (오너 2026-09-19: '크루가 없어도 1~5등 등수는 보이게'). 누를 곳이 없어 Pressable이
+// 아니다. 등수 숫자는 채워진 줄과 같은 모양(1~3위 금색), 이름 자리엔 회색 '—', 값은 비운다.
+export const CrewStandingEmptyRow = memo(function CrewStandingEmptyRow({
+  rank,
+  isFirst,
+  showChange = false,
+}: {
+  rank: number;
+  isFirst: boolean;
+  showChange?: boolean;
+}) {
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${rank}위 비어 있음`}
+      style={[styles.row, isFirst ? null : styles.rowDivided]}
+    >
+      <Text style={[styles.rankNumber, isCrewPodiumRank(rank) ? styles.rankNumberPodium : null]}>{rank}</Text>
+      {showChange ? <Text style={styles.rankChange} /> : null}
+      <View style={styles.rowBody}>
+        <Text style={[styles.name, styles.nameEmpty]}>—</Text>
+      </View>
+    </View>
+  );
+});
+
 export function CrewFooterRow({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={styles.footerRow} hitSlop={8}>

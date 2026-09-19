@@ -16,6 +16,7 @@ import { CrewHero } from '../components/CrewHero';
 import {
   CrewActionRow,
   CrewFooterRow,
+  CrewStandingEmptyRow,
   CrewStandingListRow,
 } from '../components/CrewRows';
 import { crewListStyles } from '../components/crewListStyles';
@@ -187,14 +188,24 @@ const CrewBoardSection = memo(function CrewBoardSection({ home }: { home: CrewHo
             {buildCrewSeasonProgressLabel(home.season)}
           </Text>
         </View>
-        {rows.length > 0 ? rows.map((row, index) => (
+        {rows.map((row, index) => (
           <CrewStandingListRow key={row.crewId} row={row} isFirst={index === 0} showChange={showChange} />
-        )) : (
-          <View style={crewListStyles.emptyBlock}>
+        ))}
+        {/* 크루가 모자라도 1~5등 자리는 늘 보인다 (오너 2026-09-19). */}
+        {Array.from({ length: Math.max(0, CREW_BOARD_PREVIEW_LIMIT - rows.length) }, (_, index) => (
+          <CrewStandingEmptyRow
+            key={`empty-${rows.length + index + 1}`}
+            rank={rows.length + index + 1}
+            isFirst={rows.length + index === 0}
+            showChange={showChange}
+          />
+        ))}
+        {rows.length === 0 ? (
+          <View style={[crewListStyles.emptyBlock, styles.boardEmptyNote]}>
             <Text style={crewListStyles.emptyTitle}>{emptyCopy.title}</Text>
             <Text style={crewListStyles.emptyText}>{emptyCopy.body}</Text>
           </View>
-        )}
+        ) : null}
         <CrewFooterRow label="전체 순위" onPress={openLeague} />
       </Card>
       <Pressable
@@ -425,6 +436,11 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: radii.pill,
     backgroundColor: fixedColors.brand,
+  },
+  // 빈 순위표 안내(오너 문구)는 빈 등수 5줄 아래 헤어라인으로 나눈다.
+  boardEmptyNote: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderSoft,
   },
   // 크루 랭킹 카드 안 제목 줄 — 행과 같은 좌우 여백.
   cardHeader: {

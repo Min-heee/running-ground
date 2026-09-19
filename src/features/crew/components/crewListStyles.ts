@@ -71,6 +71,10 @@ export const crewListStyles = StyleSheet.create({
     fontSize: fontSizes.rank,
     fontWeight: fontWeights.extraBold,
   },
+  // 빈 등수 줄의 이름 자리 '—'.
+  nameEmpty: {
+    color: colors.textTertiary,
+  },
   // 이름 옆 회색 꼬리표('캡틴', '나', '10/9 합류') — 알약·채움 없이 글자만.
   nameTag: {
     flexShrink: 0,
