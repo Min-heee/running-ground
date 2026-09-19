@@ -95,6 +95,17 @@ export const crewListStyles = StyleSheet.create({
   rankNumberPodium: {
     color: colors.podiumGoldOnSurface,
   },
+  // '어제보다 ▲▼' 칸 (오너 2026-09-19): 순위 숫자 바로 옆 좁은 칸. 오르면 보라, 내리면 회색.
+  rankChange: {
+    width: 26,
+    marginLeft: -spacing.xs,
+    color: colors.textSecondary,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extraBold,
+  },
+  rankChangeUp: {
+    color: colors.brandStrong,
+  },
   value: {
     flexShrink: 0,
     color: colors.textPrimary,

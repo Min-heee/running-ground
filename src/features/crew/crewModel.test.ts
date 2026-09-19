@@ -24,6 +24,7 @@ import {
   checkCrewName,
   computeCrewScore,
   describeCrewInviteCodeInput,
+  describeCrewRankChange,
   describeCrewSearchResults,
   describeCrewUnranked,
   formatCrewKm,
@@ -38,6 +39,7 @@ import {
   formatCrewUnrankedShort,
   getCrewErrorCode,
   getCrewErrorMessage,
+  hasCrewRankChanges,
   isCrewFirstSeason,
   isCrewPodiumRank,
   isCrewSeasonFinalDays,
@@ -551,3 +553,16 @@ test('크루 랭킹 남은 날: 마지막 3일만 강조', () => {
   assert.equal(isCrewSeasonFinalDays(buildSeason({ daysLeft: 0 })), false);
   assert.equal(isCrewSeasonFinalDays(buildSeason({ status: 'tallying', daysLeft: 0 })), false);
 });
+
+test('어제보다 순위 ▲▼: 오르면 보라 ▲n, 내리면 회색 ▼n, 그대로·순위 밖·어제 없음이면 없음', () => {
+  assert.deepEqual(describeCrewRankChange({ rank: 3, previousRank: 4 }), { text: '▲1', tone: 'up', a11y: '어제보다 1계단 올랐어요' });
+  assert.deepEqual(describeCrewRankChange({ rank: 4, previousRank: 2 }), { text: '▼2', tone: 'down', a11y: '어제보다 2계단 내려갔어요' });
+  assert.equal(describeCrewRankChange({ rank: 3, previousRank: 3 }), null);
+  assert.equal(describeCrewRankChange({ rank: null, previousRank: 3 }), null);
+  assert.equal(describeCrewRankChange({ rank: 3, previousRank: null }), null);
+  // 옛 백엔드: 필드 없음 → 없음.
+  assert.equal(describeCrewRankChange({ rank: 3 }), null);
+  assert.equal(hasCrewRankChanges([{ rank: 1, previousRank: 1 }, { rank: 2 }]), false);
+  assert.equal(hasCrewRankChanges([{ rank: 1, previousRank: 2 }, { rank: 2, previousRank: 1 }]), true);
+});
+

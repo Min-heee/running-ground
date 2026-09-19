@@ -653,3 +653,41 @@ test('순위 밖 사유와 시즌 중에 닫힌 크루', () => {
   assert.equal(standings.rowByCrewId.has('c2'), false);
   assert.equal(standings.rankedCount, 0);
 });
+
+test('어제보다 순위 ▲▼: previousRank = 오늘 0시(KST) 순위 — 그때 저장된 기록만 (오너 2026-09-19)', () => {
+  const store = buildStore({
+    crews: [crew('c1', '새벽'), crew('c2', '노을', { captainUserId: 'u4' }), crew('c3', '한강', { captainUserId: 'u7' })],
+    members: [
+      ...threeVeterans('c1', ['u1', 'u2', 'u3']),
+      ...threeVeterans('c2', ['u4', 'u5', 'u6']),
+      ...threeVeterans('c3', ['u7', 'u8', 'u9']),
+    ],
+    runs: [
+      // 11/14까지: 새벽 > 노을 > 한강
+      ...['u1', 'u2', 'u3'].map((userId) => run(userId, 30, '2026-11-10T08:00:00')),
+      ...['u4', 'u5', 'u6'].map((userId) => run(userId, 20, '2026-11-10T08:00:00')),
+      ...['u7', 'u8', 'u9'].map((userId) => run(userId, 10, '2026-11-10T08:00:00')),
+      // 어젯밤에 뛰었지만 오늘 0시 넘어 저장 — 어제 순위엔 없던 기록
+      run('u4', 40, '2026-11-14T23:40:00', { created: '2026-11-15T00:20:00' }),
+      // 오늘 한강이 크게 뛴다
+      ...['u7', 'u8', 'u9'].map((userId) => run(userId, 30, '2026-11-15T07:00:00')),
+    ],
+  });
+
+  const now = kst('2026-11-15T12:00:00');
+  const home = buildCrewHomePayload(store, store.users[0], now);
+  const byId = Object.fromEntries(home.top.map((row) => [row.crewId, [row.rank, row.previousRank]]));
+  // 지금: 한강 40 > 노을 33.33 > 새벽 30 / 어제 0시: 새벽 30 > 노을 20 > 한강 10
+  assert.deepEqual(byId, { c3: [1, 3], c2: [2, 2], c1: [3, 1] });
+  assert.equal(home.myCrew.standing.previousRank, 1);
+
+  const league = buildCrewLeaguePayload(store, store.users[0], undefined, now);
+  assert.deepEqual(league.ranked.map((row) => [row.crewId, row.previousRank]), [['c3', 3], ['c2', 2], ['c1', 1]]);
+
+  // 시즌 첫날(1일)엔 비교할 어제가 없다 — 순위에 올라도 전부 null.
+  store.runs.push(...['u1', 'u2', 'u3'].map((userId) => run(userId, 5, '2026-12-01T08:00:00')));
+  const firstDay = buildCrewHomePayload(store, store.users[0], kst('2026-12-01T12:00:00'));
+  assert.equal(firstDay.top.length, 1);
+  assert.deepEqual(firstDay.top.map((row) => [row.crewId, row.rank, row.previousRank]), [['c1', 1, null]]);
+});
+

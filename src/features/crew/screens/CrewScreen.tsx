@@ -27,10 +27,12 @@ import {
   buildCrewClimbGauge,
   buildCrewMyCardMeta,
   buildCrewSeasonProgressLabel,
+  describeCrewRankChange,
   formatCrewNameWithStars,
   formatCrewRank,
   formatCrewRequestDate,
   getCrewErrorMessage,
+  hasCrewRankChanges,
   isCrewSeasonFinalDays,
   isCrewStateDriftError,
 } from '../crewModel';
@@ -168,6 +170,7 @@ export default function CrewScreen() {
 // 있으면 바로 순위표 — 예전의 '크루 모집 중'(3개 미만이면 가림)은 오너가 같은 날 없앴다.
 const CrewBoardSection = memo(function CrewBoardSection({ home }: { home: CrewHomeResponse }) {
   const rows = home.top.slice(0, CREW_BOARD_PREVIEW_LIMIT);
+  const showChange = hasCrewRankChanges(rows);
   const emptyCopy = buildCrewBoardEmptyCopy(Boolean(home.myCrew));
 
   return (
@@ -185,7 +188,7 @@ const CrewBoardSection = memo(function CrewBoardSection({ home }: { home: CrewHo
           </Text>
         </View>
         {rows.length > 0 ? rows.map((row, index) => (
-          <CrewStandingListRow key={row.crewId} row={row} isFirst={index === 0} />
+          <CrewStandingListRow key={row.crewId} row={row} isFirst={index === 0} showChange={showChange} />
         )) : (
           <View style={crewListStyles.emptyBlock}>
             <Text style={crewListStyles.emptyTitle}>{emptyCopy.title}</Text>
@@ -217,11 +220,13 @@ const MyCrewView = memo(function MyCrewView({ home, myCrew }: { home: CrewHomeRe
   const rank = formatCrewRank(standing.rank);
   const meta = buildCrewMyCardMeta(standing, members);
   const gauge = buildCrewClimbGauge(standing, home.top);
+  const change = describeCrewRankChange(standing);
   // 카드의 글자를 그대로 읽어 준다 — 캡틴에게 '신청 N'은 이제 탭에서 유일한 신청 신호다(적대 리뷰).
   const a11yLabel = [
     `내 크루 ${crew.name}`,
     `${crew.memberCount}명`,
     rank,
+    change?.a11y,
     meta,
     gauge ? [gauge.label, gauge.value].filter(Boolean).join(' ') : null,
     pendingRequestCount > 0 ? `가입 신청 ${pendingRequestCount}건` : null,
@@ -243,6 +248,7 @@ const MyCrewView = memo(function MyCrewView({ home, myCrew }: { home: CrewHomeRe
               <CrewHero
                 label={`${formatCrewNameWithStars(crew.name, crew.stars)} · ${crew.memberCount}명`}
                 value={rank}
+                valueChange={change}
                 meta={meta}
               />
             </View>

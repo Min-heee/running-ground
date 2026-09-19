@@ -29,6 +29,9 @@ export type CrewStandingRow = {
   totalKm: number; seasonMemberCount: number; runnerCount: number;
   unrankedReason: CrewUnrankedReason | null;
   isMine: boolean;
+  // 오늘 0시(KST) 순위 — '어제보다 ▲▼'(2026-09-19). 봉인 시즌·시즌 첫날·그때 순위 밖이면 null.
+  // 옛 백엔드 응답엔 없어 옵셔널(없으면 화살표 없음).
+  previousRank?: number | null;
 };
 
 export type CrewMemberRow = {

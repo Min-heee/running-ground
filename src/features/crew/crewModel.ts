@@ -409,6 +409,29 @@ export function buildCrewHeroMeta(standing: CrewStandingRow, top: readonly CrewS
   return [formatCrewScoreLine(standing.score), buildCrewGapLine(standing, top)].filter(Boolean).join(' · ');
 }
 
+// --- 어제보다 순위 ▲▼ (오너 2026-09-19) ---
+
+export type CrewRankChange = { text: string; tone: 'up' | 'down'; a11y: string };
+
+// 오늘 0시(KST) 순위와 비교. 오르면 보라 ▲n, 내리면 회색 ▼n, 그대로·순위 밖·비교할 어제 없음이면 null
+// (빨강·초록은 기록 탭 승패 색이라 쓰지 않는다).
+export function describeCrewRankChange(row: Pick<CrewStandingRow, 'rank' | 'previousRank'>): CrewRankChange | null {
+  const previousRank = row.previousRank ?? null;
+  if (row.rank === null || previousRank === null || previousRank === row.rank) {
+    return null;
+  }
+
+  const steps = Math.abs(previousRank - row.rank);
+  return row.rank < previousRank
+    ? { text: `▲${steps}`, tone: 'up', a11y: `어제보다 ${steps}계단 올랐어요` }
+    : { text: `▼${steps}`, tone: 'down', a11y: `어제보다 ${steps}계단 내려갔어요` };
+}
+
+// 순위표에 ▲▼ 칸을 둘지 — 한 줄이라도 변동이 있을 때만(없으면 칸을 비워 두지 않고 지금 모양 그대로).
+export function hasCrewRankChanges(rows: readonly Pick<CrewStandingRow, 'rank' | 'previousRank'>[]): boolean {
+  return rows.some((row) => describeCrewRankChange(row) !== null);
+}
+
 // --- 크루 탭 내 크루 카드 (오너 2026-09-19 '밋밋하다' → 추격 게이지 + 내 기여 + 남은 날) ---
 
 // 카드 메타 한 줄: '인당 71.27km · 내 기여 66.2km'. '1위와 … 차이'는 아래 추격 게이지가 맡는다.

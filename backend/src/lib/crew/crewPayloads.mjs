@@ -50,6 +50,8 @@ function createContext(store, user, now) {
     user,
     usersById: new Map((store.users ?? []).map((entry) => [entry.id, entry])),
     starCounts: buildCrewStarCounts(store),
+    // crewId → 오늘 0시(KST) 순위. 홈·이번 시즌 순위표만 채운다(그 밖은 null → previousRank null).
+    previousRanks: null,
     myMembership,
     myCrewId: myMembership?.crewId ?? null,
   };
@@ -116,7 +118,23 @@ function toStandingRow(row, ctx) {
     runnerCount: row.runnerCount,
     unrankedReason: row.unrankedReason,
     isMine: row.crewId === ctx.myCrewId,
+    previousRank: ctx.previousRanks?.get(row.crewId) ?? null,
   };
+}
+
+// 어제보다 순위 ▲▼ (오너 2026-09-19): 오늘 0시(KST)에 이 시즌 순위표가 어땠는지 — 그때의 멤버십과
+// 그때까지 저장된 기록으로 다시 계산한다. 시즌이 끝났거나(집계 중·봉인) 오늘이 시즌 첫날이면 null —
+// 비교할 어제가 없다. 순위 밖이었던 크루는 맵에 없다(→ previousRank null, 화살표 없음).
+function resolveCrewPreviousRanks(store, seasonKey, nowMs) {
+  const { startMs, endMs } = resolveCrewSeasonBounds(seasonKey);
+  const todayStartMs = kstDayStartMs(nowMs);
+
+  if (nowMs >= endMs || todayStartMs <= startMs) {
+    return null;
+  }
+
+  const previous = buildCrewSeasonStandings(store, seasonKey, todayStartMs, { runsSavedBeforeMs: todayStartMs });
+  return new Map(previous.rows.filter((row) => row.rank !== null).map((row) => [row.crewId, row.rank]));
 }
 
 // 보드에 아직 없는 크루(이론상 없음 — 열린 크루는 모두 현재 시즌 보드에 오른다)의 방어 행.
@@ -132,6 +150,7 @@ function buildEmptyStandingRow(crew, standings, ctx) {
     runnerCount: 0,
     unrankedReason: 'too_few_members',
     isMine: crew.id === ctx.myCrewId,
+    previousRank: null,
   };
 }
 
@@ -230,6 +249,7 @@ export function buildCrewHomePayload(store, user, now = new Date()) {
   const ctx = createContext(store, user, now);
   const seasonKey = resolveCurrentCrewSeasonKey(now);
   const standings = buildCrewSeasonStandings(store, seasonKey, ctx.nowMs);
+  ctx.previousRanks = resolveCrewPreviousRanks(store, seasonKey, ctx.nowMs);
   const myCrewEntity = ctx.myCrewId ? findCrew(store, ctx.myCrewId) : null;
   let myCrew = null;
 
@@ -289,12 +309,14 @@ export function buildCrewLeaguePayload(store, user, rawSeasonKey, now = new Date
         runnerCount: entry.runnerCount ?? 0,
         unrankedReason: null,
         isMine: entry.crewId === ctx.myCrewId,
+        previousRank: null,
       })),
       unranked: [],
     };
   }
 
   const standings = buildCrewSeasonStandings(store, seasonKey, ctx.nowMs);
+  ctx.previousRanks = resolveCrewPreviousRanks(store, seasonKey, ctx.nowMs);
   return {
     season,
     sealed: false,

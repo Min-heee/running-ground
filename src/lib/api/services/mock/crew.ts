@@ -375,6 +375,7 @@ function buildLiveStandings(): { ranked: CrewStandingRow[]; unranked: CrewStandi
         runnerCount,
         unrankedReason,
         isMine: crew.members.some((member) => member.userId === MOCK_ME_ID),
+        previousRank: null as number | null,
       },
     };
   });
@@ -396,6 +397,12 @@ function buildLiveStandings(): { ranked: CrewStandingRow[]; unranked: CrewStandi
       || (other.score === row.score && other.totalKm > row.totalKm)
       || (other.score === row.score && other.totalKm === row.totalKm && other.seasonMemberCount > row.seasonMemberCount)
     )).length;
+  }
+
+  // '어제보다 ▲▼' 미리보기용 가짜 어제 순위 — 1·2위가 자리를 바꾸고, 3·4위가 자리를 바꾼 하루.
+  const MOCK_PREVIOUS_RANK_SWAP: Record<number, number> = { 1: 2, 2: 1, 3: 4, 4: 3 };
+  for (const row of ranked) {
+    row.previousRank = row.rank === null ? null : (MOCK_PREVIOUS_RANK_SWAP[row.rank] ?? row.rank);
   }
 
   // 순위 밖은 인원 많은 순 (서버 검색 기본 정렬과 같은 규칙).

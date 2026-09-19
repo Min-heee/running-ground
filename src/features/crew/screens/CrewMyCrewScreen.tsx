@@ -19,6 +19,7 @@ import {
   buildCrewHeroSeasonNote,
   buildCrewInviteShareMessage,
   buildCrewLeaveConfirmMessage,
+  describeCrewRankChange,
   formatCrewNameWithStars,
   formatCrewRank,
   getCrewErrorMessage,
@@ -165,6 +166,7 @@ function MyCrewBody({
       <CrewHero
         label={`${formatCrewNameWithStars(crew.name, crew.stars)} · ${crew.memberCount}명`}
         value={formatCrewRank(standing.rank)}
+        valueChange={describeCrewRankChange(standing)}
         meta={standing.rank === null ? null : buildCrewHeroMeta(standing, home.top)}
         note={buildCrewHeroSeasonNote(home.season)}
       />

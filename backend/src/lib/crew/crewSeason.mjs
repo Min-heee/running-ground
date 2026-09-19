@@ -235,8 +235,13 @@ function compareUnrankedRows(left, right) {
 // 반환 rows: 순위권(정렬·공동 순위) 다음 순위 밖(인원순). memberStats: `${crewId}|${userId}` →
 // { contributionKm, isSeasonMember, countedFromMs } — 시즌 멤버가 아니어도 기여는 추적하고,
 // 활성 신입이 인원수에 들어가는 시각(화면의 '10/9 합류')도 여기서 한 번에 낸다.
-export function buildCrewSeasonStandings(store, seasonKey, nowMs = Date.now()) {
-  const memoKey = `${seasonKey}|${nowMs}`;
+//
+// options.runsSavedBeforeMs: 그 시각까지 저장된 기록만 센다 — '어제보다 순위 ▲▼'(오너 2026-09-19)가
+// 오늘 0시(KST) 순위를 다시 만들 때 쓴다. nowMs만 0시로 돌리면 멤버십은 0시 기준이 되지만 러닝은
+// 전부 들어가 지금 순위와 같아진다. 저장 시각(createdAt, 없으면 끝난 시각)으로 자른다.
+export function buildCrewSeasonStandings(store, seasonKey, nowMs = Date.now(), options = {}) {
+  const runsSavedBeforeMs = Number.isFinite(options.runsSavedBeforeMs) ? options.runsSavedBeforeMs : null;
+  const memoKey = `${seasonKey}|${nowMs}|${runsSavedBeforeMs ?? ''}`;
   const cached = standingsMemoByStore.get(store)?.get(memoKey);
   if (cached) {
     return cached;
@@ -307,6 +312,10 @@ export function buildCrewSeasonStandings(store, seasonKey, nowMs = Date.now()) {
   for (const run of store.runs ?? []) {
     const windows = windowsByUserId.get(run?.userId);
     if (!windows || !isCrewCountableRun(run)) {
+      continue;
+    }
+
+    if (runsSavedBeforeMs !== null && parseMs(run.createdAt, resolveRunEndedMs(run)) >= runsSavedBeforeMs) {
       continue;
     }
 

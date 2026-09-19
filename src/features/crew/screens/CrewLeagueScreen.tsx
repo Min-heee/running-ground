@@ -13,6 +13,7 @@ import { crewListStyles } from '../components/crewListStyles';
 import {
   buildCrewSeasonProgressLabel,
   formatCrewUnrankedShort,
+  hasCrewRankChanges,
   isCrewFirstSeason,
   shiftCrewSeasonKey,
 } from '../crewModel';
@@ -88,6 +89,8 @@ function LeagueBody({
   firstSeasonLabel: string | null;
 }) {
   const unranked = showUnranked ? league.unranked : [];
+  // '어제보다 ▲▼' 칸은 변동이 한 줄이라도 있을 때만 (봉인 시즌은 previousRank가 없어 늘 꺼진다).
+  const showChange = hasCrewRankChanges(league.ranked);
 
   return (
     <>
@@ -104,6 +107,7 @@ function LeagueBody({
                 row={row}
                 isFirst={index === 0}
                 meta={`${row.seasonMemberCount}명`}
+                showChange={showChange}
               />
             ))}
           </Card>

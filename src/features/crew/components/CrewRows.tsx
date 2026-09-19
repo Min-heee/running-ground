@@ -4,6 +4,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import type { CrewMemberRow, CrewStandingRow } from '@/lib/api/types/crew';
 import {
+  describeCrewRankChange,
   formatCrewKm,
   formatCrewMemberJoinTag,
   formatCrewNameWithStars,
@@ -31,26 +32,33 @@ function openCrewDetail(crewId: string) {
 
 // 순위 한 줄: 순위 숫자(1~3위 금색) · 이름 ★n · 오른쪽 값. 오른쪽 값은 기본이 인당 km,
 // 순위 밖 목록에서는 한 단어 사유를 넘겨 받는다.
+// showChange: 이 순위표에 '어제보다 ▲▼' 칸을 둔다(부모가 한 줄이라도 변동이 있을 때만 켠다 — 칸 폭이
+// 줄마다 같아야 이름이 가지런하다).
 export const CrewStandingListRow = memo(function CrewStandingListRow({
   row,
   isFirst,
   meta,
   rightText,
+  showChange = false,
 }: {
   row: CrewStandingRow;
   isFirst: boolean;
   meta?: string | null;
   rightText?: string;
+  showChange?: boolean;
 }) {
   const handlePress = useCallback(() => openCrewDetail(row.crewId), [row.crewId]);
   const displayName = formatCrewNameWithStars(row.name, row.stars);
   const valueText = rightText ?? `${formatCrewScore(row.score)}km`;
+  const change = showChange ? describeCrewRankChange(row) : null;
 
   return (
     <Pressable
       onPress={handlePress}
       accessibilityRole="button"
-      accessibilityLabel={[row.rank ? `${row.rank}위` : '순위 밖', displayName, rightText ?? `인당 ${valueText}`].join(' ')}
+      accessibilityLabel={[row.rank ? `${row.rank}위` : '순위 밖', change?.a11y, displayName, rightText ?? `인당 ${valueText}`]
+        .filter(Boolean)
+        .join(' ')}
       style={({ pressed }) => [
         styles.row,
         isFirst ? null : styles.rowDivided,
@@ -61,6 +69,11 @@ export const CrewStandingListRow = memo(function CrewStandingListRow({
       <Text style={[styles.rankNumber, isCrewPodiumRank(row.rank) ? styles.rankNumberPodium : null]}>
         {row.rank ?? ''}
       </Text>
+      {showChange ? (
+        <Text style={[styles.rankChange, change?.tone === 'up' ? styles.rankChangeUp : null]} numberOfLines={1}>
+          {change?.text ?? ''}
+        </Text>
+      ) : null}
       <View style={styles.rowBody}>
         <Text style={styles.name} numberOfLines={1}>{displayName}</Text>
         {meta ? <Text style={styles.meta} numberOfLines={1}>{meta}</Text> : null}
