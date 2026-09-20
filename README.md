@@ -8,6 +8,10 @@ Claude Code 등 AI 코딩 툴과 함께 혼자 만들었습니다. 큰 변경은
 
 > 이 저장소는 러닝그라운드의 **전체 소스 코드와 커밋 이력**입니다. 운영에 쓰는 비공개 저장소의 `main` 이력을 옮기면서 회원 닉네임·실명과 키·서버 주소 같은 값만 바꾼 **공개 사본**입니다([무엇을 바꿨나](#공개-사본에-대해)). 처음 보신다면 **[이 프로젝트의 PRD — docs/PRD.md](docs/PRD.md)**, [아키텍처 문서](docs/architecture.md), 아래 [사례연구 4편](#엔지니어링-사례연구) 순서로 읽기를 권합니다. 로컬 실행 방법은 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)에 있습니다.
 
+**[PRD](docs/PRD.md)** · **[아키텍처](docs/architecture.md)** · **[사례연구 4편](#엔지니어링-사례연구)** · [무엇을 만들었나](#무엇을-만들었나) · [AI와 함께 만든 방식](#ai와-함께-만든-방식) · [저장소 구조](#저장소-구조) · [기술 스택](#기술-스택) · [로컬 실행](docs/DEVELOPMENT.md)
+
+사례연구 4편 바로 가기 — [상대 거리가 0.00km로 얼어붙는다](docs/case-studies/opponent-distance-freeze.md) · [진행률 전송이 타임아웃되던 진짜 이유](docs/case-studies/store-blob-gps-routes.md) · [화면을 끄면 기록이 사라진다](docs/case-studies/screen-off-record-loss.md) · [같은 코스를 뛴 두 폰이 다른 거리를 기록한다](docs/case-studies/cross-device-distance-parity.md)
+
 ---
 
 ## 무엇을 만들었나
@@ -63,6 +67,12 @@ Claude Code 등 AI 코딩 툴과 함께 혼자 만들었습니다. 큰 변경은
 
 상세: **[docs/architecture.md](docs/architecture.md)** — 시스템 구조도, 실시간 매치 시퀀스, 카운트다운 동기화, 백그라운드 위치 추적.
 
+### 탭바에서 내린 3D 화면
+
+달린 거리를 천체로 읽는 3D 탭을 만들어 넣었다가 탭바에서 내렸습니다. `three.js` + React Three Fiber를 웹에서는 브라우저 WebGL로, 네이티브에서는 `expo-gl`로 올렸고, 두 진입점의 차이는 `Canvas` import 한 줄뿐입니다([`UniverseCanvas.tsx`](src/features/universe/three/UniverseCanvas.tsx) · [`UniverseCanvas.native.tsx`](src/features/universe/three/UniverseCanvas.native.tsx)). 직교 카메라에 `zoom: 1`을 써서 월드 좌표 1 = 픽셀 1로 맞췄고, 그래서 기존 2D 화면이 쓰던 좌표를 그대로 넘길 수 있습니다.
+
+내린 이유는 기술이 아니라 제품 판단입니다 — 잘 돌아갔지만 달리기 앱에서 매일 열 화면은 아니라고 봤습니다. 탭 버튼만 `href: null`로 빼서 라우트와 코드는 그대로 남겼고([`src/features/universe/`](src/features/universe/) 30파일, `three/`만 3,963줄), 되살리려면 그 한 줄을 지우면 됩니다.
+
 ---
 
 ## AI와 함께 만든 방식
@@ -97,6 +107,9 @@ git worktree로 여러 Claude Code 세션을 병렬로 돌리고, 세션 사이�
 
 ## 저장소 구조
 
+<details>
+<summary>디렉터리별 역할 (펼치기)</summary>
+
 | 경로 | 내용 |
 | --- | --- |
 | [`app/`](app/) | expo-router 라우트. 파일마다 거의 한 줄짜리 껍데기이고, 화면 구현은 `src/features/*`에 있습니다 |
@@ -109,9 +122,14 @@ git worktree로 여러 Claude Code 세션을 병렬로 돌리고, 세션 사이�
 | [`targets/live-activity/`](targets/live-activity/) | iOS 잠금화면 카드(Live Activity) Widget Extension |
 | [`docs/`](docs/) | 개발하면서 남긴 설계 · 진단 · 감사 문서. 아키텍처 개요는 [`docs/architecture.md`](docs/architecture.md), 사례연구는 [`docs/case-studies/`](docs/case-studies/) |
 
+</details>
+
 ---
 
 ## 기술 스택
+
+<details>
+<summary>버전까지 (펼치기)</summary>
 
 | 영역 | 사용 기술 |
 | --- | --- |
@@ -126,6 +144,8 @@ git worktree로 여러 Claude Code 세션을 병렬로 돌리고, 세션 사이�
 | 배포 | EAS Build / EAS Update(OTA), TestFlight · Play Console, Docker Compose(postgres + api + Caddy 자동 TLS) |
 | 릴리스 게이트 | `release:check`, `release:gate:*`, `code:quality`, `perf:smells` npm 스크립트 |
 | 모니터링 | Sentry |
+
+</details>
 
 ---
 
@@ -193,6 +213,9 @@ return Math.max(safeBaselineKm, safeNativeKm);
 
 운영 중인 서비스의 저장소라 그대로 열 수는 없어서, 비공개 원본의 `main` 이력(2026-09-19까지 커밋 1,460개)을 스크립트로 다시 써서 이 사본을 만들었습니다. 코드 · 문서 · 커밋 메시지 · 작성자 · 날짜는 원본과 같고, 아래 항목만 다릅니다. 그래서 커밋 해시는 원본과 다르고, 문서에 적힌 커밋 해시는 모두 이 저장소 기준입니다.
 
+<details>
+<summary>무엇을 어떻게 바꿨는지 (7항목, 펼치기)</summary>
+
 | 무엇을 | 어떻게 |
 | --- | --- |
 | 테스트 · 주석 · 커밋 메시지에 나온 회원 닉네임 · 실명 · 운영 사용자 ID, 테스트 속 생년월일 | `회원A` ~ `회원K`, `user-membera` 같은 가명과 임의 값으로 치환 |
@@ -202,7 +225,11 @@ return Math.max(safeBaselineKm, safeNativeKm);
 | 실측 GPS 좌표가 들어 있던 테스트 한 개 | 좌표 전체를 임의의 다른 위치로 평행이동(점 사이 간격은 유지) |
 | `dist-demo/`(웹 빌드 산출물), `google-services.json`, 네이티브 모듈의 gradle 빌드 산출물 | 이력 전체에서 삭제 |
 
+</details>
+
 서버 비밀값(DB 비밀번호, SMS · 소셜 로그인 키, 관리자 토큰 등)은 처음부터 환경 변수로만 넣어서 이력에 들어간 적이 없습니다. 치환한 뒤에도 앱과 백엔드의 `npm test`, `tsc --noEmit` 결과는 원본과 같습니다. 이 저장소만으로는 운영 서버에 접속할 수 없고, 직접 빌드하려면 `.env*.example`을 참고해 자기 키를 넣어야 합니다. 앱은 위 스토어 링크에서 설치할 수 있습니다.
+
+이 저장소는 **열람용 공개 사본**입니다. 코드 재사용·재배포를 허가하지 않으며, 저작권은 전부 보유합니다.
 
 ---
 
