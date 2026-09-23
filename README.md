@@ -4,6 +4,11 @@ GPS로 러닝을 측정하고, 같은 시각에 같은 거리를 두고 **여러
 
 Claude Code 등 AI 코딩 툴과 함께 혼자 만들었습니다. 큰 변경은 병렬 에이전트 반박, 되돌려서 하는 테스트 확인, 실기기 측정으로 검증합니다([어떻게](#ai와-함께-만든-방식)).
 
+<p align="center">
+  <img src="store-assets/play-feature-1024x500.png" alt="러닝그라운드 로고와 RUN. RANK. RETURN. 태그라인" width="640">
+  <br><sub>Google Play 스토어에 올린 피처 그래픽(<code>store-assets/</code>).</sub>
+</p>
+
 <!-- 스크린샷 자리: 매치 아레나 / 실시간 상대 거리 / 결과 화면 / 크루 리그 -->
 
 > 이 저장소는 러닝그라운드의 **전체 소스 코드와 커밋 이력**입니다. 운영에 쓰는 비공개 저장소의 `main` 이력을 옮기면서 회원 닉네임·실명과 키·서버 주소 같은 값만 바꾼 **공개 사본**입니다([무엇을 바꿨나](#공개-사본에-대해)). 처음 보신다면 **[이 프로젝트의 PRD — docs/PRD.md](docs/PRD.md)**, [아키텍처 문서](docs/architecture.md), 아래 [사례연구 4편](#엔지니어링-사례연구) 순서로 읽기를 권합니다. 로컬 실행 방법은 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)에 있습니다.
@@ -29,6 +34,15 @@ Claude Code 등 AI 코딩 툴과 함께 혼자 만들었습니다. 큰 변경은
 | 홈 · 기록 | 이번 달 요약, 주 연속 러닝 뱃지, 월별 러닝 타임라인과 주·월·년 그래프 |
 | 공통 | 건강 앱(Apple 건강 · Health Connect) 기록 가져오기, iOS 잠금화면 카드(Live Activity), 부정행위 판정(속도 · 걸음 수 · 보폭) |
 
+<p align="center">
+  <img src="src/features/rank/symbols/intro.png" alt="입문 티어 상징" height="88">
+  <img src="src/features/rank/symbols/runner.png" alt="러너 티어 상징" height="88">
+  <img src="src/features/rank/symbols/pacer.png" alt="페이서 티어 상징" height="88">
+  <img src="src/features/rank/symbols/racer.png" alt="레이서 티어 상징" height="88">
+  <img src="src/features/rank/symbols/elite.png" alt="엘리트 티어 상징" height="88">
+  <br><sub>홈 화면 랭크 카드에 쓰는 티어 상징 — 왼쪽부터 입문 · 러너 · 페이서 · 레이서 · 엘리트(<code>src/features/rank/symbols/</code>).</sub>
+</p>
+
 2026년 8월 20일 이후 추가한 것:
 
 - **09-18** 크루대전(월간 크루 리그)과 크루 탭. 9·10월은 프리시즌이고, 우승 별은 11월 시즌부터 줍니다.
@@ -45,7 +59,7 @@ Claude Code 등 AI 코딩 툴과 함께 혼자 만들었습니다. 큰 변경은
 | 항목 | 수치 |
 | --- | --- |
 | 커밋 | **1,461개** (2026-03-30 ~ 2026-09-19, 작성자 1인. 병합 커밋 제외 1,295개) |
-| Claude 공동 작성 표기 | 병합 제외 1,295개 중 **651개**. 2026년 6월 이후로는 753개 중 **646개(86%)** |
+| Claude 공동 작성 표기 | 병합 제외 1,295개 중 **651개**. 2026년 6월 이후로는 751개 중 **647개(86%)** |
 | 테스트 | 파일 **302개**, 케이스 **2,064개** (`node:test`) |
 
 <details>
@@ -85,7 +99,7 @@ Claude Code 등 AI 코딩 툴과 함께 혼자 만들었습니다. 큰 변경은
 | Claude Code | 2026년 5월 중순부터 주 도구. 구현, 원인 추적의 1차 분석, 테스트 작성, 관점별 적대 검증 |
 | OpenAI Codex | 2026년 4~5월. 전체 코드 감사와 리팩터링 계획 |
 
-커밋의 `Co-Authored-By: Claude` 표기는 2026년 5월 18일에 처음 붙였고, 6월부터는 거의 모든 커밋에 붙였습니다(6월 이후 병합 제외 737개 중 647개). 그 전 커밋에는 도구 표기가 없습니다. 규칙을 제가 정한 커밋에는 '오너'와 날짜를 적고, 검증 결과(`tsc`, 테스트 통과 수)도 커밋 메시지에 남깁니다. 이 표기는 공개 사본의 커밋 이력에도 그대로 남아 있어 `git log --no-merges --since=2026-06-01 -i --grep="Co-Authored-By: Claude"`로 직접 확인할 수 있습니다.
+커밋의 `Co-Authored-By: Claude` 표기는 2026년 5월 18일에 처음 붙였고, 6월부터는 거의 모든 커밋에 붙였습니다(6월 이후 병합 제외 751개 중 647개). 그 전 커밋에는 도구 표기가 없습니다. 규칙을 제가 정한 커밋에는 '오너'와 날짜를 적고, 검증 결과(`tsc`, 테스트 통과 수)도 커밋 메시지에 남깁니다. 이 표기는 공개 사본의 커밋 이력에도 그대로 남아 있어 `git log --no-merges --since="2026-06-01T00:00:00+09:00" -i --grep="Co-Authored-By: Claude"`로 직접 확인할 수 있습니다.
 
 ### AI 결과물을 검증하는 순서
 
