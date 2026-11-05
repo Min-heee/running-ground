@@ -1,5 +1,5 @@
 import { myProfile } from '@/data/mock';
-import { syncPushRegistration } from '@/lib/push/pushRegistration';
+import { resetPushRegistrationCache, syncPushRegistration } from '@/lib/push/pushRegistration';
 import type { UserProfile } from '@/domain';
 import type { AuthResponse } from '@/lib/api/types';
 import {
@@ -214,6 +214,9 @@ export function getBackendAccessToken() {
 }
 
 export async function clearSession() {
+  // 어떤 경로로 세션이 끝나든(로그아웃·탈퇴·401) 다음 로그인에서 푸시 토큰을 다시 등록하게 한다.
+  resetPushRegistrationCache();
+
   if (USE_MOCK_API) {
     mockSignedIn = false;
     mockProfile = { ...myProfile };
