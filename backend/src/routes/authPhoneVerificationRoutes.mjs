@@ -237,6 +237,10 @@ async function handleVerifyPhoneVerificationCode({
   const code = validatePhoneVerificationCode(body.code);
   const now = new Date();
   let verifiedChallenge = null;
+  // mutateStore는 mutator가 throw하면 변경을 저장하지 않는다(JSON은 저장 전에 throw, Postgres는 롤백).
+  // 시도 횟수 증가·만료/잠금 표시는 반드시 커밋돼야 하므로, 상태를 바꾼 뒤의 오류는 기록만 해 두고
+  // 저장이 끝난 다음에 던진다 — 안 그러면 attempts가 영원히 0이라 잠금이 걸리지 않는다.
+  let verifyError = null;
 
   await mutateStore((store) => {
     cleanupPhoneVerificationChallenges(store, now);
@@ -260,13 +264,15 @@ async function handleVerifyPhoneVerificationCode({
     if (!Number.isFinite(expiresAtMs) || expiresAtMs <= now.getTime()) {
       challenge.status = 'expired';
       challenge.updatedAt = now.toISOString();
-      throw new ApiError(400, '인증번호가 만료됐어요. 다시 요청해주세요.');
+      verifyError = new ApiError(400, '인증번호가 만료됐어요. 다시 요청해주세요.');
+      return;
     }
 
     if (challenge.attempts >= challenge.maxAttempts) {
       challenge.status = 'locked';
       challenge.updatedAt = now.toISOString();
-      throw new ApiError(429, '인증 시도 횟수를 초과했어요. 새 인증번호를 다시 요청해주세요.');
+      verifyError = new ApiError(429, '인증 시도 횟수를 초과했어요. 새 인증번호를 다시 요청해주세요.');
+      return;
     }
 
     if (challenge.codeHash !== hashPhoneVerificationCode(challenge.id, code)) {
@@ -275,10 +281,12 @@ async function handleVerifyPhoneVerificationCode({
 
       if (challenge.attempts >= challenge.maxAttempts) {
         challenge.status = 'locked';
-        throw new ApiError(429, '인증 시도 횟수를 초과했어요. 새 인증번호를 다시 요청해주세요.');
+        verifyError = new ApiError(429, '인증 시도 횟수를 초과했어요. 새 인증번호를 다시 요청해주세요.');
+        return;
       }
 
-      throw new ApiError(400, '인증번호가 맞지 않아요.');
+      verifyError = new ApiError(400, '인증번호가 맞지 않아요.');
+      return;
     }
 
     challenge.status = 'verified';
@@ -288,6 +296,10 @@ async function handleVerifyPhoneVerificationCode({
     challenge.updatedAt = now.toISOString();
     verifiedChallenge = challenge;
   });
+
+  if (verifyError) {
+    throw verifyError;
+  }
 
   sendJson(response, 200, buildPhoneVerificationSuccessPayload(verifiedChallenge));
 }
