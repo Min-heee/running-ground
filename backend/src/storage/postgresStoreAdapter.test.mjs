@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { mkdtempSync, readdirSync, utimesSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
 import { createPostgresStoreAdapter } from './postgresStoreAdapter.mjs';
+import { writeStoreBackupContents } from './fileStoreBackup.mjs';
 
 // ---------------------------------------------------------------------------
 // Unit tests for the mutateStore change-detection skip — the PRODUCTION hot
@@ -268,4 +272,41 @@ test('#209 a failed run_routes schema ensure degrades to embedded routes without
   assert.equal(storedRun.routeStored, undefined);
   assert.equal(database.state.runRoutes.size, 0);
   assert.equal(await adapter.getRunRoute('run-1'), null);
+});
+
+test('restoring the OLDEST backup at retention reads it before the pre-restore prune deletes it', async () => {
+  const previousDirectory = process.env.BACKEND_STORE_BACKUP_DIRECTORY;
+  const previousRetention = process.env.BACKEND_STORE_BACKUP_RETENTION;
+  const backupDirectory = join(mkdtempSync(join(tmpdir(), 'runningground-pg-restore-test-')), 'backups');
+  process.env.BACKEND_STORE_BACKUP_DIRECTORY = backupDirectory;
+  process.env.BACKEND_STORE_BACKUP_RETENTION = '2';
+
+  try {
+    const oldestPath = writeStoreBackupContents(JSON.stringify({ users: [], runs: [], restoreMarker: 'oldest' }), 'manual');
+    const past = new Date(Date.now() - 60_000);
+    utimesSync(oldestPath, past, past);
+    writeStoreBackupContents(JSON.stringify({ users: [], runs: [], restoreMarker: 'newer' }), 'manual');
+    assert.equal(readdirSync(backupDirectory).length, 2, 'backup directory is at retention');
+
+    const database = createStubDatabase({ users: [], runs: [], restoreMarker: 'live' });
+    const adapter = createPostgresStoreAdapter({ database, backupOnSave: false });
+
+    await adapter.restoreStoreBackup(basename(oldestPath));
+
+    const updates = updateQueries(database);
+    assert.equal(updates.length, 1);
+    assert.match(updates[0].params[0], /"restoreMarker":\s*"oldest"/);
+    assert.ok(readdirSync(backupDirectory).some((name) => name.includes('-pre-restore-')));
+  } finally {
+    if (previousDirectory === undefined) {
+      delete process.env.BACKEND_STORE_BACKUP_DIRECTORY;
+    } else {
+      process.env.BACKEND_STORE_BACKUP_DIRECTORY = previousDirectory;
+    }
+    if (previousRetention === undefined) {
+      delete process.env.BACKEND_STORE_BACKUP_RETENTION;
+    } else {
+      process.env.BACKEND_STORE_BACKUP_RETENTION = previousRetention;
+    }
+  }
 });

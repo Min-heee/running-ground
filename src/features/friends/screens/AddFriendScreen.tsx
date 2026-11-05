@@ -70,7 +70,7 @@ export default function AddFriendScreen() {
               editable={!submitting}
             />
           </View>
-          <PrimaryButton label={submitting ? '친구 요청 보내는 중...' : '친구 요청 보내기'} onPress={handleAddFriend} />
+          <PrimaryButton label={submitting ? '친구 요청 보내는 중...' : '친구 요청 보내기'} onPress={handleAddFriend} disabled={submitting} />
           {friendTag.length > 0 ? <Text style={styles.helperText}>입력된 태그: #{friendTag}</Text> : null}
           {added ? <Text style={styles.successText}>친구 요청을 보냈어요. 상대가 수락하면 친구 랭킹에 함께 보여줄 수 있어요.</Text> : null}
           {error ? <Text style={styles.errorText}>{error}</Text> : null}

@@ -323,7 +323,7 @@ export function startRunningMatchRoom(store, currentUser, { roomId }) {
   // linked=y. The gap between this log and each guest's first linked=y poll IS the delivery
   // latency the 로딩중 buffer must cover (measured 12-14s on 2026-07-03 → 14s buffer).
   globalThis.console.log(
-    `[arm-delivery] START room=${String(room.roomId ?? '').slice(-6)} slot=${slotStartAt}`
+    `[arm-delivery] START room=${String(room.id ?? '').slice(-6)} slot=${slotStartAt}`
     + ` participants=${room.participants.length}`,
   );
 

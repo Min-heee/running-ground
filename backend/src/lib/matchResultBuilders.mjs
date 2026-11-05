@@ -899,7 +899,9 @@ function buildResultFromSavedRuns(store, currentUser, matchId, savedRunsByUserId
       distanceKm: goalDistanceKm,
       rank: Number.isInteger(matchResult.rank) ? matchResult.rank : null,
       resultTone,
-      forfeited: resultTone === 'lose' && /기권|실격/.test(String(matchResult.badgeLabel ?? '')),
+      // 그룹은 resultTone이 항상 null이라 tone 기준으로는 기권/실격패 행이 forfeited로 안 잡혔다 —
+      // 듀얼('lose' + 기권/실격)과 그룹(배지)을 모두 다루는 저장자 본인 기권 판별을 쓴다.
+      forfeited: isSelfForfeitMatchResult(matchResult),
       // 실격패(2026-09-09): 저장된 블롭의 자진 신고/서버 스탬프에서 복원한다.
       ...(matchResult.disqualified === true ? { disqualified: true } : {}),
       isMe: run.userId === currentUser.id,

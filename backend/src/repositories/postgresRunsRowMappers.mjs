@@ -47,9 +47,9 @@ export function mapRunRow(row) {
     ...(hasValue(row.cadence_spm) ? { cadenceSpm: asNumber(row.cadence_spm) } : {}),
     ...(row.cadence_audit && typeof row.cadence_audit === 'object' ? { cadenceAudit: clone(row.cadence_audit) } : {}),
     ...(hasValue(row.elevation_gain_m) ? { elevationGainM: asNumber(row.elevation_gain_m) } : {}),
-    ...(normalizeOptionalString(row.started_at) ? { startedAt: toIsoString(row.started_at) } : {}),
-    ...(normalizeOptionalString(row.ended_at) ? { endedAt: toIsoString(row.ended_at) } : {}),
-    ...(normalizeOptionalString(row.imported_at) ? { importedAt: toIsoString(row.imported_at) } : {}),
+    ...(toIsoString(row.started_at) ? { startedAt: toIsoString(row.started_at) } : {}),
+    ...(toIsoString(row.ended_at) ? { endedAt: toIsoString(row.ended_at) } : {}),
+    ...(toIsoString(row.imported_at) ? { importedAt: toIsoString(row.imported_at) } : {}),
     createdAt: toIsoString(row.created_at),
     updatedAt: toIsoString(row.updated_at),
   };

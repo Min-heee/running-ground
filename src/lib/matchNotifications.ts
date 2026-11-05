@@ -88,7 +88,18 @@ function buildReminderBody(match: UpcomingRunningMatchItem, minutesBefore: numbe
   return `${minutesBefore}분 뒤 ${match.counterpartLabel}과 ${match.summary}가 시작돼요.`;
 }
 
-export async function syncScheduledMatchNotifications(matches: UpcomingRunningMatchItem[], enabled: boolean) {
+// 홈·런닝 탭·알림 설정이 각자 동기화를 부른다. 겹쳐 돌면 둘 다 '기존 예약 읽기 → 취소'를 먼저 끝낸 뒤
+// 각자 예약을 걸어서 같은 매치 알림이 두 번씩 울렸다(식별자는 매번 새 uuid). 직렬화해서 각 동기화가
+// 앞선 동기화의 예약까지 본 뒤 정리하게 한다.
+let matchReminderSyncQueue: Promise<void> = Promise.resolve();
+
+export function syncScheduledMatchNotifications(matches: UpcomingRunningMatchItem[], enabled: boolean): Promise<void> {
+  const run = matchReminderSyncQueue.then(() => syncScheduledMatchNotificationsNow(matches, enabled));
+  matchReminderSyncQueue = run.catch(() => undefined);
+  return run;
+}
+
+async function syncScheduledMatchNotificationsNow(matches: UpcomingRunningMatchItem[], enabled: boolean) {
   const Notifications = await getNotificationsModule();
 
   if (!Notifications) {

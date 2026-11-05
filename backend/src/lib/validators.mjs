@@ -157,6 +157,14 @@ export function validateDateOnly(value, message, now = new Date()) {
     throw new ApiError(400, '날짜는 YYYY-MM-DD 형식으로 입력해주세요.');
   }
 
+  // 정규식만으로는 2026-02-30·2026-00-10 같은 존재하지 않는 날짜가 통과해 주/월 집계 키가
+  // 'NaN-NaN'이 되거나 다음 달로 넘어간다 — integrationImportCutoff와 같은 왕복 검사로 거른다.
+  const parsedDate = new Date(`${date}T00:00:00Z`);
+
+  if (Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) {
+    throw new ApiError(400, '날짜는 YYYY-MM-DD 형식으로 입력해주세요.');
+  }
+
   const today = KST_DATE_ONLY_FORMAT.format(now);
 
   if (date > today) {

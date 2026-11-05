@@ -80,7 +80,9 @@ export function useFriendInviteSend({
           reason: 'missing room response',
           roomId: room.roomId,
         });
-        setError('친구 초대 정보를 확인하지 못했습니다. 다시 시도해주세요.');
+        // saveRoomSettings가 API 오류로 null을 줬다면 구체적인 서버 메시지(예: '친구 목록에 있는 러너만
+        // 방에 초대할 수 있어요.')를 이미 띄웠다 — 일반 문구로 덮어쓰지 않는다.
+        setError((current) => current ?? '친구 초대 정보를 확인하지 못했습니다. 다시 시도해주세요.');
         return;
       }
 

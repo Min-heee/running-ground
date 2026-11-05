@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import * as Clipboard from 'expo-clipboard';
 import type { FriendLeaderboardResponse, MyProfileResponse } from '@/lib/api/types';
 import { createFriendRequest, fetchFriendLeaderboard, fetchMyProfile, getApiErrorMessage } from '@/services';
 
@@ -24,16 +25,31 @@ export function useAddFriendScreen({ deepLinkTag }: { deepLinkTag?: string } = {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleCopy = () => {
-    if (!profile) {
+  const handleCopy = async () => {
+    if (!profile?.publicTag) {
       return;
     }
 
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    try {
+      // '복사됨'만 띄우고 실제로는 클립보드에 아무것도 안 넣던 버그 — 실제 복사 후에만 표시한다.
+      await Clipboard.setStringAsync(profile.publicTag);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // 클립보드를 쓸 수 없으면 라벨을 바꾸지 않는다.
+    }
   };
 
+  // 같은 프레임의 연타·딥링크 자동 신청과 탭이 겹쳐도 요청은 한 번만 — state(submitting)는
+  // 다음 렌더 전까지 갱신되지 않으므로 ref로 막는다 (두 번째 요청은 409로 성공 직후 오류 표시).
+  const submittingRef = useRef(false);
+
   const submitFriendTag = async (tagCode: string) => {
+    if (submittingRef.current) {
+      return;
+    }
+
+    submittingRef.current = true;
     setError(null);
     setSubmitting(true);
 
@@ -50,6 +66,7 @@ export function useAddFriendScreen({ deepLinkTag }: { deepLinkTag?: string } = {
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, '친구 요청 전송에 실패했어요.'));
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };

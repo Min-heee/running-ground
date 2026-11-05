@@ -67,6 +67,13 @@ export async function syncPushRegistration(): Promise<void> {
   }
 }
 
+// 세션이 끝날 때(로그아웃·회원 탈퇴·401 강제 로그아웃) 호출 — 다음 로그인에서 토큰을 반드시 다시
+// 올린다. 탈퇴는 서버가 토큰을 지우고, 강제 로그아웃은 clearPushRegistration을 거치지 않으므로,
+// 캐시가 남아 있으면 같은 프로세스에서 다시 로그인한 계정으로 토큰이 등록되지 않았다.
+export function resetPushRegistrationCache(): void {
+  lastRegisteredToken = null;
+}
+
 // 로그아웃 시 호출 — 이 기기로 더는 알림이 가지 않게 서버에서 토큰을 지운다.
 export async function clearPushRegistration(): Promise<void> {
   const token = lastRegisteredToken;

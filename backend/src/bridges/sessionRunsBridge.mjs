@@ -11,10 +11,6 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function normalizeOptionalString(value) {
-  return typeof value === 'string' ? value.trim() : '';
-}
-
 function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -113,9 +109,9 @@ function mapRunRow(row) {
     ...(hasValue(row.duration_seconds) ? { durationSeconds: asNumber(row.duration_seconds) } : {}),
     ...(hasValue(row.cadence_spm) ? { cadenceSpm: asNumber(row.cadence_spm) } : {}),
     ...(hasValue(row.elevation_gain_m) ? { elevationGainM: asNumber(row.elevation_gain_m) } : {}),
-    ...(normalizeOptionalString(row.started_at) ? { startedAt: toIsoString(row.started_at) } : {}),
-    ...(normalizeOptionalString(row.ended_at) ? { endedAt: toIsoString(row.ended_at) } : {}),
-    ...(normalizeOptionalString(row.imported_at) ? { importedAt: toIsoString(row.imported_at) } : {}),
+    ...(toIsoString(row.started_at) ? { startedAt: toIsoString(row.started_at) } : {}),
+    ...(toIsoString(row.ended_at) ? { endedAt: toIsoString(row.ended_at) } : {}),
+    ...(toIsoString(row.imported_at) ? { importedAt: toIsoString(row.imported_at) } : {}),
     createdAt: toIsoString(row.created_at),
     updatedAt: toIsoString(row.updated_at),
   };
