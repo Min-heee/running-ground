@@ -123,6 +123,19 @@ test('validateDateOnly still rejects a genuinely future KST date', () => {
   );
 });
 
+test('validateDateOnly rejects calendar-impossible dates that match the YYYY-MM-DD shape', () => {
+  const now = new Date('2026-11-05T03:00:00Z');
+  for (const impossible of ['2026-02-30', '2026-00-10', '2025-13-01', '2026-01-00', '2026-10-32', '2025-02-29']) {
+    assert.throws(
+      () => validateDateOnly(impossible, '날짜를 입력해주세요.', now),
+      (error) => error instanceof ApiError && error.statusCode === 400,
+      impossible,
+    );
+  }
+  assert.equal(validateDateOnly('2024-02-29', '날짜를 입력해주세요.', now), '2024-02-29');
+  assert.equal(validateDateOnly('2026-11-04', '날짜를 입력해주세요.', now), '2026-11-04');
+});
+
 test('validateDateOnly keeps rejecting tomorrow when UTC and KST agree', () => {
   const kstAfternoon = new Date('2026-07-13T06:00:00Z'); // KST 15:00 — same date both clocks
   assert.throws(
