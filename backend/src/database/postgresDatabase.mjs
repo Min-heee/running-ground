@@ -47,6 +47,12 @@ function createTransactionClient(client) {
 
 export function createPostgresDatabase(config, { PoolCtor = Pool } = {}) {
   const pool = new PoolCtor(buildPoolConfig(config));
+  // pg-pool은 유휴 클라이언트의 오류(Postgres 재시작·페일오버, 네트워크 리셋, pg_terminate_backend)를
+  // 그 클라이언트를 버린 뒤 pool의 'error' 이벤트로 다시 낸다. 리스너가 없으면 EventEmitter가 throw →
+  // uncaughtException → server.mjs가 API 프로세스를 내린다. 기록만 하고 넘어간다.
+  pool.on?.('error', (error) => {
+    console.error(`[runningground-backend] idle postgres client error (client discarded): ${error?.message ?? error}`);
+  });
   let closed = false;
 
   return {
