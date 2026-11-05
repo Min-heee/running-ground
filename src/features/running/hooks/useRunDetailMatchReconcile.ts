@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import type { RunMatchResult } from '@/domain';
 import {
@@ -76,6 +76,17 @@ export function useRunDetailMatchReconcile({
   // rewritten.
   const [terminalMatchResult, setTerminalMatchResult] = useState<RunMatchResult | null>(null);
 
+  // savedMatchResult is a NEW object after every run-detail fetch (apiGet parses fresh JSON).
+  // Listing it in the reconcile callbacks' deps re-created runReconcile on every fetch, so
+  // useFocusEffect re-ran its effect, which scheduled another MATCH_RECONCILE_RETRY_MS timer,
+  // whose loadRunDetail() produced yet another object — an endless ~95s refetch loop instead
+  // of the one-shot retry. The callbacks read the latest blob through this ref; the focus
+  // effect re-runs only when the derived reconcile inputs below actually change.
+  const savedMatchResultRef = useRef(savedMatchResult);
+  useEffect(() => {
+    savedMatchResultRef.current = savedMatchResult;
+  }, [savedMatchResult]);
+
   const savedReconcileContext = deriveSavedMatchReconcileContext(savedMatchResult);
   // Route params (post-save navigation) supply the exact slotStartAt; otherwise the backend
   // treats slotStartAt leniently when a matchId is present, so a sentinel works.
@@ -108,6 +119,7 @@ export function useRunDetailMatchReconcile({
           if (signal.cancelled) {
             return;
           }
+          const savedMatchResult = savedMatchResultRef.current;
           const reconciled = reconcileMode === 'group'
             ? reconcileGroupRunDetailMatchResultFromResult({ matchResult: savedMatchResult, result })
             : reconcileDuelRunDetailMatchResultFromResult({ matchResult: savedMatchResult, result });
@@ -128,6 +140,7 @@ export function useRunDetailMatchReconcile({
           const notFound = isApiError(cause) && cause.status === 404;
           const recordAtMs = runRecordTimestamp ? Date.parse(runRecordTimestamp) : NaN;
           const pendingAgeMs = Number.isFinite(recordAtMs) ? Date.now() - recordAtMs : null;
+          const savedMatchResult = savedMatchResultRef.current;
           if (
             savedMatchResult
             && shouldTerminalizeUnresolvedMatchResult({
@@ -142,7 +155,7 @@ export function useRunDetailMatchReconcile({
           // MatchResultNotResolvedError without a terminal signal → stay pending.
         });
     },
-    [reconcileMatchId, reconcileMode, runRecordTimestamp, savedMatchResult],
+    [reconcileMatchId, reconcileMode, runRecordTimestamp],
   );
 
   // A single reconcile pass: re-query the official status, reconcile the saved record, and
@@ -163,6 +176,7 @@ export function useRunDetailMatchReconcile({
           if (signal.cancelled) {
             return;
           }
+          const savedMatchResult = savedMatchResultRef.current;
           const reconciled = reconcileMode === 'group'
             ? reconcileGroupRunDetailMatchResult({ matchResult: savedMatchResult, status })
             : reconcileDuelRunDetailMatchResult({ matchResult: savedMatchResult, status });
@@ -186,7 +200,6 @@ export function useRunDetailMatchReconcile({
       reconcileMode,
       reconcileSlotStartAt,
       runResultFallback,
-      savedMatchResult,
       shouldReconcileMatch,
     ],
   );
