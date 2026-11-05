@@ -576,13 +576,15 @@ export function restoreStoreBackup(backupFileNameOrPath) {
     throw new Error(`백업 파일을 찾을 수 없어: ${backupFileNameOrPath}`);
   }
 
+  // 복원 대상을 'pre-restore' 스냅샷보다 먼저 읽는다 — 스냅샷이 보존 개수 정리(prune)를 돌리므로,
+  // 대상이 가장 오래된 백업이면 읽기 전에 지워져 복원이 ENOENT로 실패하고 백업도 사라졌다.
+  const backupContents = readFileSync(backupPath, 'utf8');
   const currentStoreContents = existsSync(storeFilePath) ? readFileSync(storeFilePath, 'utf8') : '';
 
   if (currentStoreContents.trim()) {
     createStoreBackupFromContents(currentStoreContents, 'pre-restore');
   }
 
-  const backupContents = readFileSync(backupPath, 'utf8');
   writeStoreFileAtomic(storeFilePath, backupContents);
   cachedStore = null;
   cachedSerializedStore = null;

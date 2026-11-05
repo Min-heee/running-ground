@@ -479,11 +479,13 @@ export function createPostgresStoreAdapter(options = {}) {
 
   // Restore the whole-store from a previously written on-disk backup file into the canonical row.
   async function restoreStoreBackup(backupFileNameOrPath) {
-    // Snapshot the current store before overwriting (pre-restore safety), mirroring the json path.
-    await createStoreBackup('pre-restore');
-
+    // Read the target BEFORE the pre-restore snapshot: the snapshot's retention prune would
+    // otherwise delete the target when it is the oldest backup (ENOENT, backup lost).
     const backupContents = readStoreBackupContents(backupFileNameOrPath);
     const restoredStore = JSON.parse(backupContents);
+
+    // Snapshot the current store before overwriting (pre-restore safety), mirroring the json path.
+    await createStoreBackup('pre-restore');
     return saveStore(restoredStore);
   }
 
