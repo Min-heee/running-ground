@@ -156,6 +156,8 @@ export function createJsonAdminRepository({
         store.friendRequests = store.friendRequests.filter((entry) => entry.requesterId !== userId && entry.receiverId !== userId);
         store.rewardRedemptions = (store.rewardRedemptions ?? []).filter((entry) => entry.userId !== userId);
         store.integrationImports = ensureIntegrationImports(store).filter((entry) => entry.userId !== userId);
+        // 본인 탈퇴(authRepository)와 같이 실시간 위치 공유도 지운다 — 남기면 삭제된 사용자의 마지막 위치가 저장소에 남는다.
+        store.liveRunShares = (store.liveRunShares ?? []).filter((entry) => entry.userId !== userId);
         // 문의(자유서술 PII)와 인박스 알림도 함께 파기 — 유저 탈퇴 경로와 동일 계약.
         removeUserInquiries(store, userId);
         removeUserPushTokens(store, userId);
