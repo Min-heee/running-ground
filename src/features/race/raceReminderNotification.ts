@@ -88,9 +88,14 @@ export async function scheduleRaceReminder(input: {
         content: {
           title: copy.title,
           body: copy.body,
-          ...({ channelId: RACE_REMINDER_CHANNEL_ID } as object),
         },
-        trigger: { date: new Date(entry.atMs) } as never,
+        // expo-notifications 0.32는 type(또는 channelId)이 없는 trigger에 TypeError를 던진다 —
+        // 바깥 catch가 삼켜서 대회 알림이 하나도 예약되지 않았다. matchNotifications와 같은 형식.
+        trigger: {
+          type: notifications.SchedulableTriggerInputTypes.DATE,
+          date: new Date(entry.atMs),
+          channelId: RACE_REMINDER_CHANNEL_ID,
+        },
       });
     }
     return true;
