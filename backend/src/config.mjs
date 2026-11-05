@@ -68,6 +68,12 @@ function parseBoolean(value, defaultValue = false) {
 }
 
 function parseNumber(value, defaultValue) {
+  // Number('')는 0이다 — compose의 `${VAR:-}`처럼 빈 값으로 넘어온 변수를 '미설정'이 아니라 0으로
+  // 읽어 인증번호 TTL·시도 횟수 등이 최솟값으로 눌렸다. 빈 문자열은 기본값으로 본다.
+  if (typeof value !== 'string' || !value.trim()) {
+    return defaultValue;
+  }
+
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : defaultValue;
 }
