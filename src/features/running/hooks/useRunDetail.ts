@@ -40,7 +40,12 @@ export function useRunDetail({
   // the resolved verdict without depending on the status-endpoint reconcile.
   const loadRunDetail = useCallback(() => {
     return fetchRunDetail({ runId, friendId })
-      .then((data) => setRunDetail(data))
+      .then((data) => {
+        setRunDetail(data);
+        // A later successful (focus/retry) refetch must clear an earlier transient failure —
+        // the screen renders `error` even alongside loaded content.
+        setError(null);
+      })
       .catch((loadError) => setError(getApiErrorMessage(loadError, '기록 상세 정보를 불러오지 못했어요.')))
       .finally(() => setLoading(false));
   }, [friendId, runId]);
